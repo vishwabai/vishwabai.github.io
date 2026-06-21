@@ -1,0 +1,1803 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MicroGPT — Visual Code Explainer</title>
+<style>
+/* ── DESIGN TOKENS ───────────────────────────────────────────────────── */
+:root{
+  --bg:#04050c;
+  --bg2:#080a14;
+  --bg3:#0d1020;
+  --card:#0e1018;
+  --bd:#1a1d2e;
+  --bd2:#252840;
+  --tx:#dce2f5;
+  --dim:#48527a;
+  --dim2:#6a738f;
+  --ac:#7fff00;    /* acid lime — the one bold accent */
+  --ac2:#00d4ff;   /* electric cyan */
+  --ac3:#c77dff;   /* soft violet */
+  --warn:#ffb347;
+  --red:#ff5370;
+  --mono:Consolas,'Courier New',monospace;
+  --sans:system-ui,-apple-system,sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg);color:var(--tx);
+  font-family:var(--sans);font-size:14px;line-height:1.65;
+  scrollbar-width:thin;scrollbar-color:var(--bd2) transparent;
+  overflow-x:hidden;
+}
+
+/* ── TOP NAV ─────────────────────────────────────────────────────────── */
+.topbar{
+  position:sticky;top:0;z-index:1000;
+  height:52px;
+  background:rgba(4,5,12,.97);
+  backdrop-filter:blur(20px);
+  border-bottom:1px solid var(--bd);
+  display:flex;align-items:center;
+  padding:0 24px;gap:0;
+}
+.tb-logo{
+  font-family:var(--mono);font-size:12px;font-weight:700;
+  background:linear-gradient(135deg,var(--ac),var(--ac2));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  white-space:nowrap;margin-right:28px;letter-spacing:.06em;
+}
+.tb-nav{
+  display:flex;gap:0;overflow-x:auto;scrollbar-width:none;flex:1;
+}
+.tb-nav::-webkit-scrollbar{display:none}
+.tbn{
+  padding:0 14px;height:52px;display:flex;align-items:center;
+  font-family:var(--mono);font-size:11px;color:var(--dim);
+  cursor:pointer;white-space:nowrap;
+  border-bottom:2px solid transparent;
+  transition:all .15s;letter-spacing:.02em;
+}
+.tbn:hover{color:var(--tx)}
+.tbn.on{color:var(--ac);border-bottom-color:var(--ac)}
+.tb-params{
+  margin-left:auto;font-family:var(--mono);font-size:11px;
+  color:var(--dim2);white-space:nowrap;
+  display:flex;align-items:center;gap:6px;
+}
+.tb-badge{
+  background:rgba(127,255,0,.08);border:1px solid rgba(127,255,0,.2);
+  border-radius:4px;padding:2px 8px;color:var(--ac);font-size:10px;
+}
+
+/* progress bar */
+.toprog{height:2px;background:var(--bd);position:sticky;top:52px;z-index:999}
+.toprog-fill{height:100%;width:11.11%;background:linear-gradient(90deg,var(--ac),var(--ac2));
+  transition:width .3s cubic-bezier(.4,0,.2,1);
+  box-shadow:0 0 8px rgba(127,255,0,.4)}
+
+/* ── PAGES ───────────────────────────────────────────────────────────── */
+.page{display:none;min-height:calc(100vh - 54px)}
+.page.on{display:block}
+
+/* ── HERO SECTION ────────────────────────────────────────────────────── */
+.hero{
+  padding:56px 24px 40px;
+  background:
+    radial-gradient(ellipse 60% 80% at 20% 50%,rgba(127,255,0,.04) 0%,transparent 70%),
+    radial-gradient(ellipse 60% 80% at 80% 50%,rgba(0,212,255,.03) 0%,transparent 70%);
+}
+.hero-eyebrow{
+  font-family:var(--mono);font-size:10px;color:var(--ac);
+  letter-spacing:.2em;text-transform:uppercase;margin-bottom:12px;
+}
+.hero-h1{
+  font-size:clamp(28px,4vw,52px);font-weight:900;line-height:1.05;
+  letter-spacing:-.025em;color:#fff;margin-bottom:10px;
+}
+.hero-h1 em{
+  font-style:normal;
+  background:linear-gradient(135deg,var(--ac),var(--ac2));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+}
+.hero-sub{font-size:13px;color:var(--dim2);max-width:520px;line-height:1.75;margin-bottom:0}
+
+/* ── BODY LAYOUT ─────────────────────────────────────────────────────── */
+.body{max-width:1160px;margin:0 auto;padding:24px 24px 80px}
+.sec-title{
+  font-family:var(--mono);font-size:10px;font-weight:700;
+  letter-spacing:.14em;text-transform:uppercase;
+  color:var(--dim);margin-bottom:6px;
+}
+.sec-h{
+  font-size:24px;font-weight:800;color:#fff;
+  letter-spacing:-.02em;margin-bottom:6px;line-height:1.15;
+}
+.sec-sub{font-size:13px;color:var(--dim2);line-height:1.75;margin-bottom:22px;max-width:640px}
+
+/* ── CANVAS STAGE ────────────────────────────────────────────────────── */
+.stage{
+  background:var(--card);
+  border:1px solid var(--bd);
+  border-radius:12px;
+  margin-bottom:16px;
+  overflow:hidden;
+  position:relative;
+}
+.stage canvas{display:block;width:100%}
+.stage-label{
+  position:absolute;top:10px;left:14px;
+  font-family:var(--mono);font-size:9.5px;color:var(--bd2);
+  letter-spacing:.06em;
+}
+
+/* ── STEP BUTTONS ────────────────────────────────────────────────────── */
+.steps{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.sbtn{
+  padding:5px 14px;font-family:var(--mono);font-size:11px;
+  border:1px solid var(--bd2);border-radius:5px;
+  background:var(--bg3);color:var(--dim);
+  cursor:pointer;transition:all .13s;letter-spacing:.02em;
+}
+.sbtn:hover{border-color:var(--ac);color:var(--tx)}
+.sbtn.on{
+  background:rgba(127,255,0,.1);
+  border-color:rgba(127,255,0,.5);
+  color:var(--ac);font-weight:700;
+}
+
+/* ── DESC BOX ────────────────────────────────────────────────────────── */
+.desc{
+  background:var(--bg3);
+  border:1px solid var(--bd);
+  border-left:3px solid var(--ac);
+  border-radius:7px;
+  padding:11px 15px;
+  font-size:12.5px;color:var(--dim2);
+  line-height:1.75;margin-bottom:18px;
+  min-height:44px;
+}
+.desc strong{color:var(--tx)}
+.desc code{
+  font-family:var(--mono);font-size:11.5px;
+  background:var(--bd);padding:1px 5px;border-radius:3px;color:var(--ac2);
+}
+
+/* ── GRID ────────────────────────────────────────────────────────────── */
+.grid{display:grid;gap:14px;margin-bottom:18px}
+.grid.g2{grid-template-columns:1fr 1fr}
+.grid.g3{grid-template-columns:1fr 1fr 1fr}
+@media(max-width:800px){.grid.g3,.grid.g2{grid-template-columns:1fr}}
+
+.card{
+  background:var(--card);
+  border:1px solid var(--bd);
+  border-radius:10px;
+  padding:18px;
+  position:relative;overflow:hidden;
+}
+.card::after{content:'';position:absolute;top:0;left:0;right:0;height:1.5px}
+.card.ca::after{background:var(--ac)}
+.card.cb::after{background:var(--ac2)}
+.card.cc::after{background:var(--ac3)}
+.card.cd::after{background:var(--warn)}
+
+.clabel{
+  font-family:var(--mono);font-size:9px;font-weight:700;
+  letter-spacing:.14em;text-transform:uppercase;margin-bottom:10px;
+}
+.card.ca .clabel{color:var(--ac)}
+.card.cb .clabel{color:var(--ac2)}
+.card.cc .clabel{color:var(--ac3)}
+.card.cd .clabel{color:var(--warn)}
+
+.card p{font-size:12.5px;color:var(--dim2);line-height:1.75}
+.card p strong{color:var(--tx)}
+.card p code{
+  font-family:var(--mono);font-size:11px;
+  background:rgba(255,255,255,.05);padding:1px 4px;border-radius:3px;color:var(--ac2);
+}
+.eq{
+  font-family:var(--mono);font-size:12px;color:var(--warn);
+  background:rgba(255,179,71,.07);border:1px solid rgba(255,179,71,.15);
+  border-radius:5px;padding:10px 13px;margin:8px 0;line-height:1.85;
+  overflow-x:auto;
+}
+
+/* ── CODE BLOCK ──────────────────────────────────────────────────────── */
+.codeblock{
+  background:#060810;
+  border:1px solid var(--bd);border-radius:10px;
+  padding:18px 20px;
+  font-family:var(--mono);font-size:12px;line-height:1.9;
+  overflow-x:auto;margin-bottom:18px;position:relative;
+}
+.codeblock .cl{color:#c792ea}  /* keyword */
+.codeblock .cf{color:#82aaff}  /* function */
+.codeblock .cs{color:#c3e88d}  /* string */
+.codeblock .cm{color:#3e4a5a;font-style:italic} /* comment */
+.codeblock .cn{color:#f78c6c}  /* number */
+.codeblock .ck{color:#ffcb6b}  /* class */
+.codeblock .h1{background:rgba(127,255,0,.12);border-radius:3px;padding:0 2px} /* lime hl */
+.codeblock .h2{background:rgba(0,212,255,.1);border-radius:3px;padding:0 2px}  /* cyan hl */
+.codeblock .h3{background:rgba(255,179,71,.12);border-radius:3px;padding:0 2px} /* warn hl */
+.codeblock .h4{background:rgba(199,125,255,.1);border-radius:3px;padding:0 2px} /* violet hl */
+.code-tag{
+  position:absolute;top:10px;right:14px;
+  font-size:9px;color:var(--bd2);letter-spacing:.08em;
+}
+
+/* ── INSIGHT BOX ─────────────────────────────────────────────────────── */
+.insight{
+  background:rgba(127,255,0,.04);
+  border:1px solid rgba(127,255,0,.15);
+  border-radius:8px;padding:13px 16px;margin-bottom:18px;
+}
+.insight-tag{
+  font-family:var(--mono);font-size:9px;font-weight:700;
+  letter-spacing:.14em;color:var(--ac);margin-bottom:5px;
+}
+.insight p{font-size:12.5px;color:var(--dim2);line-height:1.75}
+.insight strong{color:var(--ac)}
+
+/* ── PARAM TABLE ─────────────────────────────────────────────────────── */
+.ptbl{width:100%;border-collapse:collapse;font-size:12px;font-family:var(--mono)}
+.ptbl th{color:var(--dim);font-weight:600;text-align:left;
+  padding:6px 10px;border-bottom:1px solid var(--bd);font-size:9.5px;letter-spacing:.1em}
+.ptbl td{padding:7px 10px;border-bottom:1px solid var(--bd);color:var(--tx);vertical-align:top}
+.ptbl tr:last-child td{border-bottom:none}
+.ptbl .hl{color:var(--ac);font-weight:700}
+.ptbl .hl2{color:var(--ac2)}
+.ptbl .hl3{color:var(--ac3)}
+.ptbl .sm{color:var(--dim2);font-size:11px}
+
+/* ── SLIDER ──────────────────────────────────────────────────────────── */
+.slrow{display:flex;align-items:center;gap:10px;margin:4px 0;font-size:11.5px}
+.slrow label{font-family:var(--mono);min-width:120px;color:var(--dim2)}
+.slrow input{flex:1;accent-color:var(--ac);cursor:pointer}
+.slrow span{font-family:var(--mono);font-weight:700;color:var(--ac);min-width:44px;text-align:right}
+
+/* ── DIVIDER ─────────────────────────────────────────────────────────── */
+.div{height:1px;background:var(--bd);margin:28px 0}
+
+/* ── FOOTER ──────────────────────────────────────────────────────────── */
+.footer{
+  border-top:1px solid var(--bd);padding:24px;
+  text-align:center;font-family:var(--mono);
+  font-size:11px;color:var(--dim);
+}
+</style>
+</head>
+<body>
+
+<!-- ══ TOP NAV ══════════════════════════════════════════════════════════ -->
+<nav class="topbar">
+  <div class="tb-logo">🧬 MICROGPT</div>
+  <div class="tb-nav">
+    <div class="tbn on"  id="tbn0" onclick="goto(0,this)">Hyperparams</div>
+    <div class="tbn"     id="tbn1" onclick="goto(1,this)">Data</div>
+    <div class="tbn"     id="tbn2" onclick="goto(2,this)">Attention</div>
+    <div class="tbn"     id="tbn3" onclick="goto(3,this)">Multi-Head</div>
+    <div class="tbn"     id="tbn4" onclick="goto(4,this)">FFN</div>
+    <div class="tbn"     id="tbn5" onclick="goto(5,this)">Block</div>
+    <div class="tbn"     id="tbn6" onclick="goto(6,this)">Full Model</div>
+    <div class="tbn"     id="tbn7" onclick="goto(7,this)">Training</div>
+    <div class="tbn"     id="tbn8" onclick="goto(8,this)">Generation</div>
+  </div>
+  <div class="tb-params">
+    <span id="tb_p">~200k</span><span class="tb-badge">params</span>
+  </div>
+</nav>
+<div class="toprog"><div class="toprog-fill" id="toprog"></div></div>
+
+
+<!-- ══ PAGE 0: HYPERPARAMETERS ═══════════════════════════════════════ -->
+<div class="page on" id="p0">
+<div class="hero">
+  <div class="hero-eyebrow">Section 01 / 09</div>
+  <h1 class="hero-h1">Hyperparameters<br><em>The dials before training</em></h1>
+  <p class="hero-sub">Nine numbers that define the model's size, memory, and learning dynamics — before a single gradient is computed.</p>
+</div>
+<div class="body">
+  <div class="stage"><canvas id="c0" height="220"></canvas><div class="stage-label">PARAM BUDGET VISUALIZER</div></div>
+  <div class="steps" id="s0"></div>
+  <div class="desc" id="d0"></div>
+  <div class="grid g3">
+    <div class="card ca">
+      <div class="clabel">▸ BATCH &amp; CONTEXT</div>
+      <p><strong>batch_size = 32</strong> — sequences processed in parallel per gradient update. More = stable gradients, more memory.<br><br><strong>block_size = 128</strong> — the context window: maximum tokens the model sees at once. Attention cost = O(T²).</p>
+    </div>
+    <div class="card cb">
+      <div class="clabel">▸ ARCHITECTURE SIZE</div>
+      <p><strong>n_embd = 64</strong> — every internal vector is exactly this wide. <br><strong>n_head = 4</strong> — 4 attention heads, each 16-dim.<br><strong>n_layer = 4</strong> — transformer blocks stacked.</p>
+      <div class="eq">head_size = n_embd / n_head = 16</div>
+    </div>
+    <div class="card cc">
+      <div class="clabel">▸ INTERACTIVE SLIDERS</div>
+      <div class="slrow"><label>n_embd</label><input type="range" min="32" max="512" step="32" value="64" id="sl_e" oninput="hp_update()"><span id="sv_e">64</span></div>
+      <div class="slrow"><label>n_layer</label><input type="range" min="1" max="12" step="1"  value="4"  id="sl_l" oninput="hp_update()"><span id="sv_l">4</span></div>
+      <div class="slrow"><label>n_head</label><input type="range" min="1" max="8"  step="1"  value="4"  id="sl_h" oninput="hp_update()"><span id="sv_h">4</span></div>
+      <div class="slrow"><label>block_size</label><input type="range" min="32" max="1024" step="32" value="128" id="sl_c" oninput="hp_update()"><span id="sv_c">128</span></div>
+      <p style="margin-top:10px;font-family:var(--mono);font-size:12px;color:var(--dim2)">
+        Params: <strong id="hp_p" style="color:var(--ac)">~200k</strong><br>
+        Ctx mem: <strong id="hp_m" style="color:var(--ac2)">1.0 MB</strong>
+      </p>
+    </div>
+  </div>
+  <div class="codeblock"><span class="code-tag">PYTHON</span>
+<span class="h1">batch_size = 32</span>       <span class="cm"># sequences per gradient update</span>
+<span class="h1">block_size = 128</span>      <span class="cm"># context window length (tokens)</span>
+<span class="h2">n_embd     = 64</span>       <span class="cm"># embedding / hidden dimension</span>
+<span class="h2">n_head     = 4</span>        <span class="cm"># parallel attention heads</span>
+<span class="h2">n_layer    = 4</span>        <span class="cm"># transformer blocks to stack</span>
+dropout    = <span class="cn">0.1</span>       <span class="cm"># fraction zeroed during training</span>
+lr         = <span class="cn">3e-4</span>      <span class="cm"># AdamW learning rate</span>
+max_steps  = <span class="cn">5000</span>      <span class="cm"># total gradient updates</span>
+device = <span class="cs">'cuda'</span> <span class="cl">if</span> torch.cuda.<span class="cf">is_available</span>() <span class="cl">else</span> <span class="cs">'cpu'</span>
+</div>
+</div></div>
+
+<!-- ══ PAGE 1: DATA ══════════════════════════════════════════════════ -->
+<div class="page" id="p1">
+<div class="hero">
+  <div class="hero-eyebrow">Section 02 / 09</div>
+  <h1 class="hero-h1">Data Pipeline<br><em>From raw text to tensor pairs</em></h1>
+  <p class="hero-sub">Character-level tokenization and a sliding window that extracts 128 training signals from every single window.</p>
+</div>
+<div class="body">
+  <div class="stage"><canvas id="c1" height="240"></canvas><div class="stage-label">DATA FLOW</div></div>
+  <div class="steps" id="s1"></div>
+  <div class="desc" id="d1"></div>
+  <div class="grid g3">
+    <div class="card ca">
+      <div class="clabel">▸ TOKENIZER</div>
+      <p>Character-level: every unique character is one token. Shakespeare has <strong>65 unique chars</strong> → vocab_size = 65. Simple and complete — no out-of-vocabulary tokens possible.</p>
+    </div>
+    <div class="card cb">
+      <div class="clabel">▸ SLIDING WINDOW</div>
+      <div class="eq">x = text[i : i+T]
+y = text[i+1 : i+T+1]</div>
+      <p>x and y are the same window, shifted by 1. At every position the model must predict the next char. <strong>128 tokens → 128 training signals</strong>.</p>
+    </div>
+    <div class="card cc">
+      <div class="clabel">▸ 90 / 10 SPLIT</div>
+      <p>~900k tokens for training, ~100k held out for validation. Validation is never trained on — it measures <strong>generalisation</strong>. The split is a simple array slice, no shuffling.</p>
+    </div>
+  </div>
+  <div class="codeblock"><span class="code-tag">PYTHON</span>
+<span class="cl">with</span> <span class="cf">open</span>(<span class="cs">'input.txt'</span>) <span class="cl">as</span> f: text = f.<span class="cf">read</span>()
+chars      = <span class="cf">sorted</span>(<span class="cf">set</span>(text))           <span class="cm"># 65 unique chars</span>
+vocab_size = <span class="cf">len</span>(chars)
+stoi       = {c:i <span class="cl">for</span> i,c <span class="cl">in</span> <span class="cf">enumerate</span>(chars)}
+<span class="h1">encode</span> = <span class="cl">lambda</span> s: [stoi[c] <span class="cl">for</span> c <span class="cl">in</span> s]   <span class="cm"># "Hi" → [35,46]</span>
+<span class="h1">decode</span> = <span class="cl">lambda</span> l: <span class="cs">''</span>.<span class="cf">join</span>([chars[i] <span class="cl">for</span> i <span class="cl">in</span> l])
+
+data = torch.<span class="cf">tensor</span>(<span class="cf">encode</span>(text), dtype=torch.long)  <span class="cm"># (1M,)</span>
+n = <span class="cf">int</span>(<span class="cn">0.9</span>*<span class="cf">len</span>(data))
+train_data, val_data = data[:n], data[n:]
+
+<span class="cl">def</span> <span class="cf">get_batch</span>(split):
+    d  = train_data <span class="cl">if</span> split==<span class="cs">'train'</span> <span class="cl">else</span> val_data
+    ix = torch.<span class="cf">randint</span>(<span class="cf">len</span>(d)-block_size, (batch_size,))
+    <span class="h2">x  = torch.<span class="cf">stack</span>([d[i:i+block_size]     <span class="cl">for</span> i <span class="cl">in</span> ix])</span>  <span class="cm"># (32,128)</span>
+    <span class="h2">y  = torch.<span class="cf">stack</span>([d[i+<span class="cn">1</span>:i+block_size+<span class="cn">1</span>] <span class="cl">for</span> i <span class="cl">in</span> ix])</span>  <span class="cm"># (32,128) shifted+1</span>
+    <span class="cl">return</span> x.<span class="cf">to</span>(device), y.<span class="cf">to</span>(device)
+</div>
+</div></div>
+
+<!-- ══ PAGE 2: ATTENTION HEAD ═══════════════════════════════════════ -->
+<div class="page" id="p2">
+<div class="hero">
+  <div class="hero-eyebrow">Section 03 / 09</div>
+  <h1 class="hero-h1">Attention Head<br><em>Tokens learning to listen</em></h1>
+  <p class="hero-sub">Query asks, Key offers, Value delivers. Dot-products decide who gets heard. The causal mask ensures nothing can see the future.</p>
+</div>
+<div class="body">
+  <div class="stage"><canvas id="c2" height="300"></canvas><div class="stage-label">SCALED DOT-PRODUCT ATTENTION</div></div>
+  <div class="steps" id="s2"></div>
+  <div class="desc" id="d2"></div>
+  <div class="grid g3">
+    <div class="card ca">
+      <div class="clabel">▸ Q · K · V</div>
+      <p><strong>Query</strong> — "what am I looking for?"<br><strong>Key</strong> — "what do I contain?"<br><strong>Value</strong> — "what do I share if attended to?"<br>Three separate Linear(64→16) projections, no bias.</p>
+    </div>
+    <div class="card cb">
+      <div class="clabel">▸ SCALED DOT PRODUCT</div>
+      <div class="eq">score = Q · Kᵀ / √dₖ</div>
+      <p>Without √dₖ = √16, large dims push scores into softmax's flat region (near-zero gradients). The scaling keeps variance stable regardless of head size.</p>
+    </div>
+    <div class="card cc">
+      <div class="clabel">▸ CAUSAL MASK</div>
+      <p><code>torch.tril</code> makes a lower-triangular matrix of 1s. Upper triangle positions → <strong>−∞</strong> → 0 after softmax. Position 5 cannot see 6, 7, … — enforces left-to-right generation.</p>
+    </div>
+  </div>
+  <div class="codeblock"><span class="code-tag">PYTHON</span>
+<span class="cl">class</span> <span class="ck">Head</span>(nn.<span class="ck">Module</span>):
+  <span class="cl">def</span> <span class="cf">__init__</span>(self, hs):                  <span class="cm"># hs = 64//4 = 16</span>
+    <span class="cf">super</span>().__init__()
+    self.q = nn.<span class="ck">Linear</span>(n_embd, hs, bias=<span class="cl">False</span>)
+    self.k = nn.<span class="ck">Linear</span>(n_embd, hs, bias=<span class="cl">False</span>)
+    self.v = nn.<span class="ck">Linear</span>(n_embd, hs, bias=<span class="cl">False</span>)
+    <span class="h1">self.<span class="cf">register_buffer</span>(<span class="cs">'mask'</span>, torch.<span class="cf">tril</span>(torch.<span class="cf">ones</span>(block_size,block_size)))</span>
+    self.drop = nn.<span class="ck">Dropout</span>(dropout)
+
+  <span class="cl">def</span> <span class="cf">forward</span>(self, x):               <span class="cm"># x: (B, T, 64)</span>
+    B,T,C = x.shape
+    q,k,v = self.<span class="cf">q</span>(x), self.<span class="cf">k</span>(x), self.<span class="cf">v</span>(x)    <span class="cm"># each (B,T,16)</span>
+    <span class="h2">sc = q @ k.<span class="cf">transpose</span>(-2,-1) * k.shape[-1]**-0.5</span>  <span class="cm"># (B,T,T)</span>
+    <span class="h3">sc = sc.<span class="cf">masked_fill</span>(self.mask[:T,:T]==0, <span class="cf">float</span>(<span class="cs">'-inf'</span>))</span>
+    w  = self.drop(F.<span class="cf">softmax</span>(sc, dim=-1))
+    <span class="cl">return</span> w @ v                                        <span class="cm"># (B,T,16)</span>
+</div>
+</div></div>
+
+<!-- ══ PAGE 3: MULTI-HEAD ════════════════════════════════════════════ -->
+<div class="page" id="p3">
+<div class="hero">
+  <div class="hero-eyebrow">Section 04 / 09</div>
+  <h1 class="hero-h1">Multi-Head Attention<br><em>Four lenses on the same sequence</em></h1>
+  <p class="hero-sub">Independent heads, each 16-dimensional, specialize in different relationship types. Concatenate then project back — mixing their findings.</p>
+</div>
+<div class="body">
+  <div class="stage"><canvas id="c3" height="260"></canvas><div class="stage-label">MULTI-HEAD ATTENTION</div></div>
+  <div class="steps" id="s3"></div>
+  <div class="desc" id="d3"></div>
+  <div class="grid g3">
+    <div class="card ca">
+      <div class="clabel">▸ WHY MULTIPLE?</div>
+      <p>One head can only attend to one "type" of pattern. Four heads let the model simultaneously track syntax, co-reference, semantics, and positional context — each head specializes <strong>emergently during training</strong>.</p>
+    </div>
+    <div class="card cb">
+      <div class="clabel">▸ DIMENSION MATH</div>
+      <div class="eq">head_size = 64 / 4 = 16
+cat([h₁,h₂,h₃,h₄]) → (B,T,64)
+proj: Linear(64,64) → (B,T,64)</div>
+    </div>
+    <div class="card cc">
+      <div class="clabel">▸ PROJECTION</div>
+      <p>After concatenation, <code>proj</code> Linear(64→64) lets the model mix information <em>across</em> heads. Without it, heads are isolated — their outputs are just stacked, not combined.</p>
+    </div>
+  </div>
+  <div class="codeblock"><span class="code-tag">PYTHON</span>
+<span class="cl">class</span> <span class="ck">MultiHead</span>(nn.<span class="ck">Module</span>):
+  <span class="cl">def</span> <span class="cf">__init__</span>(self, n_head, hs):
+    <span class="cf">super</span>().__init__()
+    <span class="h1">self.heads = nn.<span class="ck">ModuleList</span>([<span class="ck">Head</span>(hs) <span class="cl">for</span> _ <span class="cl">in</span> <span class="cf">range</span>(n_head)])</span>
+    self.proj  = nn.<span class="ck">Linear</span>(n_head*hs, n_embd)   <span class="cm"># mix across heads</span>
+    self.drop  = nn.<span class="ck">Dropout</span>(dropout)
+
+  <span class="cl">def</span> <span class="cf">forward</span>(self, x):
+    <span class="h2">out = torch.<span class="cf">cat</span>([h(x) <span class="cl">for</span> h <span class="cl">in</span> self.heads], dim=-1)</span>  <span class="cm"># (B,T,64)</span>
+    <span class="cl">return</span> self.drop(self.<span class="cf">proj</span>(out))
+</div>
+</div></div>
+
+<!-- ══ PAGE 4: FFN ════════════════════════════════════════════════════ -->
+<div class="page" id="p4">
+<div class="hero">
+  <div class="hero-eyebrow">Section 05 / 09</div>
+  <h1 class="hero-h1">Feed-Forward Network<br><em>Per-token computation</em></h1>
+  <p class="hero-sub">After attention mixes across tokens, the FFN processes each token in isolation. Expand 4×, activate with GELU, contract. This is where most parameters live.</p>
+</div>
+<div class="body">
+  <div class="stage"><canvas id="c4" height="260"></canvas><div class="stage-label">FEED-FORWARD NETWORK</div></div>
+  <div class="steps" id="s4"></div>
+  <div class="desc" id="d4"></div>
+  <div class="grid g3">
+    <div class="card ca">
+      <div class="clabel">▸ 4× EXPANSION</div>
+      <p>64 → 256 → 64. The expansion factor of 4 is a GPT standard. <strong>Most parameters live here</strong>: 64×256 + 256×64 = 32,768 per FFN × 4 blocks = 131k params — 65% of the whole model.</p>
+    </div>
+    <div class="card cb">
+      <div class="clabel">▸ GELU ACTIVATION</div>
+      <div class="eq">GELU(x) = x · Φ(x)</div>
+      <p>Smoother than ReLU: allows small negative values through. Φ(x) is the Gaussian CDF. In practice ~0.1 nats better loss on language tasks for no extra compute.</p>
+    </div>
+    <div class="card cc">
+      <div class="clabel">▸ POSITION-INDEPENDENT</div>
+      <p>Unlike attention, FFN has <strong>no cross-token mixing</strong>. Each of the T tokens is transformed identically in isolation. Think of it as: attention = routing, FFN = thinking.</p>
+    </div>
+  </div>
+  <div class="codeblock"><span class="code-tag">PYTHON</span>
+<span class="cl">class</span> <span class="ck">FFN</span>(nn.<span class="ck">Module</span>):
+  <span class="cl">def</span> <span class="cf">__init__</span>(self):
+    <span class="cf">super</span>().__init__()
+    self.net = nn.<span class="ck">Sequential</span>(
+      <span class="h1">nn.<span class="ck">Linear</span>(n_embd, 4*n_embd),</span>   <span class="cm"># 64 → 256  expand</span>
+      <span class="h2">nn.<span class="ck">GELU</span>(),</span>                       <span class="cm"># smooth nonlinearity</span>
+      <span class="h1">nn.<span class="ck">Linear</span>(4*n_embd, n_embd),</span>   <span class="cm"># 256 → 64  contract</span>
+      nn.<span class="ck">Dropout</span>(dropout))
+  <span class="cl">def</span> <span class="cf">forward</span>(self, x): <span class="cl">return</span> self.net(x)
+</div>
+</div></div>
+
+<!-- ══ PAGE 5: BLOCK ══════════════════════════════════════════════════ -->
+<div class="page" id="p5">
+<div class="hero">
+  <div class="hero-eyebrow">Section 06 / 09</div>
+  <h1 class="hero-h1">Transformer Block<br><em>Attention + FFN + residuals</em></h1>
+  <p class="hero-sub">The repeating unit stacked 4 times. Pre-LayerNorm and residual connections are the two decisions that make deep transformers trainable.</p>
+</div>
+<div class="body">
+  <div class="stage"><canvas id="c5" height="280"></canvas><div class="stage-label">TRANSFORMER BLOCK</div></div>
+  <div class="steps" id="s5"></div>
+  <div class="desc" id="d5"></div>
+  <div class="grid g3">
+    <div class="card ca">
+      <div class="clabel">▸ RESIDUAL CONNECTION</div>
+      <div class="eq">x = x + SubLayer(LN(x))</div>
+      <p>The <code>x +</code> creates a <strong>gradient highway</strong> — gradients flow back through the addition directly, bypassing the sub-layer. Without it, 4+ layers cannot be trained: gradients vanish.</p>
+    </div>
+    <div class="card cb">
+      <div class="clabel">▸ PRE-LN vs POST-LN</div>
+      <p>Original transformer used Post-LN (norm after). GPT-2 and this code use <strong>Pre-LN</strong> (norm before). Pre-LN is more stable at init and in early training — loss doesn't spike as badly with bad seeds.</p>
+    </div>
+    <div class="card cc">
+      <div class="clabel">▸ LAYER NORM</div>
+      <div class="eq">LN(x) = γ·(x−μ)/σ + β</div>
+      <p>Normalize each token's 64-dim vector to mean≈0, std≈1, then apply learned γ (scale) and β (shift). Only 128 params per LN, but critical for stable gradients in deep stacks.</p>
+    </div>
+  </div>
+  <div class="codeblock"><span class="code-tag">PYTHON</span>
+<span class="cl">class</span> <span class="ck">Block</span>(nn.<span class="ck">Module</span>):
+  <span class="cl">def</span> <span class="cf">__init__</span>(self):
+    <span class="cf">super</span>().__init__()
+    hs = n_embd // n_head
+    self.attn = <span class="ck">MultiHead</span>(n_head, hs)
+    self.ffn  = <span class="ck">FFN</span>()
+    self.ln1  = nn.<span class="ck">LayerNorm</span>(n_embd)
+    self.ln2  = nn.<span class="ck">LayerNorm</span>(n_embd)
+
+  <span class="cl">def</span> <span class="cf">forward</span>(self, x):
+    <span class="h1">x = x + self.attn(self.<span class="cf">ln1</span>(x))</span>   <span class="cm"># residual + attention</span>
+    <span class="h2">x = x + self.ffn(self.<span class="cf">ln2</span>(x))</span>    <span class="cm"># residual + FFN</span>
+    <span class="cl">return</span> x
+</div>
+</div></div>
+
+<!-- ══ PAGE 6: FULL MODEL ════════════════════════════════════════════ -->
+<div class="page" id="p6">
+<div class="hero">
+  <div class="hero-eyebrow">Section 07 / 09</div>
+  <h1 class="hero-h1">MicroGPT Model<br><em>Embeddings → blocks → logits</em></h1>
+  <p class="hero-sub">The complete architecture: two lookup tables, four stacked blocks, a final LayerNorm, and a linear head projecting to 65 character probabilities.</p>
+</div>
+<div class="body">
+  <div class="stage"><canvas id="c6" height="300"></canvas><div class="stage-label">FULL FORWARD PASS</div></div>
+  <div class="steps" id="s6"></div>
+  <div class="desc" id="d6"></div>
+  <div class="grid g3">
+    <div class="card ca">
+      <div class="clabel">▸ TWO EMBEDDINGS</div>
+      <p><strong>tok_emb</strong> [65×64] — character identity.<br><strong>pos_emb</strong> [128×64] — sequence position.<br>Added together: <em>"what I am" + "where I am"</em>. Both are learned from scratch during training.</p>
+    </div>
+    <div class="card cb">
+      <div class="clabel">▸ PARAMETER BUDGET</div>
+      <table class="ptbl">
+        <tr><th>Component</th><th>Params</th></tr>
+        <tr><td>tok_emb + pos_emb</td><td class="hl">12,352</td></tr>
+        <tr><td>4 × Block</td><td class="hl">~161k</td></tr>
+        <tr><td>ln_f</td><td class="hl2">128</td></tr>
+        <tr><td>lm_head</td><td class="hl2">4,160</td></tr>
+        <tr><td><strong>Total</strong></td><td class="hl"><strong>~200k</strong></td></tr>
+      </table>
+    </div>
+    <div class="card cc">
+      <div class="clabel">▸ LM HEAD + LOSS</div>
+      <p>Linear(64→65) outputs one logit per character at every position. <strong>Cross-entropy</strong> loss: flatten (B,T,65) → (B×T,65), compute −log P(correct). Random: loss≈4.17. Trained: loss≈1.6.</p>
+    </div>
+  </div>
+  <div class="codeblock"><span class="code-tag">PYTHON</span>
+<span class="cl">class</span> <span class="ck">MicroGPT</span>(nn.<span class="ck">Module</span>):
+  <span class="cl">def</span> <span class="cf">__init__</span>(self):
+    <span class="cf">super</span>().__init__()
+    <span class="h1">self.tok_emb = nn.<span class="ck">Embedding</span>(vocab_size, n_embd)</span>   <span class="cm"># 65×64</span>
+    <span class="h1">self.pos_emb = nn.<span class="ck">Embedding</span>(block_size, n_embd)</span>   <span class="cm"># 128×64</span>
+    self.blocks  = nn.<span class="ck">Sequential</span>(*[<span class="ck">Block</span>() <span class="cl">for</span> _ <span class="cl">in</span> <span class="cf">range</span>(n_layer)])
+    self.ln_f    = nn.<span class="ck">LayerNorm</span>(n_embd)
+    <span class="h2">self.lm_head = nn.<span class="ck">Linear</span>(n_embd, vocab_size, bias=<span class="cl">False</span>)</span>  <span class="cm"># 64→65</span>
+
+  <span class="cl">def</span> <span class="cf">forward</span>(self, idx, targets=<span class="cl">None</span>):
+    B,T = idx.shape
+    <span class="h3">x = self.tok_emb(idx) + self.pos_emb(torch.<span class="cf">arange</span>(T, device=device))</span>
+    x = self.ln_f(self.<span class="cf">blocks</span>(x))
+    logits = self.<span class="cf">lm_head</span>(x)               <span class="cm"># (B,T,65)</span>
+    loss = <span class="cl">None</span>
+    <span class="cl">if</span> targets <span class="cl">is not None</span>:
+      <span class="h4">loss = F.<span class="cf">cross_entropy</span>(logits.<span class="cf">view</span>(-1,vocab_size), targets.<span class="cf">view</span>(-1))</span>
+    <span class="cl">return</span> logits, loss
+</div>
+</div></div>
+
+<!-- ══ PAGE 7: TRAINING LOOP ═════════════════════════════════════════ -->
+<div class="page" id="p7">
+<div class="hero">
+  <div class="hero-eyebrow">Section 08 / 09</div>
+  <h1 class="hero-h1">Training Loop<br><em>Five lines, 5000 times</em></h1>
+  <p class="hero-sub">Forward → loss → zero_grad → backward → step. Each iteration nudges 200k parameters toward predicting Shakespeare. Loss drops from 4.17 to ~1.6.</p>
+</div>
+<div class="body">
+  <div class="stage"><canvas id="c7" height="280"></canvas><div class="stage-label">TRAINING DYNAMICS</div></div>
+  <div class="steps" id="s7"></div>
+  <div class="desc" id="d7"></div>
+  <div class="grid g3">
+    <div class="card ca">
+      <div class="clabel">▸ CROSS-ENTROPY LOSS</div>
+      <div class="eq">L = −log P(correct token)</div>
+      <p>Random over 65 chars → L = log(65) ≈ <strong>4.17</strong>. Trained → L ≈ <strong>1.6</strong>. Loss measures surprise. Each halving ≈ 2× more confident about the next character.</p>
+    </div>
+    <div class="card cb">
+      <div class="clabel">▸ ADAMW OPTIMIZER</div>
+      <div class="eq">θ = θ − lr·m̂/(√v̂+ε) − wd·θ</div>
+      <p>Adam with weight decay. Maintains momentum <strong>m</strong> and variance <strong>v</strong> per parameter. Adapts step size — common parameters get smaller updates. wd=0.01 penalizes large weights.</p>
+    </div>
+    <div class="card cc">
+      <div class="clabel">▸ BACKPROP ORDER</div>
+      <p>Critical sequence: <strong>zero_grad → backward → step</strong>. Never swap. <code>set_to_none=True</code> frees gradient memory rather than zeroing (faster). <code>backward()</code> fills <code>.grad</code>. <code>step()</code> uses them.</p>
+    </div>
+  </div>
+  <div class="codeblock"><span class="code-tag">PYTHON</span>
+model = <span class="ck">MicroGPT</span>().<span class="cf">to</span>(device)
+opt   = torch.optim.<span class="ck">AdamW</span>(model.<span class="cf">parameters</span>(), lr=lr)
+
+<span class="cl">for</span> step <span class="cl">in</span> <span class="cf">range</span>(max_steps):
+    xb, yb = <span class="cf">get_batch</span>(<span class="cs">'train'</span>)
+    <span class="h1">_, loss = <span class="cf">model</span>(xb, yb)</span>                   <span class="cm"># forward pass</span>
+    <span class="h3">opt.<span class="cf">zero_grad</span>(set_to_none=<span class="cl">True</span>)</span>          <span class="cm"># ① clear old grads</span>
+    <span class="h2">loss.<span class="cf">backward</span>()</span>                           <span class="cm"># ② compute ∂L/∂θ</span>
+    opt.<span class="cf">step</span>()                                 <span class="cm"># ③ θ = θ − lr·grad</span>
+    <span class="cl">if</span> step % eval_every == <span class="cn">0</span>:
+        <span class="cf">print</span>(<span class="cs">f"step {step}: loss={loss.item():.4f}"</span>)
+</div>
+  <div class="insight">
+    <div class="insight-tag">EXPECTED LOSS CURVE</div>
+    <p>Step 0: <strong>~4.1</strong> → Step 500: <strong>~2.5</strong> → Step 2000: <strong>~1.9</strong> → Step 5000: <strong>~1.6</strong> — each halving means the model is roughly 2× more certain about the next character. Training on CPU takes ~2 minutes.</p>
+  </div>
+</div></div>
+
+<!-- ══ PAGE 8: GENERATION ════════════════════════════════════════════ -->
+<div class="page" id="p8">
+<div class="hero">
+  <div class="hero-eyebrow">Section 09 / 09</div>
+  <h1 class="hero-h1">Generation<br><em>The model talks to itself</em></h1>
+  <p class="hero-sub">Autoregressive sampling: feed the model its own output, one token at a time, until done. Temperature controls creativity. Context window limits memory.</p>
+</div>
+<div class="body">
+  <div class="stage"><canvas id="c8" height="280"></canvas><div class="stage-label">AUTOREGRESSIVE GENERATION</div></div>
+  <div class="steps" id="s8"></div>
+  <div class="desc" id="d8"></div>
+  <div class="grid g3">
+    <div class="card ca">
+      <div class="clabel">▸ AUTOREGRESSIVE</div>
+      <p>Each generated token is appended and fed back as input for the next step. The model conditions on its own outputs — this is the fundamental architecture of GPT, LLaMA, Claude, and every major LLM.</p>
+    </div>
+    <div class="card cb">
+      <div class="clabel">▸ SAMPLING vs GREEDY</div>
+      <div class="eq">probs = softmax(logits / T)
+T &lt; 1 → focused (repetitive)
+T = 1 → standard sampling
+T &gt; 1 → creative (chaotic)</div>
+    </div>
+    <div class="card cc">
+      <div class="clabel">▸ CONTEXT CROP</div>
+      <p><code>idx[:, -block_size:]</code> — once the sequence exceeds 128 tokens, the oldest are dropped. The model literally cannot see beyond its context window — this hard limit is why longer contexts matter.</p>
+    </div>
+  </div>
+  <div class="codeblock"><span class="code-tag">PYTHON</span>
+  <span class="cl">def</span> <span class="cf">generate</span>(self, idx, max_new=<span class="cn">200</span>):
+    <span class="cl">for</span> _ <span class="cl">in</span> <span class="cf">range</span>(max_new):
+      <span class="h1">idx_c = idx[:, -block_size:]</span>                 <span class="cm"># crop to context</span>
+      logits, _ = self(idx_c)
+      <span class="h2">probs = F.<span class="cf">softmax</span>(logits[:,-1,:], dim=-1)</span>   <span class="cm"># last pos only</span>
+      <span class="h3">nxt   = torch.<span class="cf">multinomial</span>(probs, num_samples=<span class="cn">1</span>)</span>  <span class="cm"># sample</span>
+      idx   = torch.<span class="cf">cat</span>([idx, nxt], dim=<span class="cn">1</span>)           <span class="cm"># append → repeat</span>
+    <span class="cl">return</span> idx
+
+<span class="cm"># kick off from newline seed</span>
+ctx = torch.<span class="cf">zeros</span>((<span class="cn">1</span>,<span class="cn">1</span>), dtype=torch.long, device=device)
+<span class="cf">print</span>(<span class="cf">decode</span>(model.<span class="cf">generate</span>(ctx, <span class="cn">500</span>)[<span class="cn">0</span>].<span class="cf">tolist</span>()))
+</div>
+  <div class="insight">
+    <div class="insight-tag">WHAT TO TRY NEXT</div>
+    <p><strong>1. Temperature</strong>: divide logits by 0.8 for more focused output. <strong>2. Scale</strong>: n_embd=256, n_layer=6 → ~10M params, much better prose. <strong>3. RoPE</strong>: replace pos_emb with rotary embeddings (LLaMA). <strong>4. SwiGLU</strong>: gated FFN for ~0.2 nats lower loss. <strong>5. BPE</strong>: swap character tokenizer for tiktoken GPT-2 encoding.</p>
+  </div>
+</div></div>
+
+<footer class="footer">MicroGPT Visual Explainer &nbsp;·&nbsp; All animations run locally &nbsp;·&nbsp; No internet required</footer>
+
+
+</body>
+</html>
+
+<script>
+(function(){
+'use strict';
+
+// ── COLORS ───────────────────────────────────────────────────────────
+const BG='#04050c',BG2='#080a14',BG3='#0d1020',CARD='#0e1018';
+const BD='#1a1d2e',BD2='#252840';
+const TX='#dce2f5',DIM='#48527a',DIM2='#6a738f';
+const AC='#7fff00',AC2='#00d4ff',AC3='#c77dff',WARN='#ffb347',RED='#ff5370';
+const MONO="Consolas,'Courier New',monospace",SANS="system-ui,sans-serif";
+
+// ── NAV ──────────────────────────────────────────────────────────────
+const PAGES=9;
+let curPage=0;
+
+window.goto=function(idx,el){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
+  document.querySelectorAll('.tbn').forEach(n=>n.classList.remove('on'));
+  document.getElementById('p'+idx).classList.add('on');
+  el.classList.add('on');
+  document.getElementById('toprog').style.width=((idx+1)/PAGES*100)+'%';
+  curPage=idx;
+  window.scrollTo({top:0,behavior:'instant'});
+};
+
+// ── CANVAS UTILS ─────────────────────────────────────────────────────
+function gc(id,w,h){
+  const cv=document.getElementById(id);
+  if(!cv)return null;
+  cv.width=w; cv.height=h;
+  const ctx=cv.getContext('2d');
+  ctx.fillStyle=CARD; ctx.fillRect(0,0,w,h);
+  return {cv,ctx,W:w,H:h};
+}
+function lbl(c,t,x,y,col,sz,align,weight){
+  c.font=`${weight||'normal'} ${sz||11}px ${SANS}`;
+  c.fillStyle=col||DIM; c.textAlign=align||'center';
+  c.fillText(t,x,y);
+}
+function mono(c,t,x,y,col,sz,align){
+  c.font=`${sz||11}px ${MONO}`;
+  c.fillStyle=col||AC; c.textAlign=align||'center';
+  c.fillText(t,x,y);
+}
+function rnd(c,x,y,w,h,r,fill,stroke,lw){
+  if(w<=0||h<=0)return;
+  c.beginPath(); c.roundRect(x,y,w,h,r||6);
+  if(fill){c.fillStyle=fill;c.fill();}
+  if(stroke){c.strokeStyle=stroke;c.lineWidth=lw||.8;c.stroke();}
+}
+function arr(c,x1,y1,x2,y2,col,lw){
+  const dx=x2-x1,dy=y2-y1,a=Math.atan2(dy,dx);
+  c.strokeStyle=col||DIM; c.lineWidth=lw||1.2;
+  c.beginPath(); c.moveTo(x1,y1); c.lineTo(x2,y2); c.stroke();
+  const hs=7;
+  c.fillStyle=col||DIM; c.beginPath();
+  c.moveTo(x2,y2);
+  c.lineTo(x2-hs*Math.cos(a-.42),y2-hs*Math.sin(a-.42));
+  c.lineTo(x2-hs*Math.cos(a+.42),y2-hs*Math.sin(a+.42));
+  c.closePath(); c.fill();
+}
+function clear(ctx,W,H){ctx.fillStyle=CARD;ctx.fillRect(0,0,W,H);}
+
+// ── STEP BUTTONS ─────────────────────────────────────────────────────
+function mkSteps(sid,did,labels,msgs,drawFn){
+  const sc=document.getElementById(sid);
+  const dc=document.getElementById(did);
+  if(!sc||!dc)return;
+  sc.innerHTML='';
+  labels.forEach((l,i)=>{
+    const b=document.createElement('button');
+    b.className='sbtn'+(i===0?' on':'');
+    b.textContent=l;
+    b.onclick=()=>{
+      sc.querySelectorAll('.sbtn').forEach((x,j)=>x.classList.toggle('on',j===i));
+      dc.innerHTML=msgs[i];
+      drawFn(i);
+    };
+    sc.appendChild(b);
+  });
+  dc.innerHTML=msgs[0];
+  drawFn(0);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// ANIMATION 0 — HYPERPARAMETERS
+// ═══════════════════════════════════════════════════════════════════════
+(function(){
+  const W=1100,H=220;
+  const g=gc('c0',W,H); if(!g)return;
+  const {ctx}=g;
+
+  function calcParams(e,l,h,c){
+    const attn=3*e*(e/h)*h + e*e;
+    const ffn=2*e*4*e;
+    const ln=4*e;
+    const perBlock=attn+ffn+ln;
+    const embs=65*e+c*e;
+    const head=e*65;
+    return embs+l*perBlock+2*e+head;
+  }
+
+  function draw(){
+    clear(ctx,W,H);
+    const e=+(document.getElementById('sl_e')||{value:64}).value||64;
+    const l=+(document.getElementById('sl_l')||{value:4}).value||4;
+    const h=+(document.getElementById('sl_h')||{value:4}).value||4;
+    const c=+(document.getElementById('sl_c')||{value:128}).value||128;
+
+    // === LEFT: layer stack ===
+    const bw=220,bh=26,gap=7,ox=50;
+    const stackH=l*(bh+gap)-gap;
+    const oy=(H-stackH)/2-8;
+
+    // embeddings box
+    rnd(ctx,ox,oy-40,bw,32,5,AC2+'14',AC2+'66');
+    mono(ctx,`tok_emb [65×${e}] + pos_emb [${c}×${e}]`,ox+bw/2,oy-40+20,AC2,9.5);
+
+    for(let i=0;i<l;i++){
+      const y=oy+i*(bh+gap);
+      const alpha=0.5+0.5*(1-i/Math.max(l-1,1));
+      rnd(ctx,ox,y,bw,bh,5,`rgba(127,255,0,${alpha*.12})`,`rgba(127,255,0,${alpha*.6})`);
+      mono(ctx,`Block ${i+1}  [Attn + FFN]  (B,T,${e})`,ox+bw/2,y+bh/2+4,`rgba(127,255,0,${alpha})`);
+    }
+    const lnY=oy+l*(bh+gap)+4;
+    rnd(ctx,ox,lnY,bw,26,5,WARN+'12',WARN+'55');
+    mono(ctx,`LayerNorm  →  lm_head [${e}×65]`,ox+bw/2,lnY+17,WARN,9.5);
+
+    // flow arrow label
+    lbl(ctx,`(B, T, ${e})`,ox+bw+18,H/2+4,DIM2,10,'left');
+
+    // === RIGHT: stacked bar chart of parameter budget ===
+    const total=calcParams(e,l,h,c);
+    const tokPos=65*e+c*e;
+    const perB=(3*e*(e/h)*h + e*e + 2*e*4*e + 4*e);
+    const blocks=l*perB;
+    const rest=total-tokPos-blocks;
+    const segments=[
+      {label:'Embeddings',v:tokPos,col:AC2},
+      {label:`${l}× Block`,v:blocks,col:AC},
+      {label:'ln_f + head',v:rest,col:WARN},
+    ];
+    const bx=350,barW=640,barH=44,barY=H/2-barH/2-4;
+    let bxOff=bx;
+    segments.forEach(seg=>{
+      const fw=Math.max(2,seg.v/total*barW);
+      rnd(ctx,bxOff,barY,fw,barH,0,seg.col+'20',seg.col+'66');
+      if(fw>60) mono(ctx,seg.label,bxOff+fw/2,barY+barH/2+4,seg.col,9.5);
+      bxOff+=fw;
+    });
+    // tick marks
+    for(let i=0;i<=4;i++){
+      const tx=bx+i*barW/4;
+      const v=Math.round(total*i/4);
+      ctx.strokeStyle=BD2; ctx.lineWidth=.7;
+      ctx.beginPath(); ctx.moveTo(tx,barY+barH); ctx.lineTo(tx,barY+barH+7); ctx.stroke();
+      mono(ctx,v>=1000?(v/1000).toFixed(0)+'k':v,tx,barY+barH+18,DIM2,9);
+    }
+    const tk=total/1000;
+    mono(ctx,`${tk<1000?tk.toFixed(1)+'k':(tk/1000).toFixed(2)+'M'} total parameters`,bx+barW/2,barY+barH+34,TX,11,'center','600');
+  }
+
+  window.hp_update=function(){
+    ['e','l','h','c'].forEach(k=>{
+      const sl=document.getElementById('sl_'+k);
+      const sv=document.getElementById('sv_'+k);
+      if(sl&&sv) sv.textContent=sl.value;
+    });
+    const e=+document.getElementById('sl_e').value;
+    const l=+document.getElementById('sl_l').value;
+    const h=+document.getElementById('sl_h').value;
+    const c=+document.getElementById('sl_c').value;
+    const tot=calcParams(e,l,h,c);
+    const el=document.getElementById('hp_p');
+    const mem=document.getElementById('hp_m');
+    const tb=document.getElementById('tb_p');
+    if(el) el.textContent=tot>=1e6?(tot/1e6).toFixed(2)+'M':(tot/1000).toFixed(1)+'k';
+    if(mem) mem.textContent=(32*c*e*4/1024/1024).toFixed(1)+' MB';
+    if(tb) tb.textContent=tot>=1e6?(tot/1e6).toFixed(2)+'M':(tot/1000).toFixed(1)+'k';
+    draw();
+  };
+
+  ['sl_e','sl_l','sl_h','sl_c'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.addEventListener('input',hp_update);
+  });
+
+  mkSteps('s0','d0',
+    ['batch_size','block_size','n_embd','n_head / n_layer','dropout / lr'],
+    [
+      '<strong>batch_size = 32</strong> — number of independent sequences processed simultaneously in one forward pass. Larger batches average out gradient noise but consume more GPU memory. On CPU 32 is a safe default.',
+      '<strong>block_size = 128</strong> — the context window, i.e. how many tokens back the model can look when predicting the next one. Attention cost is O(T²) so doubling this quadruples attention compute. GPT-4: ~128,000.',
+      '<strong>n_embd = 64</strong> — every vector in the network is exactly this wide. Token embeddings, positional embeddings, every layer input and output. This is the model\'s <em>width</em>. GPT-2 Small uses 768; GPT-3 uses 12,288.',
+      '<strong>n_head = 4, n_layer = 4</strong> — 4 attention heads each of size 64/4=16. 4 transformer blocks stacked. Head count and layer count are the two main <em>depth/breadth</em> knobs. More layers = more expressivity, harder to train.',
+      '<strong>dropout = 0.1</strong> — randomly zeros 10% of activations during training, forcing redundancy and reducing overfitting. Disabled at inference. <strong>lr = 3e-4</strong> — the classic AdamW sweet spot for small transformers.'
+    ],
+    ()=>draw()
+  );
+  draw();
+})();
+
+// ═══════════════════════════════════════════════════════════════════════
+// ANIMATION 1 — DATA PIPELINE
+// ═══════════════════════════════════════════════════════════════════════
+(function(){
+  const W=1100,H=240;
+  const g=gc('c1',W,H); if(!g)return;
+  const {ctx}=g;
+  const sample='To be, or not to be—that is the question';
+  const chars=[...new Set(sample)].sort();
+
+  function draw(step){
+    clear(ctx,W,H);
+
+    if(step===0){
+      // Raw chars → ids
+      lbl(ctx,'Each unique character → a fixed integer ID (stoi mapping)',W/2,20,DIM2,11);
+      const cw=27,ch=38,sx=30,tokY=50;
+      const show=sample.slice(0,36);
+      show.split('').forEach((ch2,i)=>{
+        const x=sx+i*cw;
+        const isSpace=ch2===' ';
+        rnd(ctx,x,tokY,cw-2,ch,4,isSpace?BD+' ':AC+'18',isSpace?BD2:AC+'66');
+        mono(ctx,ch2==='\n'?'↵':ch2,x+(cw-2)/2,tokY+ch/2+4,isSpace?DIM:AC,11);
+      });
+      // id row
+      const idY=tokY+ch+14;
+      show.split('').forEach((ch2,i)=>{
+        const x=sx+i*cw;
+        const idx=chars.indexOf(ch2);
+        mono(ctx,idx>=0?String(idx):'?',x+(cw-2)/2,idY+12,WARN,9);
+      });
+      mono(ctx,'Character integers (stoi["T"]=20, stoi[" "]=0, …)',W/2,idY+30,DIM2,10);
+      mono(ctx,'decode: [20,0,37,…] → "To b…"',W/2,H-12,DIM2,10);
+
+    } else if(step===1){
+      // encode / decode round-trip
+      lbl(ctx,'encode() and decode() are exact inverses',W/2,20,DIM2,11);
+      const pairs=[['To be',AC],['not to',AC2],[', or ?',AC3]];
+      let ox=60;
+      pairs.forEach(([ph,col])=>{
+        const enc=ph.split('').map(c=>chars.indexOf(c));
+        const bw=Math.max(150,ph.length*18+40);
+        rnd(ctx,ox,44,bw,36,6,col+'14',col+'55');
+        lbl(ctx,`"${ph}"`,ox+bw/2,67,TX,12,'center','600');
+        arr(ctx,ox+bw/2,82,ox+bw/2,108,col,1.5);
+        rnd(ctx,ox,112,bw,32,6,col+'0a',col+'44');
+        mono(ctx,`[${enc.join(',')}]`,ox+bw/2,132,col,9.5);
+        arr(ctx,ox+bw/2,146,ox+bw/2,172,col+'88',1.2);
+        rnd(ctx,ox,176,bw,28,6,col+'0a',col+'44');
+        lbl(ctx,`"${ph}"`,ox+bw/2,195,col,12,'center','600');
+        ox+=bw+40;
+      });
+
+    } else if(step===2){
+      // Sliding window
+      lbl(ctx,'Sliding window: x and y are the same window shifted by +1',W/2,20,DIM2,11);
+      const T=14,cw=30,sx=50,yw=56,yy=108,ys=160;
+      'To be, or not to'.slice(0,T+1).split('').slice(0,T).forEach((ch2,i)=>{
+        rnd(ctx,sx+i*cw,yw,cw-2,32,4,AC+'15',AC+'55');
+        mono(ctx,ch2,sx+i*cw+(cw-2)/2,yw+21,AC,11);
+      });
+      'To be, or not to'.slice(1,T+2).split('').slice(0,T).forEach((ch2,i)=>{
+        rnd(ctx,sx+i*cw,yy,cw-2,32,4,AC2+'12',AC2+'55');
+        mono(ctx,ch2,sx+i*cw+(cw-2)/2,yy+21,AC2,11);
+      });
+      mono(ctx,'x = text[i : i+T]',sx+T*cw+14,yw+18,AC,9,'left');
+      mono(ctx,'y = text[i+1 : i+T+1]',sx+T*cw+14,yy+18,AC2,9,'left');
+      // arrow showing 1 signal
+      const ax=sx+4*cw+14;
+      ctx.strokeStyle=WARN+'88'; ctx.lineWidth=.8; ctx.setLineDash([3,2]);
+      ctx.beginPath(); ctx.moveTo(ax,yw+32); ctx.lineTo(ax,yy); ctx.stroke();
+      ctx.setLineDash([]);
+      mono(ctx,'1 signal',ax,ys-4,WARN,9);
+      mono(ctx,`${T} tokens → ${T} (input,target) pairs from a single window`,W/2,H-14,DIM2,10);
+
+    } else if(step===3){
+      // train / val split
+      lbl(ctx,'90% training data · 10% held-out validation',W/2,20,DIM2,11);
+      const barW=820,bx=(W-barW)/2,by=60,bh=48;
+      const trainW=Math.round(barW*.9);
+      rnd(ctx,bx,by,trainW,bh,0,AC+'1a',AC+'66');
+      rnd(ctx,bx+trainW,by,barW-trainW,bh,0,AC2+'1a',AC2+'66');
+      lbl(ctx,'train  (~900k tokens)',bx+trainW/2,by+bh/2+5,AC,11,'center','600');
+      lbl(ctx,'val',bx+trainW+(barW-trainW)/2,by+bh/2+5,AC2,10,'center','600');
+      for(let i=0;i<=10;i++){
+        const tx=bx+i*barW/10;
+        ctx.strokeStyle=BD2; ctx.lineWidth=.7;
+        ctx.beginPath(); ctx.moveTo(tx,by+bh); ctx.lineTo(tx,by+bh+7); ctx.stroke();
+        mono(ctx,`${i*100}k`,tx,by+bh+18,DIM2,8.5);
+      }
+      lbl(ctx,'get_batch() samples random windows from training data only — val never touched during training',W/2,158,DIM2,10);
+      lbl(ctx,'validation loss tells us if the model generalises or just memorises',W/2,H-14,DIM2,10);
+    }
+  }
+
+  mkSteps('s1','d1',
+    ['Char → ID','encode / decode','Sliding window','Train / Val split'],
+    [
+      '<strong>sorted(set(text))</strong> extracts 65 unique characters. <strong>stoi</strong> maps each char to its index. The tokenizer is a simple dictionary lookup — the simplest possible approach.',
+      '<code>encode("Hi") → [35,46]</code> and <code>decode([35,46]) → "Hi"</code>. They are exact inverses. Character-level means zero out-of-vocabulary problem: every possible byte can appear.',
+      'From one window of length T=128 we extract 128 (input, target) training pairs — at position t the model must predict char t+1 given chars 0…t. <strong>One window = 128 training signals</strong>.',
+      '90% of the 1M tokens become training data; 10% are held out as validation. The split is a simple tensor slice. Training loss measures fit; validation loss measures generalisation.'
+    ],
+    i=>draw(i)
+  );
+  draw(0);
+})();
+
+// ═══════════════════════════════════════════════════════════════════════
+// ANIMATION 2 — ATTENTION HEAD
+// ═══════════════════════════════════════════════════════════════════════
+(function(){
+  const W=1100,H=300;
+  const g=gc('c2',W,H); if(!g)return;
+  const {ctx}=g;
+  const tokens=['To',' ','be',',','or',' not'];
+  const T=tokens.length;
+
+  function draw(step){
+    clear(ctx,W,H);
+    const cw=72,ch=34,sx=60,tokY=30;
+
+    // always draw token row
+    tokens.forEach((t,i)=>{
+      const active=step>=1;
+      rnd(ctx,sx+i*(cw+8),tokY,cw,ch,5,active?AC+'14':BD,active?AC+'55':BD2);
+      mono(ctx,t.replace(' ','␣'),sx+i*(cw+8)+cw/2,tokY+ch/2+4,active?AC:DIM2,11);
+    });
+    if(step===0){
+      lbl(ctx,'Input x: (B=32, T=128, C=64)  — each token is a 64-dim vector',W/2,H-16,DIM2,10.5);
+      lbl(ctx,'Head receives the full sequence. Step through to see what happens inside.',W/2,H/2+40,DIM2,10.5);
+    }
+
+    if(step>=1){
+      // Q K V
+      const qkv=[['Q',AC],['K',AC2],['V',AC3]];
+      const projY=tokY+ch+16;
+      qkv.forEach(([label,col],li)=>{
+        const ox=sx+(li*2)*(cw+8);
+        tokens.slice(0,3).forEach((t,i)=>{
+          rnd(ctx,ox+i*(cw/2+4),projY,cw/2,24,3,col+'12',col+'55');
+          mono(ctx,t.replace(' ','·')[0],ox+i*(cw/2+4)+cw/4,projY+16,col,9.5);
+        });
+        lbl(ctx,label,ox+44,projY+40,col,12,'center','700');
+        arr(ctx,sx+li*(cw+8)+cw/2,tokY+ch+1,ox+44,projY-2,col+'88',1);
+      });
+      if(step===1){
+        lbl(ctx,'Three Linear(64→16) projections — no bias. Same input x, three different learned transformations.',W/2,H-16,DIM2,10.5);
+      }
+    }
+
+    if(step>=2){
+      // Score matrix
+      const matSz=T*22,ox=460,oy=(H-matSz)/2+10;
+      const scores=[
+        [0.9,0,0,0,0,0],
+        [0.35,0.65,0,0,0,0],
+        [0.2,0.4,0.4,0,0,0],
+        [0.1,0.25,0.3,0.35,0,0],
+        [0.08,0.15,0.25,0.3,0.22,0],
+        [0.05,0.1,0.2,0.3,0.2,0.15],
+      ];
+      const cell=22;
+      for(let r=0;r<T;r++) for(let c=0;c<T;c++){
+        const v=scores[r][c];
+        const bg=v>0?`rgba(127,255,0,${v*.75})`:`rgba(255,83,112,.12)`;
+        rnd(ctx,ox+c*cell,oy+r*cell,cell-1,cell-1,1,bg);
+        if(v>0) mono(ctx,(v).toFixed(2),ox+c*cell+cell/2,oy+r*cell+cell/2+3.5,v>.5?'#000':DIM2,7);
+        else mono(ctx,'-∞',ox+c*cell+cell/2,oy+r*cell+cell/2+3.5,RED+'88',7);
+      }
+      tokens.forEach((t,i)=>{
+        mono(ctx,t.replace(' ','·')[0],ox+i*cell+cell/2,oy-8,DIM2,8.5);
+        mono(ctx,t.replace(' ','·')[0],ox-12,oy+i*cell+cell/2+4,DIM2,8.5,'right');
+      });
+      lbl(ctx,'T×T score matrix',ox+matSz/2,oy+matSz+14,DIM2,9);
+      if(step===2) lbl(ctx,'Q·Kᵀ / √16 then mask future positions to −∞. After softmax each row sums to 1.',W/2,H-14,DIM2,10.5);
+    }
+
+    if(step===3){
+      // w @ v = output
+      const ox=700,oy=50;
+      lbl(ctx,'Output = attention_weights @ V',ox+180,oy-14,AC,11,'center','600');
+      const cell=24;
+      // weights (4×4 excerpt)
+      const ws=[[.8,.2,0,0],[.3,.5,.2,0],[.1,.3,.4,.2],[.05,.2,.35,.4]];
+      ws.forEach((row,r)=>row.forEach((w,c)=>{
+        rnd(ctx,ox+c*cell,oy+r*cell,cell-2,cell-2,2,`rgba(127,255,0,${w+.05})`);
+        mono(ctx,w.toFixed(2),ox+c*cell+cell/2,oy+r*cell+cell/2+3.5,w>.35?'#000':DIM2,7.5);
+      }));
+      lbl(ctx,'W (attn)',ox+2*cell,oy+4*cell+14,AC,9);
+      mono(ctx,'@',ox+4*cell+12,oy+2*cell+12,DIM,18);
+      // V values
+      const vox=ox+4*cell+34;
+      for(let r=0;r<4;r++) for(let c=0;c<4;c++){
+        const v=Math.abs(Math.sin(r*1.3+c*.7));
+        rnd(ctx,vox+c*cell,oy+r*cell,cell-2,cell-2,2,`rgba(0,212,255,${v*.6+.1})`);
+      }
+      lbl(ctx,'V',vox+2*cell,oy+4*cell+14,AC2,9);
+      mono(ctx,'=',vox+4*cell+12,oy+2*cell+12,DIM,18);
+      // output
+      const oox=vox+4*cell+34;
+      for(let r=0;r<4;r++) for(let c=0;c<4;c++){
+        rnd(ctx,oox+c*cell,oy+r*cell,cell-2,cell-2,2,`rgba(199,125,255,.45)`);
+      }
+      lbl(ctx,'(B,T,16)',oox+2*cell,oy+4*cell+14,AC3,9);
+      lbl(ctx,'Each output token = weighted mix of all Value vectors it attended to — shape (B,T,16)',W/2,H-14,DIM2,10.5);
+    }
+  }
+
+  mkSteps('s2','d2',
+    ['Input tokens','Q · K · V','Score matrix','Output w@v'],
+    [
+      '<strong>x: (B, T, C) = (32, 128, 64)</strong> — the batch of token sequences entering this head. Each of the 128 positions is a 64-dimensional vector (sum of token + positional embeddings).',
+      '<strong>Q, K, V = self.q(x), self.k(x), self.v(x)</strong> — three separate Linear(64→16) projections with no bias. All three receive the same input x but have independent learned weight matrices.',
+      '<strong>sc = Q·Kᵀ / √16</strong> then <strong>masked_fill(mask==0, −∞)</strong>. This creates a T×T matrix where entry [i,j] is "how much should token i attend to token j?". Upper triangle = −∞ (future positions).',
+      '<strong>return w @ v</strong> — softmax weights multiplied by Values. The output at position i is a learned combination of all previous positions\' value vectors, weighted by how relevant they were. Shape: (B, T, 16).'
+    ],
+    i=>draw(i)
+  );
+  draw(0);
+})();
+
+// ═══════════════════════════════════════════════════════════════════════
+// ANIMATION 3 — MULTI-HEAD ATTENTION
+// ═══════════════════════════════════════════════════════════════════════
+(function(){
+  const W=1100,H=260;
+  const g=gc('c3',W,H); if(!g)return;
+  const {ctx}=g;
+  const HCOLS=[AC,AC2,AC3,WARN];
+  const HROLES=['Syntactic\npatterns','Pronoun\nco-reference','Semantic\nsimilarity','Positional\ncontext'];
+
+  function draw(step){
+    clear(ctx,W,H);
+
+    if(step===0){
+      // 4 parallel heads
+      lbl(ctx,'4 independent heads — same input x, separate Q/K/V weights, different learned patterns',W/2,18,DIM2,10.5);
+      const hw=180,hh=80,gap=20,sx=(W-4*(hw+gap))/2;
+      HCOLS.forEach((col,i)=>{
+        const x=sx+i*(hw+gap);
+        rnd(ctx,x,50,hw,hh,8,col+'12',col+'55');
+        lbl(ctx,`Head ${i+1}`,x+hw/2,88,col,12,'center','700');
+        mono(ctx,'(B,T,16)',x+hw/2,104,DIM2,9);
+        arr(ctx,W/2,35,x+hw/2,48,DIM+'77',1);
+      });
+      mono(ctx,'x  (B, T, 64)  — same input to all heads',W/2,32,DIM2,10);
+
+    } else if(step===1){
+      // cat + proj
+      lbl(ctx,'torch.cat([h(x) for h in self.heads], dim=-1)  →  proj Linear(64→64)',W/2,18,DIM2,10.5);
+      const hw=110,hh=52,gap=8,sx=50;
+      HCOLS.forEach((col,i)=>{
+        rnd(ctx,sx+i*(hw+gap),50,hw,hh,6,col+'12',col+'55');
+        lbl(ctx,`Head ${i+1}`,sx+i*(hw+gap)+hw/2,72,col,11,'center','600');
+        mono(ctx,'(B,T,16)',sx+i*(hw+gap)+hw/2,88,DIM2,8.5);
+      });
+      const catX=sx+4*(hw+gap)+14;
+      arr(ctx,catX-6,76,catX+12,76,DIM2,1.5);
+      mono(ctx,'cat',catX+28,70,DIM2,9.5); mono(ctx,'dim=-1',catX+28,84,DIM2,8.5);
+      rnd(ctx,catX+56,50,170,52,6,TX+'06',TX+'33');
+      lbl(ctx,'(B, T, 64)',catX+56+85,76,TX,11,'center','600');
+      arr(ctx,catX+56+170+6,76,catX+56+170+50,76,DIM2,1.5);
+      mono(ctx,'proj',catX+56+170+60+28,68,DIM2,9.5); mono(ctx,'64→64',catX+56+170+60+28,82,DIM2,8.5);
+      rnd(ctx,catX+56+170+112,50,150,52,6,AC+'12',AC+'55');
+      lbl(ctx,'(B, T, 64)',catX+56+170+112+75,76,AC,11,'center','600');
+      lbl(ctx,'Mixed info across heads',catX+56+170+112+75,108,DIM2,9);
+
+    } else if(step===2){
+      // specialization
+      lbl(ctx,'Heads specialize in different pattern types during training (emergent — not designed)',W/2,18,DIM2,10.5);
+      const hw=200,gap=18,sx=(W-4*(hw+gap))/2;
+      HCOLS.forEach((col,i)=>{
+        const x=sx+i*(hw+gap);
+        rnd(ctx,x,40,hw,170,8,col+'0e',col+'44');
+        lbl(ctx,`Head ${i+1}`,x+hw/2,66,col,12,'center','700');
+        const lines=HROLES[i].split('\n');
+        lines.forEach((line,li)=>lbl(ctx,line,x+hw/2,92+li*18,DIM2,11));
+        // mini heatmap
+        const ms=6,mc=6,mr=5,mx=x+(hw-mc*ms)/2,my=130;
+        for(let r=0;r<mr;r++) for(let c=0;c<mc;c++){
+          let v;
+          if(i===0) v=Math.abs(r-c)<2?.7+Math.random()*.3:.05;
+          else if(i===1) v=((r+c)%4===0)?.8:.05+Math.random()*.15;
+          else if(i===2) v=Math.abs(Math.sin((r+c)*1.1))*.7+.05;
+          else v=c===mc-1||r===0?.7:.05;
+          rnd(ctx,mx+c*ms,my+r*ms,ms-1,ms-1,0,col+Math.round(v*255).toString(16).padStart(2,'0'));
+        }
+        mono(ctx,'attn pattern',x+hw/2,H-22,DIM2,8.5);
+      });
+    }
+  }
+
+  mkSteps('s3','d3',
+    ['Parallel heads','Concat + project','Specialization'],
+    [
+      '<strong>ModuleList([Head(16) for _ in range(4)])</strong> — four completely independent heads, each 16-dimensional. They share the same input x but learn different Q, K, V weight matrices and attend to different things.',
+      '<strong>torch.cat(…, dim=-1)</strong> stacks the four (B,T,16) outputs into (B,T,64). Then <code>proj</code> (Linear 64→64) lets the model combine information across heads. Dropout regularises the combined output.',
+      'Empirically, GPT-2 heads were found to specialise: some track subject–verb agreement, some track co-reference ("she" → "Alice"), some track positional patterns. This specialisation emerges purely from gradient descent — it is not programmed.'
+    ],
+    i=>draw(i)
+  );
+  draw(0);
+})();
+
+// ═══════════════════════════════════════════════════════════════════════
+// ANIMATION 4 — FFN
+// ═══════════════════════════════════════════════════════════════════════
+(function(){
+  const W=1100,H=260;
+  const g=gc('c4',W,H); if(!g)return;
+  const {ctx}=g;
+
+  function draw(step){
+    clear(ctx,W,H);
+
+    if(step===0){
+      // network nodes
+      lbl(ctx,'Linear(64,256) → GELU → Linear(256,64) — applied independently per token position',W/2,18,DIM2,10.5);
+      const layers=[{n:8,col:AC,x:130},{n:20,col:WARN,x:480},{n:8,col:AC2,x:830}];
+      const rowH=(H-60)/20;
+      layers.forEach(({n,col,x},li)=>{
+        const visN=n,spacing=(H-50)/(visN+1);
+        for(let i=0;i<visN;i++){
+          const y=32+(i+1)*spacing;
+          ctx.beginPath(); ctx.arc(x,y,li===1?4:5,0,Math.PI*2);
+          ctx.fillStyle=col+(li===1?'99':'ee'); ctx.fill();
+        }
+        // connections (sparse)
+        if(li<2){
+          const nextX=layers[li+1].x;
+          const nextN=layers[li+1].n;
+          const nextSpacing=(H-50)/(nextN+1);
+          for(let a=0;a<Math.min(visN,4);a++){
+            const ay=32+(a+1)*spacing;
+            for(let b=0;b<Math.min(nextN,4);b++){
+              const by=32+(b+1)*nextSpacing;
+              ctx.strokeStyle=layers[li+1].col+'1a'; ctx.lineWidth=.8;
+              ctx.beginPath(); ctx.moveTo(x,ay); ctx.lineTo(nextX,by); ctx.stroke();
+            }
+          }
+        }
+        const labels=['64-dim\ninput','256-dim\nhidden','64-dim\noutput'];
+        labels[li].split('\n').forEach((line,lii)=>lbl(ctx,line,x,H-28+lii*14,col,9.5));
+      });
+      mono(ctx,'×4 expand',305,H/2,DIM2,9);
+      mono(ctx,'GELU',480,H-16,WARN,10);
+      mono(ctx,'×¼ contract',655,H/2,DIM2,9);
+
+    } else if(step===1){
+      // GELU vs ReLU curve
+      lbl(ctx,'GELU vs ReLU — GELU allows small negative values through with a smooth curve',W/2,18,DIM2,10.5);
+      const ox=100,oy=H-50,pw=W-200,ph=H-90;
+      ctx.strokeStyle=BD2; ctx.lineWidth=.7;
+      ctx.beginPath(); ctx.moveTo(ox,40); ctx.lineTo(ox,oy); ctx.lineTo(ox+pw,oy); ctx.stroke();
+      // y=0 line
+      ctx.strokeStyle=BD; ctx.lineWidth=.5; ctx.setLineDash([4,3]);
+      ctx.beginPath(); ctx.moveTo(ox,oy); ctx.lineTo(ox+pw,oy); ctx.stroke();
+      ctx.setLineDash([]);
+      const xrange=5;
+      function gelu(x){return x*.5*(1+Math.tanh(Math.sqrt(2/Math.PI)*(x+.044715*x*x*x)));}
+      [[x=>Math.max(0,x),DIM2,'ReLU'],[gelu,AC,'GELU']].forEach(([fn,col,label],idx)=>{
+        ctx.beginPath(); ctx.strokeStyle=col; ctx.lineWidth=idx===1?2.5:1.5;
+        for(let px=0;px<=pw;px++){
+          const xv=(px/pw)*xrange*2-xrange;
+          const yv=fn(xv);
+          const cx=ox+px, cy=oy-yv*(ph/xrange);
+          px===0?ctx.moveTo(cx,cy):ctx.lineTo(cx,cy);
+        }
+        ctx.stroke();
+        const lxv=2; const lyv=fn(lxv);
+        const lx=ox+(lxv+xrange)/(xrange*2)*pw;
+        const ly=oy-lyv*(ph/xrange);
+        lbl(ctx,label,lx+30,ly-10,col,11,'left','700');
+      });
+      [0,-2,2,-4,4].forEach(v=>{
+        const x=ox+(v+xrange)/(xrange*2)*pw;
+        mono(ctx,v,x,oy+14,DIM2,8.5);
+      });
+
+    } else if(step===2){
+      // position-independent
+      lbl(ctx,'FFN operates independently on every token — no information crosses positions',W/2,18,DIM2,10.5);
+      const T=5,bw=100,bh=36,gap=18,sx=(W-T*(bw+gap))/2;
+      for(let i=0;i<T;i++){
+        const x=sx+i*(bw+gap);
+        rnd(ctx,x,44,bw,bh,5,AC+'12',AC+'55');
+        lbl(ctx,`tok ${i}`,x+bw/2,67,AC,10.5,'center','600');
+        arr(ctx,x+bw/2,82,x+bw/2,106,DIM2+'88',1);
+        rnd(ctx,x,110,bw,bh,5,WARN+'10',WARN+'55');
+        lbl(ctx,'FFN',x+bw/2,132,WARN,11,'center','700');
+        arr(ctx,x+bw/2,148,x+bw/2,172,DIM2+'88',1);
+        rnd(ctx,x,176,bw,bh,5,AC2+'12',AC2+'55');
+        lbl(ctx,`out ${i}`,x+bw/2,199,AC2,10.5,'center','600');
+      }
+      // cross-out dashes
+      for(let i=0;i<T-1;i++){
+        ctx.strokeStyle=RED+'30'; ctx.lineWidth=1; ctx.setLineDash([3,3]);
+        const x1=sx+i*(bw+gap)+bw+2, x2=sx+(i+1)*(bw+gap)-2;
+        ctx.beginPath(); ctx.moveTo(x1,128); ctx.lineTo(x2,128); ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      lbl(ctx,'Attention = routing (mixes across positions)   ·   FFN = computation (per position only)',W/2,H-14,DIM2,10.5);
+    }
+  }
+
+  mkSteps('s4','d4',
+    ['Network shape','GELU vs ReLU','Position-independent'],
+    [
+      '<strong>Sequential(Linear(64,256), GELU(), Linear(256,64), Dropout)</strong> — the 4× expansion creates "thinking room". Most parameters live here: 64×256 + 256×64 = 32,768 per block × 4 = 131k out of ~200k total.',
+      '<strong>GELU(x) = x·Φ(x)</strong> where Φ is the Gaussian CDF. Unlike ReLU (hard 0 for x<0), GELU tapers smoothly through 0. In practice gives ~0.1 nats lower loss on language tasks at no added compute cost.',
+      'The FFN has <strong>no attention mechanism</strong> — it cannot look at other token positions. Each token\'s 64-dim vector passes through the same FFN independently. Attention handles "where to look"; FFN handles "what to do with what was found".'
+    ],
+    i=>draw(i)
+  );
+  draw(0);
+})();
+
+// ═══════════════════════════════════════════════════════════════════════
+// ANIMATION 5 — BLOCK
+// ═══════════════════════════════════════════════════════════════════════
+(function(){
+  const W=1100,H=280;
+  const g=gc('c5',W,H); if(!g)return;
+  const {ctx}=g;
+
+  function draw(step){
+    clear(ctx,W,H);
+
+    if(step===0){
+      // block data flow
+      lbl(ctx,'Block = two sub-layers, each wrapped in a residual connection and Pre-LayerNorm',W/2,18,DIM2,10.5);
+      const bw=280,bh=38,ox=(W-bw)/2,gap=12;
+      const boxes=[
+        {y:36,label:'x  input',col:TX,bg:TX+'08'},
+        {y:90,label:'LN₁(x)',col:AC+'cc',bg:AC+'0d'},
+        {y:140,label:'MultiHead Attention',col:AC,bg:AC+'14'},
+        {y:194,label:'x + attn  (residual)',col:AC,bg:AC+'0a'},
+      ];
+      let py=null;
+      boxes.forEach((b,i)=>{
+        rnd(ctx,ox,b.y,bw,bh,6,b.bg,b.col+'55');
+        lbl(ctx,b.label,ox+bw/2,b.y+bh/2+5,b.col,11,'center','600');
+        if(py!==null) arr(ctx,ox+bw/2,py+bh,ox+bw/2,b.y,DIM+'88',1);
+        py=b.y;
+      });
+      // residual skip line (left side)
+      const skipX=ox-26;
+      ctx.strokeStyle=AC+'88'; ctx.lineWidth=1.5;
+      ctx.beginPath();
+      ctx.moveTo(ox,36+bh/2); ctx.lineTo(skipX,36+bh/2);
+      ctx.lineTo(skipX,194+bh/2); ctx.lineTo(ox,194+bh/2);
+      ctx.stroke();
+      mono(ctx,'skip',skipX-14,H/2+8,AC+'88',8.5);
+
+      // FFN column (right side)
+      const bx=ox+bw+60;
+      const boxes2=[
+        {y:194,label:'x + attn  (input)',col:TX,bg:TX+'08'},
+        {y:194+50,label:'LN₂(x)',col:WARN+'cc',bg:WARN+'0d'},
+        {y:194+100,label:'FFN',col:WARN,bg:WARN+'14'},
+      ];
+      // just label them
+      lbl(ctx,'then →',ox+bw+28,194+bh/2+4,DIM2,9.5);
+      lbl(ctx,'+ffn residual → x out',bx,H-22,WARN,9.5,'left');
+
+    } else if(step===1){
+      // residual deep-dive
+      lbl(ctx,'Residual connection: a gradient highway through the network',W/2,18,DIM2,10.5);
+      const bx=W/2-100,bw=200,bh=36,fgap=14;
+      const flow=[
+        {label:'x  (input)',col:TX},
+        {label:'LN(x)',col:DIM2+'cc'},
+        {label:'SubLayer(LN(x))',col:AC},
+        {label:'x + SubLayer',col:AC2}
+      ];
+      let cy=40;
+      flow.forEach((f,i)=>{
+        rnd(ctx,bx,cy,bw,bh,5,f.col.replace('cc','')+'10',f.col+'55');
+        lbl(ctx,f.label,bx+bw/2,cy+bh/2+5,f.col,11,'center','600');
+        if(i<flow.length-1) arr(ctx,bx+bw/2,cy+bh,bx+bw/2,cy+bh+fgap,DIM+'88',1);
+        cy+=bh+fgap;
+      });
+      // skip line
+      const skipX=bx+bw+30;
+      ctx.strokeStyle=AC2+'aa'; ctx.lineWidth=2;
+      ctx.beginPath();
+      ctx.moveTo(bx+bw,40+bh/2); ctx.lineTo(skipX,40+bh/2);
+      ctx.lineTo(skipX,cy-fgap-bh/2); ctx.lineTo(bx+bw,cy-fgap-bh/2);
+      ctx.stroke();
+      lbl(ctx,'+ (direct add)',skipX+8,40+(cy-40)/2,AC2,10,'left');
+      lbl(ctx,'Gradient flows through + unchanged → layers at any depth receive usable gradient signal',W/2,H-14,DIM2,10.5);
+
+    } else if(step===2){
+      // LayerNorm before vs after
+      lbl(ctx,'Pre-LN: normalize before each sub-layer (more stable than Post-LN)',W/2,18,DIM2,10.5);
+      const bw=360,bh=90,gap=60,ox=(W-2*bw-gap)/2,y=50;
+      // before
+      rnd(ctx,ox,y,bw,bh,8,BD,BD2);
+      lbl(ctx,'Before LN (raw activations)',ox+bw/2,y-10,DIM2,9.5);
+      for(let i=0;i<20;i++){
+        const v=Math.sin(i*.7+1)*3.5+(i%3===0?4:0);
+        const bh2=Math.abs(v)*7;
+        rnd(ctx,ox+10+i*17,y+bh/2-bh2/2,14,bh2,2,v>0?AC+'88':RED+'88');
+      }
+      lbl(ctx,'mean≈2.1  std≈3.8',ox+bw/2,y+bh+14,DIM2,9);
+      // arrow
+      arr(ctx,ox+bw+8,y+bh/2,ox+bw+gap-8,y+bh/2,DIM2,1.5);
+      lbl(ctx,'LN(x)',ox+bw+gap/2,y+bh/2-14,WARN,10,'center','600');
+      // after
+      rnd(ctx,ox+bw+gap,y,bw,bh,8,BD,BD2);
+      lbl(ctx,'After LN (normalised)',ox+bw+gap+bw/2,y-10,DIM2,9.5);
+      for(let i=0;i<20;i++){
+        const v=Math.sin(i*.7+1);
+        const bh2=Math.abs(v)*20;
+        rnd(ctx,ox+bw+gap+10+i*17,y+bh/2-bh2/2,14,bh2,2,v>0?AC+'cc':RED+'cc');
+      }
+      lbl(ctx,'mean≈0.0  std≈1.0',ox+bw+gap+bw/2,y+bh+14,DIM2,9);
+      lbl(ctx,'γ (scale) and β (shift) are learned — 2×64 = 128 params per LN. Post-LN (norm after) can cause loss spikes early in training.',W/2,H-14,DIM2,10.5);
+    }
+  }
+
+  mkSteps('s5','d5',
+    ['Block data flow','Residual highway','LayerNorm'],
+    [
+      '<strong>x = x + self.attn(self.ln1(x))</strong> then <strong>x = x + self.ffn(self.ln2(x))</strong>. The shape (B,T,64) is constant throughout — the block transforms representations without changing their size.',
+      'The <strong>x + …</strong> term is everything. Without residuals, gradients in a 4-layer network must pass through every layer\'s Jacobian — they vanish exponentially. With residuals, ∂L/∂x₀ = ∂L/∂xₙ + (small corrections), so early layers always get signal.',
+      '<strong>LN normalises each token\'s 64-dim vector</strong> to mean≈0, std≈1, then applies learned scale γ and shift β. Pre-LN (norm before each sub-layer) is more numerically stable than the original Post-LN design, especially at the start of training.'
+    ],
+    i=>draw(i)
+  );
+  draw(0);
+})();
+
+// ═══════════════════════════════════════════════════════════════════════
+// ANIMATION 6 — FULL MODEL
+// ═══════════════════════════════════════════════════════════════════════
+(function(){
+  const W=1100,H=300;
+  const g=gc('c6',W,H); if(!g)return;
+  const {ctx}=g;
+
+  function draw(step){
+    clear(ctx,W,H);
+
+    if(step===0){
+      // full layer stack
+      lbl(ctx,'MicroGPT complete forward pass',W/2,18,DIM2,10.5);
+      const layers=[
+        {label:'tok_emb(idx) + pos_emb(arange(T))',col:AC2,h:34,shape:'(B,T,64)'},
+        {label:'Block 1  (MH-Attn + FFN)',col:AC,h:30,shape:''},
+        {label:'Block 2  (MH-Attn + FFN)',col:AC,h:30,shape:''},
+        {label:'Block 3  (MH-Attn + FFN)',col:AC,h:30,shape:''},
+        {label:'Block 4  (MH-Attn + FFN)',col:AC,h:30,shape:''},
+        {label:'LayerNorm  (ln_f)',col:WARN,h:28,shape:''},
+        {label:'lm_head  Linear(64, 65)  →  logits',col:AC3,h:34,shape:'(B,T,65)'},
+      ];
+      const bw=480,ox=(W-bw)/2;
+      let cy=32;
+      layers.forEach((l,i)=>{
+        rnd(ctx,ox,cy,bw,l.h,5,l.col+'12',l.col+'55');
+        lbl(ctx,l.label,ox+bw/2,cy+l.h/2+5,l.col,10.5,'center','600');
+        if(l.shape) mono(ctx,l.shape,ox+bw+12,cy+l.h/2+4,DIM2,9.5,'left');
+        if(i<layers.length-1) arr(ctx,ox+bw/2,cy+l.h,ox+bw/2,cy+l.h+8,DIM+'88',1);
+        cy+=l.h+10;
+      });
+
+    } else if(step===1){
+      // embedding addition
+      lbl(ctx,'tok_emb(idx) + pos_emb(arange(T))  — "what I am" + "where I am"',W/2,18,DIM2,10.5);
+      const toks=['To',' ','be',',','or'];
+      const cw=88,ch=42,sx=(W-toks.length*(cw+12))/2;
+      toks.forEach((t,i)=>{
+        const x=sx+i*(cw+12);
+        rnd(ctx,x,44,cw,ch,5,AC+'12',AC+'55');
+        lbl(ctx,t.replace(' ','·'),x+cw/2,65,AC,12,'center','700');
+        mono(ctx,`tok[${i}]`,x+cw/2,80,DIM2,8.5);
+        mono(ctx,'+',x+cw+4,66,DIM2,14);
+        rnd(ctx,x,102,cw,ch,5,WARN+'10',WARN+'55');
+        mono(ctx,`pos[${i}]`,x+cw/2,122,WARN,10);
+        mono(ctx,'64d',x+cw/2,136,DIM2,8.5);
+        mono(ctx,'=',x+cw/2,160,DIM2,14);
+        rnd(ctx,x,168,cw,ch,5,AC2+'10',AC2+'55');
+        mono(ctx,'x[i]',x+cw/2,193,AC2,11);
+      });
+      lbl(ctx,'Both are nn.Embedding lookup tables — 65×64 and 128×64 — learned from scratch',W/2,H-14,DIM2,10.5);
+
+    } else if(step===2){
+      // cross-entropy loss visualised
+      lbl(ctx,'Cross-entropy loss  =  −log P(correct next character)',W/2,18,DIM2,10.5);
+      const T=5,bw=80,bh=40,ox=80,gap=12;
+      // logits row
+      for(let t=0;t<T;t++){
+        const x=ox+t*(bw+gap);
+        rnd(ctx,x,44,bw,bh,4,TX+'05',DIM+'44');
+        for(let v=0;v<6;v++){
+          const h=(Math.sin(t*1.3+v*.9)*.5+.5)*bh*.8;
+          rnd(ctx,x+4+v*13,44+bh-h,10,h,1,(v===t%6?AC:DIM)+'99');
+        }
+        mono(ctx,`t=${t}`,x+bw/2,44+bh+12,DIM2,8.5);
+      }
+      mono(ctx,'logits (B,T,65)',ox+T*(bw+gap)/2,38,DIM2,9.5);
+      // arrow
+      const ax=ox+T*(bw+gap)+20;
+      arr(ctx,ax,64,ax+56,64,DIM2,1.5);
+      lbl(ctx,'softmax',ax+28,56,DIM2,9);
+      // probs
+      const px=ax+68;
+      for(let t=0;t<T;t++){
+        const p=.05+Math.random()*.4;
+        rnd(ctx,px,44+t*24,140,20,4,AC+'10',AC+'44');
+        rnd(ctx,px+4,46+t*24,Math.max(3,p*130),16,2,AC+'99');
+        mono(ctx,`P(correct)=${p.toFixed(2)}`,px+70,44+t*24+14,AC,8.5);
+      }
+      // loss values
+      const lx=px+152;
+      arr(ctx,lx-4,64,lx+12,64,DIM2,1.5); lbl(ctx,'−log(p)',lx+2,56,DIM2,9);
+      for(let t=0;t<T;t++){
+        const l2=Math.random()*2+1;
+        mono(ctx,l2.toFixed(2),lx+80,44+t*24+14,WARN,10);
+      }
+      lbl(ctx,'Average over all T×B positions → scalar loss. Random weights: ~4.17. Trained: ~1.6.',W/2,H-14,DIM2,10.5);
+
+    } else if(step===3){
+      // generation: last logit → sample
+      lbl(ctx,'Generation uses only the last position\'s logits  →  softmax  →  sample',W/2,18,DIM2,10.5);
+      const logits=[-1.2,.5,2.1,-.3,1.8,.9,-2.,.4,1.2,.7,.1,-.8];
+      const exps=logits.map(v=>Math.exp(v));
+      const sumE=exps.reduce((a,b)=>a+b,0);
+      const probs=exps.map(v=>v/sumE);
+      const ox=60,bw=66,bh=80,gap=6;
+      logits.forEach((v,i)=>{
+        const x=ox+i*(bw+gap);
+        const barH=Math.abs(v)*18;
+        rnd(ctx,x,H/2-bh/2,bw,bh,4,TX+'05',DIM+'44');
+        rnd(ctx,x+10,H/2-Math.max(0,v)*14,12,barH,2,v>0?AC+'99':RED+'77');
+        mono(ctx,v.toFixed(1),x+bw/2,H/2+bh/2+12,DIM2,8.5);
+        mono(ctx,'abcdefghijkl'[i],x+bw/2,H/2+bh/2+24,DIM2,8.5);
+      });
+      mono(ctx,'logits[:,-1,:]',ox+6*(bw+gap),H/2-bh/2-12,DIM2,9.5);
+      const ax=ox+logits.length*(bw+gap)+14;
+      arr(ctx,ax,H/2,ax+50,H/2,DIM2,1.5); lbl(ctx,'softmax',ax+25,H/2-14,DIM2,9);
+      const px=ax+62;
+      probs.forEach((p,i)=>{
+        const bw2=p*200;
+        rnd(ctx,px,H/2-50+i*8,Math.max(2,bw2),6,2,i===probs.indexOf(Math.max(...probs))?WARN+'cc':AC2+'66');
+      });
+      const mi=probs.indexOf(Math.max(...probs));
+      lbl(ctx,`→ sample (most likely here: "${'abcdefghijkl'[mi]}")`,px+210,H/2,DIM2,10,'left');
+      lbl(ctx,'torch.multinomial samples proportionally — enabling creative, non-deterministic output',W/2,H-14,DIM2,10.5);
+    }
+  }
+
+  mkSteps('s6','d6',
+    ['Full stack','Embeddings','Loss','Generation'],
+    [
+      'Complete flow: (B,T) token indices → (B,T,64) embeddings → 4 blocks → LayerNorm → (B,T,65) logits. The shape is always (B,T,C) throughout — only C (channels/width) stays fixed while the representations evolve.',
+      '<strong>tok_emb(idx)</strong> looks up the 64-dim vector for each token. <strong>pos_emb(arange(T))</strong> looks up the 64-dim vector for each position 0…T-1. They are added (not concatenated) — the model can decompose them again.',
+      '<strong>F.cross_entropy(logits.view(-1,65), targets.view(-1))</strong> — flatten batch×time, compute −log P(correct) at every one of the B×T=4096 positions, average. This single scalar drives all 200k parameter updates.',
+      '<strong>logits[:,-1,:]</strong> — only the last position predicts the next token. Softmax → probability distribution over 65 chars. <strong>torch.multinomial</strong> samples from this distribution — deterministic greedy (argmax) would be repetitive.'
+    ],
+    i=>draw(i)
+  );
+  draw(0);
+})();
+
+// ═══════════════════════════════════════════════════════════════════════
+// ANIMATION 7 — TRAINING LOOP
+// ═══════════════════════════════════════════════════════════════════════
+(function(){
+  const W=1100,H=280;
+  const g=gc('c7',W,H); if(!g)return;
+  const {ctx}=g;
+
+  function draw(step){
+    clear(ctx,W,H);
+
+    if(step===0){
+      // simulated loss curve
+      lbl(ctx,'Typical loss curve over 5000 training steps',W/2,18,DIM2,10.5);
+      const ox=80,oy=H-44,pw=W-160,ph=H-80;
+      ctx.strokeStyle=BD2; ctx.lineWidth=.8;
+      ctx.beginPath(); ctx.moveTo(ox,32); ctx.lineTo(ox,oy); ctx.lineTo(ox+pw,oy); ctx.stroke();
+      [4.0,3.0,2.0,1.5,1.0].forEach(v=>{
+        const y=oy-(v/4.5)*ph;
+        ctx.strokeStyle=BD; ctx.lineWidth=.4; ctx.setLineDash([4,3]);
+        ctx.beginPath(); ctx.moveTo(ox,y); ctx.lineTo(ox+pw,y); ctx.stroke();
+        ctx.setLineDash([]);
+        mono(ctx,v.toFixed(1),ox-16,y+4,DIM2,8.5,'right');
+      });
+      [0,1000,2000,3000,4000,5000].forEach(v=>{
+        const x=ox+(v/5000)*pw;
+        mono(ctx,v===0?'0':v,x,oy+14,DIM2,8.5);
+      });
+      // curve
+      ctx.strokeStyle=AC; ctx.lineWidth=2.5; ctx.beginPath();
+      for(let s=0;s<=5000;s+=10){
+        const x=ox+(s/5000)*pw;
+        const loss=4.17*Math.exp(-s/1100)+1.4+Math.sin(s*.08)*.06*(1-s/5000);
+        const y=oy-(loss/4.5)*ph;
+        s===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+      }
+      ctx.stroke();
+      // milestone labels
+      [[0,4.17,'random init'],[500,2.6,null],[2000,1.9,null],[5000,1.62,'trained']].forEach(([s,l,label])=>{
+        const x=ox+(s/5000)*pw, y=oy-(l/4.5)*ph;
+        ctx.beginPath(); ctx.arc(x,y,4.5,0,Math.PI*2);
+        ctx.fillStyle=WARN; ctx.fill();
+        if(label) lbl(ctx,`step ${s}: ${l}`,x+(s===0?8:-50),y-12,WARN,9);
+      });
+
+    } else if(step===1){
+      // 5-step training cycle
+      lbl(ctx,'One training step — executed 5000 times',W/2,18,DIM2,10.5);
+      const ops=[
+        {l:'get_batch("train")',sub:'32 random windows from training data',col:AC2},
+        {l:'_, loss = model(xb, yb)',sub:'forward pass — compute cross-entropy loss',col:AC},
+        {l:'opt.zero_grad(set_to_none=True)',sub:'free gradients from previous step',col:DIM2},
+        {l:'loss.backward()',sub:'backprop — fill .grad for every parameter',col:WARN},
+        {l:'opt.step()',sub:'AdamW update: θ = θ − lr·m̂/(√v̂+ε) − wd·θ',col:AC2},
+      ];
+      const bw=520,oh=38,gap=8,ox=(W-bw)/2;
+      let cy=36;
+      ops.forEach((op,i)=>{
+        rnd(ctx,ox,cy,bw,oh,5,op.col+'0e',op.col+'55');
+        mono(ctx,op.l,ox+bw/2,cy+16,op.col,11,'center');
+        lbl(ctx,op.sub,ox+bw/2,cy+30,DIM2,9.5);
+        if(i<ops.length-1) arr(ctx,ox+bw/2,cy+oh,ox+bw/2,cy+oh+gap,DIM+'88',1);
+        cy+=oh+gap;
+      });
+
+    } else if(step===2){
+      // AdamW parameter update
+      lbl(ctx,'AdamW: per-parameter adaptive learning rates + weight decay',W/2,18,DIM2,10.5);
+      const ox=80,bw=380,bh=90,by=44;
+      // gradient histogram
+      rnd(ctx,ox,by,bw,bh,8,BD,BD2);
+      lbl(ctx,'Gradients at step t',ox+bw/2,by-10,DIM2,9.5);
+      for(let i=0;i<22;i++){
+        const v=Math.sin(i*.9+1)*2+Math.random()*.6;
+        const h=Math.abs(v)*14;
+        rnd(ctx,ox+8+i*17,by+bh/2-h/2,14,h,2,v>0?AC+'99':RED+'77');
+      }
+      // formula box
+      const fx=ox+bw+60;
+      rnd(ctx,fx,by,420,bh,8,BD,BD2);
+      lbl(ctx,'AdamW update:',fx+210,by+16,TX,10.5,'center','600');
+      [
+        'm = β₁·m + (1−β₁)·grad         β₁=0.9',
+        'v = β₂·v + (1−β₂)·grad²       β₂=0.999',
+        'θ = θ − lr·m̂/(√v̂+ε) − wd·θ    wd=0.01',
+      ].forEach((line,i)=>{
+        lbl(ctx,line,fx+210,by+36+i*18,i===2?WARN:DIM2,9.5);
+      });
+      // weight decay diagram
+      const wx=ox+50,wy=by+bh+30;
+      rnd(ctx,wx,wy,bw-100,60,6,BD,BD2);
+      lbl(ctx,'weight decay  wd·θ  →  regularisation',wx+(bw-100)/2,wy-10,DIM2,9);
+      for(let i=0;i<8;i++){
+        const h=30-i*3;
+        rnd(ctx,wx+16+i*38,wy+8,32,h,3,AC3+'55');
+        rnd(ctx,wx+16+i*38,wy+8,32,h-4,3,AC3+'33');
+      }
+      lbl(ctx,'each step, weights shrink slightly toward 0 — prevents reliance on any single parameter',wx+(bw-100)/2,wy+50+14,DIM2,9.5);
+    }
+  }
+
+  mkSteps('s7','d7',
+    ['Loss curve','Training step','AdamW update'],
+    [
+      'Loss starts at <strong>~4.17</strong> (uniform random over 65 chars = log(65)). After 500 steps it\'s ~2.6 — the model has learned letter frequency. After 5000 steps ~1.6 — it produces plausible Shakespeare. Training takes ~2 min on CPU.',
+      'Five lines, 5000 repetitions. Critical: <strong>zero_grad must come before backward</strong> — PyTorch accumulates gradients by default. <code>set_to_none=True</code> frees gradient tensors entirely (faster than zeroing). Then <code>step()</code> applies the updates.',
+      'AdamW maintains <strong>m</strong> (exponential moving average of gradients) and <strong>v</strong> (average of squared gradients) per parameter. Parameters with noisy gradients get smaller effective steps. Weight decay (wd=0.01) slightly shrinks all weights each update — L2 regularisation without coupling it to the adaptive step size.'
+    ],
+    i=>draw(i)
+  );
+  draw(0);
+})();
+
+// ═══════════════════════════════════════════════════════════════════════
+// ANIMATION 8 — GENERATION
+// ═══════════════════════════════════════════════════════════════════════
+(function(){
+  const W=1100,H=280;
+  const g=gc('c8',W,H); if(!g)return;
+  const {ctx}=g;
+
+  function draw(step){
+    clear(ctx,W,H);
+
+    if(step===0){
+      // autoregressive loop
+      lbl(ctx,'Autoregressive generation — each new token is fed back as input',W/2,18,DIM2,10.5);
+      const seed=['\n','T','o',' ','b'];
+      const gen=['e',' ','o','r'];
+      const all=[...seed,...gen,'?'];
+      const cw=56,ch=36,sx=40,cy=80;
+      all.forEach((t,i)=>{
+        const isSeed=i<seed.length;
+        const isNext=i===all.length-1;
+        const col=isNext?WARN:isSeed?DIM2:AC2;
+        const bg=isNext?WARN+'14':isSeed?BD:AC2+'10';
+        rnd(ctx,sx+i*(cw+6),cy,cw,ch,5,bg,col+'55');
+        mono(ctx,t==='↲'||t==='\n'?'↲':t,sx+i*(cw+6)+cw/2,cy+ch/2+4,col,12);
+        if(!isSeed&&!isNext) mono(ctx,'gen',sx+i*(cw+6)+cw/2,cy+ch+10,AC2,8.5);
+      });
+      // model box
+      const nGenStart=seed.length;
+      const modelX=sx+nGenStart*(cw+6);
+      const modelW=(gen.length)*(cw+6)+cw;
+      arr(ctx,modelX+modelW/2,cy+ch+24,modelX+modelW/2,cy+ch+58,DIM2+'88',1);
+      rnd(ctx,modelX,cy+ch+62,modelW,38,6,AC+'0e',AC+'55');
+      lbl(ctx,'MicroGPT forward pass',modelX+modelW/2,cy+ch+62+22,AC,10.5,'center','600');
+      // arrow to next token
+      arr(ctx,sx+(all.length-1)*(cw+6)+cw/2,cy+ch,sx+(all.length-1)*(cw+6)+cw/2,cy-18,WARN+'88',1);
+      // loop arrow
+      const loopX=sx+(all.length-1)*(cw+6)+cw+14;
+      ctx.strokeStyle=AC2+'66'; ctx.lineWidth=1.5; ctx.setLineDash([4,3]);
+      ctx.beginPath();
+      ctx.moveTo(loopX,cy+ch/2); ctx.lineTo(loopX+20,cy+ch/2);
+      ctx.lineTo(loopX+20,cy-28); ctx.lineTo(sx,cy-28); ctx.lineTo(sx,cy);
+      ctx.stroke(); ctx.setLineDash([]);
+      lbl(ctx,'append → repeat',loopX+22,cy-20,AC2,9,'left');
+
+    } else if(step===1){
+      // context window crop
+      lbl(ctx,'Context window: model always sees only the last block_size=128 tokens',W/2,18,DIM2,10.5);
+      const total=180,shown=128;
+      const bw=W-120,ox=60,by=60,bh=48;
+      rnd(ctx,ox,by,bw,bh,6,TX+'04',DIM+'33');
+      const winW=Math.round(shown/total*bw);
+      const winX=ox+bw-winW;
+      rnd(ctx,winX,by,winW,bh,6,AC+'16',AC+'66');
+      lbl(ctx,`block_size = ${shown} tokens — context window`,winX+winW/2,by+bh/2+6,AC,10.5,'center','600');
+      const pastW=winX-ox;
+      lbl(ctx,`${total-shown} tokens cropped (too old)`,ox+pastW/2,by+bh/2+6,DIM2,10,'center');
+      // time axis
+      ctx.strokeStyle=DIM+'55'; ctx.lineWidth=.8;
+      ctx.beginPath(); ctx.moveTo(ox,by+bh+18); ctx.lineTo(ox+bw,by+bh+18); ctx.stroke();
+      arr(ctx,ox+bw-2,by+bh+18,ox+bw+8,by+bh+18,DIM2,1);
+      lbl(ctx,'time →',ox+bw+10,by+bh+22,DIM2,9,'left');
+      // code
+      mono(ctx,'idx_c = idx[:, -block_size:]',W/2,by+bh+44,AC,11.5);
+      lbl(ctx,'O(T²) attention cost means longer contexts need quadratically more compute — this hard limit is why context length matters so much in production LLMs',W/2,H-14,DIM2,10.5);
+
+    } else if(step===2){
+      // temperature
+      lbl(ctx,'Temperature T scales logits before softmax — controls creativity vs coherence',W/2,18,DIM2,10.5);
+      const temps=[.6,1.0,1.6];
+      const logits=[ 2.1, 1.4, .8, .5, .2, -.1, -.5, -1.0, -1.4, -1.8];
+      const cols=[WARN,AC,AC2];
+      const bw=260,gap=30,ox=(W-3*(bw+gap))/2;
+      temps.forEach((T,ti)=>{
+        const x=ox+ti*(bw+gap);
+        const exps=logits.map(v=>Math.exp(v/T));
+        const s=exps.reduce((a,b)=>a+b,0);
+        const probs=exps.map(v=>v/s);
+        const col=cols[ti];
+        rnd(ctx,x,40,bw,200,8,col+'0a',col+'44');
+        lbl(ctx,`T = ${T}`,x+bw/2,36,col,12,'center','700');
+        lbl(ctx,T<1?'focused':T>1?'creative':'balanced',x+bw/2,56,DIM2,9);
+        probs.forEach((p,i)=>{
+          const barW=Math.max(2,p*(bw-20));
+          rnd(ctx,x+10,66+i*16,barW,13,2,col+(ti===0?'cc':'88'));
+          mono(ctx,p.toFixed(3),x+bw-8,66+i*16+10,DIM2,8.5,'right');
+        });
+        const entropy=-probs.reduce((s,p)=>s+(p>0?p*Math.log(p):0),0);
+        lbl(ctx,`entropy = ${entropy.toFixed(2)} bits`,x+bw/2,230,col,9);
+      });
+      mono(ctx,'logits / T  before  F.softmax()',W/2,H-14,DIM2,10.5);
+    }
+  }
+
+  mkSteps('s8','d8',
+    ['Autoregressive loop','Context window','Temperature'],
+    [
+      'The loop runs <strong>max_new</strong> times. Each iteration: crop to last 128 tokens, run the full forward pass (all 4 blocks), take <strong>logits[:,-1,:]</strong> (only the last position predicts the next token), softmax → sample → append.',
+      '<strong>idx[:, -block_size:]</strong> — after generating 128+ tokens the sequence must be cropped or the model would receive inputs longer than pos_emb was trained on. This is the hard context limit. GPT-4 uses RoPE embeddings that scale to ~128k tokens.',
+      '<strong>T < 1</strong> (e.g. 0.6): sharpens distribution → model picks high-probability tokens → coherent but repetitive. <strong>T = 1</strong>: standard sampling from the learned distribution. <strong>T > 1</strong>: flattens → more surprising tokens, risks incoherence. Most systems use 0.7–1.0.'
+    ],
+    i=>draw(i)
+  );
+  draw(0);
+})();
+
+})();
+</script>
+</body>
+</html>

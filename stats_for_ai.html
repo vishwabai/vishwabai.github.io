@@ -1,0 +1,2646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Statistics for AI — An Interactive Lab Notebook</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0b0e14;
+  --panel:#10141c;
+  --panel-2:#141925;
+  --border:#1f2530;
+  --text:#e8ecf1;
+  --text-dim:#8b96a5;
+  --text-faint:#566073;
+  --signal:#5eead4;
+  --signal-dim:#2a4d49;
+  --amber:#fbbf24;
+  --rose:#fb7185;
+  --violet:#a78bfa;
+  --grid:#171c26;
+  --radius:10px;
+}
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  font-family:'Inter',sans-serif;
+  font-size:15px;
+  line-height:1.6;
+}
+::selection{background:var(--signal-dim);color:var(--signal);}
+h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0;font-weight:600;}
+.mono{font-family:'JetBrains Mono',monospace;}
+a{color:var(--signal);text-decoration:none;}
+button{font-family:'Inter',sans-serif;cursor:pointer;}
+
+#app{display:flex;min-height:100vh;}
+
+#sidebar{
+  width:260px;
+  flex-shrink:0;
+  border-right:1px solid var(--border);
+  position:fixed;
+  top:0;left:0;bottom:0;
+  overflow-y:auto;
+  background:var(--panel);
+  padding:22px 0 30px 0;
+  z-index:50;
+}
+#sidebar::-webkit-scrollbar{width:6px;}
+#sidebar::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.brand{
+  padding:0 22px 18px 22px;
+  border-bottom:1px solid var(--border);
+  margin-bottom:14px;
+}
+.brand-mark{
+  display:flex;align-items:center;gap:8px;
+  font-family:'Space Grotesk',sans-serif;
+  font-size:15px;font-weight:600;color:var(--text);
+}
+.brand-dot{width:8px;height:8px;border-radius:50%;background:var(--signal);box-shadow:0 0 8px var(--signal);}
+.brand-sub{font-size:11.5px;color:var(--text-faint);margin-top:4px;letter-spacing:.04em;text-transform:uppercase;}
+
+.navlist{list-style:none;margin:0;padding:0 10px;}
+.navlist li{margin:1px 0;}
+.navlink{
+  display:flex;align-items:baseline;gap:10px;
+  padding:8px 12px;border-radius:7px;
+  color:var(--text-dim);font-size:13.5px;
+  cursor:pointer;transition:background .15s,color .15s;
+  border:1px solid transparent;
+}
+.navlink .navnum{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-faint);width:18px;flex-shrink:0;}
+.navlink:hover{background:var(--panel-2);color:var(--text);}
+.navlink.active{background:var(--panel-2);color:var(--signal);border-color:var(--signal-dim);}
+.navlink.active .navnum{color:var(--signal);}
+.navgroup-label{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-faint);padding:14px 22px 6px 22px;}
+
+#main{margin-left:260px;width:calc(100% - 260px);}
+.topbar{
+  position:sticky;top:0;z-index:40;
+  background:rgba(11,14,20,.88);
+  backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--border);
+  padding:10px 40px;
+  display:flex;align-items:center;justify-content:space-between;
+  gap:20px;
+}
+#scope-canvas{display:block;height:34px;width:260px;}
+.scope-label{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-faint);white-space:nowrap;}
+.scope-readout{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--signal);white-space:nowrap;}
+
+section.chapter{
+  padding:64px 40px 30px 40px;
+  max-width:880px;
+  border-bottom:1px solid var(--border);
+  scroll-margin-top:70px;
+}
+section.chapter:last-of-type{border-bottom:none;}
+.eyebrow{
+  font-family:'JetBrains Mono',monospace;
+  font-size:12px;color:var(--signal);
+  letter-spacing:.06em;text-transform:uppercase;
+  margin-bottom:10px;display:flex;align-items:center;gap:8px;
+}
+.eyebrow::before{content:'';width:18px;height:1px;background:var(--signal);}
+.chapter h2{font-size:30px;margin-bottom:14px;color:var(--text);letter-spacing:-.01em;}
+.chapter > p.lead{font-size:16px;color:var(--text-dim);max-width:680px;margin-bottom:22px;}
+.chapter p{color:#c4cbd4;max-width:680px;}
+.chapter p code{font-family:'JetBrains Mono',monospace;background:var(--panel-2);padding:1px 6px;border-radius:4px;font-size:13px;color:var(--amber);}
+
+.panel{
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  margin:22px 0;
+  overflow:hidden;
+}
+.panel-head{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:10px 16px;
+  border-bottom:1px solid var(--border);
+  background:var(--panel-2);
+}
+.panel-title{font-size:12px;color:var(--text-dim);font-family:'JetBrains Mono',monospace;letter-spacing:.02em;}
+.panel-body{padding:18px;}
+.canvas-wrap{width:100%;background:var(--panel);border-radius:6px;overflow:hidden;}
+canvas{display:block;width:100%;}
+
+.controls{display:flex;flex-wrap:wrap;gap:18px;padding:14px 18px;border-top:1px solid var(--border);background:var(--panel-2);}
+.ctrl{display:flex;flex-direction:column;gap:5px;min-width:140px;flex:1;}
+.ctrl label{font-size:11.5px;color:var(--text-faint);display:flex;justify-content:space-between;font-family:'JetBrains Mono',monospace;}
+.ctrl label .val{color:var(--signal);}
+input[type=range]{
+  -webkit-appearance:none;width:100%;height:4px;
+  background:var(--border);border-radius:2px;outline:none;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;width:14px;height:14px;border-radius:50%;
+  background:var(--signal);cursor:pointer;box-shadow:0 0 6px var(--signal-dim);
+}
+input[type=range]::-moz-range-thumb{
+  width:14px;height:14px;border-radius:50%;background:var(--signal);border:none;cursor:pointer;
+}
+.btn{
+  background:var(--panel-2);border:1px solid var(--border);color:var(--text);
+  padding:8px 14px;border-radius:7px;font-size:13px;transition:.15s;
+}
+.btn:hover{border-color:var(--signal);color:var(--signal);}
+.btn.primary{background:var(--signal-dim);border-color:var(--signal);color:var(--signal);}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+.chip{
+  font-family:'JetBrains Mono',monospace;font-size:12px;
+  background:var(--panel-2);border:1px solid var(--border);
+  padding:5px 10px;border-radius:6px;color:var(--text-dim);
+}
+.chip .v{color:var(--signal);font-weight:600;}
+
+.readout-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:1px;background:var(--border);border-top:1px solid var(--border);}
+.readout{background:var(--panel);padding:12px 16px;}
+.readout .k{font-size:10.5px;color:var(--text-faint);letter-spacing:.05em;text-transform:uppercase;font-family:'JetBrains Mono',monospace;}
+.readout .v{font-size:19px;font-family:'JetBrains Mono',monospace;color:var(--signal);margin-top:3px;}
+.readout .v.amber{color:var(--amber);}
+.readout .v.rose{color:var(--rose);}
+
+.takeaway{
+  display:flex;gap:12px;align-items:flex-start;
+  background:linear-gradient(135deg,rgba(94,234,212,.06),rgba(94,234,212,.01));
+  border:1px solid var(--signal-dim);border-left:3px solid var(--signal);
+  border-radius:8px;padding:14px 16px;margin:20px 0;max-width:680px;
+}
+.takeaway .ic{color:var(--signal);font-size:16px;flex-shrink:0;margin-top:1px;}
+.takeaway p{margin:0;color:#cfe9e4;font-size:14px;}
+
+.formula-box{
+  background:var(--panel-2);border:1px solid var(--border);border-radius:8px;
+  padding:14px 18px;margin:16px 0;max-width:680px;
+  font-family:'JetBrains Mono',monospace;font-size:14.5px;color:var(--amber);
+  text-align:center;overflow-x:auto;
+}
+.formula-box .desc{display:block;font-family:'Inter',sans-serif;font-size:12px;color:var(--text-faint);margin-top:6px;}
+
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+@media (max-width:760px){.two-col{grid-template-columns:1fr;}}
+
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--text-dim);margin-top:8px;font-family:'JetBrains Mono',monospace;}
+.legend span{display:inline-flex;align-items:center;gap:6px;}
+.legend i{width:10px;height:10px;border-radius:2px;display:inline-block;}
+
+footer{padding:50px 40px 80px;color:var(--text-faint);font-size:12.5px;max-width:880px;}
+
+#progress-rail{
+  position:fixed;top:0;left:260px;height:2px;background:var(--signal);z-index:60;
+  width:0%;transition:width .1s linear;box-shadow:0 0 6px var(--signal);
+}
+
+@media (max-width:880px){
+  #sidebar{transform:translateX(-100%);transition:transform .2s;}
+  #sidebar.open{transform:translateX(0);}
+  #main{margin-left:0;width:100%;}
+  #progress-rail{left:0;}
+  .topbar{padding:10px 16px;}
+  section.chapter{padding:48px 18px 20px 18px;}
+  #scope-canvas{width:140px;}
+}
+#menu-toggle{display:none;background:var(--panel-2);border:1px solid var(--border);color:var(--text);width:34px;height:34px;border-radius:7px;}
+@media (max-width:880px){#menu-toggle{display:block;}}
+</style>
+</head>
+<body>
+<div id="progress-rail"></div>
+<div id="app">
+<nav id="sidebar">
+  <div class="brand">
+    <div class="brand-mark"><span class="brand-dot"></span>Statistics for AI</div>
+    <div class="brand-sub">an interactive lab notebook</div>
+  </div>
+  <div class="navgroup-label">Foundations</div>
+  <ul class="navlist">
+    <li><a class="navlink" data-target="ch-intro"><span class="navnum">00</span>Why statistics</a></li>
+    <li><a class="navlink" data-target="ch-1"><span class="navnum">01</span>Describing data</a></li>
+    <li><a class="navlink" data-target="ch-2"><span class="navnum">02</span>Probability</a></li>
+    <li><a class="navlink" data-target="ch-3"><span class="navnum">03</span>Distributions</a></li>
+    <li><a class="navlink" data-target="ch-4"><span class="navnum">04</span>The normal curve</a></li>
+  </ul>
+  <div class="navgroup-label">Inference</div>
+  <ul class="navlist">
+    <li><a class="navlink" data-target="ch-5"><span class="navnum">05</span>Central limit theorem</a></li>
+    <li><a class="navlink" data-target="ch-6"><span class="navnum">06</span>Covariance &amp; correlation</a></li>
+    <li><a class="navlink" data-target="ch-7"><span class="navnum">07</span>Bayes' theorem</a></li>
+    <li><a class="navlink" data-target="ch-8"><span class="navnum">08</span>Confidence intervals</a></li>
+    <li><a class="navlink" data-target="ch-9"><span class="navnum">09</span>Hypothesis testing</a></li>
+  </ul>
+  <div class="navgroup-label">Statistics for AI</div>
+  <ul class="navlist">
+    <li><a class="navlink" data-target="ch-10"><span class="navnum">10</span>Max. likelihood</a></li>
+    <li><a class="navlink" data-target="ch-11"><span class="navnum">11</span>Entropy &amp; KL divergence</a></li>
+    <li><a class="navlink" data-target="ch-12"><span class="navnum">12</span>Linear regression</a></li>
+    <li><a class="navlink" data-target="ch-13"><span class="navnum">13</span>Bias–variance tradeoff</a></li>
+    <li><a class="navlink" data-target="ch-14"><span class="navnum">14</span>Monte Carlo methods</a></li>
+    <li><a class="navlink" data-target="ch-15"><span class="navnum">15</span>Markov chains</a></li>
+  </ul>
+</nav>
+
+<div id="main">
+  <div class="topbar">
+    <button id="menu-toggle">≡</button>
+    <span class="scope-label">live signal —</span>
+    <canvas id="scope-canvas" width="520" height="68"></canvas>
+    <span class="scope-readout" id="scope-readout">μ=0.00 σ=1.00</span>
+  </div>
+
+<section class="chapter" id="ch-intro">
+  <div class="eyebrow">00 / Orientation</div>
+  <h2>Statistics is how machines reason under uncertainty</h2>
+  <p class="lead">Every model you train is a statistical claim. A loss function is a likelihood in disguise. A softmax output is a probability distribution. Dropout is a Monte Carlo approximation. This notebook builds the statistical machinery underneath AI from the ground up — and instead of staring at static formulas, you'll nudge sliders and watch the math move.</p>
+  <p>The strip at the top of the page is live: it's drawing real random samples right now and re-computing their mean and standard deviation as they arrive — the same operation every model does internally when it estimates parameters from data. Keep an eye on it as you scroll; you'll meet that exact mechanism again and again, just wearing different clothes.</p>
+  <div class="takeaway">
+    <div class="ic">▸</div>
+    <p><b>How to use this notebook:</b> read the short explanation, then play with the panel below it before moving on. The intuition comes from your hands, not your eyes.</p>
+  </div>
+</section>
+
+<section class="chapter" id="ch-1">
+  <div class="eyebrow">01 / Foundations</div>
+  <h2>Describing data: mean, median, mode, spread</h2>
+  <p class="lead">Before a model can learn from data, you need a vocabulary for summarizing it. Click anywhere on the number line below to drop a data point. Drag existing points around and watch every statistic update in real time.</p>
+
+  <div class="panel">
+    <div class="panel-head"><span class="panel-title">PLAYGROUND — click to add points, drag to move them</span>
+      <div class="btn-row"><button class="btn" id="ds-clear">clear</button><button class="btn" id="ds-random">+ random</button></div>
+    </div>
+    <div class="panel-body"><div class="canvas-wrap"><canvas id="ds-canvas" width="800" height="260"></canvas></div></div>
+    <div class="readout-grid">
+      <div class="readout"><div class="k">Mean</div><div class="v" id="ds-mean">—</div></div>
+      <div class="readout"><div class="k">Median</div><div class="v amber" id="ds-median">—</div></div>
+      <div class="readout"><div class="k">Mode</div><div class="v amber" id="ds-mode">—</div></div>
+      <div class="readout"><div class="k">Variance</div><div class="v rose" id="ds-var">—</div></div>
+      <div class="readout"><div class="k">Std Dev (σ)</div><div class="v rose" id="ds-std">—</div></div>
+      <div class="readout"><div class="k">n</div><div class="v" id="ds-n">0</div></div>
+    </div>
+  </div>
+
+  <p>The <b>mean</b> is the balance point of the data — it's pulled hard by outliers, which is exactly why a single point dragged far to the right will visibly drag the teal line with it. The <b>median</b> (amber) doesn't care how far an outlier goes, only that it's "above" — drag a point to the far edge and watch the median barely flinch while the mean keeps chasing it.</p>
+
+  <div class="formula-box">σ² = (1/n) Σ (xᵢ − μ)²<span class="desc">variance: the average squared distance of every point from the mean</span></div>
+
+  <p>Standard deviation is just <code>√variance</code> — it's in the same units as your data, which is why it's the number people actually quote ("test scores had a mean of 72, σ of 8") rather than variance.</p>
+
+  <div class="takeaway">
+    <div class="ic">▸</div>
+    <p><b>Why this matters for AI:</b> feature normalization (<code>(x − μ) / σ</code>) is literally this chapter — every input to a neural net is usually rescaled using exactly these two numbers before training even starts.</p>
+  </div>
+</section>
+
+<section class="chapter" id="ch-2">
+  <div class="eyebrow">02 / Foundations</div>
+  <h2>Probability &amp; the law of large numbers</h2>
+  <p class="lead">Probability is the long-run frequency of an outcome. Flip a fair coin 10 times and you might see 7 heads — flip it 10,000 times and you'll land suspiciously close to 50%. Run the simulator and watch the running proportion settle down as the sample size grows.</p>
+
+  <div class="panel">
+    <div class="panel-head"><span class="panel-title">SIMULATOR — biased coin</span>
+      <div class="btn-row"><button class="btn primary" id="pr-flip1">flip ×1</button><button class="btn" id="pr-flip100">flip ×100</button><button class="btn" id="pr-reset">reset</button></div>
+    </div>
+    <div class="panel-body"><div class="canvas-wrap"><canvas id="pr-canvas" width="800" height="260"></canvas></div></div>
+    <div class="controls">
+      <div class="ctrl"><label>True P(heads) <span class="val" id="pr-p-val">0.50</span></label><input type="range" id="pr-p" min="0.05" max="0.95" step="0.01" value="0.5"></div>
+    </div>
+    <div class="readout-grid">
+      <div class="readout"><div class="k">Flips</div><div class="v" id="pr-n">0</div></div>
+      <div class="readout"><div class="k">Heads</div><div class="v amber" id="pr-heads">0</div></div>
+      <div class="readout"><div class="k">Observed P(heads)</div><div class="v" id="pr-phat">—</div></div>
+      <div class="readout"><div class="k">Distance from truth</div><div class="v rose" id="pr-err">—</div></div>
+    </div>
+  </div>
+
+  <p>That gap between the orange "true" line and the teal "observed" line is exactly the gap your model lives in during training: it never sees the true distribution, only a finite sample's noisy estimate of it. The law of large numbers is the only reason gradient descent on mini-batches eventually converges to something sensible at all.</p>
+
+  <div class="takeaway">
+    <div class="ic">▸</div>
+    <p><b>Why this matters for AI:</b> every accuracy number you report from a test set is a <i>p̂</i> — an estimate, not the truth. Small test sets give noisy estimates, which is why "we beat the baseline by 0.3%" on 200 examples should make you suspicious.</p>
+  </div>
+</section>
+
+<section class="chapter" id="ch-3">
+  <div class="eyebrow">03 / Foundations</div>
+  <h2>Probability distributions</h2>
+  <p class="lead">A distribution is a complete description of every outcome and how likely it is. Switch between the four distributions every ML engineer runs into constantly, and drag their parameters to see how shape responds.</p>
+
+  <div class="panel">
+    <div class="panel-head">
+      <span class="panel-title">EXPLORER</span>
+      <div class="btn-row" id="dist-tabs">
+        <button class="btn primary" data-dist="uniform">Uniform</button>
+        <button class="btn" data-dist="normal">Normal</button>
+        <button class="btn" data-dist="binomial">Binomial</button>
+        <button class="btn" data-dist="poisson">Poisson</button>
+      </div>
+    </div>
+    <div class="panel-body"><div class="canvas-wrap"><canvas id="dist-canvas" width="800" height="280"></canvas></div></div>
+    <div class="controls" id="dist-controls"></div>
+  </div>
+
+  <p><b>Uniform</b> — every outcome equally likely (a fresh weight initialization sampled from <code>U(−a, a)</code>). <b>Normal</b> — the bell curve that the Central Limit Theorem keeps producing everywhere. <b>Binomial</b> — counting successes across independent trials with fixed probability (classification accuracy across n test examples). <b>Poisson</b> — counting rare events in a fixed window (requests hitting a server per second).</p>
+
+  <div class="takeaway">
+    <div class="ic">▸</div>
+    <p><b>Why this matters for AI:</b> choosing a loss function is choosing a distribution. Mean-squared-error assumes Gaussian-distributed errors; cross-entropy assumes a categorical/Bernoulli distribution over classes. Pick the wrong one and you're optimizing the wrong likelihood.</p>
+  </div>
+</section>
+
+<section class="chapter" id="ch-4">
+  <div class="eyebrow">04 / Foundations</div>
+  <h2>The normal curve &amp; z-scores</h2>
+  <p class="lead">The normal distribution is so central to statistics it gets its own chapter. Drag the two handles below to select a region under the curve and watch the probability mass — the actual <i>area</i> — update live.</p>
+
+  <div class="panel">
+    <div class="panel-head"><span class="panel-title">AREA UNDER THE CURVE — drag the handles</span></div>
+    <div class="panel-body"><div class="canvas-wrap"><canvas id="z-canvas" width="800" height="280"></canvas></div></div>
+    <div class="readout-grid">
+      <div class="readout"><div class="k">Lower bound (z)</div><div class="v" id="z-lo">−1.00</div></div>
+      <div class="readout"><div class="k">Upper bound (z)</div><div class="v" id="z-hi">1.00</div></div>
+      <div class="readout"><div class="k">Area (probability)</div><div class="v amber" id="z-area">68.27%</div></div>
+    </div>
+  </div>
+
+  <p>A <b>z-score</b> just answers "how many standard deviations from the mean is this point?" — <code>z = (x − μ) / σ</code>. It's the same normalization trick from Chapter 1, repurposed to compare apples and oranges: a z-score of +2 means the same thing whether you're looking at exam scores or rocket-engine temperatures.</p>
+
+  <div class="formula-box">P(μ−σ &lt; X &lt; μ+σ) ≈ 68.3% &nbsp;&nbsp; P(μ−2σ &lt; X &lt; μ+2σ) ≈ 95.4% &nbsp;&nbsp; P(μ−3σ &lt; X &lt; μ+3σ) ≈ 99.7%<span class="desc">the empirical "68-95-99.7" rule — try matching it with the handles above</span></div>
+
+  <div class="takeaway">
+    <div class="ic">▸</div>
+    <p><b>Why this matters for AI:</b> anomaly detection often boils down to flagging anything beyond ~3σ from a learned mean. Batch normalization layers inside neural networks are explicitly re-centering activations into roughly this shape, layer after layer.</p>
+  </div>
+</section>
+
+<section class="chapter" id="ch-5">
+  <div class="eyebrow">05 / Inference</div>
+  <h2>The Central Limit Theorem</h2>
+  <p class="lead">Here's the most quietly miraculous fact in statistics: take <i>any</i> distribution — even a lopsided, ugly one — repeatedly draw samples from it, average each sample, and the distribution of those averages converges to a normal curve. Pick a weird population shape below, then start drawing samples.</p>
+
+  <div class="panel">
+    <div class="panel-head"><span class="panel-title">SIMULATOR</span>
+      <div class="btn-row" id="clt-shapes">
+        <button class="btn primary" data-shape="uniform">flat population</button>
+        <button class="btn" data-shape="exp">skewed population</button>
+        <button class="btn" data-shape="bimodal">bimodal population</button>
+      </div>
+    </div>
+    <div class="two-col">
+      <div class="panel-body"><div class="canvas-wrap"><canvas id="clt-pop" width="380" height="220"></canvas></div><div class="legend"><span><i style="background:var(--violet)"></i>population (where each draw comes from)</span></div></div>
+      <div class="panel-body"><div class="canvas-wrap"><canvas id="clt-means" width="380" height="220"></canvas></div><div class="legend"><span><i style="background:var(--signal)"></i>distribution of sample means</span></div></div>
+    </div>
+    <div class="controls">
+      <div class="ctrl"><label>Sample size (n) <span class="val" id="clt-n-val">5</span></label><input type="range" id="clt-n" min="1" max="50" step="1" value="5"></div>
+      <div class="btn-row"><button class="btn primary" id="clt-draw1">draw sample ×1</button><button class="btn" id="clt-draw100">draw ×200</button><button class="btn" id="clt-reset">reset</button></div>
+    </div>
+    <div class="readout-grid">
+      <div class="readout"><div class="k">Samples drawn</div><div class="v" id="clt-count">0</div></div>
+      <div class="readout"><div class="k">Mean of means</div><div class="v amber" id="clt-meanmean">—</div></div>
+      <div class="readout"><div class="k">Std dev of means</div><div class="v rose" id="clt-sd">—</div></div>
+    </div>
+  </div>
+
+  <p>Notice two things as <i>n</i> grows: the right histogram gets visibly more bell-shaped <i>regardless of which lumpy population you picked</i>, and it gets <i>narrower</i> — its spread shrinks like <code>σ/√n</code>. That second fact is the whole reason bigger sample sizes give you tighter confidence intervals.</p>
+
+  <div class="takeaway">
+    <div class="ic">▸</div>
+    <p><b>Why this matters for AI:</b> this is why averaging predictions across an ensemble of models — or across mini-batches during training — produces something more stable than any single noisy estimate. Variance reduction by averaging is the CLT at work.</p>
+  </div>
+</section>
+
+<section class="chapter" id="ch-6">
+  <div class="eyebrow">06 / Inference</div>
+  <h2>Covariance &amp; correlation</h2>
+  <p class="lead">Drag points around the scatter plot below — or drop new ones — and watch the correlation coefficient <i>r</i> respond instantly. Try to build a perfect diagonal line, then a perfect circle.</p>
+
+  <div class="panel">
+    <div class="panel-head"><span class="panel-title">PLAYGROUND — click to add points, drag to move</span>
+      <div class="btn-row"><button class="btn" id="cov-clear">clear</button><button class="btn" id="cov-pattern-pos">+ positive trend</button><button class="btn" id="cov-pattern-neg">+ negative trend</button><button class="btn" id="cov-pattern-none">+ random cloud</button></div>
+    </div>
+    <div class="panel-body"><div class="canvas-wrap"><canvas id="cov-canvas" width="800" height="320"></canvas></div></div>
+    <div class="readout-grid">
+      <div class="readout"><div class="k">Covariance</div><div class="v" id="cov-cov">—</div></div>
+      <div class="readout"><div class="k">Correlation (r)</div><div class="v amber" id="cov-r">—</div></div>
+      <div class="readout"><div class="k">n points</div><div class="v" id="cov-n">0</div></div>
+    </div>
+  </div>
+
+  <p><b>Covariance</b> tells you the direction two variables move together; <b>correlation</b> rescales that into a unitless number between −1 and 1 so you can actually compare relationships across different variables. r = 1 is a perfect upward line, r = −1 a perfect downward line, r ≈ 0 is the random cloud you'd get from two unrelated variables — including, notably, a perfect circle, where x and y are clearly related but not <i>linearly</i> related.</p>
+
+  <div class="formula-box">r = Cov(X,Y) / (σ_X · σ_Y)<span class="desc">correlation: covariance, normalized by each variable's own spread</span></div>
+
+  <div class="takeaway">
+    <div class="ic">▸</div>
+    <p><b>Why this matters for AI:</b> the covariance matrix of your features is the backbone of PCA, whitening, and Gaussian models. And the circle example is a permanent warning label: a feature with r≈0 to your target isn't necessarily useless — it might be related in a way only a nonlinear model can see.</p>
+  </div>
+</section>
+
+<section class="chapter" id="ch-7">
+  <div class="eyebrow">07 / Inference</div>
+  <h2>Bayes' theorem</h2>
+  <p class="lead">A medical test for a rare disease is 95% accurate. You test positive. What's the actual chance you have the disease? Most people's gut answer is "about 95%." Adjust the sliders below and watch why that's almost always wrong.</p>
+
+  <div class="panel">
+    <div class="panel-head"><span class="panel-title">SIMULATOR — disease testing</span></div>
+    <div class="panel-body"><div class="canvas-wrap"><canvas id="bayes-canvas" width="800" height="320"></canvas></div></div>
+    <div class="controls">
+      <div class="ctrl"><label>Disease prevalence (prior) <span class="val" id="bayes-prior-val">1%</span></label><input type="range" id="bayes-prior" min="0.1" max="50" step="0.1" value="1"></div>
+      <div class="ctrl"><label>Test sensitivity (true positive rate) <span class="val" id="bayes-sens-val">95%</span></label><input type="range" id="bayes-sens" min="50" max="100" step="1" value="95"></div>
+      <div class="ctrl"><label>Test specificity (true negative rate) <span class="val" id="bayes-spec-val">95%</span></label><input type="range" id="bayes-spec" min="50" max="100" step="1" value="95"></div>
+    </div>
+    <div class="readout-grid">
+      <div class="readout"><div class="k">P(disease)</div><div class="v" id="bayes-pd">—</div></div>
+      <div class="readout"><div class="k">P(positive test)</div><div class="v" id="bayes-ppos">—</div></div>
+      <div class="readout"><div class="k">P(disease | positive)</div><div class="v amber" id="bayes-post">—</div></div>
+    </div>
+  </div>
+
+  <p>The bar chart shows 1,000 simulated people split by true disease status, then split again by test result. The posterior P(disease | positive) is the sliver of true-positives divided by <i>all</i> positives — true and false. At 1% prevalence, false positives from the healthy 99% can swamp the true positives from the sick 1%, even with a 95%-accurate test.</p>
+
+  <div class="formula-box">P(A|B) = P(B|A)·P(A) / P(B)<span class="desc">posterior = likelihood × prior, normalized by the evidence</span></div>
+
+  <div class="takeaway">
+    <div class="ic">▸</div>
+    <p><b>Why this matters for AI:</b> this is the engine behind naive Bayes classifiers, Bayesian neural networks, and every "prior belief gets updated by evidence" framing in probabilistic ML — including why a classifier trained on a balanced dataset can mislead you about real-world performance when the true class balance is skewed.</p>
+  </div>
+</section>
+
+<section class="chapter" id="ch-8">
+  <div class="eyebrow">08 / Inference</div>
+  <h2>Confidence intervals</h2>
+  <p class="lead">A 95% confidence interval does <i>not</i> mean "there's a 95% chance the true mean is in this range." It means: if you repeated this sampling process forever, 95% of the intervals you'd construct would contain the true mean. Draw a batch of samples below and watch how many intervals actually capture the true mean — shown as the dashed line.</p>
+
+  <div class="panel">
+    <div class="panel-head"><span class="panel-title">SIMULATOR — repeated sampling</span>
+      <div class="btn-row"><button class="btn primary" id="ci-draw1">draw 1 sample</button><button class="btn" id="ci-draw20">draw 20 samples</button><button class="btn" id="ci-reset">reset</button></div>
+    </div>
+    <div class="panel-body"><div class="canvas-wrap"><canvas id="ci-canvas" width="800" height="320"></canvas></div></div>
+    <div class="controls">
+      <div class="ctrl"><label>Confidence level <span class="val" id="ci-level-val">95%</span></label><input type="range" id="ci-level" min="80" max="99" step="1" value="95"></div>
+      <div class="ctrl"><label>Sample size (n) <span class="val" id="ci-n-val">20</span></label><input type="range" id="ci-n" min="5" max="100" step="5" value="20"></div>
+    </div>
+    <div class="readout-grid">
+      <div class="readout"><div class="k">Intervals drawn</div><div class="v" id="ci-total">0</div></div>
+      <div class="readout"><div class="k">Captured true mean</div><div class="v amber" id="ci-hit">0</div></div>
+      <div class="readout"><div class="k">Hit rate</div><div class="v" id="ci-rate">—</div></div>
+    </div>
+  </div>
+
+  <p>Each horizontal bar is one experiment's 95% CI, built from one fresh batch of sampled data. Bars colored teal capture the true mean (dashed line); bars colored rose miss it. Over enough draws, the hit rate converges to your chosen confidence level — not because any single interval is "95% likely," but because the <i>procedure</i> succeeds 95% of the time in the long run.</p>
+
+  <div class="formula-box">CI = x̄ ± z · (σ / √n)<span class="desc">sample mean, plus or minus a margin that shrinks as n grows — straight out of the CLT</span></div>
+
+  <div class="takeaway">
+    <div class="ic">▸</div>
+    <p><b>Why this matters for AI:</b> reporting "92.4% accuracy" with no interval hides whether that number is reliable or a fluke from a small, noisy test set. Bootstrap confidence intervals are a standard way ML practitioners quantify how much to trust a single evaluation run.</p>
+  </div>
+</section>
+
+<section class="chapter" id="ch-9">
+  <div class="eyebrow">09 / Inference</div>
+  <h2>Hypothesis testing &amp; p-values</h2>
+  <p class="lead">Suppose a baseline model gets 50% accuracy. Your new model scores higher on a test set — but is that real improvement, or just noise? A hypothesis test asks: "if there were truly no difference, how surprising would this result be?" Drag the slider to move your observed result and watch the p-value respond.</p>
+
+  <div class="panel">
+    <div class="panel-head"><span class="panel-title">SIMULATOR — is the observed effect real?</span></div>
+    <div class="panel-body"><div class="canvas-wrap"><canvas id="ht-canvas" width="800" height="300"></canvas></div></div>
+    <div class="controls">
+      <div class="ctrl"><label>Observed test statistic (z) <span class="val" id="ht-z-val">1.50</span></label><input type="range" id="ht-z" min="-4" max="4" step="0.05" value="1.5"></div>
+      <div class="ctrl"><label>Test type</label>
+        <div class="btn-row"><button class="btn primary" id="ht-one" data-tail="one">one-tailed</button><button class="btn" id="ht-two" data-tail="two">two-tailed</button></div>
+      </div>
+    </div>
+    <div class="readout-grid">
+      <div class="readout"><div class="k">p-value</div><div class="v amber" id="ht-pval">—</div></div>
+      <div class="readout"><div class="k">α = 0.05 decision</div><div class="v" id="ht-decision">—</div></div>
+    </div>
+  </div>
+
+  <p>The shaded region is the p-value: the probability of seeing a result at least this extreme, <i>if the null hypothesis (no real effect) were true</i>. Slide past z ≈ 1.96 on a two-tailed test and the shaded area shrinks below 0.05 — the conventional line for "statistically significant," meaning the result would be fairly unusual under pure chance.</p>
+
+  <div class="takeaway">
+    <div class="ic">▸</div>
+    <p><b>Why this matters for AI:</b> A/B testing a new model in production, comparing two architectures' benchmark scores, or deciding if a fine-tune actually helped — all of it is this exact test. And it cuts both ways: p &lt; 0.05 is not proof of a real effect, just evidence against "pure chance" as the explanation, especially once you're running many comparisons at once (the multiple-testing problem).</p>
+  </div>
+</section>
+
+<section class="chapter" id="ch-10">
+  <div class="eyebrow">10 / Statistics for AI</div>
+  <h2>Maximum likelihood estimation</h2>
+  <p class="lead">You flip an unfair coin 10 times and get 7 heads. What's your best guess for the coin's true bias? MLE answers this by asking: "which value of p makes the data I actually observed most probable?" Flip the coin below and watch the likelihood curve reshape itself — and its peak track your estimate.</p>
+
+  <div class="panel">
+    <div class="panel-head"><span class="panel-title">SIMULATOR — likelihood surface for a coin</span>
+      <div class="btn-row"><button class="btn primary" id="mle-flip1">flip ×1</button><button class="btn" id="mle-flip10">flip ×10</button><button class="btn" id="mle-reset">reset</button></div>
+    </div>
+    <div class="panel-body"><div class="canvas-wrap"><canvas id="mle-canvas" width="800" height="280"></canvas></div></div>
+    <div class="readout-grid">
+      <div class="readout"><div class="k">Flips (H/T)</div><div class="v" id="mle-counts">0 / 0</div></div>
+      <div class="readout"><div class="k">MLE estimate p̂</div><div class="v amber" id="mle-phat">—</div></div>
+      <div class="readout"><div class="k">Log-likelihood at peak</div><div class="v" id="mle-ll">—</div></div>
+    </div>
+  </div>
+
+  <p>The curve plots <code>L(p) = p^heads · (1−p)^tails</code> across every possible value of p — the likelihood of the data you've actually seen, as a function of an unknown parameter. The peak is always exactly at <code>heads / total flips</code>, which is why MLE for a coin reduces to "just compute the observed frequency." For more complex models, that peak has no clean formula — which is precisely what gradient descent is for.</p>
+
+  <div class="formula-box">p̂ = argmax_p &nbsp; P(data | p)<span class="desc">maximum likelihood: pick the parameter that makes the observed data least surprising</span></div>
+
+  <div class="takeaway">
+    <div class="ic">▸</div>
+    <p><b>Why this matters for AI:</b> training a neural net by minimizing cross-entropy loss <i>is</i> maximum likelihood estimation — you're finding the weights that make the training labels most probable under your model. Nearly every standard loss function is a negative log-likelihood wearing a different name.</p>
+  </div>
+</section>
+
+<section class="chapter" id="ch-11">
+  <div class="eyebrow">11 / Statistics for AI</div>
+  <h2>Entropy, cross-entropy &amp; KL divergence</h2>
+  <p class="lead">Entropy measures how "spread out" or unpredictable a distribution is. Shape a true distribution and a model's predicted distribution across four outcomes below, and watch how far apart they are in an information-theoretic sense.</p>
+
+  <div class="panel">
+    <div class="panel-head"><span class="panel-title">PLAYGROUND — drag the bars</span>
+      <div class="btn-row"><button class="btn" id="ent-match">snap model to truth</button><button class="btn" id="ent-uniform">reset to uniform</button></div>
+    </div>
+    <div class="panel-body"><div class="canvas-wrap"><canvas id="ent-canvas" width="800" height="300"></canvas></div></div>
+    <div class="readout-grid">
+      <div class="readout"><div class="k">H(true) — entropy</div><div class="v" id="ent-h">—</div></div>
+      <div class="readout"><div class="k">H(true, model) — cross-entropy</div><div class="v amber" id="ent-ce">—</div></div>
+      <div class="readout"><div class="k">KL(true ‖ model) — divergence</div><div class="v rose" id="ent-kl">—</div></div>
+    </div>
+  </div>
+
+  <p>The violet bars are the true label distribution; the teal bars are your model's predicted distribution. <b>Entropy</b> is the irreducible uncertainty in the truth itself. <b>Cross-entropy</b> is how many bits it costs to describe the truth using the model's (possibly wrong) probabilities. <b>KL divergence</b> is simply the difference: the extra cost paid for the model being wrong. Make the model match the truth exactly and KL collapses to zero — cross-entropy bottoms out at entropy and can't go lower.</p>
+
+  <div class="formula-box">D_KL(P‖Q) = Σ P(x) log(P(x)/Q(x)) &nbsp;=&nbsp; H(P,Q) − H(P)<span class="desc">KL divergence: cross-entropy minus the unavoidable baseline entropy</span></div>
+
+  <div class="takeaway">
+    <div class="ic">▸</div>
+    <p><b>Why this matters for AI:</b> cross-entropy loss is the standard objective for classification — you're literally minimizing the panel above's amber number every training step. KL divergence shows up in VAEs (regularizing the latent space), knowledge distillation (matching a small model to a large one's outputs), and RLHF (keeping a fine-tuned model close to its reference policy).</p>
+  </div>
+</section>
+
+<section class="chapter" id="ch-12">
+  <div class="eyebrow">12 / Statistics for AI</div>
+  <h2>Linear regression &amp; least squares</h2>
+  <p class="lead">The simplest "model" in AI: fit a straight line through points so the total squared vertical distance — the residuals — is as small as possible. Click to drop points, then watch the best-fit line snap into place and the residuals light up.</p>
+
+  <div class="panel">
+    <div class="panel-head"><span class="panel-title">PLAYGROUND — click to add points, drag to move</span>
+      <div class="btn-row"><button class="btn" id="lr-clear">clear</button><button class="btn" id="lr-sample">+ sample data</button><button class="btn" id="lr-toggle-res">toggle residuals</button></div>
+    </div>
+    <div class="panel-body"><div class="canvas-wrap"><canvas id="lr-canvas" width="800" height="320"></canvas></div></div>
+    <div class="readout-grid">
+      <div class="readout"><div class="k">Slope (β₁)</div><div class="v" id="lr-slope">—</div></div>
+      <div class="readout"><div class="k">Intercept (β₀)</div><div class="v" id="lr-intercept">—</div></div>
+      <div class="readout"><div class="k">Sum of squared residuals</div><div class="v rose" id="lr-sse">—</div></div>
+      <div class="readout"><div class="k">R²</div><div class="v amber" id="lr-r2">—</div></div>
+    </div>
+  </div>
+
+  <p>Drag any point and the line refits instantly — every point pulls on the line in proportion to how far it is, because the loss is <i>squared</i> distance. That's the same mechanic from Chapter 1's mean (outlier-sensitive) showing up again: least-squares regression is, structurally, finding a conditional mean.</p>
+
+  <div class="formula-box">minimize Σ (yᵢ − (β₀ + β₁xᵢ))²<span class="desc">least squares: the line that minimizes total squared vertical error</span></div>
+
+  <div class="takeaway">
+    <div class="ic">▸</div>
+    <p><b>Why this matters for AI:</b> a single linear layer with MSE loss is exactly this. R², the residual sum of squares, and the assumption of normally-distributed errors all carry straight through into evaluating any regression-style model output, including the regression head bolted onto the end of a deep network.</p>
+  </div>
+</section>
+
+<section class="chapter" id="ch-13">
+  <div class="eyebrow">13 / Statistics for AI</div>
+  <h2>The bias–variance tradeoff</h2>
+  <p class="lead">A model that's too simple underfits (high bias); a model that's too complex memorizes noise (high variance). Slide model complexity and watch training error keep dropping while test error eventually turns back up — the signature U-shape behind "overfitting."</p>
+
+  <div class="panel">
+    <div class="panel-head"><span class="panel-title">SIMULATOR — polynomial fit on noisy data</span></div>
+    <div class="panel-body"><div class="canvas-wrap"><canvas id="bv-canvas" width="800" height="300"></canvas></div></div>
+    <div class="controls">
+      <div class="ctrl"><label>Model complexity (polynomial degree) <span class="val" id="bv-deg-val">1</span></label><input type="range" id="bv-deg" min="1" max="12" step="1" value="1"></div>
+    </div>
+    <div class="readout-grid">
+      <div class="readout"><div class="k">Training error</div><div class="v amber" id="bv-train">—</div></div>
+      <div class="readout"><div class="k">Test error</div><div class="v rose" id="bv-test">—</div></div>
+      <div class="readout"><div class="k">Regime</div><div class="v" id="bv-regime">—</div></div>
+    </div>
+  </div>
+
+  <p>At low degree, the curve is too rigid to capture the true (sinusoidal) pattern — both errors are high: <b>underfitting</b>, dominated by bias. Push the degree up and the curve starts contorting itself through every training point's noise — training error keeps falling, but test error on unseen points climbs back up: <b>overfitting</b>, dominated by variance. The sweet spot in between is where most of real-world model selection lives.</p>
+
+  <div class="formula-box">Expected test error = Bias² + Variance + Irreducible noise<span class="desc">the three components of generalization error, and why you can't drive all three to zero at once</span></div>
+
+  <div class="takeaway">
+    <div class="ic">▸</div>
+    <p><b>Why this matters for AI:</b> regularization (L1/L2, dropout, early stopping, data augmentation) all exist purely to push a model leftward along this curve — trading a little bias for a lot less variance. Every "validation loss is going up while training loss keeps falling" plot you've ever seen is this exact diagram in disguise.</p>
+  </div>
+</section>
+
+<section class="chapter" id="ch-14">
+  <div class="eyebrow">14 / Statistics for AI</div>
+  <h2>Monte Carlo methods</h2>
+  <p class="lead">Some quantities are too hard to compute exactly — so you estimate them by throwing randomness at the problem and counting. The classic demo: estimate π by firing random darts at a square and seeing what fraction land inside its inscribed circle.</p>
+
+  <div class="panel">
+    <div class="panel-head"><span class="panel-title">SIMULATOR — estimating π with random darts</span>
+      <div class="btn-row"><button class="btn primary" id="mc-throw1">throw ×1</button><button class="btn" id="mc-throw500">throw ×500</button><button class="btn" id="mc-reset">reset</button></div>
+    </div>
+    <div class="panel-body"><div class="canvas-wrap"><canvas id="mc-canvas" width="500" height="500" style="max-width:500px;margin:0 auto;"></canvas></div></div>
+    <div class="readout-grid">
+      <div class="readout"><div class="k">Darts thrown</div><div class="v" id="mc-total">0</div></div>
+      <div class="readout"><div class="k">Inside circle</div><div class="v amber" id="mc-inside">0</div></div>
+      <div class="readout"><div class="k">π estimate</div><div class="v" id="mc-pi">—</div></div>
+      <div class="readout"><div class="k">Error vs true π</div><div class="v rose" id="mc-err">—</div></div>
+    </div>
+  </div>
+
+  <p>The fraction of darts landing inside the circle approximates the ratio of the circle's area to the square's — and since that ratio is exactly <code>π/4</code>, multiplying the observed fraction by 4 gives an estimate of π. No calculus, no closed-form integral — just sampling and counting, and the law of large numbers from Chapter 2 making it converge.</p>
+
+  <div class="takeaway">
+    <div class="ic">▸</div>
+    <p><b>Why this matters for AI:</b> dropout at inference time, particle filters, MCMC samplers in Bayesian deep learning, and reinforcement learning's Monte Carlo returns all lean on this exact idea — when the true expectation is intractable, average over enough random samples and it converges to the right answer anyway.</p>
+  </div>
+</section>
+
+<section class="chapter" id="ch-15">
+  <div class="eyebrow">15 / Statistics for AI</div>
+  <h2>Markov chains</h2>
+  <p class="lead">A Markov chain models a system that hops between states, where the next state only depends on the current one — not the whole history. Click any state to manually jump there, or let the chain run on autopilot and watch probability mass redistribute itself across states over time.</p>
+
+  <div class="panel">
+    <div class="panel-head"><span class="panel-title">SIMULATOR — weather model (sunny / cloudy / rainy)</span>
+      <div class="btn-row"><button class="btn primary" id="mk-step">step ×1</button><button class="btn" id="mk-run">run ×30</button><button class="btn" id="mk-reset">reset</button></div>
+    </div>
+    <div class="panel-body"><div class="canvas-wrap"><canvas id="mk-canvas" width="800" height="320"></canvas></div></div>
+    <div class="readout-grid">
+      <div class="readout"><div class="k">Current state</div><div class="v amber" id="mk-state">sunny</div></div>
+      <div class="readout"><div class="k">Steps taken</div><div class="v" id="mk-steps">0</div></div>
+      <div class="readout"><div class="k">Stationary? </div><div class="v" id="mk-stationary">—</div></div>
+    </div>
+  </div>
+
+  <p>The diagram shows three weather states with fixed transition probabilities (the arrows). Below it, a running bar chart tracks what fraction of time has been spent in each state — keep stepping, and regardless of which state you started in, those long-run proportions converge to the same fixed point: the chain's <b>stationary distribution</b>.</p>
+
+  <div class="formula-box">π = π · P<span class="desc">the stationary distribution is the one that, once reached, the transition matrix P leaves unchanged</span></div>
+
+  <div class="takeaway">
+    <div class="ic">▸</div>
+    <p><b>Why this matters for AI:</b> this is the backbone of hidden Markov models, PageRank, MCMC sampling, and — directly — the next-token transition structure underneath any autoregressive language model, where each generated token's distribution depends on a (much longer, learned) notion of "current state."</p>
+  </div>
+</section>
+
+<footer>
+  Built as a hands-on companion for learning the statistical foundations behind machine learning. Every simulation on this page runs entirely in your browser — no data leaves your machine, nothing is logged, nothing calls home.
+</footer>
+</div>
+</div>
+<script>
+(function(){
+"use strict";
+
+/* ============== shared utilities ============== */
+function rnd(min,max){return Math.random()*(max-min)+min;}
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+function lerp(a,b,t){return a+(b-a)*t;}
+function mean(arr){return arr.reduce((a,b)=>a+b,0)/arr.length;}
+function variance(arr){const m=mean(arr);return arr.reduce((a,b)=>a+(b-m)*(b-m),0)/arr.length;}
+function std(arr){return Math.sqrt(variance(arr));}
+function fmt(v,d=2){return (v===null||v===undefined||isNaN(v))?'—':v.toFixed(d);}
+function fmtPct(v,d=1){return (v===null||v===undefined||isNaN(v))?'—':(v*100).toFixed(d)+'%';}
+
+// Box-Muller normal sample
+function randNormal(mu=0,sigma=1){
+  let u=0,v=0;
+  while(u===0)u=Math.random();
+  while(v===0)v=Math.random();
+  const z=Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);
+  return mu+sigma*z;
+}
+
+// error function approximation (Abramowitz & Stegun 7.1.26)
+function erf(x){
+  const sign = x<0?-1:1; x=Math.abs(x);
+  const a1=0.254829592,a2=-0.284496736,a3=1.421413741,a4=-1.453152027,a5=1.061405429,p=0.3275911;
+  const t=1/(1+p*x);
+  const y=1-(((((a5*t+a4)*t)+a3)*t+a2)*t+a1)*t*Math.exp(-x*x);
+  return sign*y;
+}
+function normalCDF(x,mu=0,sigma=1){return 0.5*(1+erf((x-mu)/(sigma*Math.sqrt(2))));}
+function normalPDF(x,mu=0,sigma=1){
+  return (1/(sigma*Math.sqrt(2*Math.PI)))*Math.exp(-0.5*Math.pow((x-mu)/sigma,2));
+}
+function logFactorial(n){
+  if(n<=1)return 0;
+  let s=0; for(let i=2;i<=n;i++)s+=Math.log(i);
+  return s;
+}
+function binomCoeffLog(n,k){return logFactorial(n)-logFactorial(k)-logFactorial(n-k);}
+function binomialPMF(k,n,p){
+  if(k<0||k>n)return 0;
+  if(p<=0)return k===0?1:0;
+  if(p>=1)return k===n?1:0;
+  const logp=binomCoeffLog(n,k)+k*Math.log(p)+(n-k)*Math.log(1-p);
+  return Math.exp(logp);
+}
+function poissonPMF(k,lambda){
+  if(k<0)return 0;
+  return Math.exp(k*Math.log(lambda)-lambda-logFactorial(k));
+}
+
+// device pixel ratio aware canvas sizing: call once per canvas
+function fitCanvas(canvas){
+  const ratio=window.devicePixelRatio||1;
+  const cssW = canvas.clientWidth || canvas.width;
+  const cssH = canvas.clientHeight || canvas.height;
+  const w = canvas.getAttribute('data-basew') || canvas.width;
+  const h = canvas.getAttribute('data-baseh') || canvas.height;
+  return canvas.getContext('2d');
+}
+
+function setupHiDPI(canvas){
+  const ratio = window.devicePixelRatio||1;
+  const w = canvas.width, h = canvas.height;
+  canvas.style.width = '100%';
+  canvas.style.height = (h/w*100)+'%'; // placeholder, overridden by CSS aspect below if needed
+  if(canvas._hidpiDone) return canvas.getContext('2d');
+  canvas._hidpiDone = true;
+  const ctx = canvas.getContext('2d');
+  return ctx;
+}
+
+function drawGrid(ctx,w,h,pad,opts){
+  opts = opts||{};
+  ctx.save();
+  ctx.strokeStyle = opts.color || '#171c26';
+  ctx.lineWidth = 1;
+  const cols = opts.cols||8, rows=opts.rows||5;
+  for(let i=0;i<=cols;i++){
+    const x = pad.l + (w-pad.l-pad.r)*i/cols;
+    ctx.beginPath(); ctx.moveTo(x,pad.t); ctx.lineTo(x,h-pad.b); ctx.stroke();
+  }
+  for(let j=0;j<=rows;j++){
+    const y = pad.t + (h-pad.t-pad.b)*j/rows;
+    ctx.beginPath(); ctx.moveTo(pad.l,y); ctx.lineTo(w-pad.r,y); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function clearCanvas(canvasOrCtx,w,h){
+  let ctx,cw,ch;
+  if(canvasOrCtx instanceof HTMLCanvasElement){
+    ctx=canvasOrCtx.getContext('2d'); cw=canvasOrCtx.width; ch=canvasOrCtx.height;
+  } else {
+    ctx=canvasOrCtx; cw=w; ch=h;
+  }
+  ctx.clearRect(0,0,cw,ch);
+  ctx.fillStyle = '#10141c';
+  ctx.fillRect(0,0,cw,ch);
+}
+
+const COLORS = {
+  signal: '#5eead4',
+  signalDim: 'rgba(94,234,212,0.18)',
+  amber: '#fbbf24',
+  amberDim: 'rgba(251,191,36,0.18)',
+  rose: '#fb7185',
+  roseDim: 'rgba(251,113,133,0.18)',
+  violet: '#a78bfa',
+  violetDim: 'rgba(167,139,250,0.18)',
+  text: '#e8ecf1',
+  dim: '#8b96a5',
+  faint: '#566073',
+  grid: '#171c26',
+  border: '#1f2530'
+};
+
+function getPos(canvas, evt){
+  const rect = canvas.getBoundingClientRect();
+  const cx = (evt.touches ? evt.touches[0].clientX : evt.clientX);
+  const cy = (evt.touches ? evt.touches[0].clientY : evt.clientY);
+  const sx = canvas.width / rect.width;
+  const sy = canvas.height / rect.height;
+  return { x: (cx-rect.left)*sx, y: (cy-rect.top)*sy };
+}
+
+window.STAT_UTILS = {rnd,clamp,lerp,mean,variance,std,fmt,fmtPct,randNormal,erf,normalCDF,normalPDF,
+  binomialPMF,poissonPMF,drawGrid,clearCanvas,COLORS,getPos};
+
+/* ============== nav / scroll progress / mobile menu ============== */
+const navlinks = document.querySelectorAll('.navlink');
+const chapters = document.querySelectorAll('section.chapter');
+navlinks.forEach(link=>{
+  link.addEventListener('click',()=>{
+    const target = document.getElementById(link.getAttribute('data-target'));
+    if(target) target.scrollIntoView({behavior:'smooth',block:'start'});
+    document.getElementById('sidebar').classList.remove('open');
+  });
+});
+function updateActiveNav(){
+  let current = chapters[0];
+  const scrollPos = window.scrollY + 120;
+  chapters.forEach(ch=>{ if(ch.offsetTop <= scrollPos) current = ch; });
+  navlinks.forEach(l=>l.classList.remove('active'));
+  const active = document.querySelector('.navlink[data-target="'+current.id+'"]');
+  if(active) active.classList.add('active');
+  const doc = document.documentElement;
+  const pct = (window.scrollY)/(doc.scrollHeight-window.innerHeight)*100;
+  document.getElementById('progress-rail').style.width = clamp(pct,0,100)+'%';
+}
+window.addEventListener('scroll',updateActiveNav);
+window.addEventListener('resize',updateActiveNav);
+document.getElementById('menu-toggle').addEventListener('click',()=>{
+  document.getElementById('sidebar').classList.toggle('open');
+});
+updateActiveNav();
+
+/* ============== auto-wire range inputs to .val spans ============== */
+document.querySelectorAll('input[type="range"]').forEach(el=>{
+  const valEl = document.getElementById(el.id+'-val');
+  if(!valEl) return;
+  el.addEventListener('input',()=>{ valEl.textContent = el.value; });
+});
+
+/* ============== live signal scope (header) ============== */
+(function(){
+  const canvas = document.getElementById('scope-canvas');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  let buffer = [];
+  const maxPts = 120;
+  let runningMean = 0, runningM2 = 0, n = 0;
+  function push(val){
+    n++;
+    const delta = val - runningMean;
+    runningMean += delta/n;
+    runningM2 += delta*(val-runningMean);
+    buffer.push(val);
+    if(buffer.length>maxPts) buffer.shift();
+  }
+  for(let i=0;i<maxPts;i++) push(randNormal(0,1));
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    ctx.strokeStyle = COLORS.grid;
+    ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(0,H/2); ctx.lineTo(W,H/2); ctx.stroke();
+    ctx.beginPath();
+    ctx.strokeStyle = COLORS.signal;
+    ctx.lineWidth = 1.5;
+    buffer.forEach((v,i)=>{
+      const x = (i/(maxPts-1))*W;
+      const y = H/2 - v*(H/2-6);
+      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    });
+    ctx.stroke();
+    const sd = Math.sqrt(runningM2/Math.max(1,n-1));
+    document.getElementById('scope-readout').textContent = 'μ='+runningMean.toFixed(2)+' σ='+sd.toFixed(2);
+  }
+  setInterval(()=>{ push(randNormal(0,1)); draw(); }, 220);
+  draw();
+})();
+
+})();
+</script>
+<script>
+(function(){
+"use strict";
+const U = window.STAT_UTILS;
+const {clamp,mean,variance,std,fmt,COLORS,getPos,randNormal} = U;
+
+/* ===== Chapter 1: descriptive statistics ===== */
+(function(){
+  const canvas = document.getElementById('ds-canvas');
+  if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const pad = {l:40,r:40,t:30,b:40};
+  const domain = [-10,10];
+  const axisY = H-pad.b;
+
+  function xToPx(x){ return pad.l + (x-domain[0])/(domain[1]-domain[0])*(W-pad.l-pad.r); }
+  function pxToX(px){ return domain[0] + (px-pad.l)/(W-pad.l-pad.r)*(domain[1]-domain[0]); }
+
+  let points = []; // {x, py} py = vertical pixel offset for display
+  let dragIdx = -1;
+
+  function seedRandom(count){
+    points = [];
+    for(let i=0;i<count;i++){
+      points.push({x: randNormal(0,2.5), py: 60+Math.random()*120});
+    }
+    render();
+  }
+  seedRandom(9);
+
+  function computeMode(vals){
+    if(vals.length===0) return null;
+    const buckets = {};
+    vals.forEach(v=>{
+      const b = Math.round(v*2)/2; // bucket to nearest 0.5
+      buckets[b]=(buckets[b]||0)+1;
+    });
+    let maxF=0, best=[];
+    Object.keys(buckets).forEach(k=>{ if(buckets[k]>maxF){maxF=buckets[k]; best=[k];} else if(buckets[k]===maxF){best.push(k);} });
+    if(maxF<=1) return {text:'no repeats', val:null};
+    return {text: best.slice(0,3).map(b=>(+b).toFixed(1)).join(', '), val:+best[0]};
+  }
+
+  function render(){
+    U.clearCanvas(ctx,W,H);
+    // grid
+    ctx.strokeStyle = COLORS.grid;
+    ctx.lineWidth=1;
+    for(let gx=domain[0]; gx<=domain[1]; gx+=2){
+      const px = xToPx(gx);
+      ctx.beginPath(); ctx.moveTo(px,pad.t); ctx.lineTo(px,H-pad.b); ctx.stroke();
+    }
+    // axis
+    ctx.strokeStyle = COLORS.border;
+    ctx.beginPath(); ctx.moveTo(pad.l,axisY); ctx.lineTo(W-pad.r,axisY); ctx.stroke();
+    ctx.fillStyle = COLORS.faint;
+    ctx.font = '11px JetBrains Mono';
+    ctx.textAlign='center';
+    for(let gx=domain[0]; gx<=domain[1]; gx+=2){
+      ctx.fillText(gx.toString(), xToPx(gx), axisY+16);
+    }
+
+    if(points.length>0){
+      const vals = points.map(p=>p.x);
+      const m = mean(vals);
+      const med = (()=>{ const s=[...vals].sort((a,b)=>a-b); const n=s.length;
+        return n%2===0 ? (s[n/2-1]+s[n/2])/2 : s[(n-1)/2]; })();
+      const sd = std(vals);
+
+      // std band
+      ctx.fillStyle = COLORS.signalDim;
+      const bx0 = xToPx(clamp(m-sd,domain[0],domain[1])), bx1 = xToPx(clamp(m+sd,domain[0],domain[1]));
+      ctx.fillRect(bx0,pad.t,bx1-bx0,H-pad.t-pad.b);
+
+      // mean line
+      ctx.strokeStyle = COLORS.signal; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.moveTo(xToPx(m),pad.t); ctx.lineTo(xToPx(m),H-pad.b); ctx.stroke();
+      // median line
+      ctx.strokeStyle = COLORS.amber; ctx.lineWidth=2; ctx.setLineDash([5,4]);
+      ctx.beginPath(); ctx.moveTo(xToPx(med),pad.t); ctx.lineTo(xToPx(med),H-pad.b); ctx.stroke();
+      ctx.setLineDash([]);
+
+      // labels
+      ctx.textAlign='center'; ctx.font='11px JetBrains Mono';
+      ctx.fillStyle = COLORS.signal; ctx.fillText('mean', xToPx(m), pad.t-10);
+      ctx.fillStyle = COLORS.amber; ctx.fillText('median', xToPx(med), pad.t+2);
+
+      document.getElementById('ds-mean').textContent = fmt(m);
+      document.getElementById('ds-median').textContent = fmt(med);
+      document.getElementById('ds-var').textContent = fmt(variance(vals));
+      document.getElementById('ds-std').textContent = fmt(sd);
+      const mo = computeMode(vals);
+      document.getElementById('ds-mode').textContent = mo.text;
+      document.getElementById('ds-n').textContent = vals.length;
+    } else {
+      ['ds-mean','ds-median','ds-mode','ds-var','ds-std'].forEach(id=>document.getElementById(id).textContent='—');
+      document.getElementById('ds-n').textContent='0';
+    }
+
+    // points
+    points.forEach((p,i)=>{
+      const px = xToPx(p.x);
+      ctx.beginPath();
+      ctx.arc(px,p.py,7,0,Math.PI*2);
+      ctx.fillStyle = i===dragIdx ? COLORS.amber : 'rgba(232,236,241,0.85)';
+      ctx.fill();
+      ctx.strokeStyle = COLORS.border; ctx.lineWidth=1.5; ctx.stroke();
+    });
+  }
+
+  function hitTest(px,py){
+    for(let i=points.length-1;i>=0;i--){
+      const ppx = xToPx(points[i].x);
+      if(Math.hypot(ppx-px, points[i].py-py) < 12) return i;
+    }
+    return -1;
+  }
+
+  canvas.addEventListener('mousedown',e=>{
+    const pos = getPos(canvas,e);
+    const hit = hitTest(pos.x,pos.y);
+    if(hit>=0){ dragIdx = hit; }
+    else {
+      points.push({x: clamp(pxToX(pos.x),domain[0],domain[1]), py: clamp(pos.y,pad.t+10,H-pad.b-10)});
+      dragIdx = points.length-1;
+    }
+    render();
+  });
+  window.addEventListener('mousemove',e=>{
+    if(dragIdx<0) return;
+    const pos = getPos(canvas,e);
+    const r = canvas.getBoundingClientRect();
+    if(e.clientX < r.left-40 || e.clientX > r.right+40){ return; }
+    points[dragIdx].x = clamp(pxToX(pos.x),domain[0],domain[1]);
+    render();
+  });
+  window.addEventListener('mouseup',()=>{ dragIdx=-1; render(); });
+
+  document.getElementById('ds-clear').addEventListener('click',()=>{ points=[]; render(); });
+  document.getElementById('ds-random').addEventListener('click',()=>{
+    points.push({x: randNormal(0,3), py: 60+Math.random()*120});
+    render();
+  });
+
+  render();
+})();
+
+})();
+</script>
+<script>
+(function(){
+"use strict";
+const U = window.STAT_UTILS;
+const {clamp,fmt,fmtPct,COLORS} = U;
+
+/* ===== Chapter 2: probability / law of large numbers ===== */
+(function(){
+  const canvas = document.getElementById('pr-canvas');
+  if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W=canvas.width,H=canvas.height;
+  const pad={l:46,r:20,t:24,b:34};
+
+  let pTrue = 0.5;
+  let heads=0, n=0, history=[]; // history of running phat, decimated
+
+  function flip(){
+    const h = Math.random()<pTrue ? 1:0;
+    heads+=h; n++;
+    history.push(heads/n);
+    if(history.length>2000) history = history.filter((_,i)=>i%2===0);
+  }
+
+  function render(){
+    U.clearCanvas(ctx,W,H);
+    const x0=pad.l, x1=W-pad.r, y0=pad.t, y1=H-pad.b;
+    // grid (horizontal at 0,0.25,0.5,0.75,1)
+    ctx.strokeStyle=COLORS.grid; ctx.lineWidth=1; ctx.font='10px JetBrains Mono'; ctx.fillStyle=COLORS.faint;
+    for(let f=0; f<=1.0001; f+=0.25){
+      const y = y1-(y1-y0)*f;
+      ctx.beginPath(); ctx.moveTo(x0,y); ctx.lineTo(x1,y); ctx.stroke();
+      ctx.textAlign='right'; ctx.fillText(f.toFixed(2), x0-8, y+3);
+    }
+    // true p line
+    const ty = y1-(y1-y0)*pTrue;
+    ctx.strokeStyle=COLORS.amber; ctx.lineWidth=2; ctx.setLineDash([6,5]);
+    ctx.beginPath(); ctx.moveTo(x0,ty); ctx.lineTo(x1,ty); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle=COLORS.amber; ctx.textAlign='left'; ctx.font='11px JetBrains Mono';
+    ctx.fillText('true p = '+pTrue.toFixed(2), x0+6, ty-8);
+
+    // observed trajectory
+    if(history.length>1){
+      ctx.strokeStyle=COLORS.signal; ctx.lineWidth=2;
+      ctx.beginPath();
+      history.forEach((v,i)=>{
+        const px = x0 + (x1-x0)*(i/(history.length-1));
+        const py = y1-(y1-y0)*v;
+        if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+      });
+      ctx.stroke();
+      const lastPx = x1, lastPy = y1-(y1-y0)*history[history.length-1];
+      ctx.beginPath(); ctx.arc(lastPx-3,lastPy,4,0,Math.PI*2); ctx.fillStyle=COLORS.signal; ctx.fill();
+    } else {
+      ctx.fillStyle=COLORS.faint; ctx.font='13px Inter'; ctx.textAlign='center';
+      ctx.fillText('flip the coin to begin', (x0+x1)/2, (y0+y1)/2);
+    }
+
+    document.getElementById('pr-n').textContent = n;
+    document.getElementById('pr-heads').textContent = heads;
+    document.getElementById('pr-phat').textContent = n>0 ? fmtPct(heads/n) : '—';
+    document.getElementById('pr-err').textContent = n>0 ? fmtPct(Math.abs(heads/n-pTrue)) : '—';
+  }
+
+  document.getElementById('pr-flip1').addEventListener('click',()=>{ flip(); render(); });
+  document.getElementById('pr-flip100').addEventListener('click',()=>{ for(let i=0;i<100;i++) flip(); render(); });
+  document.getElementById('pr-reset').addEventListener('click',()=>{ heads=0;n=0;history=[]; render(); });
+  const slider = document.getElementById('pr-p');
+  slider.addEventListener('input',()=>{
+    pTrue = +slider.value;
+    document.getElementById('pr-p-val').textContent = pTrue.toFixed(2);
+    heads=0;n=0;history=[];
+    render();
+  });
+
+  render();
+})();
+
+})();
+</script>
+<script>
+(function(){
+"use strict";
+const U = window.STAT_UTILS;
+const {clamp,fmt,COLORS,normalPDF,binomialPMF,poissonPMF} = U;
+
+/* ===== Chapter 3: distributions explorer ===== */
+(function(){
+  const canvas = document.getElementById('dist-canvas');
+  if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W=canvas.width,H=canvas.height;
+  const pad={l:46,r:24,t:24,b:34};
+  const controlsHost = document.getElementById('dist-controls');
+  const tabsHost = document.getElementById('dist-tabs');
+
+  const CONFIG = {
+    uniform: {
+      params:{a:-3,b:3},
+      controls:[
+        {key:'a',label:'lower bound a',min:-8,max:0,step:0.5},
+        {key:'b',label:'upper bound b',min:0.5,max:8,step:0.5}
+      ],
+      kind:'continuous',
+      range:(p)=>[p.a-1.5,p.b+1.5],
+      fn:(x,p)=> (x>=p.a&&x<=p.b) ? 1/(p.b-p.a) : 0
+    },
+    normal: {
+      params:{mu:0,sigma:1.2},
+      controls:[
+        {key:'mu',label:'mean μ',min:-5,max:5,step:0.2},
+        {key:'sigma',label:'std dev σ',min:0.3,max:3,step:0.1}
+      ],
+      kind:'continuous',
+      range:(p)=>[p.mu-4*p.sigma-1, p.mu+4*p.sigma+1],
+      fn:(x,p)=>normalPDF(x,p.mu,p.sigma)
+    },
+    binomial: {
+      params:{n:20,p:0.5},
+      controls:[
+        {key:'n',label:'trials n',min:2,max:50,step:1},
+        {key:'p',label:'P(success)',min:0.02,max:0.98,step:0.02}
+      ],
+      kind:'discrete',
+      range:(pr)=>[0,pr.n],
+      fn:(k,pr)=>binomialPMF(Math.round(k),pr.n,pr.p)
+    },
+    poisson: {
+      params:{lambda:4},
+      controls:[
+        {key:'lambda',label:'rate λ',min:0.5,max:20,step:0.5}
+      ],
+      kind:'discrete',
+      range:(p)=>[0, Math.max(15,Math.ceil(p.lambda*3+6))],
+      fn:(k,p)=>poissonPMF(Math.round(k),p.lambda)
+    }
+  };
+  let current = 'uniform';
+
+  function buildControls(){
+    const cfg = CONFIG[current];
+    controlsHost.innerHTML='';
+    cfg.controls.forEach(c=>{
+      const wrap = document.createElement('div'); wrap.className='ctrl';
+      const label = document.createElement('label');
+      const span = document.createElement('span'); span.className='val'; span.textContent = cfg.params[c.key];
+      label.textContent = c.label+' '; label.appendChild(span);
+      const input = document.createElement('input'); input.type='range';
+      input.min=c.min; input.max=c.max; input.step=c.step; input.value=cfg.params[c.key];
+      input.addEventListener('input',()=>{
+        cfg.params[c.key] = +input.value;
+        span.textContent = (+input.value).toFixed(c.step<1?2:0);
+        render();
+      });
+      wrap.appendChild(label); wrap.appendChild(input);
+      controlsHost.appendChild(wrap);
+    });
+  }
+
+  function render(){
+    U.clearCanvas(ctx,W,H);
+    const cfg = CONFIG[current];
+    const [xmin,xmax] = cfg.range(cfg.params);
+    const x0=pad.l,x1=W-pad.r,y0=pad.t,y1=H-pad.b;
+    function xToPx(x){ return x0 + (x-xmin)/(xmax-xmin)*(x1-x0); }
+
+    let maxY = 0;
+    const N = 240;
+    const pts = [];
+    if(cfg.kind==='continuous'){
+      for(let i=0;i<=N;i++){
+        const x = xmin + (xmax-xmin)*i/N;
+        const y = cfg.fn(x,cfg.params);
+        pts.push([x,y]); if(y>maxY)maxY=y;
+      }
+    } else {
+      for(let k=Math.round(xmin); k<=Math.round(xmax); k++){
+        const y = cfg.fn(k,cfg.params);
+        pts.push([k,y]); if(y>maxY)maxY=y;
+      }
+    }
+    maxY = maxY*1.18 || 1;
+
+    // grid + y labels
+    ctx.strokeStyle=COLORS.grid; ctx.lineWidth=1; ctx.font='10px JetBrains Mono'; ctx.fillStyle=COLORS.faint;
+    for(let i=0;i<=4;i++){
+      const frac=i/4; const y=y1-(y1-y0)*frac;
+      ctx.beginPath(); ctx.moveTo(x0,y); ctx.lineTo(x1,y); ctx.stroke();
+      ctx.textAlign='right'; ctx.fillText((maxY*frac).toFixed(3), x0-8,y+3);
+    }
+    // x ticks
+    ctx.textAlign='center';
+    const ticks = 8;
+    for(let i=0;i<=ticks;i++){
+      const x = xmin + (xmax-xmin)*i/ticks;
+      ctx.fillText(cfg.kind==='discrete'?Math.round(x):x.toFixed(1), xToPx(x), y1+16);
+    }
+
+    if(cfg.kind==='continuous'){
+      ctx.beginPath();
+      pts.forEach(([x,y],i)=>{
+        const px=xToPx(x), py = y1-(y1-y0)*(y/maxY);
+        if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+      });
+      ctx.lineTo(xToPx(pts[pts.length-1][0]),y1); ctx.lineTo(xToPx(pts[0][0]),y1); ctx.closePath();
+      ctx.fillStyle = COLORS.signalDim; ctx.fill();
+      ctx.beginPath();
+      pts.forEach(([x,y],i)=>{
+        const px=xToPx(x), py = y1-(y1-y0)*(y/maxY);
+        if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+      });
+      ctx.strokeStyle=COLORS.signal; ctx.lineWidth=2.2; ctx.stroke();
+    } else {
+      const barW = Math.max(2,(x1-x0)/pts.length*0.7);
+      pts.forEach(([k,y])=>{
+        const px = xToPx(k);
+        const py = y1-(y1-y0)*(y/maxY);
+        ctx.fillStyle = COLORS.signal;
+        ctx.fillRect(px-barW/2, py, barW, y1-py);
+      });
+    }
+
+    ctx.fillStyle = COLORS.dim; ctx.font='12px Inter'; ctx.textAlign='left';
+    ctx.fillText(current.charAt(0).toUpperCase()+current.slice(1)+' distribution', x0, 18);
+  }
+
+  tabsHost.querySelectorAll('button').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      tabsHost.querySelectorAll('button').forEach(b=>b.classList.remove('primary'));
+      btn.classList.add('primary');
+      current = btn.getAttribute('data-dist');
+      buildControls(); render();
+    });
+  });
+
+  buildControls(); render();
+})();
+
+})();
+</script>
+<script>
+(function(){
+"use strict";
+const U = window.STAT_UTILS;
+const {clamp,fmt,fmtPct,COLORS,normalPDF,normalCDF,getPos} = U;
+
+/* ===== Chapter 4: normal curve & z-scores ===== */
+(function(){
+  const canvas = document.getElementById('z-canvas');
+  if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W=canvas.width,H=canvas.height;
+  const pad={l:46,r:24,t:30,b:36};
+  const xmin=-4,xmax=4;
+  const x0=pad.l,x1=W-pad.r,y0=pad.t,y1=H-pad.b;
+  function xToPx(x){ return x0+(x-xmin)/(xmax-xmin)*(x1-x0); }
+  function pxToX(px){ return xmin+(px-x0)/(x1-x0)*(xmax-xmin); }
+
+  let zLo=-1, zHi=1;
+  let dragging = null; // 'lo' | 'hi'
+  const maxPdf = normalPDF(0,0,1)*1.15;
+
+  function render(){
+    U.clearCanvas(ctx,W,H);
+    ctx.strokeStyle=COLORS.grid; ctx.lineWidth=1; ctx.font='10px JetBrains Mono'; ctx.fillStyle=COLORS.faint;
+    for(let gx=xmin; gx<=xmax; gx++){
+      const px=xToPx(gx);
+      ctx.beginPath(); ctx.moveTo(px,y0); ctx.lineTo(px,y1); ctx.stroke();
+      ctx.textAlign='center'; ctx.fillText(gx.toString(), px, y1+16);
+    }
+    // curve points
+    const N=240; const pts=[];
+    for(let i=0;i<=N;i++){ const x=xmin+(xmax-xmin)*i/N; pts.push([x,normalPDF(x,0,1)]); }
+
+    // shaded area between zLo,zHi
+    ctx.beginPath();
+    let started=false;
+    pts.forEach(([x,y])=>{
+      if(x<zLo || x>zHi) return;
+      const px=xToPx(x), py=y1-(y1-y0)*(y/maxPdf);
+      if(!started){ ctx.moveTo(xToPx(zLo), y1); ctx.lineTo(px,py); started=true; } else ctx.lineTo(px,py);
+    });
+    ctx.lineTo(xToPx(zHi),y1); ctx.closePath();
+    ctx.fillStyle = COLORS.amberDim; ctx.fill();
+
+    // curve line
+    ctx.beginPath();
+    pts.forEach(([x,y],i)=>{
+      const px=xToPx(x), py=y1-(y1-y0)*(y/maxPdf);
+      if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+    });
+    ctx.strokeStyle=COLORS.signal; ctx.lineWidth=2.2; ctx.stroke();
+
+    // handles
+    [['lo',zLo],['hi',zHi]].forEach(([key,z])=>{
+      const px=xToPx(z);
+      ctx.beginPath(); ctx.moveTo(px,y0); ctx.lineTo(px,y1); ctx.strokeStyle=COLORS.amber; ctx.lineWidth=2; ctx.stroke();
+      ctx.beginPath(); ctx.arc(px,y1,7,0,Math.PI*2); ctx.fillStyle=COLORS.amber; ctx.fill();
+      ctx.fillStyle=COLORS.amber; ctx.textAlign='center'; ctx.font='11px JetBrains Mono';
+      ctx.fillText('z='+z.toFixed(2), px, y0-8);
+    });
+
+    const area = normalCDF(zHi,0,1)-normalCDF(zLo,0,1);
+    document.getElementById('z-lo').textContent = zLo.toFixed(2);
+    document.getElementById('z-hi').textContent = zHi.toFixed(2);
+    document.getElementById('z-area').textContent = fmtPct(area);
+  }
+
+  function hitHandle(px){
+    if(Math.abs(px-xToPx(zLo))<14) return 'lo';
+    if(Math.abs(px-xToPx(zHi))<14) return 'hi';
+    return null;
+  }
+  canvas.addEventListener('mousedown',e=>{ const p=getPos(canvas,e); dragging=hitHandle(p.x); });
+  window.addEventListener('mousemove',e=>{
+    if(!dragging) return;
+    const p=getPos(canvas,e);
+    let zx = clamp(pxToX(p.x),xmin,xmax);
+    if(dragging==='lo'){ zLo = Math.min(zx,zHi-0.05); }
+    else { zHi = Math.max(zx,zLo+0.05); }
+    render();
+  });
+  window.addEventListener('mouseup',()=>{ dragging=null; });
+  canvas.addEventListener('touchstart',e=>{ const p=getPos(canvas,e); dragging=hitHandle(p.x); },{passive:true});
+  canvas.addEventListener('touchmove',e=>{
+    if(!dragging) return;
+    const p=getPos(canvas,e);
+    let zx = clamp(pxToX(p.x),xmin,xmax);
+    if(dragging==='lo'){ zLo = Math.min(zx,zHi-0.05); } else { zHi = Math.max(zx,zLo+0.05); }
+    render();
+  },{passive:true});
+  canvas.addEventListener('touchend',()=>{ dragging=null; });
+
+  render();
+})();
+
+})();
+</script>
+<script>
+(function(){
+"use strict";
+const U = window.STAT_UTILS;
+const {clamp,mean,std,fmt,COLORS,rnd,randNormal} = U;
+
+/* ===== Chapter 5: Central Limit Theorem ===== */
+(function(){
+  const popCanvas = document.getElementById('clt-pop');
+  const meansCanvas = document.getElementById('clt-means');
+  if(!popCanvas || !meansCanvas) return;
+  const pctx = popCanvas.getContext('2d'), mctx = meansCanvas.getContext('2d');
+  const PW=popCanvas.width, PH=popCanvas.height;
+  const MW=meansCanvas.width, MH=meansCanvas.height;
+  const pad={l:34,r:14,t:20,b:30};
+
+  const SAMPLERS = {
+    uniform: ()=> rnd(0,10),
+    exp: ()=> Math.min(20, -Math.log(Math.random()+1e-9)*2.6),
+    bimodal: ()=> Math.random()<0.5 ? randNormal(2,1) : randNormal(8.5,1)
+  };
+  const DOMAINS = { uniform:[-0.5,10.5], exp:[-0.5,20.5], bimodal:[-2,12.5] };
+
+  let shape='uniform';
+  let popSample = [];
+  let n = 5;
+  let meansHistory = [];
+
+  function regenPop(){
+    popSample = [];
+    for(let i=0;i<4000;i++) popSample.push(SAMPLERS[shape]());
+  }
+
+  function drawHist(ctx,W,H,data,color,fillColor,domain,bins){
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle = '#10141c'; ctx.fillRect(0,0,W,H);
+    const x0=pad.l,x1=W-pad.r,y0=pad.t,y1=H-pad.b;
+    ctx.strokeStyle=COLORS.border; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(x0,y1); ctx.lineTo(x1,y1); ctx.stroke();
+    if(data.length===0){
+      ctx.fillStyle=COLORS.faint; ctx.font='12px Inter'; ctx.textAlign='center';
+      ctx.fillText('no samples yet', (x0+x1)/2,(y0+y1)/2);
+      return;
+    }
+    let lo=domain[0], hi=domain[1];
+    const counts = new Array(bins).fill(0);
+    data.forEach(v=>{
+      let idx = Math.floor((v-lo)/(hi-lo)*bins);
+      idx = clamp(idx,0,bins-1);
+      counts[idx]++;
+    });
+    const maxC = Math.max(...counts,1);
+    const bw = (x1-x0)/bins;
+    counts.forEach((c,i)=>{
+      const bh = (y1-y0)*(c/maxC);
+      ctx.fillStyle = fillColor;
+      ctx.fillRect(x0+i*bw+1, y1-bh, bw-2, bh);
+    });
+    ctx.fillStyle=COLORS.faint; ctx.font='10px JetBrains Mono'; ctx.textAlign='center';
+    ctx.fillText(lo.toFixed(1), x0, y1+14);
+    ctx.fillText(hi.toFixed(1), x1, y1+14);
+  }
+
+  function renderPop(){
+    drawHist(pctx,PW,PH,popSample,COLORS.violet,'rgba(167,139,250,0.55)',DOMAINS[shape],28);
+  }
+  function renderMeans(){
+    let domain;
+    if(meansHistory.length<2) domain = DOMAINS[shape];
+    else {
+      const lo=Math.min(...meansHistory), hi=Math.max(...meansHistory);
+      const pad2=(hi-lo)*0.15+0.3;
+      domain=[lo-pad2,hi+pad2];
+    }
+    drawHist(mctx,MW,MH,meansHistory,COLORS.signal,'rgba(94,234,212,0.6)',domain,28);
+    document.getElementById('clt-count').textContent = meansHistory.length;
+    document.getElementById('clt-meanmean').textContent = meansHistory.length? fmt(mean(meansHistory)):'—';
+    document.getElementById('clt-sd').textContent = meansHistory.length>1? fmt(std(meansHistory)):'—';
+  }
+
+  function drawSamples(times){
+    for(let t=0;t<times;t++){
+      let s=0; for(let i=0;i<n;i++) s+=SAMPLERS[shape]();
+      meansHistory.push(s/n);
+    }
+    renderMeans();
+  }
+
+  document.getElementById('clt-shapes').querySelectorAll('button').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      document.querySelectorAll('#clt-shapes button').forEach(b=>b.classList.remove('primary'));
+      btn.classList.add('primary');
+      shape = btn.getAttribute('data-shape');
+      regenPop(); meansHistory=[];
+      renderPop(); renderMeans();
+    });
+  });
+  const nSlider = document.getElementById('clt-n');
+  nSlider.addEventListener('input',()=>{
+    n = +nSlider.value;
+    document.getElementById('clt-n-val').textContent = n;
+    meansHistory=[];
+    renderMeans();
+  });
+  document.getElementById('clt-draw1').addEventListener('click',()=>drawSamples(1));
+  document.getElementById('clt-draw100').addEventListener('click',()=>drawSamples(200));
+  document.getElementById('clt-reset').addEventListener('click',()=>{ meansHistory=[]; renderMeans(); });
+
+  regenPop(); renderPop(); renderMeans();
+})();
+
+})();
+</script>
+<script>
+(function(){
+"use strict";
+const U = window.STAT_UTILS;
+const {clamp,mean,std,fmt,COLORS,rnd,randNormal,getPos} = U;
+
+/* ===== Chapter 6: covariance & correlation ===== */
+(function(){
+  const canvas = document.getElementById('cov-canvas');
+  if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W=canvas.width,H=canvas.height;
+  const pad={l:46,r:24,t:24,b:34};
+  const dom=[-5,5];
+  const x0=pad.l,x1=W-pad.r,y0=pad.t,y1=H-pad.b;
+  function xToPx(x){ return x0+(x-dom[0])/(dom[1]-dom[0])*(x1-x0); }
+  function yToPx(y){ return y1-(y-dom[0])/(dom[1]-dom[0])*(y1-y0); }
+  function pxToX(px){ return dom[0]+(px-x0)/(x1-x0)*(dom[1]-dom[0]); }
+  function pxToY(py){ return dom[0]+(y1-py)/(y1-y0)*(dom[1]-dom[0]); }
+
+  let points=[];
+  let dragIdx=-1;
+
+  function covOf(xs,ys){
+    const mx=mean(xs),my=mean(ys);
+    let s=0; for(let i=0;i<xs.length;i++) s+=(xs[i]-mx)*(ys[i]-my);
+    return s/xs.length;
+  }
+
+  function render(){
+    U.clearCanvas(ctx,W,H);
+    ctx.strokeStyle=COLORS.grid; ctx.lineWidth=1; ctx.font='10px JetBrains Mono'; ctx.fillStyle=COLORS.faint;
+    for(let g=dom[0]; g<=dom[1]; g++){
+      const px=xToPx(g), py=yToPx(g);
+      ctx.beginPath(); ctx.moveTo(px,y0); ctx.lineTo(px,y1); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x0,py); ctx.lineTo(x1,py); ctx.stroke();
+    }
+    ctx.strokeStyle=COLORS.border; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.moveTo(x0,yToPx(0)); ctx.lineTo(x1,yToPx(0)); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(xToPx(0),y0); ctx.lineTo(xToPx(0),y1); ctx.stroke();
+
+    points.forEach((p,i)=>{
+      ctx.beginPath();
+      ctx.arc(xToPx(p.x),yToPx(p.y),7,0,Math.PI*2);
+      ctx.fillStyle = i===dragIdx? COLORS.amber : COLORS.signal;
+      ctx.fill();
+      ctx.strokeStyle=COLORS.border; ctx.lineWidth=1.5; ctx.stroke();
+    });
+
+    if(points.length>1){
+      const xs=points.map(p=>p.x), ys=points.map(p=>p.y);
+      const cov=covOf(xs,ys);
+      const sx=std(xs),sy=std(ys);
+      const r = (sx>1e-9&&sy>1e-9) ? cov/(sx*sy) : 0;
+      document.getElementById('cov-cov').textContent = fmt(cov);
+      document.getElementById('cov-r').textContent = fmt(r);
+    } else {
+      document.getElementById('cov-cov').textContent='—';
+      document.getElementById('cov-r').textContent='—';
+    }
+    document.getElementById('cov-n').textContent = points.length;
+  }
+
+  function hitTest(px,py){
+    for(let i=points.length-1;i>=0;i--){
+      if(Math.hypot(xToPx(points[i].x)-px, yToPx(points[i].y)-py)<12) return i;
+    }
+    return -1;
+  }
+  canvas.addEventListener('mousedown',e=>{
+    const p=getPos(canvas,e);
+    const hit=hitTest(p.x,p.y);
+    if(hit>=0) dragIdx=hit;
+    else { points.push({x:clamp(pxToX(p.x),dom[0],dom[1]), y:clamp(pxToY(p.y),dom[0],dom[1])}); dragIdx=points.length-1; }
+    render();
+  });
+  window.addEventListener('mousemove',e=>{
+    if(dragIdx<0) return;
+    const p=getPos(canvas,e);
+    points[dragIdx].x = clamp(pxToX(p.x),dom[0],dom[1]);
+    points[dragIdx].y = clamp(pxToY(p.y),dom[0],dom[1]);
+    render();
+  });
+  window.addEventListener('mouseup',()=>{ dragIdx=-1; render(); });
+
+  document.getElementById('cov-clear').addEventListener('click',()=>{ points=[]; render(); });
+  document.getElementById('cov-pattern-pos').addEventListener('click',()=>{
+    for(let i=0;i<22;i++){ const x=rnd(-4,4); points.push({x, y:clamp(x*0.75+randNormal(0,0.8),dom[0],dom[1])}); }
+    render();
+  });
+  document.getElementById('cov-pattern-neg').addEventListener('click',()=>{
+    for(let i=0;i<22;i++){ const x=rnd(-4,4); points.push({x, y:clamp(-x*0.75+randNormal(0,0.8),dom[0],dom[1])}); }
+    render();
+  });
+  document.getElementById('cov-pattern-none').addEventListener('click',()=>{
+    for(let i=0;i<22;i++){ points.push({x:rnd(-4,4), y:rnd(-4,4)}); }
+    render();
+  });
+
+  render();
+})();
+
+})();
+</script>
+<script>
+// ── Chapter 7: Bayes' Theorem ────────────────────────────────────────────────
+(function(){
+  const U = window.STAT_UTILS;
+  const {clearCanvas,COLORS,fmt,fmtPct} = U;
+  const canvas = document.getElementById('bayes-canvas');
+  if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+
+  function render(){
+    const prior   = parseFloat(document.getElementById('bayes-prior').value)/100;
+    const sens    = parseFloat(document.getElementById('bayes-sens').value)/100;
+    const spec    = parseFloat(document.getElementById('bayes-spec').value)/100;
+    const fpr     = 1 - spec;
+
+    // P(D+) = prior, P(D-) = 1-prior
+    // P(pos|D+) = sens, P(pos|D-) = fpr
+    const pPos    = prior * sens + (1-prior) * fpr;
+    const postPos = (prior * sens) / (pPos || 1e-9);
+
+    document.getElementById('bayes-pd').textContent    = fmtPct(prior);
+    document.getElementById('bayes-ppos').textContent  = fmtPct(pPos);
+    document.getElementById('bayes-post').textContent  = fmtPct(postPos);
+
+    clearCanvas(canvas);
+
+    // Draw a natural frequency tree (population=1000 squares in a grid)
+    const N = 200; const cols = 20; const rows = N/cols;
+    const sqW = Math.floor((W-80)/cols), sqH = Math.floor((H-80)/rows);
+    const offX = 40, offY = 40;
+
+    // count diseased
+    const diseased = Math.round(prior * N);
+    const truePos  = Math.round(diseased * sens);
+    const falsePos = Math.round((N - diseased) * fpr);
+
+    for(let i=0;i<N;i++){
+      const col = i % cols, row = Math.floor(i/cols);
+      const x = offX + col*sqW, y = offY + row*sqH;
+      const isDisease = i < diseased;
+      const isTestPos = isDisease ? (i < truePos) : (i - diseased < falsePos);
+      ctx.fillStyle = isDisease
+        ? (isTestPos ? COLORS.rose : COLORS.roseDim)
+        : (isTestPos ? COLORS.amber : COLORS.faint);
+      ctx.fillRect(x+1,y+1,sqW-2,sqH-2);
+    }
+
+    // Legend
+    const leg = [
+      {c:COLORS.rose,   label:`True+ (${truePos})`},
+      {c:COLORS.roseDim,label:`False- (${diseased-truePos})`},
+      {c:COLORS.amber,  label:`False+ (${falsePos})`},
+      {c:COLORS.faint,  label:`True- (${N-diseased-falsePos})`},
+    ];
+    leg.forEach((l,i)=>{
+      const lx = offX + (i%2)*(W/2), ly = offY + rows*sqH + 14 + Math.floor(i/2)*20;
+      ctx.fillStyle = l.c;
+      ctx.fillRect(lx,ly,12,12);
+      ctx.fillStyle = COLORS.text;
+      ctx.font = '11px Inter, sans-serif';
+      ctx.fillText(l.label, lx+16, ly+10);
+    });
+
+    // Label PPV
+    ctx.fillStyle = COLORS.signal;
+    ctx.font = 'bold 13px Inter, sans-serif';
+    ctx.fillText(`PPV (posterior) = ${fmtPct(postPos)}`, offX, offY-12);
+  }
+
+  ['bayes-prior','bayes-sens','bayes-spec'].forEach(id=>{
+    const el = document.getElementById(id);
+    el.addEventListener('input', render);
+  });
+  render();
+})();
+</script>
+<script>
+// ── Chapter 8: Confidence Intervals ─────────────────────────────────────────
+(function(){
+  const U = window.STAT_UTILS;
+  const {clearCanvas,COLORS,fmt,normalCDF,randNormal,rnd} = U;
+  const canvas = document.getElementById('ci-canvas');
+  if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+
+  let intervals = [];
+  const TRUE_MU = 0, TRUE_SIGMA = 1;
+
+  function zCrit(levelPct){
+    // levelPct is integer e.g. 95 → z* for 95% CI
+    const p = 0.5 + levelPct/200; // two-tailed: 95% → 0.975
+    const q = p - 0.5;
+    const a=[-3.969683028665376e+01,2.209460984245205e+02,-2.759285104469687e+02,1.383577518672690e+02,-3.066479806614716e+01,2.506628277459239e+00];
+    const b=[-5.447609879822406e+01,1.615858368580409e+02,-1.556989798598866e+02,6.680131188771972e+01,-1.328068155288572e+01];
+    const c=[-7.784894002430293e-03,-3.223964580411365e-01,-2.400758277161838e+00,-2.549732539343734e+00,4.374664141464968e+00,2.938163982698783e+00];
+    const d=[7.784695709041462e-03,3.224671290700398e-01,2.445134137142996e+00,3.754408661907416e+00];
+    const pLow=0.02425, pHigh=1-pLow;
+    let x;
+    if(p<pLow){ const r=Math.sqrt(-2*Math.log(p)); x=(((((c[0]*r+c[1])*r+c[2])*r+c[3])*r+c[4])*r+c[5])/(((( d[0]*r+d[1])*r+d[2])*r+d[3])*r+1); }
+    else if(p<=pHigh){ const r=p-0.5; const s=r*r; x=(((((a[0]*s+a[1])*s+a[2])*s+a[3])*s+a[4])*s+a[5])*r/((((( b[0]*s+b[1])*s+b[2])*s+b[3])*s+b[4])*s+1); }
+    else { const r=Math.sqrt(-2*Math.log(1-p)); x=-(((((c[0]*r+c[1])*r+c[2])*r+c[3])*r+c[4])*r+c[5])/(((( d[0]*r+d[1])*r+d[2])*r+d[3])*r+1); }
+    return x;
+  }
+
+  function drawSample(times){
+    const levelPct = parseInt(document.getElementById('ci-level').value);
+    const n        = parseInt(document.getElementById('ci-n').value);
+    const z        = zCrit(levelPct);
+    const level    = levelPct/100;
+    for(let t=0;t<times;t++){
+      let sum=0; for(let i=0;i<n;i++) sum += randNormal(TRUE_MU, TRUE_SIGMA);
+      const xbar = sum/n;
+      const se = TRUE_SIGMA / Math.sqrt(n);
+      intervals.push({lo: xbar - z*se, hi: xbar + z*se, xbar});
+    }
+    render();
+  }
+
+  function render(){
+    clearCanvas(canvas);
+    const levelPct = parseInt(document.getElementById('ci-level').value);
+    const level = levelPct/100;
+    const n = parseInt(document.getElementById('ci-n').value);
+
+    const maxShow = 60;
+    const visible = intervals.slice(-maxShow);
+    const hits  = intervals.filter(ci => ci.lo <= TRUE_MU && ci.hi >= TRUE_MU).length;
+    const total = intervals.length;
+    const rate  = total > 0 ? hits/total : 0;
+
+    document.getElementById('ci-total').textContent = total;
+    document.getElementById('ci-hit').textContent   = hits;
+    document.getElementById('ci-rate').textContent  = total>0 ? (rate*100).toFixed(1)+'%' : '—';
+
+    // x axis: map [-3.5, 3.5] to canvas width
+    const xMin=-3.5, xMax=3.5;
+    const xToPx = v => 40 + (v-xMin)/(xMax-xMin)*(W-80);
+    const barH = Math.max(3, Math.floor((H-60)/maxShow)-1);
+    const startY = 30;
+
+    // Draw true mu line
+    ctx.strokeStyle = COLORS.signal;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4,4]);
+    const muX = xToPx(TRUE_MU);
+    ctx.beginPath(); ctx.moveTo(muX,20); ctx.lineTo(muX,H-20); ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.font = '11px Inter, sans-serif';
+    ctx.fillStyle = COLORS.signal;
+    ctx.fillText('μ=0', muX+4, 18);
+
+    visible.forEach((ci,i)=>{
+      const y = startY + i*(barH+1);
+      const x0 = xToPx(ci.lo), x1 = xToPx(ci.hi);
+      const hit = ci.lo <= TRUE_MU && ci.hi >= TRUE_MU;
+      ctx.fillStyle = hit ? COLORS.signal+'44' : COLORS.rose+'44';
+      ctx.fillRect(x0, y, x1-x0, barH);
+      ctx.strokeStyle = hit ? COLORS.signal : COLORS.rose;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x0, y, x1-x0, barH);
+      // xbar tick
+      const xbPx = xToPx(ci.xbar);
+      ctx.fillStyle = hit ? COLORS.signal : COLORS.rose;
+      ctx.fillRect(xbPx-1, y, 2, barH);
+    });
+
+    ctx.fillStyle = COLORS.text;
+    ctx.font = 'bold 13px Inter, sans-serif';
+    ctx.fillText(`${levelPct}% CI | n=${n}`, 40, H-8);
+  }
+
+  document.getElementById('ci-draw1').addEventListener('click',  ()=>drawSample(1));
+  document.getElementById('ci-draw20').addEventListener('click', ()=>drawSample(20));
+  document.getElementById('ci-reset').addEventListener('click',  ()=>{ intervals=[]; render(); });
+  ['ci-level','ci-n'].forEach(id=>document.getElementById(id).addEventListener('input',()=>{ intervals=[]; render(); }));
+  render();
+})();
+</script>
+<script>
+// ── Chapter 9: Hypothesis Testing ────────────────────────────────────────────
+(function(){
+  const U = window.STAT_UTILS;
+  const {clearCanvas,COLORS,normalCDF,normalPDF,fmt} = U;
+  const canvas = document.getElementById('ht-canvas');
+  if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+
+  let tail = 'two';
+
+  function render(){
+    const z = parseFloat(document.getElementById('ht-z').value);
+    clearCanvas(canvas);
+
+    const xMin=-4, xMax=4;
+    const xToPx = v => 20 + (v-xMin)/(xMax-xMin)*(W-40);
+    const yBase = H-30, yScale = (H-60);
+
+    // Build curve pts
+    const pts = [];
+    for(let i=0;i<=400;i++){
+      const x = xMin + (xMax-xMin)*i/400;
+      pts.push({x, y:normalPDF(x,0,1)});
+    }
+    const yMax = normalPDF(0,0,1);
+    const yToPx = v => yBase - v/yMax * yScale;
+
+    // shade rejection region
+    ctx.fillStyle = COLORS.rose+'55';
+    const fillRegion = (lo,hi)=>{
+      ctx.beginPath();
+      ctx.moveTo(xToPx(lo), yBase);
+      for(let i=0;i<=400;i++){
+        const x = xMin+(xMax-xMin)*i/400;
+        if(x >= lo && x <= hi) ctx.lineTo(xToPx(x), yToPx(normalPDF(x,0,1)));
+      }
+      ctx.lineTo(xToPx(hi), yBase);
+      ctx.closePath();
+      ctx.fill();
+    };
+
+    let pval;
+    if(tail === 'two'){
+      const az = Math.abs(z);
+      fillRegion(az, xMax);
+      fillRegion(xMin, -az);
+      pval = 2*(1-normalCDF(az,0,1));
+    } else {
+      fillRegion(z, xMax);
+      pval = 1 - normalCDF(z,0,1);
+    }
+
+    // curve
+    ctx.strokeStyle = COLORS.signal;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    pts.forEach((p,i)=>{ i===0 ? ctx.moveTo(xToPx(p.x),yToPx(p.y)) : ctx.lineTo(xToPx(p.x),yToPx(p.y)); });
+    ctx.stroke();
+
+    // z line
+    ctx.strokeStyle = COLORS.amber;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5,5]);
+    const zpx = xToPx(z);
+    ctx.beginPath(); ctx.moveTo(zpx,yBase); ctx.lineTo(zpx,yToPx(normalPDF(z,0,1))); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // x axis ticks
+    ctx.fillStyle = COLORS.dim;
+    ctx.font = '11px JetBrains Mono, monospace';
+    [-4,-3,-2,-1,0,1,2,3,4].forEach(v=>{
+      ctx.fillText(v, xToPx(v)-5, yBase+14);
+    });
+
+    // z label
+    ctx.fillStyle = COLORS.amber;
+    ctx.font = 'bold 12px Inter, sans-serif';
+    ctx.fillText(`z = ${fmt(z)}`, zpx+4, yToPx(normalPDF(z,0,1))-6);
+
+    // p-value
+    const alpha = 0.05;
+    const sig = pval < alpha;
+    document.getElementById('ht-pval').textContent = pval < 0.001 ? '<0.001' : fmt(pval);
+    document.getElementById('ht-decision').textContent = sig ? '✓ Reject H₀ (p < 0.05)' : '✗ Fail to reject H₀';
+    document.getElementById('ht-decision').style.color = sig ? COLORS.rose : COLORS.dim;
+  }
+
+  document.getElementById('ht-z').addEventListener('input', render);
+  document.querySelectorAll('[data-tail]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      tail = btn.dataset.tail;
+      document.querySelectorAll('[data-tail]').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      render();
+    });
+  });
+  render();
+})();
+</script>
+<script>
+// ── Chapter 10: Maximum Likelihood Estimation ─────────────────────────────────
+(function(){
+  const U = window.STAT_UTILS;
+  const {clearCanvas,COLORS,fmt,rnd} = U;
+  const canvas = document.getElementById('mle-canvas');
+  if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+
+  let heads = 0, total = 0;
+
+  function logLikelihood(p, h, n){
+    if(p<=0||p>=1) return -Infinity;
+    return h*Math.log(p) + (n-h)*Math.log(1-p);
+  }
+
+  function flip(times){
+    for(let i=0;i<times;i++){
+      total++;
+      if(Math.random()<0.6) heads++; // true p=0.6
+    }
+    render();
+  }
+
+  function render(){
+    clearCanvas(canvas);
+    const xMin=0.01, xMax=0.99;
+    const xToPx = v => 50 + (v-xMin)/(xMax-xMin)*(W-80);
+
+    // Compute LL curve
+    const N=300;
+    const pts=[];
+    let llMin=Infinity, llMax=-Infinity;
+    for(let i=0;i<=N;i++){
+      const p=xMin+(xMax-xMin)*i/N;
+      const ll = total>0 ? logLikelihood(p,heads,total) : 0;
+      if(ll>llMax) llMax=ll;
+      if(ll<llMin && ll>-500) llMin=ll;
+      pts.push({p,ll});
+    }
+    if(total===0){ llMin=-5; llMax=0; }
+    const yToPx = v => (H-30) - (v-llMin)/(llMax-llMin+1e-9)*(H-70);
+
+    // axes
+    ctx.strokeStyle = COLORS.border;
+    ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(50,20); ctx.lineTo(50,H-30); ctx.lineTo(W-30,H-30); ctx.stroke();
+
+    // curve
+    if(total>0){
+      ctx.strokeStyle = COLORS.signal;
+      ctx.lineWidth=2;
+      ctx.beginPath();
+      pts.forEach((pt,i)=>{
+        const y=yToPx(pt.ll);
+        if(pt.ll < -500){ ctx.moveTo(xToPx(pt.p),y); return; }
+        i===0 ? ctx.moveTo(xToPx(pt.p),y) : ctx.lineTo(xToPx(pt.p),y);
+      });
+      ctx.stroke();
+    }
+
+    // MLE line at p_hat
+    const pHat = total>0 ? heads/total : 0.5;
+    ctx.strokeStyle = COLORS.amber;
+    ctx.lineWidth=2;
+    ctx.setLineDash([5,5]);
+    const phPx=xToPx(pHat);
+    ctx.beginPath(); ctx.moveTo(phPx,20); ctx.lineTo(phPx,H-30); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // True p line
+    ctx.strokeStyle = COLORS.violet;
+    ctx.lineWidth=1.5;
+    ctx.setLineDash([3,3]);
+    const tpPx=xToPx(0.6);
+    ctx.beginPath(); ctx.moveTo(tpPx,20); ctx.lineTo(tpPx,H-30); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // x-axis labels
+    ctx.fillStyle=COLORS.dim; ctx.font='11px JetBrains Mono, monospace';
+    [0.2,0.4,0.6,0.8].forEach(v=>{ ctx.fillText(v.toFixed(1),xToPx(v)-8,H-14); });
+
+    // Legend
+    ctx.font='12px Inter, sans-serif';
+    ctx.fillStyle=COLORS.amber;  ctx.fillText(`p̂ = ${fmt(pHat)}  (MLE)`, 60, 20);
+    ctx.fillStyle=COLORS.violet; ctx.fillText(`true p = 0.60`, 60, 36);
+
+    // axis labels
+    ctx.fillStyle=COLORS.dim; ctx.font='11px Inter, sans-serif';
+    ctx.fillText('p', W/2, H-2);
+    ctx.save(); ctx.translate(14,H/2); ctx.rotate(-Math.PI/2);
+    ctx.fillText('log-likelihood', 0,0); ctx.restore();
+
+    document.getElementById('mle-counts').textContent = `H=${heads}  T=${total-heads}`;
+    document.getElementById('mle-phat').textContent   = fmt(pHat);
+    document.getElementById('mle-ll').textContent     = total>0 ? fmt(logLikelihood(pHat,heads,total)) : '—';
+  }
+
+  document.getElementById('mle-flip1').addEventListener('click',  ()=>flip(1));
+  document.getElementById('mle-flip10').addEventListener('click', ()=>flip(10));
+  document.getElementById('mle-reset').addEventListener('click',  ()=>{ heads=0; total=0; render(); });
+  render();
+})();
+</script>
+<script>
+// ── Chapter 11: Entropy / Cross-Entropy / KL Divergence ──────────────────────
+(function(){
+  const U = window.STAT_UTILS;
+  const {clearCanvas,COLORS,fmt} = U;
+  const canvas = document.getElementById('ent-canvas');
+  if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+
+  const CATS = ['cat','dog','bird','fish'];
+  // true distribution P
+  let P = [0.5, 0.3, 0.15, 0.05];
+  // model distribution Q
+  let Q = [0.25, 0.25, 0.25, 0.25];
+
+  let dragging = null; // {which:'P'|'Q', idx}
+
+  function normalize(arr){
+    const s = arr.reduce((a,b)=>a+b,0);
+    return s>0 ? arr.map(v=>v/s) : arr.map(()=>1/arr.length);
+  }
+
+  function entropy(p){ return -p.reduce((s,v)=>s+(v>0?v*Math.log2(v):0),0); }
+  function crossEntropy(p,q){ return -p.reduce((s,v,i)=>s+(v>0&&q[i]>0?v*Math.log2(q[i]):0),0); }
+  function kl(p,q){ return p.reduce((s,v,i)=>s+(v>0&&q[i]>0?v*Math.log2(v/q[i]):0),0); }
+
+  const nCats = CATS.length;
+  const barW = Math.floor((W-80)/(nCats*2+1));
+  const gap   = barW/2;
+  const offX  = 50;
+  const yBase = H-50;
+  const yScale = H-90;
+
+  function barX(which, idx){
+    const groupW = barW*2+gap;
+    const gx = offX + idx*(groupW+gap);
+    return which==='P' ? gx : gx+barW+4;
+  }
+
+  function render(){
+    clearCanvas(canvas);
+
+    const Pn = normalize(P), Qn = normalize(Q);
+    const H_P  = entropy(Pn);
+    const CE   = crossEntropy(Pn,Qn);
+    const KL   = kl(Pn,Qn);
+
+    document.getElementById('ent-h').textContent  = fmt(H_P);
+    document.getElementById('ent-ce').textContent = fmt(CE);
+    document.getElementById('ent-kl').textContent = fmt(KL);
+
+    // Draw bars
+    Pn.forEach((v,i)=>{
+      // P bar (teal)
+      const xp = barX('P',i);
+      const bh = v*yScale;
+      ctx.fillStyle = COLORS.signal+'bb';
+      ctx.fillRect(xp, yBase-bh, barW, bh);
+      ctx.strokeStyle = COLORS.signal;
+      ctx.strokeRect(xp, yBase-bh, barW, bh);
+
+      // Q bar (amber)
+      const xq = barX('Q',i);
+      const qh = Qn[i]*yScale;
+      ctx.fillStyle = COLORS.amber+'bb';
+      ctx.fillRect(xq, yBase-qh, barW, qh);
+      ctx.strokeStyle = COLORS.amber;
+      ctx.strokeRect(xq, yBase-qh, barW, qh);
+
+      // category label
+      ctx.fillStyle=COLORS.dim; ctx.font='12px Inter, sans-serif';
+      ctx.fillText(CATS[i], xp, yBase+14);
+
+      // value labels
+      ctx.fillStyle=COLORS.signal; ctx.font='10px JetBrains Mono, monospace';
+      ctx.fillText((v*100).toFixed(0)+'%', xp, yBase-bh-4);
+      ctx.fillStyle=COLORS.amber;
+      ctx.fillText((Qn[i]*100).toFixed(0)+'%', xq, yBase-Qn[i]*yScale-4);
+    });
+
+    // legend
+    ctx.fillStyle=COLORS.signal; ctx.fillRect(offX,14,14,12);
+    ctx.fillStyle=COLORS.text; ctx.font='12px Inter, sans-serif';
+    ctx.fillText('P (true)  — drag to reshape', offX+18, 24);
+    ctx.fillStyle=COLORS.amber; ctx.fillRect(offX+160,14,14,12);
+    ctx.fillStyle=COLORS.text;
+    ctx.fillText('Q (model) — drag to reshape', offX+178, 24);
+
+    // y-axis
+    ctx.strokeStyle=COLORS.border; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(offX-2,20); ctx.lineTo(offX-2,yBase); ctx.lineTo(W-20,yBase); ctx.stroke();
+  }
+
+  function hitBarTest(mx, my){
+    const Pn=normalize(P), Qn=normalize(Q);
+    for(let i=0;i<nCats;i++){
+      for(const w of ['P','Q']){
+        const x=barX(w,i);
+        const v=(w==='P'?Pn[i]:Qn[i])*yScale;
+        if(mx>=x && mx<=x+barW && my>=yBase-v-10 && my<=yBase) return {which:w, idx:i};
+      }
+    }
+    return null;
+  }
+
+  canvas.addEventListener('mousedown',e=>{
+    const r=canvas.getBoundingClientRect();
+    const scaleX=canvas.width/r.width, scaleY=canvas.height/r.height;
+    const mx=(e.clientX-r.left)*scaleX, my=(e.clientY-r.top)*scaleY;
+    dragging = hitBarTest(mx,my);
+  });
+  window.addEventListener('mousemove',e=>{
+    if(!dragging) return;
+    const r=canvas.getBoundingClientRect();
+    const scaleX=canvas.width/r.width, scaleY=canvas.height/r.height;
+    const my=(e.clientY-r.top)*scaleY;
+    const v = Math.max(0.01, Math.min(1, (yBase-my)/yScale));
+    const arr = dragging.which==='P' ? P : Q;
+    arr[dragging.idx] = v;
+    render();
+  });
+  window.addEventListener('mouseup',()=>{ dragging=null; });
+
+  document.getElementById('ent-match').addEventListener('click',()=>{
+    Q=[...P]; render();
+  });
+  document.getElementById('ent-uniform').addEventListener('click',()=>{
+    Q=CATS.map(()=>1/nCats); render();
+  });
+  render();
+})();
+</script>
+<script>
+// ── Chapter 12: Linear Regression ────────────────────────────────────────────
+(function(){
+  const U = window.STAT_UTILS;
+  const {clearCanvas,COLORS,fmt,rnd,randNormal,mean} = U;
+  const canvas = document.getElementById('lr-canvas');
+  if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+
+  let points = [];
+  let showResiduals = true;
+  let dragIdx = -1;
+  const dom = [-5, 5];
+
+  const xToPx = v => 50 + (v-dom[0])/(dom[1]-dom[0])*(W-80);
+  const yToPx = v => (H-30) - (v-dom[0])/(dom[1]-dom[0])*(H-60);
+  const pxToX = p => dom[0]+(p-50)/(W-80)*(dom[1]-dom[0]);
+  const pxToY = p => dom[0]+((H-30)-p)/(H-60)*(dom[1]-dom[0]);
+  const clampD= v => Math.max(dom[0],Math.min(dom[1],v));
+
+  function ols(pts){
+    if(pts.length<2) return null;
+    const mx=mean(pts.map(p=>p.x)), my=mean(pts.map(p=>p.y));
+    let sxy=0, sxx=0;
+    pts.forEach(p=>{ sxy+=(p.x-mx)*(p.y-my); sxx+=(p.x-mx)**2; });
+    if(sxx===0) return null;
+    const slope=sxy/sxx, intercept=my-slope*mx;
+    const sse=pts.reduce((s,p)=>{ const e=p.y-(slope*p.x+intercept); return s+e*e; },0);
+    const sst=pts.reduce((s,p)=>s+(p.y-my)**2,0);
+    const r2=sst>0?1-sse/sst:1;
+    return {slope,intercept,sse,r2};
+  }
+
+  function render(){
+    clearCanvas(canvas);
+
+    // grid
+    ctx.strokeStyle=COLORS.grid; ctx.lineWidth=0.5;
+    [dom[0],0,dom[1]].forEach(v=>{
+      ctx.beginPath(); ctx.moveTo(xToPx(v),20); ctx.lineTo(xToPx(v),H-25); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(45,yToPx(v)); ctx.lineTo(W-25,yToPx(v)); ctx.stroke();
+    });
+
+    const reg = ols(points);
+    if(reg){
+      const x0=dom[0], x1=dom[1];
+      const y0=reg.slope*x0+reg.intercept, y1=reg.slope*x1+reg.intercept;
+
+      if(showResiduals){
+        points.forEach(p=>{
+          const yhat=reg.slope*p.x+reg.intercept;
+          ctx.strokeStyle=COLORS.rose+'88'; ctx.lineWidth=1;
+          ctx.beginPath();
+          ctx.moveTo(xToPx(p.x),yToPx(p.y));
+          ctx.lineTo(xToPx(p.x),yToPx(yhat));
+          ctx.stroke();
+        });
+      }
+
+      ctx.strokeStyle=COLORS.amber; ctx.lineWidth=2; ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.moveTo(xToPx(x0),yToPx(Math.max(dom[0]-1,Math.min(dom[1]+1,y0))));
+      ctx.lineTo(xToPx(x1),yToPx(Math.max(dom[0]-1,Math.min(dom[1]+1,y1))));
+      ctx.stroke();
+
+      document.getElementById('lr-slope').textContent     = fmt(reg.slope);
+      document.getElementById('lr-intercept').textContent = fmt(reg.intercept);
+      document.getElementById('lr-sse').textContent       = fmt(reg.sse);
+      document.getElementById('lr-r2').textContent        = fmt(reg.r2);
+    } else {
+      ['lr-slope','lr-intercept','lr-sse','lr-r2'].forEach(id=>{ document.getElementById(id).textContent='—'; });
+    }
+
+    points.forEach(p=>{
+      ctx.fillStyle=COLORS.signal;
+      ctx.beginPath(); ctx.arc(xToPx(p.x),yToPx(p.y),5,0,Math.PI*2); ctx.fill();
+    });
+
+    // axis labels
+    ctx.fillStyle=COLORS.faint; ctx.font='11px JetBrains Mono, monospace';
+    [dom[0],0,dom[1]].forEach(v=>{
+      ctx.fillText(v,xToPx(v)-6,H-10);
+      ctx.fillText(v,8,yToPx(v)+4);
+    });
+  }
+
+  function hitTest(px,py){
+    for(let i=points.length-1;i>=0;i--){
+      if(Math.hypot(xToPx(points[i].x)-px,yToPx(points[i].y)-py)<10) return i;
+    }
+    return -1;
+  }
+
+  const getPos = (canvas,e)=>{
+    const r=canvas.getBoundingClientRect();
+    const s=e.touches?e.touches[0]:e;
+    return {x:(s.clientX-r.left)*canvas.width/r.width, y:(s.clientY-r.top)*canvas.height/r.height};
+  };
+
+  canvas.addEventListener('mousedown',e=>{
+    const p=getPos(canvas,e);
+    const h=hitTest(p.x,p.y);
+    if(h>=0) dragIdx=h;
+    else { points.push({x:clampD(pxToX(p.x)), y:clampD(pxToY(p.y))}); dragIdx=points.length-1; }
+    render();
+  });
+  window.addEventListener('mousemove',e=>{
+    if(dragIdx<0) return;
+    const p=getPos(canvas,e);
+    points[dragIdx].x=clampD(pxToX(p.x));
+    points[dragIdx].y=clampD(pxToY(p.y));
+    render();
+  });
+  window.addEventListener('mouseup',()=>{ dragIdx=-1; });
+
+  document.getElementById('lr-clear').addEventListener('click',()=>{ points=[]; render(); });
+  document.getElementById('lr-sample').addEventListener('click',()=>{
+    points=[];
+    const slope=rnd(-1.5,1.5), intercept=rnd(-1,1);
+    for(let i=0;i<20;i++){
+      const x=rnd(dom[0],dom[1]);
+      points.push({x, y:clampD(slope*x+intercept+randNormal(0,0.8))});
+    }
+    render();
+  });
+  document.getElementById('lr-toggle-res').addEventListener('click',()=>{ showResiduals=!showResiduals; render(); });
+  render();
+})();
+</script>
+<script>
+// ── Chapter 13: Bias-Variance Tradeoff ───────────────────────────────────────
+(function(){
+  const U = window.STAT_UTILS;
+  const {clearCanvas,COLORS,fmt,rnd,randNormal} = U;
+  const canvas = document.getElementById('bv-canvas');
+  if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+
+  // True function: sin(2πx), domain [0,1]
+  const TRUE_FN = x => Math.sin(2*Math.PI*x);
+  const N_TRAIN = 15, NOISE = 0.35;
+
+  // Generate fixed training data once
+  let trainX = [], trainY = [];
+  function genData(){
+    trainX=[]; trainY=[];
+    for(let i=0;i<N_TRAIN;i++){
+      const x=rnd(0,1);
+      trainX.push(x);
+      trainY.push(TRUE_FN(x)+randNormal(0,NOISE));
+    }
+  }
+  genData();
+
+  // Polynomial fit via Vandermonde least-squares (normal equations)
+  function polyFit(xs, ys, deg){
+    const n=xs.length, m=deg+1;
+    // Build Vandermonde matrix A (n x m)
+    const A=xs.map(x=>Array.from({length:m},(_,j)=>Math.pow(x,j)));
+    // Normal equations: (A^T A) c = A^T y
+    const At = Array.from({length:m},(_,j)=>Array.from({length:n},(_2,i)=>A[i][j]));
+    const AtA = Array.from({length:m},(_,j)=>Array.from({length:m},(_2,k)=>At[j].reduce((s,v,i)=>s+v*At[k][i],0)));
+    const Aty = Array.from({length:m},(_,j)=>At[j].reduce((s,v,i)=>s+v*ys[i],0));
+    // Gaussian elimination
+    const aug = AtA.map((row,i)=>[...row,Aty[i]]);
+    for(let col=0;col<m;col++){
+      let mx=col; for(let r=col+1;r<m;r++) if(Math.abs(aug[r][col])>Math.abs(aug[mx][col])) mx=r;
+      [aug[col],aug[mx]]=[aug[mx],aug[col]];
+      const piv=aug[col][col]; if(Math.abs(piv)<1e-12) continue;
+      for(let r=0;r<m;r++) if(r!==col){
+        const f=aug[r][col]/piv;
+        for(let c=col;c<=m;c++) aug[r][c]-=f*aug[col][c];
+      }
+      for(let c=col;c<=m;c++) aug[col][c]/=piv;
+    }
+    return aug.map(row=>row[m]);
+  }
+
+  function evalPoly(coefs, x){
+    return coefs.reduce((s,c,i)=>s+c*Math.pow(x,i),0);
+  }
+
+  function mse(coefs, xs, ys){
+    return xs.reduce((s,x,i)=>{ const e=evalPoly(coefs,x)-ys[i]; return s+e*e; },0)/xs.length;
+  }
+
+  function render(){
+    const deg = parseInt(document.getElementById('bv-deg').value);
+    clearCanvas(canvas);
+
+    // Split canvas: left=curve, right=error vs degree
+    const splitX = W*0.62;
+    const pad=40;
+
+    // Left panel: curve
+    const xToPx = v => pad + v*(splitX-pad-10);
+    const yToPx = v => (H-30) - (v+1.5)/3*(H-55);
+
+    // true fn
+    ctx.strokeStyle=COLORS.signal+'88'; ctx.lineWidth=1.5; ctx.setLineDash([4,4]);
+    ctx.beginPath();
+    for(let i=0;i<=100;i++){
+      const x=i/100, y=TRUE_FN(x);
+      i===0?ctx.moveTo(xToPx(x),yToPx(y)):ctx.lineTo(xToPx(x),yToPx(y));
+    }
+    ctx.stroke(); ctx.setLineDash([]);
+
+    // training points
+    trainX.forEach((x,i)=>{
+      ctx.fillStyle=COLORS.signal;
+      ctx.beginPath(); ctx.arc(xToPx(x),yToPx(trainY[i]),4,0,Math.PI*2); ctx.fill();
+    });
+
+    // fitted polynomial
+    const coefs = polyFit(trainX, trainY, deg);
+    ctx.strokeStyle=COLORS.amber; ctx.lineWidth=2.5;
+    ctx.beginPath();
+    for(let i=0;i<=100;i++){
+      const x=i/100, y=Math.max(-4,Math.min(4,evalPoly(coefs,x)));
+      i===0?ctx.moveTo(xToPx(x),yToPx(y)):ctx.lineTo(xToPx(x),yToPx(y));
+    }
+    ctx.stroke();
+
+    // test set (held out)
+    const testX=Array.from({length:30},()=>rnd(0,1));
+    const testY=testX.map(x=>TRUE_FN(x)+randNormal(0,NOISE));
+    const trainErr=mse(coefs,trainX,trainY);
+    const testErr=mse(coefs,testX,testY);
+
+    // Right panel: error bar for current degree
+    const maxDeg=12;
+    const allDeg=Array.from({length:maxDeg+1},(_,i)=>i+1);
+    const allTrain=[], allTest=[];
+    allDeg.forEach(d=>{
+      try{
+        const c=polyFit(trainX,trainY,d);
+        allTrain.push(mse(c,trainX,trainY));
+        allTest.push(mse(c,testX,testY));
+      }catch{allTrain.push(null);allTest.push(null);}
+    });
+
+    const rightPad=20;
+    const rLeft=splitX+20, rRight=W-rightPad;
+    const rW=rRight-rLeft, rH=H-70;
+    const errMax=Math.min(2, Math.max(...allTest.filter(v=>v!=null))*1.2);
+    const eX=d=>rLeft+(d-1)/maxDeg*rW;
+    const eY=v=>H-30-Math.min(v,errMax)/errMax*rH;
+
+    ctx.strokeStyle=COLORS.border; ctx.lineWidth=0.5;
+    ctx.beginPath(); ctx.moveTo(rLeft,30); ctx.lineTo(rLeft,H-30); ctx.lineTo(rRight,H-30); ctx.stroke();
+
+    // Train curve (teal)
+    ctx.strokeStyle=COLORS.signal; ctx.lineWidth=2;
+    ctx.beginPath();
+    allDeg.forEach((d,i)=>{
+      if(allTrain[i]==null) return;
+      i===0?ctx.moveTo(eX(d),eY(allTrain[i])):ctx.lineTo(eX(d),eY(allTrain[i]));
+    });
+    ctx.stroke();
+
+    // Test curve (rose)
+    ctx.strokeStyle=COLORS.rose; ctx.lineWidth=2;
+    ctx.beginPath();
+    allDeg.forEach((d,i)=>{
+      if(allTest[i]==null) return;
+      i===0?ctx.moveTo(eX(d),eY(allTest[i])):ctx.lineTo(eX(d),eY(allTest[i]));
+    });
+    ctx.stroke();
+
+    // current deg marker
+    ctx.fillStyle=COLORS.amber;
+    ctx.beginPath(); ctx.arc(eX(deg),eY(allTest[deg-1]||0),5,0,Math.PI*2); ctx.fill();
+
+    // x-axis degree labels
+    ctx.fillStyle=COLORS.dim; ctx.font='10px JetBrains Mono, monospace';
+    [1,4,8,12].forEach(d=>ctx.fillText(d,eX(d)-4,H-14));
+    ctx.fillStyle=COLORS.dim; ctx.font='11px Inter, sans-serif';
+    ctx.fillText('degree →', rLeft+rW/2-20, H-2);
+
+    // legend
+    ctx.fillStyle=COLORS.signal; ctx.fillText('train', rLeft+2,24);
+    ctx.fillStyle=COLORS.rose;   ctx.fillText('test',  rLeft+40,24);
+
+    const regime = deg<=2?'High Bias (underfitting)':deg>=8?'High Variance (overfitting)':'Good fit';
+    document.getElementById('bv-train').textContent  = fmt(trainErr);
+    document.getElementById('bv-test').textContent   = fmt(testErr);
+    document.getElementById('bv-regime').textContent = regime;
+  }
+
+  document.getElementById('bv-deg').addEventListener('input', render);
+  render();
+})();
+</script>
+<script>
+// ── Chapter 14: Monte Carlo ───────────────────────────────────────────────────
+(function(){
+  const U = window.STAT_UTILS;
+  const {clearCanvas,COLORS,fmt,rnd} = U;
+  const canvas = document.getElementById('mc-canvas');
+  if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+
+  let insideCount=0, totalCount=0;
+  const DISPLAY_MAX=3000; // keep last N dots for rendering
+  const dots=[];
+
+  function throwDarts(n){
+    for(let i=0;i<n;i++){
+      const x=rnd(-1,1), y=rnd(-1,1);
+      const inside = x*x+y*y<=1;
+      if(inside) insideCount++;
+      totalCount++;
+      if(dots.length>=DISPLAY_MAX) dots.shift();
+      dots.push({x,y,inside});
+    }
+    render();
+  }
+
+  function render(){
+    clearCanvas(canvas);
+    const cx=W/2, cy=H/2, r=Math.min(W,H)/2-10;
+    const xToPx=v=>cx+v*r, yToPx=v=>cy-v*r;
+
+    // square
+    ctx.strokeStyle=COLORS.border; ctx.lineWidth=1.5;
+    ctx.strokeRect(cx-r,cy-r,r*2,r*2);
+
+    // circle
+    ctx.strokeStyle=COLORS.signal; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.stroke();
+
+    // dots
+    dots.forEach(d=>{
+      ctx.fillStyle = d.inside ? COLORS.signal+'cc' : COLORS.rose+'cc';
+      ctx.beginPath(); ctx.arc(xToPx(d.x),yToPx(d.y),2,0,Math.PI*2); ctx.fill();
+    });
+
+    const piEst = totalCount>0 ? 4*insideCount/totalCount : 0;
+    const err   = totalCount>0 ? Math.abs(piEst-Math.PI) : 0;
+
+    document.getElementById('mc-total').textContent  = totalCount;
+    document.getElementById('mc-inside').textContent = insideCount;
+    document.getElementById('mc-pi').textContent     = totalCount>0 ? piEst.toFixed(5) : '—';
+    document.getElementById('mc-err').textContent    = totalCount>0 ? err.toFixed(5) : '—';
+
+    // pi estimate label
+    if(totalCount>0){
+      ctx.fillStyle=COLORS.amber;
+      ctx.font='bold 14px JetBrains Mono, monospace';
+      ctx.fillText(`π ≈ ${piEst.toFixed(4)}`, 10, 22);
+    }
+  }
+
+  document.getElementById('mc-throw1').addEventListener('click',  ()=>throwDarts(1));
+  document.getElementById('mc-throw500').addEventListener('click', ()=>throwDarts(500));
+  document.getElementById('mc-reset').addEventListener('click',   ()=>{ insideCount=0; totalCount=0; dots.length=0; render(); });
+  render();
+})();
+</script>
+<script>
+// ── Chapter 15: Markov Chains ────────────────────────────────────────────────
+(function(){
+  const U = window.STAT_UTILS;
+  const {clearCanvas,COLORS,fmt} = U;
+  const canvas = document.getElementById('mk-canvas');
+  if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+
+  const STATES = ['Sunny','Cloudy','Rainy'];
+  const COLORS_STATE = [COLORS.amber, COLORS.signal, COLORS.violet];
+  // Transition matrix T[i][j] = P(next=j | current=i)
+  const T = [
+    [0.7, 0.2, 0.1],
+    [0.3, 0.4, 0.3],
+    [0.2, 0.3, 0.5],
+  ];
+
+  let curState = 0;
+  let stepCount = 0;
+  let stateHist = [0]; // track for distribution
+  let running = false, runTimer = null;
+
+  function stationary(){
+    // Power iteration: find π s.t. πT=π
+    let pi=[1/3,1/3,1/3];
+    for(let iter=0;iter<500;iter++){
+      const next=[0,0,0];
+      STATES.forEach((_,j)=>{ STATES.forEach((_2,i)=>{ next[j]+=pi[i]*T[i][j]; }); });
+      pi=next;
+    }
+    return pi;
+  }
+
+  const piStat = stationary();
+
+  function step(){
+    const row = T[curState];
+    const r = Math.random();
+    let cum=0;
+    for(let j=0;j<row.length;j++){
+      cum+=row[j];
+      if(r<cum){ curState=j; break; }
+    }
+    stateHist.push(curState);
+    stepCount++;
+    render();
+  }
+
+  function render(){
+    clearCanvas(canvas);
+
+    // --- Left: state diagram ---
+    const Lw = W*0.45;
+    const cx=Lw/2, cy=H/2, radius=Math.min(Lw,H)*0.33;
+    const nodeR=32;
+
+    // positions for 3 nodes in triangle
+    const angles=[Math.PI*1.5, Math.PI*1.5+Math.PI*2/3, Math.PI*1.5+Math.PI*4/3];
+    const NX=angles.map(a=>cx+radius*Math.cos(a));
+    const NY=angles.map(a=>cy+radius*Math.sin(a));
+
+    // Draw edges (arrows) - only draw straight edges for now
+    STATES.forEach((_,i)=>{
+      STATES.forEach((_2,j)=>{
+        if(i===j) return; // skip self-loops for clarity
+        const prob=T[i][j];
+        if(prob<0.05) return;
+        const x0=NX[i], y0=NY[i], x1=NX[j], y1=NY[j];
+        const dx=x1-x0, dy=y1-y0, len=Math.hypot(dx,dy);
+        const ux=dx/len, uy=dy/len;
+        const sx=x0+ux*nodeR, sy=y0+uy*nodeR;
+        const ex=x1-ux*nodeR, ey=y1-uy*nodeR;
+        ctx.strokeStyle=COLORS.border; ctx.lineWidth=prob*6+0.5;
+        ctx.beginPath(); ctx.moveTo(sx,sy); ctx.lineTo(ex,ey); ctx.stroke();
+        // arrowhead
+        const ax=-ux*8-uy*5, ay=-uy*8+ux*5;
+        ctx.fillStyle=COLORS.border;
+        ctx.beginPath(); ctx.moveTo(ex,ey); ctx.lineTo(ex+ax,ey+ay); ctx.lineTo(ex-uy*5,ey+ux*5); ctx.fill();
+        // probability label
+        ctx.fillStyle=COLORS.dim; ctx.font='10px JetBrains Mono, monospace';
+        ctx.fillText(prob.toFixed(1),(sx+ex)/2-6,(sy+ey)/2-4);
+      });
+    });
+
+    // Nodes
+    STATES.forEach((s,i)=>{
+      const active = i===curState;
+      ctx.fillStyle = active ? COLORS_STATE[i] : COLORS_STATE[i]+'44';
+      ctx.beginPath(); ctx.arc(NX[i],NY[i],nodeR,0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle = active ? COLORS_STATE[i] : 'transparent';
+      ctx.lineWidth=3; ctx.stroke();
+      ctx.fillStyle = active ? '#0b0e14' : COLORS.text;
+      ctx.font = `bold 12px Inter, sans-serif`;
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(s,NX[i],NY[i]);
+      ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+    });
+
+    // --- Right: empirical vs stationary distribution bars ---
+    const Rx=Lw+20, Rw=W-Rx-15;
+    const n=stateHist.length;
+    const empirical=STATES.map((_,i)=>stateHist.filter(s=>s===i).length/n);
+
+    const barH=Math.floor((H-100)/STATES.length)-8;
+    const maxPi=Math.max(...piStat)*1.1;
+
+    STATES.forEach((s,i)=>{
+      const y=50+i*(barH+12);
+      const ew=Math.max(0,empirical[i]/maxPi*(Rw-60));
+      const sw=Math.max(0,piStat[i]/maxPi*(Rw-60));
+
+      // stationary bar (dashed border)
+      ctx.strokeStyle=COLORS_STATE[i]+'66'; ctx.lineWidth=1.5; ctx.setLineDash([4,3]);
+      ctx.strokeRect(Rx,y,sw,barH); ctx.setLineDash([]);
+
+      // empirical bar
+      ctx.fillStyle=COLORS_STATE[i]+'99';
+      ctx.fillRect(Rx,y,ew,barH);
+
+      ctx.fillStyle=COLORS.text; ctx.font='11px Inter, sans-serif';
+      ctx.fillText(s, Rx, y-2);
+      ctx.fillStyle=COLORS.dim; ctx.font='10px JetBrains Mono, monospace';
+      ctx.fillText(`${(empirical[i]*100).toFixed(1)}%`, Rx+ew+4, y+barH/2+4);
+    });
+
+    ctx.fillStyle=COLORS.dim; ctx.font='11px Inter, sans-serif';
+    ctx.fillText('Empirical vs π* (stationary)', Rx, 30);
+    ctx.fillText('solid=empirical  dashed=stationary', Rx, 44);
+
+    document.getElementById('mk-state').textContent     = STATES[curState];
+    document.getElementById('mk-steps').textContent     = stepCount;
+    document.getElementById('mk-stationary').textContent= piStat.map((p,i)=>`${STATES[i][0]}:${(p*100).toFixed(0)}%`).join(' ');
+  }
+
+  document.getElementById('mk-step').addEventListener('click', step);
+  document.getElementById('mk-run').addEventListener('click',()=>{
+    if(running){ clearInterval(runTimer); running=false; document.getElementById('mk-run').textContent='Auto-run'; }
+    else { running=true; document.getElementById('mk-run').textContent='Stop'; runTimer=setInterval(step,180); }
+  });
+  document.getElementById('mk-reset').addEventListener('click',()=>{
+    curState=0; stepCount=0; stateHist=[0]; clearInterval(runTimer); running=false;
+    document.getElementById('mk-run').textContent='Auto-run';
+    render();
+  });
+  render();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,1377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Calculus — From Zero to Hero</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg2: #161b22;
+    --bg3: #21262d;
+    --border: #30363d;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --accent: #58a6ff;
+    --accent2: #3fb950;
+    --accent3: #ff7b72;
+    --accent4: #d2a8ff;
+    --yellow: #e3b341;
+    --card-radius: 12px;
+    --font: 'Segoe UI', system-ui, sans-serif;
+    --mono: 'Cascadia Code', 'Fira Code', monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font); min-height: 100vh; overflow-x: hidden; }
+
+  /* Sidebar */
+  #sidebar {
+    position: fixed; left: 0; top: 0; width: 260px; height: 100vh;
+    background: var(--bg2); border-right: 1px solid var(--border);
+    overflow-y: auto; z-index: 100; display: flex; flex-direction: column;
+  }
+  .sidebar-header { padding: 20px 18px 16px; border-bottom: 1px solid var(--border); }
+  .sidebar-header h1 { font-size: 17px; font-weight: 700; color: var(--accent); letter-spacing: -0.3px; }
+  .sidebar-header p { font-size: 11px; color: var(--muted); margin-top: 3px; }
+  .progress-bar-wrap { margin: 10px 0 0; background: var(--bg3); border-radius: 100px; height: 5px; }
+  .progress-bar-fill { height: 5px; background: linear-gradient(90deg, var(--accent), var(--accent2)); border-radius: 100px; transition: width 0.5s; }
+  .progress-label { font-size: 11px; color: var(--muted); margin-top: 5px; }
+
+  .sidebar-section { padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .sidebar-section-label { font-size: 10px; font-weight: 700; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; padding: 0 18px 6px; }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 18px; cursor: pointer; font-size: 13px; color: var(--muted);
+    border-left: 2px solid transparent; transition: all 0.15s;
+  }
+  .nav-item:hover { background: var(--bg3); color: var(--text); }
+  .nav-item.active { background: rgba(88,166,255,0.1); color: var(--accent); border-left-color: var(--accent); }
+  .nav-item.completed .check { color: var(--accent2); }
+  .nav-item .check { font-size: 11px; margin-left: auto; color: var(--border); }
+  .nav-icon { font-size: 15px; opacity: 0.7; }
+
+  /* Main content */
+  #main { margin-left: 260px; min-height: 100vh; }
+  .chapter { display: none; padding: 40px 48px; max-width: 840px; animation: fadeIn 0.3s ease; }
+  .chapter.active { display: block; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+  .chapter-tag { font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--accent); margin-bottom: 8px; }
+  .chapter h2 { font-size: 32px; font-weight: 800; letter-spacing: -0.5px; line-height: 1.2; margin-bottom: 12px; }
+  .chapter-desc { font-size: 15px; color: var(--muted); line-height: 1.7; margin-bottom: 32px; border-left: 3px solid var(--border); padding-left: 16px; }
+
+  /* Content blocks */
+  .content-block { margin-bottom: 28px; }
+  .content-block h3 { font-size: 16px; font-weight: 600; margin-bottom: 10px; color: var(--text); }
+  .content-block p { font-size: 14px; line-height: 1.8; color: #c9d1d9; margin-bottom: 10px; }
+
+  /* Math formula box */
+  .formula-box {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 20px 24px; margin: 16px 0;
+    font-family: var(--mono); font-size: 15px; color: var(--accent4);
+    text-align: center; letter-spacing: 0.5px; position: relative; overflow: hidden;
+  }
+  .formula-box::before { content: '∫'; position: absolute; left: -10px; top: -10px; font-size: 80px; color: rgba(88,166,255,0.04); }
+  .formula-label { font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; font-family: var(--font); }
+
+  /* Interactive canvas */
+  .canvas-wrap { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--card-radius); overflow: hidden; margin: 20px 0; }
+  .canvas-toolbar { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  .canvas-toolbar label { font-size: 12px; color: var(--muted); }
+  .canvas-toolbar input[type=range] { width: 100px; accent-color: var(--accent); }
+  .canvas-toolbar input[type=text] {
+    background: var(--bg3); border: 1px solid var(--border); color: var(--text);
+    border-radius: 6px; padding: 5px 10px; font-size: 13px; font-family: var(--mono); width: 160px;
+  }
+  .canvas-toolbar input[type=text]:focus { outline: none; border-color: var(--accent); }
+  .canvas-toolbar select { background: var(--bg3); border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: 5px 8px; font-size: 12px; }
+  .canvas-toolbar .val-display { font-family: var(--mono); font-size: 13px; color: var(--accent); min-width: 30px; }
+  canvas { display: block; width: 100%; }
+
+  /* Concept cards */
+  .concept-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin: 16px 0; }
+  .concept-card {
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px; cursor: default; transition: border-color 0.2s;
+  }
+  .concept-card:hover { border-color: var(--accent); }
+  .concept-card .icon { font-size: 22px; margin-bottom: 8px; }
+  .concept-card .label { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+  .concept-card .desc { font-size: 12px; color: var(--muted); line-height: 1.5; }
+
+  /* Quiz */
+  .quiz-box { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--card-radius); padding: 24px; margin: 20px 0; }
+  .quiz-box h3 { font-size: 14px; font-weight: 700; margin-bottom: 8px; color: var(--yellow); }
+  .quiz-box .question { font-size: 15px; margin-bottom: 16px; line-height: 1.6; }
+  .quiz-options { display: flex; flex-direction: column; gap: 8px; }
+  .quiz-option {
+    padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px;
+    cursor: pointer; font-size: 13px; transition: all 0.15s;
+    background: var(--bg3); color: var(--text);
+  }
+  .quiz-option:hover { border-color: var(--accent); }
+  .quiz-option.correct { border-color: var(--accent2); background: rgba(63,185,80,0.1); color: var(--accent2); }
+  .quiz-option.wrong { border-color: var(--accent3); background: rgba(255,123,114,0.1); color: var(--accent3); }
+  .quiz-feedback { margin-top: 12px; font-size: 13px; color: var(--muted); display: none; line-height: 1.6; }
+  .quiz-feedback.show { display: block; }
+
+  /* Step-by-step proof */
+  .proof-steps { margin: 16px 0; }
+  .proof-step {
+    display: flex; gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--border);
+    align-items: flex-start; opacity: 0.4; transition: opacity 0.3s;
+  }
+  .proof-step.revealed { opacity: 1; }
+  .step-num { background: var(--bg3); border: 1px solid var(--border); border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; color: var(--accent); }
+  .step-content .formula { font-family: var(--mono); font-size: 13px; color: var(--accent4); margin-bottom: 4px; }
+  .step-content .explain { font-size: 12px; color: var(--muted); }
+  .btn-reveal { margin-top: 14px; padding: 8px 18px; background: transparent; border: 1px solid var(--accent); color: var(--accent); border-radius: 8px; cursor: pointer; font-size: 13px; font-family: var(--font); transition: all 0.15s; }
+  .btn-reveal:hover { background: rgba(88,166,255,0.1); }
+
+  /* Navigation buttons */
+  .chapter-nav { display: flex; justify-content: space-between; align-items: center; margin-top: 40px; padding-top: 24px; border-top: 1px solid var(--border); }
+  .btn-nav { padding: 10px 22px; border-radius: 8px; cursor: pointer; font-size: 14px; font-family: var(--font); font-weight: 600; transition: all 0.15s; }
+  .btn-prev { background: transparent; border: 1px solid var(--border); color: var(--muted); }
+  .btn-prev:hover { border-color: var(--text); color: var(--text); }
+  .btn-next { background: var(--accent); border: 1px solid var(--accent); color: #000; }
+  .btn-next:hover { background: #79b8ff; }
+
+  /* Info/tip boxes */
+  .tip-box { background: rgba(88,166,255,0.07); border-left: 3px solid var(--accent); border-radius: 0 8px 8px 0; padding: 14px 16px; margin: 16px 0; font-size: 13px; color: #c9d1d9; line-height: 1.7; }
+  .tip-box strong { color: var(--accent); }
+  .warn-box { background: rgba(227,179,65,0.07); border-left: 3px solid var(--yellow); border-radius: 0 8px 8px 0; padding: 14px 16px; margin: 16px 0; font-size: 13px; color: #c9d1d9; line-height: 1.7; }
+  .warn-box strong { color: var(--yellow); }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg2); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* Responsive */
+  @media (max-width: 700px) {
+    #sidebar { width: 100%; height: auto; position: relative; }
+    #main { margin-left: 0; }
+    .chapter { padding: 24px 18px; }
+    .chapter h2 { font-size: 24px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<nav id="sidebar">
+  <div class="sidebar-header">
+    <h1>∫ Calculus</h1>
+    <p>Interactive learning — zero to hero</p>
+    <div class="progress-bar-wrap"><div class="progress-bar-fill" id="progressFill" style="width:0%"></div></div>
+    <div class="progress-label" id="progressLabel">0 of 8 topics completed</div>
+  </div>
+
+  <div class="sidebar-section">
+    <div class="sidebar-section-label">Foundations</div>
+    <div class="nav-item active" data-chapter="0" onclick="goTo(0)">
+      <span class="nav-icon">🧭</span> What is Calculus?
+      <span class="check" id="check-0">✓</span>
+    </div>
+    <div class="nav-item" data-chapter="1" onclick="goTo(1)">
+      <span class="nav-icon">📈</span> Limits &amp; Continuity
+      <span class="check" id="check-1">✓</span>
+    </div>
+  </div>
+
+  <div class="sidebar-section">
+    <div class="sidebar-section-label">Differential Calculus</div>
+    <div class="nav-item" data-chapter="2" onclick="goTo(2)">
+      <span class="nav-icon">🔢</span> Derivatives Intro
+      <span class="check" id="check-2">✓</span>
+    </div>
+    <div class="nav-item" data-chapter="3" onclick="goTo(3)">
+      <span class="nav-icon">⚙️</span> Rules of Differentiation
+      <span class="check" id="check-3">✓</span>
+    </div>
+    <div class="nav-item" data-chapter="4" onclick="goTo(4)">
+      <span class="nav-icon">🎯</span> Applications of Derivatives
+      <span class="check" id="check-4">✓</span>
+    </div>
+  </div>
+
+  <div class="sidebar-section">
+    <div class="sidebar-section-label">Integral Calculus</div>
+    <div class="nav-item" data-chapter="5" onclick="goTo(5)">
+      <span class="nav-icon">∫</span> Integration Intro
+      <span class="check" id="check-5">✓</span>
+    </div>
+    <div class="nav-item" data-chapter="6" onclick="goTo(6)">
+      <span class="nav-icon">🔗</span> Techniques of Integration
+      <span class="check" id="check-6">✓</span>
+    </div>
+    <div class="nav-item" data-chapter="7" onclick="goTo(7)">
+      <span class="nav-icon">🚀</span> Advanced Topics
+      <span class="check" id="check-7">✓</span>
+    </div>
+  </div>
+</nav>
+
+<!-- MAIN CONTENT -->
+<main id="main">
+
+<!-- ===== CHAPTER 0: WHAT IS CALCULUS ===== -->
+<section class="chapter active" id="ch0">
+  <div class="chapter-tag">Chapter 0 · Foundations</div>
+  <h2>What is Calculus?</h2>
+  <p class="chapter-desc">Calculus is the mathematics of continuous change. It answers two fundamental questions: how fast is something changing right now? And how much has accumulated over time?</p>
+
+  <div class="content-block">
+    <h3>The Two Big Ideas</h3>
+    <p>All of calculus flows from two operations that are inverses of each other — like multiplication and division, or squaring and taking square roots.</p>
+    <div class="concept-grid">
+      <div class="concept-card">
+        <div class="icon">🔬</div>
+        <div class="label">Differentiation</div>
+        <div class="desc">Finds the instantaneous rate of change — the derivative. "How fast is this changing right now?"</div>
+      </div>
+      <div class="concept-card">
+        <div class="icon">🌊</div>
+        <div class="label">Integration</div>
+        <div class="desc">Finds the accumulation or total area. "How much has built up over this interval?"</div>
+      </div>
+      <div class="concept-card">
+        <div class="icon">🔗</div>
+        <div class="label">Fundamental Theorem</div>
+        <div class="desc">The bridge connecting both: differentiation and integration are inverse operations.</div>
+      </div>
+      <div class="concept-card">
+        <div class="icon">♾️</div>
+        <div class="label">Limits</div>
+        <div class="desc">The foundation beneath both: what happens as we get infinitely close to a point?</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="content-block">
+    <h3>Where Calculus Lives</h3>
+    <p>Every time you see a smooth curve, a changing quantity, or accumulated effects — calculus is there:</p>
+    <div class="tip-box"><strong>Physics:</strong> velocity, acceleration, force, electric fields, quantum mechanics<br>
+    <strong>Engineering:</strong> signal processing, control systems, bridge load analysis<br>
+    <strong>Biology:</strong> population growth, drug concentration in bloodstream<br>
+    <strong>Economics:</strong> marginal cost, optimal pricing, GDP growth</div>
+  </div>
+
+  <div class="content-block">
+    <h3>Interactive: The Idea of a Tangent Line</h3>
+    <p>Drag the slider to move a point along the curve. Watch the tangent line — it shows the instantaneous rate of change at that point.</p>
+  </div>
+  <div class="canvas-wrap">
+    <div class="canvas-toolbar">
+      <label>Point x =</label>
+      <input type="range" id="tanX" min="-25" max="25" value="5" oninput="drawTangent()">
+      <span class="val-display" id="tanXVal">0.5</span>
+      <label style="margin-left:12px">Function:</label>
+      <select id="tanFunc" onchange="drawTangent()">
+        <option value="x*x">x²</option>
+        <option value="x*x*x/10">x³/10</option>
+        <option value="sin(x)">sin(x)</option>
+        <option value="exp(x/5)">eˣ/⁵</option>
+      </select>
+    </div>
+    <canvas id="tanCanvas" height="280"></canvas>
+  </div>
+
+  <div class="quiz-box">
+    <h3>🎯 Quick Check</h3>
+    <div class="question">Which branch of calculus answers "how fast is this changing at this moment?"</div>
+    <div class="quiz-options">
+      <div class="quiz-option" onclick="quizAnswer(this,'wrong','ch0q1')">Integration</div>
+      <div class="quiz-option" onclick="quizAnswer(this,'correct','ch0q1')">Differentiation</div>
+      <div class="quiz-option" onclick="quizAnswer(this,'wrong','ch0q1')">Linear Algebra</div>
+    </div>
+    <div class="quiz-feedback" id="ch0q1">Differentiation finds instantaneous rates of change — it's the slope of the curve at a single point, not an average over an interval.</div>
+  </div>
+
+  <div class="chapter-nav">
+    <button class="btn-nav btn-prev" disabled>← Previous</button>
+    <button class="btn-nav btn-next" onclick="goTo(1)">Limits & Continuity →</button>
+  </div>
+</section>
+
+<!-- ===== CHAPTER 1: LIMITS ===== -->
+<section class="chapter" id="ch1">
+  <div class="chapter-tag">Chapter 1 · Foundations</div>
+  <h2>Limits &amp; Continuity</h2>
+  <p class="chapter-desc">A limit describes what a function approaches as its input approaches some value — even if the function is never actually defined there. Limits are the bedrock everything else stands on.</p>
+
+  <div class="content-block">
+    <h3>Definition of a Limit</h3>
+    <p>We say <strong>lim(x→a) f(x) = L</strong> if f(x) gets arbitrarily close to L as x gets close to a (from either side).</p>
+    <div class="formula-box">
+      <div class="formula-label">Formal Limit Notation</div>
+      lim(x → a) f(x) = L
+      <br><small style="color:var(--muted);font-size:11px;font-family:var(--font);display:block;margin-top:8px">For every ε > 0, there exists δ > 0 such that |f(x) − L| &lt; ε whenever 0 &lt; |x − a| &lt; δ</small>
+    </div>
+    <div class="tip-box"><strong>Key insight:</strong> The limit doesn't care about the value AT x = a, only what happens near it. A function can have a limit even if it has a hole at that point.</div>
+  </div>
+
+  <div class="content-block">
+    <h3>Interactive: Approaching a Limit</h3>
+    <p>Watch what happens to f(x) = sin(x)/x as x → 0. The function is undefined at x = 0, but the limit exists! Use the slider to zoom in.</p>
+  </div>
+  <div class="canvas-wrap">
+    <div class="canvas-toolbar">
+      <label>Zoom into x = 0:</label>
+      <input type="range" id="limitZoom" min="1" max="50" value="1" oninput="drawLimit()">
+      <span class="val-display" id="limitZoomVal">1×</span>
+    </div>
+    <canvas id="limitCanvas" height="280"></canvas>
+  </div>
+
+  <div class="content-block">
+    <h3>Limit Laws</h3>
+    <p>If lim(x→a) f(x) = L and lim(x→a) g(x) = M, then:</p>
+    <div class="formula-box" style="text-align:left; font-size:13px; line-height:2;">
+      <div class="formula-label">Limit Laws</div>
+      lim [f(x) + g(x)] = L + M<br>
+      lim [f(x) · g(x)] = L · M<br>
+      lim [f(x) / g(x)] = L / M  (if M ≠ 0)<br>
+      lim [c · f(x)] = c · L<br>
+      lim [f(x)ⁿ] = Lⁿ
+    </div>
+  </div>
+
+  <div class="content-block">
+    <h3>Continuity</h3>
+    <p>A function f is <em>continuous</em> at x = a if three things hold:</p>
+    <div class="concept-grid">
+      <div class="concept-card"><div class="icon">1️⃣</div><div class="label">f(a) is defined</div><div class="desc">The function has a value at the point.</div></div>
+      <div class="concept-card"><div class="icon">2️⃣</div><div class="label">Limit exists</div><div class="desc">lim(x→a) f(x) exists (left = right limit).</div></div>
+      <div class="concept-card"><div class="icon">3️⃣</div><div class="label">They match</div><div class="desc">The limit equals the function value: lim f(x) = f(a).</div></div>
+    </div>
+    <div class="warn-box"><strong>Discontinuities:</strong> Jump, Removable (hole), and Infinite (asymptote) are the three types of discontinuities you'll encounter.</div>
+  </div>
+
+  <div class="quiz-box">
+    <h3>🎯 Quick Check</h3>
+    <div class="question">What is lim(x→0) sin(x)/x ?</div>
+    <div class="quiz-options">
+      <div class="quiz-option" onclick="quizAnswer(this,'wrong','ch1q1')">0</div>
+      <div class="quiz-option" onclick="quizAnswer(this,'correct','ch1q1')">1</div>
+      <div class="quiz-option" onclick="quizAnswer(this,'wrong','ch1q1')">Undefined</div>
+      <div class="quiz-option" onclick="quizAnswer(this,'wrong','ch1q1')">∞</div>
+    </div>
+    <div class="quiz-feedback" id="ch1q1">lim(x→0) sin(x)/x = 1. This is one of the most important limits in calculus — you can verify it geometrically or with L'Hôpital's rule.</div>
+  </div>
+
+  <div class="chapter-nav">
+    <button class="btn-nav btn-prev" onclick="goTo(0)">← Prev</button>
+    <button class="btn-nav btn-next" onclick="goTo(2)">Derivatives Intro →</button>
+  </div>
+</section>
+
+<!-- ===== CHAPTER 2: DERIVATIVES INTRO ===== -->
+<section class="chapter" id="ch2">
+  <div class="chapter-tag">Chapter 2 · Differential Calculus</div>
+  <h2>Derivatives — Introduction</h2>
+  <p class="chapter-desc">The derivative is the instantaneous rate of change of a function. It's the slope of the tangent line at a point — and it's defined using the idea of a limit.</p>
+
+  <div class="content-block">
+    <h3>The Definition</h3>
+    <p>The derivative of f at x is defined as the limit of the average rate of change as the interval shrinks to zero:</p>
+    <div class="formula-box">
+      <div class="formula-label">Definition of the Derivative</div>
+      f'(x) = lim(h→0) [f(x + h) − f(x)] / h
+    </div>
+    <p>This is also written as dy/dx, df/dx, or Df(x). Each notation emphasizes something different about the relationship.</p>
+  </div>
+
+  <div class="content-block">
+    <h3>Interactive: Shrinking the Secant</h3>
+    <p>A <em>secant line</em> crosses the curve at two points. As h → 0, the secant becomes the tangent. Drag h toward zero and watch it happen.</p>
+  </div>
+  <div class="canvas-wrap">
+    <div class="canvas-toolbar">
+      <label>h =</label>
+      <input type="range" id="hVal" min="1" max="30" value="20" oninput="drawSecant()">
+      <span class="val-display" id="hDisplay">2.0</span>
+      <label style="margin-left:16px">Base x =</label>
+      <input type="range" id="baseX" min="-15" max="15" value="5" oninput="drawSecant()">
+      <span class="val-display" id="baseXDisplay">0.5</span>
+    </div>
+    <canvas id="secantCanvas" height="280"></canvas>
+  </div>
+
+  <div class="content-block">
+    <h3>Step-by-Step: Derivative of x²</h3>
+    <p>Let's derive the derivative of f(x) = x² from first principles.</p>
+    <div class="proof-steps" id="proof0">
+      <div class="proof-step revealed">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <div class="formula">f'(x) = lim(h→0) [f(x+h) − f(x)] / h</div>
+          <div class="explain">Start with the definition of the derivative.</div>
+        </div>
+      </div>
+      <div class="proof-step">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <div class="formula">= lim(h→0) [(x+h)² − x²] / h</div>
+          <div class="explain">Substitute f(x) = x²</div>
+        </div>
+      </div>
+      <div class="proof-step">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <div class="formula">= lim(h→0) [x² + 2xh + h² − x²] / h</div>
+          <div class="explain">Expand (x+h)² using FOIL / binomial.</div>
+        </div>
+      </div>
+      <div class="proof-step">
+        <div class="step-num">4</div>
+        <div class="step-content">
+          <div class="formula">= lim(h→0) [2xh + h²] / h = lim(h→0) [2x + h]</div>
+          <div class="explain">Cancel x² terms, factor out h and cancel.</div>
+        </div>
+      </div>
+      <div class="proof-step">
+        <div class="step-num">5</div>
+        <div class="step-content">
+          <div class="formula">f'(x) = 2x</div>
+          <div class="explain">Take the limit as h→0. The h disappears, leaving 2x.</div>
+        </div>
+      </div>
+    </div>
+    <button class="btn-reveal" onclick="revealProof('proof0')">Reveal Next Step</button>
+  </div>
+
+  <div class="quiz-box">
+    <h3>🎯 Quick Check</h3>
+    <div class="question">Using the power rule (hint: d/dx[xⁿ] = nxⁿ⁻¹), what is the derivative of x⁵?</div>
+    <div class="quiz-options">
+      <div class="quiz-option" onclick="quizAnswer(this,'wrong','ch2q1')">x⁴</div>
+      <div class="quiz-option" onclick="quizAnswer(this,'wrong','ch2q1')">5x⁶</div>
+      <div class="quiz-option" onclick="quizAnswer(this,'correct','ch2q1')">5x⁴</div>
+      <div class="quiz-option" onclick="quizAnswer(this,'wrong','ch2q1')">4x⁵</div>
+    </div>
+    <div class="quiz-feedback" id="ch2q1">d/dx[x⁵] = 5x⁵⁻¹ = 5x⁴. Multiply by the exponent, then reduce the power by 1.</div>
+  </div>
+
+  <div class="chapter-nav">
+    <button class="btn-nav btn-prev" onclick="goTo(1)">← Prev</button>
+    <button class="btn-nav btn-next" onclick="goTo(3)">Differentiation Rules →</button>
+  </div>
+</section>
+
+<!-- ===== CHAPTER 3: RULES OF DIFFERENTIATION ===== -->
+<section class="chapter" id="ch3">
+  <div class="chapter-tag">Chapter 3 · Differential Calculus</div>
+  <h2>Rules of Differentiation</h2>
+  <p class="chapter-desc">Rather than always going back to the limit definition, calculus gives us powerful shortcut rules. Learn these patterns and differentiation becomes mechanical.</p>
+
+  <div class="content-block">
+    <h3>Core Rules Reference</h3>
+    <div class="formula-box" style="text-align:left; font-size:13px; line-height:2.2;">
+      <div class="formula-label">All the Essential Rules</div>
+      <span style="color:var(--accent2)">Power:</span>  d/dx[xⁿ] = nxⁿ⁻¹<br>
+      <span style="color:var(--accent2)">Constant:</span>  d/dx[c] = 0<br>
+      <span style="color:var(--accent2)">Sum:</span>  d/dx[f + g] = f' + g'<br>
+      <span style="color:var(--accent2)">Product:</span>  d/dx[f·g] = f'g + fg'<br>
+      <span style="color:var(--accent2)">Quotient:</span>  d/dx[f/g] = (f'g − fg') / g²<br>
+      <span style="color:var(--accent2)">Chain:</span>  d/dx[f(g(x))] = f'(g(x)) · g'(x)
+    </div>
+  </div>
+
+  <div class="content-block">
+    <h3>Common Derivatives</h3>
+    <div class="formula-box" style="text-align:left; font-size:13px; line-height:2.2;">
+      <div class="formula-label">Trigonometric &amp; Exponential</div>
+      d/dx[sin x] = cos x<br>
+      d/dx[cos x] = −sin x<br>
+      d/dx[tan x] = sec²x<br>
+      d/dx[eˣ] = eˣ<br>
+      d/dx[ln x] = 1/x<br>
+      d/dx[aˣ] = aˣ · ln(a)
+    </div>
+  </div>
+
+  <div class="content-block">
+    <h3>Interactive: Explore Derivatives</h3>
+    <p>Type a function and see its derivative plotted alongside. Try: <code>x^3 - 2*x + 1</code> or <code>sin(x)*x</code></p>
+  </div>
+  <div class="canvas-wrap">
+    <div class="canvas-toolbar">
+      <label>f(x) =</label>
+      <input type="text" id="funcInput" value="x^2 - 3*x + 2" oninput="drawDerivPlot()">
+      <button onclick="drawDerivPlot()" style="padding:5px 12px;background:transparent;border:1px solid var(--accent);color:var(--accent);border-radius:6px;cursor:pointer;font-size:12px;">Plot</button>
+    </div>
+    <canvas id="derivCanvas" height="280"></canvas>
+  </div>
+  <div id="derivFormula" class="formula-box" style="margin:0 16px 16px;font-size:13px;">
+    <div class="formula-label">Computed Derivative</div>
+    <span id="derivResult" style="color:var(--accent3)">f'(x) = 2x − 3</span>
+  </div>
+
+  <div class="content-block">
+    <h3>The Chain Rule — Worked Example</h3>
+    <p>Find d/dx[sin(x²)]. Here f(u) = sin(u) and g(x) = x², so f(g(x)) = sin(x²).</p>
+    <div class="proof-steps" id="proof1">
+      <div class="proof-step revealed">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <div class="formula">Identify outer and inner: f(u) = sin(u), g(x) = x²</div>
+          <div class="explain">Chain rule applies to composed functions f(g(x)).</div>
+        </div>
+      </div>
+      <div class="proof-step">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <div class="formula">f'(u) = cos(u), and g'(x) = 2x</div>
+          <div class="explain">Differentiate each part separately.</div>
+        </div>
+      </div>
+      <div class="proof-step">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <div class="formula">d/dx[sin(x²)] = cos(x²) · 2x</div>
+          <div class="explain">Apply chain rule: f'(g(x)) · g'(x).</div>
+        </div>
+      </div>
+      <div class="proof-step">
+        <div class="step-num">4</div>
+        <div class="step-content">
+          <div class="formula">= 2x·cos(x²)</div>
+          <div class="explain">Final answer — the derivative of sin(x²).</div>
+        </div>
+      </div>
+    </div>
+    <button class="btn-reveal" onclick="revealProof('proof1')">Reveal Next Step</button>
+  </div>
+
+  <div class="quiz-box">
+    <h3>🎯 Quick Check</h3>
+    <div class="question">What is the derivative of f(x) = eˣ · sin(x)? (Use the product rule)</div>
+    <div class="quiz-options">
+      <div class="quiz-option" onclick="quizAnswer(this,'wrong','ch3q1')">eˣ · cos(x)</div>
+      <div class="quiz-option" onclick="quizAnswer(this,'correct','ch3q1')">eˣ · sin(x) + eˣ · cos(x)</div>
+      <div class="quiz-option" onclick="quizAnswer(this,'wrong','ch3q1')">eˣ · sin(x) − eˣ · cos(x)</div>
+    </div>
+    <div class="quiz-feedback" id="ch3q1">Product rule: d/dx[f·g] = f'g + fg'. Here f = eˣ (so f' = eˣ) and g = sin(x) (so g' = cos(x)). Result: eˣ·sin(x) + eˣ·cos(x) = eˣ(sin x + cos x).</div>
+  </div>
+
+  <div class="chapter-nav">
+    <button class="btn-nav btn-prev" onclick="goTo(2)">← Prev</button>
+    <button class="btn-nav btn-next" onclick="goTo(4)">Applications →</button>
+  </div>
+</section>
+
+<!-- ===== CHAPTER 4: APPLICATIONS ===== -->
+<section class="chapter" id="ch4">
+  <div class="chapter-tag">Chapter 4 · Differential Calculus</div>
+  <h2>Applications of Derivatives</h2>
+  <p class="chapter-desc">Derivatives tell us everything about how a function behaves: where it's increasing, where it peaks, how curved it is. These tools solve optimization problems in science, engineering, and business.</p>
+
+  <div class="content-block">
+    <h3>Critical Points &amp; Extrema</h3>
+    <p>A <em>critical point</em> occurs where f'(x) = 0 or f'(x) is undefined. At these points the function might have a local max, local min, or saddle point.</p>
+    <div class="formula-box" style="text-align:left; font-size:13px; line-height:2;">
+      <div class="formula-label">Second Derivative Test</div>
+      If f'(c) = 0 and f''(c) &lt; 0 → local MAXIMUM<br>
+      If f'(c) = 0 and f''(c) &gt; 0 → local MINIMUM<br>
+      If f'(c) = 0 and f''(c) = 0 → inconclusive (use first derivative test)
+    </div>
+  </div>
+
+  <div class="content-block">
+    <h3>Interactive: Optimize a Function</h3>
+    <p>Adjust the polynomial coefficients. The app will find and mark critical points automatically. Watch how the function shape responds.</p>
+  </div>
+  <div class="canvas-wrap">
+    <div class="canvas-toolbar" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:14px 16px;">
+      <div>
+        <label style="font-size:11px;display:block;margin-bottom:3px;color:var(--muted)">a (x³)</label>
+        <input type="range" id="pA" min="-30" max="30" value="10" oninput="drawOptim()" style="width:100%">
+        <span class="val-display" id="pAv" style="font-size:11px;display:block;text-align:center">1</span>
+      </div>
+      <div>
+        <label style="font-size:11px;display:block;margin-bottom:3px;color:var(--muted)">b (x²)</label>
+        <input type="range" id="pB" min="-30" max="30" value="-30" oninput="drawOptim()" style="width:100%">
+        <span class="val-display" id="pBv" style="font-size:11px;display:block;text-align:center">-3</span>
+      </div>
+      <div>
+        <label style="font-size:11px;display:block;margin-bottom:3px;color:var(--muted)">c (x)</label>
+        <input type="range" id="pC" min="-30" max="30" value="0" oninput="drawOptim()" style="width:100%">
+        <span class="val-display" id="pCv" style="font-size:11px;display:block;text-align:center">0</span>
+      </div>
+      <div>
+        <label style="font-size:11px;display:block;margin-bottom:3px;color:var(--muted)">d (const)</label>
+        <input type="range" id="pD" min="-30" max="30" value="0" oninput="drawOptim()" style="width:100%">
+        <span class="val-display" id="pDv" style="font-size:11px;display:block;text-align:center">0</span>
+      </div>
+    </div>
+    <canvas id="optimCanvas" height="280"></canvas>
+  </div>
+
+  <div class="content-block">
+    <h3>Concavity &amp; Inflection Points</h3>
+    <p>The second derivative f''(x) tells us about concavity:</p>
+    <div class="concept-grid">
+      <div class="concept-card"><div class="icon">☁️</div><div class="label">Concave Up</div><div class="desc">f''(x) > 0 — the curve holds water like a bowl. The function is "accelerating."</div></div>
+      <div class="concept-card"><div class="icon">⛰️</div><div class="label">Concave Down</div><div class="desc">f''(x) < 0 — the curve is hill-shaped. The function is "decelerating."</div></div>
+      <div class="concept-card"><div class="icon">✖️</div><div class="label">Inflection Point</div><div class="desc">Where f''(x) = 0 and concavity changes — the curve switches from bowl to hill.</div></div>
+    </div>
+    <div class="tip-box"><strong>L'Hôpital's Rule:</strong> If a limit gives 0/0 or ∞/∞, you can replace the numerator and denominator with their derivatives: lim f(x)/g(x) = lim f'(x)/g'(x)</div>
+  </div>
+
+  <div class="quiz-box">
+    <h3>🎯 Quick Check</h3>
+    <div class="question">For f(x) = x³ − 3x, what are the critical points?</div>
+    <div class="quiz-options">
+      <div class="quiz-option" onclick="quizAnswer(this,'wrong','ch4q1')">x = 0 only</div>
+      <div class="quiz-option" onclick="quizAnswer(this,'correct','ch4q1')">x = 1 and x = −1</div>
+      <div class="quiz-option" onclick="quizAnswer(this,'wrong','ch4q1')">x = 3 and x = −3</div>
+    </div>
+    <div class="quiz-feedback" id="ch4q1">f'(x) = 3x² − 3. Setting f'(x) = 0: 3x² = 3, x² = 1, so x = ±1. At x = −1 there's a local max, at x = 1 a local min (check with f'').</div>
+  </div>
+
+  <div class="chapter-nav">
+    <button class="btn-nav btn-prev" onclick="goTo(3)">← Prev</button>
+    <button class="btn-nav btn-next" onclick="goTo(5)">Integration Intro →</button>
+  </div>
+</section>
+
+<!-- ===== CHAPTER 5: INTEGRATION ===== -->
+<section class="chapter" id="ch5">
+  <div class="chapter-tag">Chapter 5 · Integral Calculus</div>
+  <h2>Integration — Introduction</h2>
+  <p class="chapter-desc">Integration is the reverse of differentiation. It also computes areas under curves, total accumulated change, and connects to the derivative through the Fundamental Theorem of Calculus.</p>
+
+  <div class="content-block">
+    <h3>The Definite Integral as Area</h3>
+    <p>The definite integral ∫[a to b] f(x)dx gives the signed area between f(x) and the x-axis from x = a to x = b. We approximate it with Riemann sums — thin rectangles that get infinitely thin.</p>
+    <div class="formula-box">
+      <div class="formula-label">Definite Integral Definition</div>
+      ∫[a to b] f(x) dx = lim(n→∞) Σᵢ f(xᵢ) · Δx
+    </div>
+  </div>
+
+  <div class="content-block">
+    <h3>Interactive: Riemann Sums</h3>
+    <p>Watch how the rectangles approximate the area under the curve as you increase n. Toggle between Left, Right, and Midpoint sums.</p>
+  </div>
+  <div class="canvas-wrap">
+    <div class="canvas-toolbar">
+      <label>Rectangles n =</label>
+      <input type="range" id="riemannN" min="1" max="80" value="5" oninput="drawRiemann()">
+      <span class="val-display" id="riemannNVal">5</span>
+      <label style="margin-left:12px">Type:</label>
+      <select id="riemannType" onchange="drawRiemann()">
+        <option value="left">Left</option>
+        <option value="right">Right</option>
+        <option value="mid" selected>Midpoint</option>
+      </select>
+      <span style="margin-left:12px;font-size:12px;color:var(--accent2)">Area ≈ <span id="riemannArea">--</span></span>
+    </div>
+    <canvas id="riemannCanvas" height="280"></canvas>
+  </div>
+
+  <div class="content-block">
+    <h3>The Fundamental Theorem of Calculus</h3>
+    <div class="concept-grid">
+      <div class="concept-card">
+        <div class="icon">⭐</div>
+        <div class="label">Part 1</div>
+        <div class="desc">If F(x) = ∫[a to x] f(t)dt, then F'(x) = f(x). Integration and differentiation are inverses.</div>
+      </div>
+      <div class="concept-card">
+        <div class="icon">⭐</div>
+        <div class="label">Part 2</div>
+        <div class="desc">∫[a to b] f(x)dx = F(b) − F(a), where F is any antiderivative of f. Area = net change in antiderivative.</div>
+      </div>
+    </div>
+    <div class="formula-box" style="text-align:left; font-size:13px; line-height:2.2;">
+      <div class="formula-label">Basic Antiderivative Rules</div>
+      ∫ xⁿ dx = xⁿ⁺¹/(n+1) + C  (n ≠ −1)<br>
+      ∫ eˣ dx = eˣ + C<br>
+      ∫ 1/x dx = ln|x| + C<br>
+      ∫ sin x dx = −cos x + C<br>
+      ∫ cos x dx = sin x + C
+    </div>
+    <div class="warn-box"><strong>Always add + C!</strong> The constant of integration C represents any constant, since d/dx[C] = 0 for all constants C. For definite integrals, C cancels out.</div>
+  </div>
+
+  <div class="quiz-box">
+    <h3>🎯 Quick Check</h3>
+    <div class="question">Evaluate ∫[0 to 2] x² dx</div>
+    <div class="quiz-options">
+      <div class="quiz-option" onclick="quizAnswer(this,'wrong','ch5q1')">2</div>
+      <div class="quiz-option" onclick="quizAnswer(this,'wrong','ch5q1')">4</div>
+      <div class="quiz-option" onclick="quizAnswer(this,'correct','ch5q1')">8/3</div>
+      <div class="quiz-option" onclick="quizAnswer(this,'wrong','ch5q1')">6</div>
+    </div>
+    <div class="quiz-feedback" id="ch5q1">Antiderivative of x² is x³/3. Evaluate: [x³/3] from 0 to 2 = (8/3) − (0/3) = 8/3 ≈ 2.667.</div>
+  </div>
+
+  <div class="chapter-nav">
+    <button class="btn-nav btn-prev" onclick="goTo(4)">← Prev</button>
+    <button class="btn-nav btn-next" onclick="goTo(6)">Integration Techniques →</button>
+  </div>
+</section>
+
+<!-- ===== CHAPTER 6: INTEGRATION TECHNIQUES ===== -->
+<section class="chapter" id="ch6">
+  <div class="chapter-tag">Chapter 6 · Integral Calculus</div>
+  <h2>Techniques of Integration</h2>
+  <p class="chapter-desc">Not every integral has an obvious antiderivative. These techniques let you transform hard integrals into ones you can evaluate.</p>
+
+  <div class="content-block">
+    <h3>U-Substitution</h3>
+    <p>The reverse of the chain rule. Replace a messy expression with u to simplify the integral.</p>
+    <div class="proof-steps" id="proof2">
+      <div class="proof-step revealed">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <div class="formula">∫ 2x · cos(x²) dx</div>
+          <div class="explain">Our target integral. Notice 2x is the derivative of x².</div>
+        </div>
+      </div>
+      <div class="proof-step">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <div class="formula">Let u = x², then du = 2x dx</div>
+          <div class="explain">Choose u to be the "inside" function.</div>
+        </div>
+      </div>
+      <div class="proof-step">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <div class="formula">∫ cos(u) du</div>
+          <div class="explain">Substitute: 2x dx becomes du, x² becomes u.</div>
+        </div>
+      </div>
+      <div class="proof-step">
+        <div class="step-num">4</div>
+        <div class="step-content">
+          <div class="formula">= sin(u) + C = sin(x²) + C</div>
+          <div class="explain">Integrate, then substitute back u = x².</div>
+        </div>
+      </div>
+    </div>
+    <button class="btn-reveal" onclick="revealProof('proof2')">Reveal Next Step</button>
+  </div>
+
+  <div class="content-block">
+    <h3>Integration by Parts</h3>
+    <p>The reverse of the product rule. Useful when the integrand is a product of two functions.</p>
+    <div class="formula-box">
+      <div class="formula-label">Integration by Parts Formula</div>
+      ∫ u dv = uv − ∫ v du<br>
+      <small style="color:var(--muted);font-family:var(--font);font-size:12px;display:block;margin-top:6px">LIATE rule: choose u as the first of: Logarithm, Inverse trig, Algebraic, Trig, Exponential</small>
+    </div>
+    <div class="tip-box"><strong>Example:</strong> ∫ x·eˣ dx — let u = x (algebraic, simpler when differentiated), dv = eˣdx. Then du = dx, v = eˣ. Result: xeˣ − eˣ + C = eˣ(x−1) + C.</div>
+  </div>
+
+  <div class="content-block">
+    <h3>Partial Fractions</h3>
+    <p>Break a rational function into simpler fractions that are easier to integrate separately.</p>
+    <div class="formula-box" style="text-align:left;font-size:13px;line-height:2;">
+      <div class="formula-label">Example: Partial Fractions</div>
+      ∫ 1/(x²−1) dx = ∫ [1/(2(x−1)) − 1/(2(x+1))] dx<br>
+      = ½·ln|x−1| − ½·ln|x+1| + C<br>
+      = ½·ln|(x−1)/(x+1)| + C
+    </div>
+  </div>
+
+  <div class="content-block">
+    <h3>Comparison of Integration Methods</h3>
+    <div class="concept-grid">
+      <div class="concept-card"><div class="icon">🔄</div><div class="label">U-Substitution</div><div class="desc">Use when you spot an inner function and its derivative in the integrand.</div></div>
+      <div class="concept-card"><div class="icon">🤝</div><div class="label">By Parts</div><div class="desc">Use for products like x·sin(x), x·eˣ, ln(x).</div></div>
+      <div class="concept-card"><div class="icon">🧩</div><div class="label">Partial Fractions</div><div class="desc">Use for rational functions (polynomial divided by polynomial).</div></div>
+      <div class="concept-card"><div class="icon">📐</div><div class="label">Trig Substitution</div><div class="desc">Use for √(a²−x²), √(a²+x²), √(x²−a²) forms.</div></div>
+    </div>
+  </div>
+
+  <div class="quiz-box">
+    <h3>🎯 Quick Check</h3>
+    <div class="question">To solve ∫ x·ln(x) dx, which technique would you apply?</div>
+    <div class="quiz-options">
+      <div class="quiz-option" onclick="quizAnswer(this,'wrong','ch6q1')">U-Substitution</div>
+      <div class="quiz-option" onclick="quizAnswer(this,'correct','ch6q1')">Integration by Parts</div>
+      <div class="quiz-option" onclick="quizAnswer(this,'wrong','ch6q1')">Partial Fractions</div>
+    </div>
+    <div class="quiz-feedback" id="ch6q1">Use integration by parts! Let u = ln(x) (logarithm — first in LIATE) and dv = x dx. Then du = (1/x)dx, v = x²/2. Result: (x²·ln(x))/2 − x²/4 + C.</div>
+  </div>
+
+  <div class="chapter-nav">
+    <button class="btn-nav btn-prev" onclick="goTo(5)">← Prev</button>
+    <button class="btn-nav btn-next" onclick="goTo(7)">Advanced Topics →</button>
+  </div>
+</section>
+
+<!-- ===== CHAPTER 7: ADVANCED TOPICS ===== -->
+<section class="chapter" id="ch7">
+  <div class="chapter-tag">Chapter 7 · Advanced</div>
+  <h2>Advanced Topics</h2>
+  <p class="chapter-desc">Welcome to the frontier. Series, multi-variable calculus, differential equations — these extend calculus into new dimensions and bridge pure math with physics and engineering.</p>
+
+  <div class="content-block">
+    <h3>Taylor &amp; Maclaurin Series</h3>
+    <p>Any smooth function can be approximated by an infinite polynomial. The better the approximation, the more terms you include.</p>
+    <div class="formula-box" style="text-align:left;font-size:13px;line-height:2.2;">
+      <div class="formula-label">Maclaurin Series (Taylor at x = 0)</div>
+      f(x) = f(0) + f'(0)x + f''(0)x²/2! + f'''(0)x³/3! + ...<br>
+      <br>
+      eˣ = 1 + x + x²/2! + x³/3! + x⁴/4! + ...<br>
+      sin(x) = x − x³/3! + x⁵/5! − ...<br>
+      cos(x) = 1 − x²/2! + x⁴/4! − ...
+    </div>
+  </div>
+
+  <div class="content-block">
+    <h3>Interactive: Taylor Series Approximation</h3>
+    <p>See how adding more terms makes the polynomial hug the curve ever more closely. This is why computers can compute sin(x) — they use these polynomials.</p>
+  </div>
+  <div class="canvas-wrap">
+    <div class="canvas-toolbar">
+      <label>Terms n =</label>
+      <input type="range" id="taylorN" min="1" max="10" value="1" oninput="drawTaylor()">
+      <span class="val-display" id="taylorNVal">1</span>
+      <label style="margin-left:12px">Function:</label>
+      <select id="taylorFunc" onchange="drawTaylor()">
+        <option value="sin">sin(x)</option>
+        <option value="cos">cos(x)</option>
+        <option value="exp">eˣ</option>
+      </select>
+    </div>
+    <canvas id="taylorCanvas" height="280"></canvas>
+    <div style="padding:10px 16px;font-size:12px;color:var(--muted);border-top:1px solid var(--border);" id="taylorFormula">
+      Taylor polynomial: P₁(x) = x
+    </div>
+  </div>
+
+  <div class="content-block">
+    <h3>Differential Equations</h3>
+    <p>An equation involving a function and its derivatives. Solving one means finding the function itself.</p>
+    <div class="formula-box" style="text-align:left;font-size:13px;line-height:2;">
+      <div class="formula-label">Key Differential Equations</div>
+      <span style="color:var(--accent2)">Exponential growth:</span>  dy/dt = ky → y = Ce^(kt)<br>
+      <span style="color:var(--accent2)">Harmonic oscillator:</span>  y'' + ω²y = 0 → y = A·cos(ωt) + B·sin(ωt)<br>
+      <span style="color:var(--accent2)">Heat equation:</span>  ∂u/∂t = k·∂²u/∂x²
+    </div>
+    <div class="tip-box"><strong>Applications everywhere:</strong> Population biology (logistic growth), circuits (RLC equations), quantum mechanics (Schrödinger equation), fluid dynamics (Navier-Stokes equations).</div>
+  </div>
+
+  <div class="content-block">
+    <h3>Multivariable Calculus Preview</h3>
+    <div class="concept-grid">
+      <div class="concept-card"><div class="icon">∂</div><div class="label">Partial Derivatives</div><div class="desc">∂f/∂x — differentiate with respect to one variable, holding others constant.</div></div>
+      <div class="concept-card"><div class="icon">∇</div><div class="label">Gradient</div><div class="desc">∇f = (∂f/∂x, ∂f/∂y) — points in the direction of steepest ascent.</div></div>
+      <div class="concept-card"><div class="icon">∬</div><div class="label">Double Integrals</div><div class="desc">∬f(x,y)dA — integrates over a 2D region. Gives volume under a surface.</div></div>
+      <div class="concept-card"><div class="icon">∮</div><div class="label">Line Integrals</div><div class="desc">Integrate along a curve in space. Foundation for Stokes' and Green's theorems.</div></div>
+    </div>
+  </div>
+
+  <div class="quiz-box">
+    <h3>🎯 Final Challenge</h3>
+    <div class="question">What is the Maclaurin series expansion of eˣ up to the x² term?</div>
+    <div class="quiz-options">
+      <div class="quiz-option" onclick="quizAnswer(this,'wrong','ch7q1')">1 + x</div>
+      <div class="quiz-option" onclick="quizAnswer(this,'correct','ch7q1')">1 + x + x²/2</div>
+      <div class="quiz-option" onclick="quizAnswer(this,'wrong','ch7q1')">x + x²/2 + x³/6</div>
+      <div class="quiz-option" onclick="quizAnswer(this,'wrong','ch7q1')">1 + x + x²</div>
+    </div>
+    <div class="quiz-feedback" id="ch7q1">eˣ = Σ xⁿ/n! = 1 + x + x²/2! + x³/3! + ... Up to x²: 1 + x + x²/2. This is why e¹ ≈ 1 + 1 + 0.5 = 2.5 (just the first 3 terms!).</div>
+  </div>
+
+  <div style="background:linear-gradient(135deg,rgba(88,166,255,0.1),rgba(63,185,80,0.1));border:1px solid var(--border);border-radius:var(--card-radius);padding:24px;margin:28px 0;text-align:center;">
+    <div style="font-size:32px;margin-bottom:8px">🎓</div>
+    <h3 style="font-size:18px;margin-bottom:8px;color:var(--accent)">You've completed the journey!</h3>
+    <p style="color:var(--muted);font-size:13px;line-height:1.7;">From limits to Taylor series, you've covered the full arc of calculus.<br>These ideas underpin modern science, machine learning, and engineering.</p>
+  </div>
+
+  <div class="chapter-nav">
+    <button class="btn-nav btn-prev" onclick="goTo(6)">← Prev</button>
+    <button class="btn-nav btn-next" onclick="goTo(0)" style="background:var(--accent2);border-color:var(--accent2)">Review from Start ↺</button>
+  </div>
+</section>
+
+</main>
+
+<script>
+const CHAPTERS = 8;
+const completed = new Set();
+let currentChapter = 0;
+
+function goTo(n) {
+  document.querySelectorAll('.chapter').forEach(c => c.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(c => c.classList.remove('active'));
+  document.getElementById('ch' + n).classList.add('active');
+  document.querySelector('[data-chapter="' + n + '"]').classList.add('active');
+  completed.add(currentChapter);
+  currentChapter = n;
+  updateProgress();
+  window.scrollTo(0, 0);
+  setTimeout(() => {
+    if (n === 0) drawTangent();
+    if (n === 1) drawLimit();
+    if (n === 2) { drawSecant(); }
+    if (n === 3) drawDerivPlot();
+    if (n === 4) drawOptim();
+    if (n === 5) drawRiemann();
+    if (n === 7) drawTaylor();
+  }, 50);
+}
+
+function updateProgress() {
+  const pct = Math.round((completed.size / CHAPTERS) * 100);
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressLabel').textContent = completed.size + ' of ' + CHAPTERS + ' topics completed';
+  completed.forEach(i => {
+    const el = document.getElementById('check-' + i);
+    if (el) el.style.color = 'var(--accent2)';
+  });
+}
+
+// Quiz logic
+const quizDone = {};
+function quizAnswer(el, result, id) {
+  if (quizDone[id]) return;
+  quizDone[id] = true;
+  el.classList.add(result);
+  document.getElementById(id).classList.add('show');
+  if (result === 'correct') el.textContent = '✓ ' + el.textContent;
+  completed.add(currentChapter);
+  updateProgress();
+}
+
+// Proof reveal logic
+const proofStep = {};
+function revealProof(id) {
+  const steps = document.querySelectorAll('#' + id + ' .proof-step:not(.revealed)');
+  if (steps.length > 0) steps[0].classList.add('revealed');
+}
+
+// ===== CANVAS HELPERS =====
+function setupCanvas(canvas) {
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.parentElement.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = canvas.height * dpr || 280 * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  canvas.style.width = rect.width + 'px';
+  canvas.style.height = (canvas.height / dpr) + 'px';
+  return { ctx, w: rect.width, h: canvas.height / dpr };
+}
+
+function drawGrid(ctx, w, h, xMin, xMax, yMin, yMax) {
+  const toX = x => (x - xMin) / (xMax - xMin) * w;
+  const toY = y => h - (y - yMin) / (yMax - yMin) * h;
+  ctx.strokeStyle = '#21262d';
+  ctx.lineWidth = 0.5;
+  const xStep = (xMax - xMin) / 8;
+  for (let x = Math.ceil(xMin / xStep) * xStep; x <= xMax; x += xStep) {
+    ctx.beginPath(); ctx.moveTo(toX(x), 0); ctx.lineTo(toX(x), h); ctx.stroke();
+  }
+  const yStep = (yMax - yMin) / 6;
+  for (let y = Math.ceil(yMin / yStep) * yStep; y <= yMax; y += yStep) {
+    ctx.beginPath(); ctx.moveTo(0, toY(y)); ctx.lineTo(w, toY(y)); ctx.stroke();
+  }
+  ctx.strokeStyle = '#30363d';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(toX(0), 0); ctx.lineTo(toX(0), h); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, toY(0)); ctx.lineTo(w, toY(0)); ctx.stroke();
+  return { toX, toY };
+}
+
+function plotFunc(ctx, fn, toX, toY, w, color, lw) {
+  ctx.strokeStyle = color; ctx.lineWidth = lw || 2;
+  ctx.beginPath(); let first = true;
+  for (let px = 0; px <= w; px += 1.5) {
+    const x = px / w * 10 - 5;
+    try {
+      const y = fn(x);
+      if (!isFinite(y)) { first = true; continue; }
+      if (first) { ctx.moveTo(px, toY(y)); first = false; }
+      else ctx.lineTo(px, toY(y));
+    } catch(e) { first = true; }
+  }
+  ctx.stroke();
+}
+
+// ── Tiny self-contained expression parser + symbolic differentiator ──
+// Supports + - * / ^, parentheses, unary minus, variable x,
+// numeric literals, and sin/cos/tan/exp/log/sqrt — no external library needed.
+function tlParseExpr(str){
+  let i=0;const s=str.replace(/\s+/g,'');
+  function peek(){return s[i];}
+  function eat(ch){if(s[i]!==ch)throw new Error('expected '+ch+' got '+s[i]);i++;}
+  function parsePrimary(){
+    if(peek()==='('){eat('(');const e=parseAdd();eat(')');return e;}
+    if(peek()==='-'){eat('-');return{t:'un',op:'neg',a:parsePow()};}
+    if(peek()==='+'){eat('+');return parsePow();}
+    const fnMatch=/^(sin|cos|tan|exp|log|sqrt|abs)/.exec(s.slice(i));
+    if(fnMatch){i+=fnMatch[0].length;eat('(');const a=parseAdd();eat(')');return{t:'call',fn:fnMatch[0],a};}
+    if(peek()==='x'){i++;return{t:'var'};}
+    const numMatch=/^[0-9]*\.?[0-9]+/.exec(s.slice(i));
+    if(numMatch){i+=numMatch[0].length;return{t:'num',v:parseFloat(numMatch[0])};}
+    throw new Error('unexpected char '+peek());
+  }
+  function parsePow(){let b=parsePrimary();if(peek()==='^'){eat('^');return{t:'bin',op:'^',l:b,r:parsePow()};}return b;}
+  function parseMul(){let n=parsePow();while(peek()==='*'||peek()==='/'){const op=peek();eat(op);n={t:'bin',op,l:n,r:parsePow()};}return n;}
+  function parseAdd(){let n=parseMul();while(peek()==='+'||peek()==='-'){const op=peek();eat(op);n={t:'bin',op,l:n,r:parseMul()};}return n;}
+  const ast=parseAdd();
+  if(i<s.length)throw new Error('trailing input: '+s.slice(i));
+  return ast;
+}
+function tlEval(node,x){
+  switch(node.t){
+    case'num':return node.v;
+    case'var':return x;
+    case'un':return node.op==='neg'?-tlEval(node.a,x):tlEval(node.a,x);
+    case'bin':{
+      const l=tlEval(node.l,x),r=tlEval(node.r,x);
+      if(node.op==='+')return l+r; if(node.op==='-')return l-r;
+      if(node.op==='*')return l*r; if(node.op==='/')return l/r;
+      if(node.op==='^')return Math.pow(l,r); break;
+    }
+    case'call':{
+      const a=tlEval(node.a,x);
+      if(node.fn==='sin')return Math.sin(a); if(node.fn==='cos')return Math.cos(a);
+      if(node.fn==='tan')return Math.tan(a); if(node.fn==='exp')return Math.exp(a);
+      if(node.fn==='log')return Math.log(a); if(node.fn==='sqrt')return Math.sqrt(a);
+      if(node.fn==='abs')return Math.abs(a); break;
+    }
+  }
+  return NaN;
+}
+function tlDiff(node){
+  switch(node.t){
+    case'num':return{t:'num',v:0};
+    case'var':return{t:'num',v:1};
+    case'un':return{t:'un',op:'neg',a:tlDiff(node.a)};
+    case'bin':{
+      const{op,l,r}=node;
+      if(op==='+')return{t:'bin',op:'+',l:tlDiff(l),r:tlDiff(r)};
+      if(op==='-')return{t:'bin',op:'-',l:tlDiff(l),r:tlDiff(r)};
+      if(op==='*')return{t:'bin',op:'+',l:{t:'bin',op:'*',l:tlDiff(l),r:r},r:{t:'bin',op:'*',l:l,r:tlDiff(r)}};
+      if(op==='/')return{t:'bin',op:'/',
+        l:{t:'bin',op:'-',l:{t:'bin',op:'*',l:tlDiff(l),r:r},r:{t:'bin',op:'*',l:l,r:tlDiff(r)}},
+        r:{t:'bin',op:'^',l:r,r:{t:'num',v:2}}};
+      if(op==='^'&&r.t==='num')return{t:'bin',op:'*',l:{t:'bin',op:'*',l:r,r:{t:'bin',op:'^',l:l,r:{t:'num',v:r.v-1}}},r:tlDiff(l)};
+      break;
+    }
+    case'call':{
+      const inner=node.a,dInner=tlDiff(inner);let outer;
+      if(node.fn==='sin')outer={t:'call',fn:'cos',a:inner};
+      else if(node.fn==='cos')outer={t:'un',op:'neg',a:{t:'call',fn:'sin',a:inner}};
+      else if(node.fn==='tan')outer={t:'bin',op:'/',l:{t:'num',v:1},r:{t:'bin',op:'^',l:{t:'call',fn:'cos',a:inner},r:{t:'num',v:2}}};
+      else if(node.fn==='exp')outer={t:'call',fn:'exp',a:inner};
+      else if(node.fn==='log')outer={t:'bin',op:'/',l:{t:'num',v:1},r:inner};
+      else if(node.fn==='sqrt')outer={t:'bin',op:'/',l:{t:'num',v:1},r:{t:'bin',op:'*',l:{t:'num',v:2},r:{t:'call',fn:'sqrt',a:inner}}};
+      else outer={t:'num',v:0};
+      return{t:'bin',op:'*',l:outer,r:dInner};
+    }
+  }
+  return{t:'num',v:0};
+}
+function tlToString(node){
+  switch(node.t){
+    case'num':return String(node.v);
+    case'var':return'x';
+    case'un':return'-'+tlToString(node.a);
+    case'bin':return'('+tlToString(node.l)+' '+node.op+' '+tlToString(node.r)+')';
+    case'call':return node.fn+'('+tlToString(node.a)+')';
+  }
+  return'?';
+}
+// Simple compatibility shim so existing call sites (math.evaluate / math.parse / math.derivative) keep working
+const math = {
+  evaluate: (expr, scope) => tlEval(tlParseExpr(expr), scope.x),
+  parse: (expr) => tlParseExpr(expr),
+  derivative: (ast) => { const d = tlDiff(ast); return { toString: () => tlToString(d), _ast: d }; }
+};
+
+// Ch0: Tangent line
+function drawTangent() {
+  const canvas = document.getElementById('tanCanvas');
+  const { ctx, w, h } = setupCanvas(canvas);
+  const xv = parseInt(document.getElementById('tanX').value) / 10;
+  document.getElementById('tanXVal').textContent = xv.toFixed(1);
+  const funcStr = document.getElementById('tanFunc').value;
+  const f = x => math.evaluate(funcStr, { x });
+  const { toX, toY } = drawGrid(ctx, w, h, -5, 5, -5, 5);
+
+  ctx.strokeStyle = '#58a6ff'; ctx.lineWidth = 2;
+  ctx.beginPath(); let first = true;
+  for (let px = 0; px <= w; px += 1.5) {
+    const x = px / w * 10 - 5;
+    try { const y = f(x); if (!isFinite(y)) { first=true; continue; }
+      if (first) { ctx.moveTo(px, toY(y)); first=false; } else ctx.lineTo(px, toY(y)); } catch(e) { first=true; }
+  }
+  ctx.stroke();
+
+  const h2 = 0.001;
+  const slope = (f(xv + h2) - f(xv - h2)) / (2 * h2);
+  const yv = f(xv);
+  ctx.strokeStyle = '#ff7b72'; ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(toX(-5), toY(yv + slope * (-5 - xv)));
+  ctx.lineTo(toX(5), toY(yv + slope * (5 - xv)));
+  ctx.stroke();
+
+  ctx.fillStyle = '#ff7b72';
+  ctx.beginPath(); ctx.arc(toX(xv), toY(yv), 5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#e6edf3'; ctx.font = '12px monospace';
+  ctx.fillText('slope = ' + slope.toFixed(2), 10, 20);
+}
+
+// Ch1: Limit sinx/x
+function drawLimit() {
+  const canvas = document.getElementById('limitCanvas');
+  const { ctx, w, h } = setupCanvas(canvas);
+  const zoom = parseInt(document.getElementById('limitZoom').value);
+  document.getElementById('limitZoomVal').textContent = zoom + '×';
+  const xMax = 4 / zoom, xMin = -xMax;
+  const { toX, toY } = drawGrid(ctx, w, h, xMin, xMax, -0.5, 1.5);
+  const f = x => Math.abs(x) < 1e-9 ? null : Math.sin(x) / x;
+  ctx.strokeStyle = '#58a6ff'; ctx.lineWidth = 2;
+  ctx.beginPath(); let first = true;
+  for (let px = 0; px <= w; px += 1.5) {
+    const x = px / w * (xMax - xMin) + xMin;
+    const y = f(x);
+    if (y === null) { first = true; ctx.stroke(); ctx.beginPath(); continue; }
+    if (first) { ctx.moveTo(px, toY(y)); first = false; } else ctx.lineTo(px, toY(y));
+  }
+  ctx.stroke();
+  ctx.fillStyle = '#58a6ff';
+  ctx.beginPath(); ctx.arc(toX(0), toY(1), 5, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#30363d'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(toX(0), toY(1), 5, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = '#e6edf3'; ctx.font = '12px monospace';
+  ctx.fillText('lim(x→0) sin(x)/x = 1', 10, 20);
+}
+
+// Ch2: Secant → Tangent
+function drawSecant() {
+  const canvas = document.getElementById('secantCanvas');
+  const { ctx, w, h } = setupCanvas(canvas);
+  const hv = parseInt(document.getElementById('hVal').value) / 10;
+  const bx = parseInt(document.getElementById('baseX').value) / 10;
+  document.getElementById('hDisplay').textContent = hv.toFixed(1);
+  document.getElementById('baseXDisplay').textContent = bx.toFixed(1);
+  const f = x => x * x;
+  const { toX, toY } = drawGrid(ctx, w, h, -5, 5, -2, 10);
+  ctx.strokeStyle = '#58a6ff'; ctx.lineWidth = 2;
+  ctx.beginPath(); let first = true;
+  for (let px = 0; px <= w; px += 1.5) {
+    const x = px / w * 10 - 5;
+    const y = f(x);
+    if (first) { ctx.moveTo(px, toY(y)); first = false; } else ctx.lineTo(px, toY(y));
+  }
+  ctx.stroke();
+
+  const x1 = bx, x2 = bx + hv, y1 = f(x1), y2 = f(x2);
+  const sec = (y2 - y1) / (x2 - x1);
+  ctx.strokeStyle = '#e3b341'; ctx.lineWidth = 1.5; ctx.setLineDash([5, 3]);
+  ctx.beginPath();
+  ctx.moveTo(toX(-5), toY(y1 + sec * (-5 - x1)));
+  ctx.lineTo(toX(5), toY(y1 + sec * (5 - x1)));
+  ctx.stroke(); ctx.setLineDash([]);
+
+  const trueSlope = 2 * bx;
+  ctx.strokeStyle = '#ff7b72'; ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(toX(-5), toY(y1 + trueSlope * (-5 - x1)));
+  ctx.lineTo(toX(5), toY(y1 + trueSlope * (5 - x1)));
+  ctx.stroke();
+
+  [x1, x2].forEach((xp, i) => {
+    ctx.fillStyle = i === 0 ? '#ff7b72' : '#e3b341';
+    ctx.beginPath(); ctx.arc(toX(xp), toY(f(xp)), 5, 0, Math.PI * 2); ctx.fill();
+  });
+
+  ctx.fillStyle = '#e6edf3'; ctx.font = '12px monospace';
+  ctx.fillText('secant slope = ' + sec.toFixed(3), 10, 18);
+  ctx.fillStyle = '#ff7b72';
+  ctx.fillText('tangent slope = ' + trueSlope.toFixed(3), 10, 34);
+}
+
+// Ch3: Derivative plot
+function drawDerivPlot() {
+  const canvas = document.getElementById('derivCanvas');
+  const { ctx, w, h } = setupCanvas(canvas);
+  const str = document.getElementById('funcInput').value;
+  try {
+    const f = x => math.evaluate(str, { x });
+    const fd = x => (f(x + 0.001) - f(x - 0.001)) / 0.002;
+    const { toX, toY } = drawGrid(ctx, w, h, -5, 5, -10, 10);
+    ctx.strokeStyle = '#58a6ff'; ctx.lineWidth = 2;
+    ctx.beginPath(); let first = true;
+    for (let px = 0; px <= w; px += 1.5) {
+      const x = px / w * 10 - 5;
+      try { const y = f(x); if (!isFinite(y)) { first=true; continue; }
+        if (first) { ctx.moveTo(px, toY(y)); first=false; } else ctx.lineTo(px, toY(y)); } catch(e) { first=true; }
+    }
+    ctx.stroke();
+    ctx.strokeStyle = '#ff7b72'; ctx.lineWidth = 2;
+    ctx.beginPath(); first = true;
+    for (let px = 0; px <= w; px += 1.5) {
+      const x = px / w * 10 - 5;
+      try { const y = fd(x); if (!isFinite(y)) { first=true; continue; }
+        if (first) { ctx.moveTo(px, toY(y)); first=false; } else ctx.lineTo(px, toY(y)); } catch(e) { first=true; }
+    }
+    ctx.stroke();
+    ctx.font = '12px monospace'; ctx.fillStyle = '#58a6ff'; ctx.fillText('f(x)', 10, 20);
+    ctx.fillStyle = '#ff7b72'; ctx.fillText("f'(x)", 10, 36);
+    try {
+      const node = math.parse(str);
+      const dNode = math.derivative(node, 'x');
+      document.getElementById('derivResult').textContent = "f'(x) = " + dNode.toString();
+    } catch(e) {
+      document.getElementById('derivResult').textContent = "f'(x) = (computed numerically)";
+    }
+  } catch(e) {}
+}
+
+// Ch4: Optimization
+function drawOptim() {
+  const canvas = document.getElementById('optimCanvas');
+  const { ctx, w, h } = setupCanvas(canvas);
+  const a = parseInt(document.getElementById('pA').value) / 10;
+  const b = parseInt(document.getElementById('pB').value) / 10;
+  const c = parseInt(document.getElementById('pC').value) / 10;
+  const d = parseInt(document.getElementById('pD').value) / 10;
+  document.getElementById('pAv').textContent = a.toFixed(1);
+  document.getElementById('pBv').textContent = b.toFixed(1);
+  document.getElementById('pCv').textContent = c.toFixed(1);
+  document.getElementById('pDv').textContent = d.toFixed(1);
+  const f = x => a * x * x * x + b * x * x + c * x + d;
+  const fd = x => 3 * a * x * x + 2 * b * x + c;
+  const { toX, toY } = drawGrid(ctx, w, h, -5, 5, -10, 10);
+  ctx.strokeStyle = '#58a6ff'; ctx.lineWidth = 2;
+  ctx.beginPath(); let first = true;
+  for (let px = 0; px <= w; px += 1.5) {
+    const x = px / w * 10 - 5;
+    const y = f(x);
+    if (!isFinite(y)) { first = true; continue; }
+    if (first) { ctx.moveTo(px, toY(y)); first = false; } else ctx.lineTo(px, toY(y));
+  }
+  ctx.stroke();
+  for (let x = -4.9; x < 5; x += 0.02) {
+    const d1 = fd(x), d2 = fd(x + 0.02);
+    if (Math.abs(d1) < 0.08 || (Math.sign(d1) !== Math.sign(d2))) {
+      const yv = f(x), y2v = (3 * a * 2 * x + 2 * b);
+      const col = y2v < 0 ? '#3fb950' : '#ff7b72';
+      ctx.fillStyle = col;
+      ctx.beginPath(); ctx.arc(toX(x), toY(yv), 6, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  ctx.font = '11px monospace'; ctx.fillStyle = '#3fb950'; ctx.fillText('● local max', 10, 20);
+  ctx.fillStyle = '#ff7b72'; ctx.fillText('● local min', 10, 34);
+}
+
+// Ch5: Riemann sums
+function drawRiemann() {
+  const canvas = document.getElementById('riemannCanvas');
+  const { ctx, w, h } = setupCanvas(canvas);
+  const n = parseInt(document.getElementById('riemannN').value);
+  const type = document.getElementById('riemannType').value;
+  document.getElementById('riemannNVal').textContent = n;
+  const f = x => x * x + 1;
+  const a = -2, b = 3;
+  const { toX, toY } = drawGrid(ctx, w, h, a, b, 0, 12);
+  const dx = (b - a) / n;
+  let area = 0;
+  for (let i = 0; i < n; i++) {
+    const x0 = a + i * dx;
+    const xSample = type === 'left' ? x0 : type === 'right' ? x0 + dx : x0 + dx / 2;
+    const y = f(xSample);
+    area += y * dx;
+    ctx.fillStyle = 'rgba(88,166,255,0.25)';
+    ctx.strokeStyle = '#58a6ff'; ctx.lineWidth = 0.5;
+    const rx = toX(x0), ry = toY(Math.max(y, 0));
+    const rw = toX(x0 + dx) - toX(x0), rh = toY(0) - ry;
+    ctx.fillRect(rx, ry, rw, rh);
+    ctx.strokeRect(rx, ry, rw, rh);
+  }
+  ctx.strokeStyle = '#3fb950'; ctx.lineWidth = 2;
+  ctx.beginPath(); let first = true;
+  for (let px = 0; px <= w; px += 1.5) {
+    const x = px / w * (b - a) + a;
+    const y = f(x);
+    if (first) { ctx.moveTo(px, toY(y)); first = false; } else ctx.lineTo(px, toY(y));
+  }
+  ctx.stroke();
+  document.getElementById('riemannArea').textContent = area.toFixed(3);
+}
+
+// Ch7: Taylor series
+function drawTaylor() {
+  const canvas = document.getElementById('taylorCanvas');
+  const { ctx, w, h } = setupCanvas(canvas);
+  const n = parseInt(document.getElementById('taylorN').value);
+  const funcType = document.getElementById('taylorFunc').value;
+  document.getElementById('taylorNVal').textContent = n;
+
+  const fns = { sin: Math.sin, cos: Math.cos, exp: Math.exp };
+  const f = fns[funcType];
+  const { toX, toY } = drawGrid(ctx, w, h, -6, 6, -3, 3);
+
+  ctx.strokeStyle = '#30363d'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); let first = true;
+  for (let px = 0; px <= w; px++) {
+    const x = px / w * 12 - 6;
+    const y = f(x);
+    if (!isFinite(y)) { first = true; continue; }
+    if (first) { ctx.moveTo(px, toY(y)); first = false; } else ctx.lineTo(px, toY(y));
+  }
+  ctx.stroke();
+
+  const factorial = k => { let v = 1; for (let i = 2; i <= k; i++) v *= i; return v; };
+  const derivs = {
+    sin: k => [0, 1, 0, -1, 0, 1, 0, -1, 0, 1, 0][k % 4 === 0 ? 0 : k % 4 === 1 ? 1 : k % 4 === 2 ? 2 : 3],
+    cos: k => [1, 0, -1, 0, 1, 0, -1, 0, 1, 0][k % 4 === 0 ? 0 : k % 4 === 1 ? 1 : k % 4 === 2 ? 2 : 3],
+    exp: k => 1
+  };
+  const coeff = k => derivs[funcType](k) / factorial(k);
+  const taylor = x => { let s = 0; for (let k = 0; k < n; k++) s += coeff(k) * Math.pow(x, k); return s; };
+
+  ctx.strokeStyle = '#ff7b72'; ctx.lineWidth = 2;
+  ctx.beginPath(); first = true;
+  for (let px = 0; px <= w; px++) {
+    const x = px / w * 12 - 6;
+    const y = taylor(x);
+    if (!isFinite(y) || Math.abs(y) > 20) { first = true; continue; }
+    if (first) { ctx.moveTo(px, toY(y)); first = false; } else ctx.lineTo(px, toY(y));
+  }
+  ctx.stroke();
+
+  ctx.font = '11px monospace'; ctx.fillStyle = '#30363d'; ctx.fillText('f(x) = ' + funcType, 10, 20);
+  ctx.fillStyle = '#ff7b72'; ctx.fillText('P' + n + '(x)', 10, 34);
+
+  const terms = [];
+  for (let k = 0; k < Math.min(n, 5); k++) {
+    const c = coeff(k);
+    if (Math.abs(c) < 1e-10) continue;
+    const cs = (c > 0 && terms.length > 0 ? '+' : '') + (Math.abs(c - Math.round(c)) < 1e-9 ? Math.round(c) : c.toFixed(3));
+    terms.push(k === 0 ? cs : cs + 'x' + (k > 1 ? '⁰¹²³⁴⁵⁶⁷⁸⁹'[k] : ''));
+  }
+  document.getElementById('taylorFormula').textContent = 'P' + n + '(x) ≈ ' + terms.join(' ') + (n > 5 ? ' + ...' : '');
+}
+
+// Init first chapter
+window.onload = () => {
+  setTimeout(() => { drawTangent(); }, 100);
+};
+window.onresize = () => {
+  const ch = currentChapter;
+  if (ch === 0) drawTangent();
+  if (ch === 1) drawLimit();
+  if (ch === 2) drawSecant();
+  if (ch === 3) drawDerivPlot();
+  if (ch === 4) drawOptim();
+  if (ch === 5) drawRiemann();
+  if (ch === 7) drawTaylor();
+};
+</script>
+</body>
+</html>
