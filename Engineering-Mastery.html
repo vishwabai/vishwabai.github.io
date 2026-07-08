@@ -1,0 +1,2250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Machine Room — Mastering Software Engineering</title>
+<style>
+/* ============ DESIGN TOKENS ============ */
+:root{
+  --ink:#0d1420;          /* deep navy-slate base */
+  --ink-2:#101a29;
+  --panel:#141f30;        /* raised panel */
+  --panel-2:#18263a;
+  --line:#25384f;         /* hairline */
+  --line-soft:#1d2c40;
+  --text:#dbe6f5;
+  --text-dim:#9fb0c9;
+  --muted:#6d829e;
+  --signal:#48d9c8;       /* primary phosphor teal */
+  --signal-dim:#2b8b81;
+  --wire:#7d9dff;         /* periwinkle: links / control flow */
+  --flag:#f2b03c;         /* amber: misconceptions / warnings */
+  --rose:#f2708c;         /* danger / breakage */
+  --violet:#b98cff;       /* patterns */
+  --ok:#5fd39a;
+  --mono:ui-monospace,"SF Mono","Cascadia Code","JetBrains Mono",Menlo,Consolas,monospace;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --shadow:0 12px 40px -12px rgba(0,0,0,.6);
+  --nav-w:288px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{animation-duration:.001ms!important;transition-duration:.001ms!important}}
+body{
+  margin:0;background:
+    radial-gradient(1100px 700px at 85% -10%, rgba(72,217,200,.06), transparent 60%),
+    radial-gradient(900px 600px at 5% 10%, rgba(125,157,255,.05), transparent 55%),
+    var(--ink);
+  color:var(--text);font-family:var(--sans);font-size:16.5px;line-height:1.65;
+  -webkit-font-smoothing:antialiased;
+}
+::selection{background:rgba(72,217,200,.28);color:#fff}
+a{color:var(--wire);text-decoration:none}
+a:hover{text-decoration:underline}
+h1,h2,h3,h4{font-family:var(--mono);font-weight:600;letter-spacing:-.01em;line-height:1.2}
+code,kbd,pre{font-family:var(--mono)}
+
+/* ============ LAYOUT ============ */
+.shell{display:flex;min-height:100vh}
+.nav{
+  width:var(--nav-w);flex:0 0 var(--nav-w);position:sticky;top:0;height:100vh;overflow-y:auto;
+  border-right:1px solid var(--line);background:linear-gradient(180deg,var(--ink-2),var(--ink));
+  padding:22px 16px 60px;
+}
+.nav::-webkit-scrollbar,.main::-webkit-scrollbar{width:9px}
+.nav::-webkit-scrollbar-thumb,.main::-webkit-scrollbar-thumb{background:var(--line);border-radius:9px}
+.brand{display:flex;align-items:center;gap:10px;padding:4px 8px 16px;border-bottom:1px solid var(--line-soft);margin-bottom:14px}
+.brand svg{width:34px;height:34px;flex:0 0 34px}
+.brand b{font-family:var(--mono);font-size:15px;letter-spacing:.02em;color:var(--text)}
+.brand small{display:block;color:var(--muted);font-size:11px;font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase}
+.nav-group{margin:16px 0 6px;padding:0 8px;font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--signal-dim)}
+.nav a{display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:8px;color:var(--text-dim);font-size:13.5px;position:relative}
+.nav a .dot{width:6px;height:6px;border-radius:50%;background:var(--line);flex:0 0 6px;transition:.25s}
+.nav a:hover{background:var(--panel);color:var(--text);text-decoration:none}
+.nav a.active{background:var(--panel-2);color:var(--text)}
+.nav a.active .dot{background:var(--signal);box-shadow:0 0 8px var(--signal)}
+.nav a.done .dot{background:var(--ok)}
+.main{flex:1;min-width:0;padding:0 clamp(20px,5vw,84px) 120px;max-width:1180px;margin:0 auto}
+.wrap{max-width:900px}
+
+/* progress bar */
+.progress-rail{position:fixed;top:0;left:var(--nav-w);right:0;height:3px;background:transparent;z-index:50}
+.progress-fill{height:100%;width:0;background:linear-gradient(90deg,var(--signal),var(--wire));box-shadow:0 0 12px var(--signal);transition:width .15s}
+
+/* ============ HERO ============ */
+.hero{padding:70px 0 40px;border-bottom:1px solid var(--line-soft)}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.28em;text-transform:uppercase;color:var(--signal);margin-bottom:18px}
+.hero h1{font-size:clamp(30px,5vw,52px);margin:0 0 18px;line-height:1.05}
+.hero h1 .stroke{color:transparent;-webkit-text-stroke:1.2px var(--text-dim)}
+.hero p.lede{font-size:clamp(16px,2.1vw,20px);color:var(--text-dim);max-width:640px;font-family:var(--sans)}
+.hero-stats{display:flex;gap:34px;flex-wrap:wrap;margin-top:34px}
+.hero-stats div b{font-family:var(--mono);font-size:26px;color:var(--signal);display:block;line-height:1}
+.hero-stats div span{font-size:12px;color:var(--muted);font-family:var(--mono);letter-spacing:.08em;text-transform:uppercase}
+
+/* ============ SECTIONS ============ */
+section.mod{padding:64px 0 20px;border-bottom:1px solid var(--line-soft);scroll-margin-top:20px}
+.mod-tag{font-family:var(--mono);font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted)}
+.mod > h2{font-size:clamp(24px,3.4vw,36px);margin:8px 0 6px}
+.mod-sub{color:var(--text-dim);font-size:17px;max-width:720px;margin-bottom:8px}
+h3.head{font-size:21px;margin:44px 0 12px;color:var(--text);display:flex;align-items:center;gap:12px}
+h3.head::before{content:"";width:14px;height:14px;border:2px solid var(--signal);border-radius:3px;transform:rotate(45deg);flex:0 0 14px}
+h4.subhead{font-size:16px;color:var(--signal);margin:28px 0 8px;font-family:var(--mono)}
+p{margin:0 0 14px}
+.wrap ul,.wrap ol{margin:0 0 16px;padding-left:22px}
+.wrap li{margin:6px 0}
+strong{color:#fff}
+em.term{font-style:normal;color:var(--signal);font-family:var(--mono);font-size:.95em}
+
+/* ============ COMPONENTS ============ */
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px 22px;margin:20px 0;box-shadow:var(--shadow)}
+.lab{background:linear-gradient(180deg,var(--panel),var(--ink-2));border:1px solid var(--line);border-radius:16px;margin:26px 0;overflow:hidden;box-shadow:var(--shadow)}
+.lab-bar{display:flex;align-items:center;gap:10px;padding:12px 18px;border-bottom:1px solid var(--line);background:rgba(0,0,0,.18)}
+.lab-bar .lights{display:flex;gap:6px}
+.lab-bar .lights i{width:10px;height:10px;border-radius:50%;display:block}
+.lab-bar .lights i:nth-child(1){background:#f2708c}.lab-bar .lights i:nth-child(2){background:var(--flag)}.lab-bar .lights i:nth-child(3){background:var(--ok)}
+.lab-bar b{font-family:var(--mono);font-size:12.5px;letter-spacing:.05em;color:var(--text-dim);font-weight:500}
+.lab-bar .tag{margin-left:auto;font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--signal);border:1px solid var(--signal-dim);padding:3px 8px;border-radius:20px}
+.lab-body{padding:20px 22px}
+.controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:14px 0}
+button.btn{font-family:var(--mono);font-size:13px;background:var(--panel-2);color:var(--text);border:1px solid var(--line);padding:9px 15px;border-radius:9px;cursor:pointer;transition:.18s;letter-spacing:.02em}
+button.btn:hover{border-color:var(--signal);color:#fff;background:var(--panel)}
+button.btn:active{transform:translateY(1px)}
+button.btn.primary{background:linear-gradient(180deg,var(--signal),var(--signal-dim));color:#04231f;border-color:transparent;font-weight:600}
+button.btn.primary:hover{filter:brightness(1.08)}
+button.btn:disabled{opacity:.4;cursor:not-allowed}
+button.btn.sel{border-color:var(--signal);color:var(--signal);box-shadow:inset 0 0 0 1px var(--signal-dim)}
+label.ctl{font-family:var(--mono);font-size:12px;color:var(--muted);display:flex;align-items:center;gap:8px}
+input[type=range]{accent-color:var(--signal);cursor:pointer}
+select{font-family:var(--mono);font-size:13px;background:var(--panel-2);color:var(--text);border:1px solid var(--line);padding:7px 10px;border-radius:8px}
+.readout{font-family:var(--mono);font-size:13px;color:var(--signal);min-width:40px}
+
+/* code */
+pre{background:#0a1119;border:1px solid var(--line);border-radius:12px;padding:16px 18px;overflow-x:auto;font-size:13.5px;line-height:1.6;margin:16px 0;position:relative}
+pre .cmt{color:#5a708c;font-style:italic}
+pre .kw{color:var(--violet)}
+pre .fn{color:var(--signal)}
+pre .str{color:var(--flag)}
+pre .num{color:#f2708c}
+pre .cls{color:var(--wire)}
+pre .self{color:var(--muted)}
+code.inl{background:var(--ink-2);border:1px solid var(--line-soft);padding:1px 6px;border-radius:6px;font-size:.9em;color:var(--signal)}
+
+/* callouts */
+.callout{border-radius:12px;padding:16px 18px 16px 46px;margin:20px 0;position:relative;font-size:15px}
+.callout::before{position:absolute;left:16px;top:15px;font-family:var(--mono);font-weight:700;font-size:15px}
+.callout b.t{display:block;font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;margin-bottom:5px}
+.myth{background:rgba(242,176,60,.07);border:1px solid rgba(242,176,60,.35)}
+.myth::before{content:"!";color:var(--flag)}
+.myth b.t{color:var(--flag)}
+.key{background:rgba(72,217,200,.07);border:1px solid rgba(72,217,200,.32)}
+.key::before{content:"◆";color:var(--signal);font-size:12px;top:17px}
+.key b.t{color:var(--signal)}
+.danger{background:rgba(242,112,140,.08);border:1px solid rgba(242,112,140,.4)}
+.danger::before{content:"×";color:#f2708c;font-size:19px;top:13px}
+.danger b.t{color:#f2708c}
+
+/* explain-back / quiz */
+.explain{border:1px dashed var(--wire);border-radius:12px;padding:16px 18px;margin:20px 0;background:rgba(125,157,255,.05)}
+.explain summary{cursor:pointer;font-family:var(--mono);font-size:13px;color:var(--wire);letter-spacing:.03em}
+.explain summary::marker{color:var(--wire)}
+.explain[open] summary{margin-bottom:10px}
+.quiz{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px 22px;margin:26px 0}
+.quiz .q{font-weight:600;margin-bottom:14px;color:#fff;font-family:var(--sans)}
+.quiz .opt{display:block;width:100%;text-align:left;background:var(--ink-2);border:1px solid var(--line);color:var(--text);padding:11px 15px;border-radius:9px;margin:8px 0;cursor:pointer;font-size:14.5px;transition:.15s}
+.quiz .opt:hover{border-color:var(--wire)}
+.quiz .opt.correct{border-color:var(--ok);background:rgba(95,211,154,.12);color:#dfffef}
+.quiz .opt.wrong{border-color:#f2708c;background:rgba(242,112,140,.1)}
+.quiz .fb{margin-top:10px;font-size:14px;color:var(--text-dim);display:none}
+.quiz .fb.show{display:block}
+
+/* svg / canvas frames */
+.stage{width:100%;border-radius:10px;background:radial-gradient(600px 300px at 50% 0,rgba(72,217,200,.05),transparent),#0a1119;border:1px solid var(--line);display:block}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-family:var(--mono);font-size:11.5px;color:var(--muted);margin-top:12px}
+.legend span{display:flex;align-items:center;gap:6px}
+.legend i{width:11px;height:11px;border-radius:3px;display:block}
+
+/* tables */
+table{width:100%;border-collapse:collapse;margin:18px 0;font-size:14px}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line-soft)}
+th{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+td code{color:var(--signal);font-family:var(--mono)}
+tr:hover td{background:rgba(255,255,255,.02)}
+.pill{font-family:var(--mono);font-size:11px;padding:2px 8px;border-radius:20px;border:1px solid var(--line)}
+.pill.g{color:var(--ok);border-color:rgba(95,211,154,.4)}
+.pill.a{color:var(--flag);border-color:rgba(242,176,60,.4)}
+.pill.r{color:#f2708c;border-color:rgba(242,112,140,.4)}
+
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:900px){
+  .nav{display:none}
+  .progress-rail{left:0}
+  .grid2{grid-template-columns:1fr}
+  body{font-size:16px}
+}
+.tocmini{position:fixed;bottom:18px;left:18px;z-index:60;display:none}
+@media(max-width:900px){.tocmini{display:block}}
+.tocmini button{background:var(--signal);color:#04231f;border:none;border-radius:50%;width:52px;height:52px;font-size:22px;box-shadow:var(--shadow);cursor:pointer}
+footer{padding:50px 0 20px;color:var(--muted);font-family:var(--mono);font-size:12.5px}
+.muted{color:var(--muted)}
+.tiny{font-size:12.5px;color:var(--muted);font-family:var(--mono)}
+</style>
+</head>
+<body>
+<div class="progress-rail"><div class="progress-fill" id="pfill"></div></div>
+<div class="shell">
+<nav class="nav" id="nav">
+  <div class="brand">
+    <svg viewBox="0 0 40 40" fill="none">
+      <rect x="3" y="3" width="34" height="34" rx="8" stroke="#48d9c8" stroke-width="1.5"/>
+      <circle cx="12" cy="12" r="3" fill="#48d9c8"/><circle cx="28" cy="12" r="3" fill="#7d9dff"/>
+      <circle cx="20" cy="28" r="3" fill="#b98cff"/>
+      <path d="M12 12 L28 12 M12 12 L20 28 M28 12 L20 28" stroke="#25384f" stroke-width="1.5"/>
+    </svg>
+    <div><b>The Machine Room</b><small>engineering mastery</small></div>
+  </div>
+  <div class="nav-group">Orientation</div>
+  <a href="#top" class="navlink"><span class="dot"></span>The workbench</a>
+  <div class="nav-group">I · Objects</div>
+  <a href="#oop" class="navlink"><span class="dot"></span>Why objects exist</a>
+  <a href="#pillars" class="navlink"><span class="dot"></span>The four pillars</a>
+  <a href="#coupling" class="navlink"><span class="dot"></span>Coupling &amp; cohesion</a>
+  <a href="#solid" class="navlink"><span class="dot"></span>SOLID principles</a>
+  <div class="nav-group">II · Patterns</div>
+  <a href="#patterns" class="navlink"><span class="dot"></span>What a pattern is</a>
+  <a href="#creational" class="navlink"><span class="dot"></span>Creational</a>
+  <a href="#structural" class="navlink"><span class="dot"></span>Structural</a>
+  <a href="#behavioral" class="navlink"><span class="dot"></span>Behavioral</a>
+  <div class="nav-group">III · Data &amp; Algorithms</div>
+  <a href="#bigo" class="navlink"><span class="dot"></span>The cost of work</a>
+  <a href="#structures" class="navlink"><span class="dot"></span>Data structures</a>
+  <a href="#sorting" class="navlink"><span class="dot"></span>Sorting, seen</a>
+  <a href="#graphs" class="navlink"><span class="dot"></span>Trees &amp; graphs</a>
+  <div class="nav-group">IV · Systems at scale</div>
+  <a href="#systems" class="navlink"><span class="dot"></span>Why systems break</a>
+  <a href="#resilience" class="navlink"><span class="dot"></span>Resilience patterns</a>
+  <a href="#dataflow" class="navlink"><span class="dot"></span>State, events, scale</a>
+  <div class="nav-group">V · Concurrency</div>
+  <a href="#concurrency" class="navlink"><span class="dot"></span>Many things at once</a>
+  <div class="nav-group">VI · Databases</div>
+  <a href="#databases" class="navlink"><span class="dot"></span>Where state lives</a>
+  <div class="nav-group">VII · The network</div>
+  <a href="#network" class="navlink"><span class="dot"></span>A request's journey</a>
+  <div class="nav-group">VIII · Caching</div>
+  <a href="#caching" class="navlink"><span class="dot"></span>Speed &amp; staleness</a>
+  <div class="nav-group">IX · Security</div>
+  <a href="#security" class="navlink"><span class="dot"></span>Assume hostility</a>
+  <div class="nav-group">X · Testing</div>
+  <a href="#testing" class="navlink"><span class="dot"></span>Fearless change</a>
+  <div class="nav-group">XI · Craft</div>
+  <a href="#cleancode" class="navlink"><span class="dot"></span>Clean code &amp; debt</a>
+  <div class="nav-group">XII · Operations</div>
+  <a href="#delivery" class="navlink"><span class="dot"></span>Ship &amp; observe</a>
+  <div class="nav-group">Capstone</div>
+  <a href="#closing" class="navlink"><span class="dot"></span>The through-line</a>
+</nav>
+
+<main class="main" id="top">
+
+<header class="hero wrap">
+  <div class="eyebrow">Objects · Patterns · Algorithms · Systems</div>
+  <h1>Learn how large machines are built<br>from parts that <span class="stroke">fit together</span> — and never break.</h1>
+  <p class="lede">This is a hands-on workbench, not a glossary. Every idea here is something you can watch run, poke at, and break. The language is Python, but the thinking is universal: these principles hold in Java, Go, Rust, C++, and TypeScript alike.</p>
+  <div class="hero-stats">
+    <div><b>12</b><span>domains</span></div>
+    <div><b>30+</b><span>live labs</span></div>
+    <div><b>1</b><span>through-line</span></div>
+  </div>
+  <div style="margin-top:34px">
+    <svg viewBox="0 0 860 150" class="stage" style="max-width:640px" id="heroFlow" aria-label="Signal flowing through a small system">
+      <defs>
+        <linearGradient id="wireg" x1="0" x2="1"><stop offset="0" stop-color="#48d9c8"/><stop offset="1" stop-color="#7d9dff"/></linearGradient>
+      </defs>
+      <g stroke="#25384f" stroke-width="2" fill="none">
+        <path d="M90 75 H250" id="w1"/><path d="M340 75 H500" id="w2"/>
+        <path d="M590 75 H750" id="w3"/><path d="M295 75 Q295 30 500 30 Q640 30 670 60" id="w4"/>
+      </g>
+      <g id="pulses"></g>
+      <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" fill="#9fb0c9" text-anchor="middle">
+        <g><rect x="30" y="55" width="60" height="40" rx="8" fill="#141f30" stroke="#48d9c8"/><text x="60" y="79">input</text></g>
+        <g><rect x="250" y="55" width="90" height="40" rx="8" fill="#141f30" stroke="#7d9dff"/><text x="295" y="79">parse</text></g>
+        <g><rect x="500" y="55" width="90" height="40" rx="8" fill="#141f30" stroke="#b98cff"/><text x="545" y="79">transform</text></g>
+        <g><rect x="750" y="55" width="80" height="40" rx="8" fill="#141f30" stroke="#5fd39a"/><text x="790" y="79">output</text></g>
+        <g><rect x="620" y="10" width="100" height="34" rx="8" fill="#141f30" stroke="#f2b03c"/><text x="670" y="31">cache</text></g>
+      </g>
+    </svg>
+  </div>
+</header>
+<section class="mod wrap" id="oop">
+  <div class="mod-tag">Module I · 01</div>
+  <h2>Why objects exist at all</h2>
+  <p class="mod-sub">Before the syntax, the motive. Object orientation is not about <code class="inl">class</code> keywords — it is one particular answer to the only question that matters in large software: <em>how do we change one thing without breaking everything else?</em></p>
+
+  <p>Imagine a program as a city. A tiny script is a shed: one room, you can see everything, nothing hidden. But real systems are cities — millions of moving parts, built by hundreds of people over years, none of whom can hold the whole thing in their head. The enemy is not <em>size</em>. The enemy is <strong>coupling</strong>: the invisible threads that mean touching one building cracks a wall three districts away.</p>
+
+  <p>Objects are a technique for drawing walls. An object bundles some <em class="term">state</em> (data) with the <em class="term">behavior</em> (functions) that is allowed to touch that data, and then hides the state behind a small, deliberate doorway. Outside code talks to the doorway, never the wiring. Now the wiring can change freely — as long as the doorway stays the same, the city doesn't notice.</p>
+
+  <div class="callout key"><b class="t">The core idea</b>An object is a promise: "You may ask me to do these things. How I do them is my business, and it may change tomorrow." That promise is called an <strong>interface</strong>, and protecting it is the whole game.</div>
+
+  <p>This is why OOP is not Python-specific, or even class-specific. Go has no classes but has interfaces and does this beautifully. Rust does it with traits. The <em>idea</em> — hide the volatile, expose the stable — is the transferable skill. The keywords are just this decade's spelling.</p>
+
+  <h3 class="head" id="pillars">The four pillars, honestly</h3>
+  <p>Textbooks list four pillars and move on. Let's say what each one is actually <em>for</em>, because three of them are frequently misused.</p>
+
+  <h4 class="subhead">1 · Encapsulation — the wall</h4>
+  <p>Bundle data with the code that guards it, and expose only what callers need. The point isn't secrecy; it's that <strong>invariants</strong> stay true. A <code class="inl">BankAccount</code> that lets anyone set <code class="inl">balance = -900</code> from outside has no way to guarantee it's never negative. Route every change through a method and the object can defend its own rules.</p>
+<pre><span class="kw">class</span> <span class="cls">BankAccount</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="self">self</span>, opening):
+        <span class="self">self</span>._balance = opening   <span class="cmt"># _ signals "private, don't touch"</span>
+
+    <span class="kw">def</span> <span class="fn">withdraw</span>(<span class="self">self</span>, amount):
+        <span class="kw">if</span> amount &gt; <span class="self">self</span>._balance:      <span class="cmt"># the invariant is defended HERE</span>
+            <span class="kw">raise</span> ValueError(<span class="str">"insufficient funds"</span>)
+        <span class="self">self</span>._balance -= amount
+        <span class="kw">return</span> <span class="self">self</span>._balance</pre>
+  <div class="callout myth"><b class="t">Common misconception</b>Encapsulation ≠ "make everything private and generate getters/setters." A getter/setter for every field just moves the naked data behind two functions — the wall is painted on. Real encapsulation exposes <em>operations</em> (<code class="inl">withdraw</code>), not <em>fields</em> (<code class="inl">set_balance</code>).</div>
+
+  <h4 class="subhead">2 · Abstraction — the doorway</h4>
+  <p>Abstraction is choosing <em>what to show</em>. A car's pedal is an abstraction over combustion, fuel injection, and a driveshaft. Good abstractions are small and stable; the mess behind them can churn. When you name a method <code class="inl">send(message)</code> instead of <code class="inl">open_socket_write_bytes_flush()</code>, you're letting the transport change from TCP to a queue to carrier pigeon without any caller rewriting a line.</p>
+
+  <h4 class="subhead">3 · Inheritance — the tempting trap</h4>
+  <p>Inheritance says "a <code class="inl">Dog</code> <em>is a</em> <code class="inl">Animal</code>," reusing the parent's code. It's the most <em>overused</em> pillar. It creates the tightest coupling in all of OOP: a subclass depends on its parent's internals, so a change upstream silently breaks children. Use it only for genuine <em>is-a</em> relationships where the subtype can stand in for the parent everywhere (that's Liskov, coming up). For reuse, prefer the next idea.</p>
+
+  <h4 class="subhead">4 · Polymorphism — the reason it all pays off</h4>
+  <p>This is the payoff pillar. <em class="term">Polymorphism</em> means one calling site works with many types, each responding in its own way. Your code says <code class="inl">shape.area()</code>; whether <code class="inl">shape</code> is a circle or a triangle is not your problem. Add a hexagon next year and the calling code doesn't change at all. This is how you add features without editing old, working code — the single most valuable property a codebase can have.</p>
+
+  <div class="lab">
+    <div class="lab-bar"><div class="lights"><i></i><i></i><i></i></div><b>lab · polymorphism.py</b><span class="tag">live</span></div>
+    <div class="lab-body">
+      <p class="tiny">One loop asks every shape for its area. Add a shape type — the loop never learns it exists. That indifference is the feature.</p>
+      <div class="controls" id="polyCtl">
+        <button class="btn" data-add="circle">+ Circle</button>
+        <button class="btn" data-add="square">+ Square</button>
+        <button class="btn" data-add="triangle">+ Triangle</button>
+        <button class="btn" data-add="pentagon">+ Pentagon</button>
+        <button class="btn primary" id="polyRun">Run area() on all</button>
+        <button class="btn" id="polyClear">Clear</button>
+      </div>
+      <svg viewBox="0 0 700 220" class="stage" id="polyStage" style="height:220px"></svg>
+      <div class="legend"><span class="tiny" id="polyOut">Add some shapes, then run the loop.</span></div>
+    </div>
+  </div>
+
+  <div class="explain"><details><summary>▸ Explain it back: your colleague says "let's just add an <code class="inl">if shape_type == …</code> chain to compute area." Why resist?</summary>
+    <p>Because that chain lives at the <em>calling</em> site, so it must be edited every time a new shape appears — and there's usually more than one such chain scattered across the codebase, so you'll miss one. Polymorphism moves the per-type logic <em>into each type</em>, where it can't be forgotten: the compiler/interpreter routes the call for you. The calling code becomes closed to modification but open to new shapes. That's the Open/Closed Principle, which you'll meet in a moment — and it's the difference between a codebase that gets easier to extend over time and one that gets more dangerous with every feature.</p>
+  </details></div>
+</section>
+<section class="mod wrap" id="coupling">
+  <div class="mod-tag">Module I · 02</div>
+  <h2>Coupling &amp; cohesion — the two dials</h2>
+  <p class="mod-sub">Every design decision moves two dials. Get them right and the system stays soft — easy to reshape. Get them wrong and it turns to concrete.</p>
+
+  <p><strong>Coupling</strong> is how much one module must know about another. <strong>Cohesion</strong> is how well the things inside one module belong together. The eternal goal: <em>low coupling, high cohesion</em>. Modules that mind their own business (cohesive) and lean on each other as little as possible (loosely coupled) can be understood, tested, replaced, and moved one at a time.</p>
+
+  <div class="grid2">
+    <div class="card"><h4 class="subhead" style="margin-top:0">High coupling smells</h4>
+      <ul><li>Changing module A forces edits in B, C, D.</li><li>You can't test A without spinning up a database.</li><li>Modules reach into each other's internal fields.</li><li>A "small" change ripples across many files.</li></ul>
+    </div>
+    <div class="card"><h4 class="subhead" style="margin-top:0">Low cohesion smells</h4>
+      <ul><li>A class named <code class="inl">Manager</code> or <code class="inl">Utils</code> that does ten unrelated things.</li><li>Half the methods use one set of fields, half use another.</li><li>You struggle to name the module in one noun.</li><li>Every feature touches the same "god" file.</li></ul>
+    </div>
+  </div>
+
+  <div class="callout key"><b class="t">Rule of thumb</b>If you can't describe what a module does without the word "and," its cohesion is probably too low. Split it until each piece has one job worth a name.</div>
+
+  <h3 class="head" id="solid">SOLID — five moves against coupling</h3>
+  <p>SOLID is five principles that all serve one master: keeping change cheap. They aren't laws; they're tactics you reach for when a design starts to stiffen. Here's each one in a sentence, then the one that changes how you think forever.</p>
+
+  <table>
+    <tr><th>Letter</th><th>Principle</th><th>In one breath</th></tr>
+    <tr><td><code>S</code></td><td>Single Responsibility</td><td>A module should have one reason to change.</td></tr>
+    <tr><td><code>O</code></td><td>Open / Closed</td><td>Open to extension, closed to modification — add code, don't edit working code.</td></tr>
+    <tr><td><code>L</code></td><td>Liskov Substitution</td><td>A subtype must be usable anywhere its parent is, with no surprises.</td></tr>
+    <tr><td><code>I</code></td><td>Interface Segregation</td><td>Don't force a client to depend on methods it never calls.</td></tr>
+    <tr><td><code>D</code></td><td>Dependency Inversion</td><td>Depend on abstractions, not concrete details.</td></tr>
+  </table>
+
+  <h4 class="subhead">The one to internalize: Dependency Inversion</h4>
+  <p>Naively, high-level code (your business logic) calls low-level code (a specific database, a specific email service). That means your <em>valuable</em> logic is nailed to a <em>replaceable</em> detail. Swap Postgres for MySQL and the business rules get surgery. Dependency Inversion flips the arrow: both sides depend on an <strong>abstraction</strong> in the middle that the high-level code owns. Now the detail plugs into the logic, not the other way around.</p>
+
+  <div class="lab">
+    <div class="lab-bar"><div class="lights"><i></i><i></i><i></i></div><b>lab · dependency_inversion.py</b><span class="tag">live</span></div>
+    <div class="lab-body">
+      <p class="tiny">The <code class="inl">OrderService</code> needs to send a receipt. Watch what it's bolted to. Then invert the dependency and swap providers at runtime — the service never changes.</p>
+      <div class="controls">
+        <button class="btn sel" id="diBefore">Before: bolted to Email</button>
+        <button class="btn" id="diAfter">After: depends on abstraction</button>
+      </div>
+      <svg viewBox="0 0 700 240" class="stage" id="diStage" style="height:250px"></svg>
+      <div class="controls" id="diSwap" style="display:none">
+        <span class="tiny">Plug in a provider:&nbsp;</span>
+        <button class="btn" data-prov="Email">EmailSender</button>
+        <button class="btn" data-prov="SMS">SMSSender</button>
+        <button class="btn" data-prov="Push">PushSender</button>
+        <button class="btn" data-prov="Fake">FakeSender (for tests)</button>
+      </div>
+      <div class="legend"><span class="tiny" id="diOut"></span></div>
+    </div>
+  </div>
+
+  <div class="callout myth"><b class="t">Common misconception</b>"Dependency Inversion means using a dependency-injection framework." No. DI-the-principle is about which way the dependency arrow points — an abstraction in the middle. Passing a collaborator into a constructor (plain <em>dependency injection</em>) is one way to wire it up, and you can do it by hand in three lines with no framework at all.</div>
+
+  <div class="quiz" data-quiz>
+    <div class="q">A <code class="inl">Rectangle</code> class has <code class="inl">set_width</code> and <code class="inl">set_height</code>. Someone makes <code class="inl">Square(Rectangle)</code> where setting width also sets height (to stay square). Existing code that stretches a rectangle's width and asserts the height is unchanged now fails for squares. Which principle was violated?</div>
+    <button class="opt" data-correct>Liskov Substitution — a Square can't stand in for a Rectangle without breaking a caller's valid expectation.</button>
+    <button class="opt">Single Responsibility — the class does two things.</button>
+    <button class="opt">Interface Segregation — too many methods.</button>
+    <button class="opt">None; inheritance is always safe for is-a.</button>
+    <div class="fb"></div>
+  </div>
+</section>
+<section class="mod wrap" id="patterns">
+  <div class="mod-tag">Module II · 01</div>
+  <h2>What a design pattern actually is</h2>
+  <p class="mod-sub">A pattern is not code to copy. It's a <em>named solution to a recurring design problem</em> — a shared vocabulary so that "let's put a Strategy here" replaces ten minutes of whiteboard drawing.</p>
+
+  <p>Patterns were catalogued because experienced engineers kept independently arriving at the same shapes. Naming them did two things: it made those shapes teachable, and it made design conversations fast. When you say "Observer," a colleague instantly pictures publishers, subscribers, and a subscription list — no diagram needed.</p>
+
+  <div class="callout myth"><b class="t">The trap of pattern zeal</b>Patterns are tools, not trophies. Reaching for a Singleton or an Abstract Factory when a plain function would do is <em>overengineering</em> — it adds indirection you'll pay for on every read. The mature move is to know the pattern <em>and</em> know when a two-line function beats it. A pattern earns its keep only when it removes more complexity than it adds.</div>
+
+  <p>The classic catalogue splits into three families by <em>what varies</em>: <strong>creational</strong> (how objects get made), <strong>structural</strong> (how objects compose into bigger shapes), and <strong>behavioral</strong> (how objects talk and share work). We'll take the ones you'll actually use.</p>
+
+  <h3 class="head" id="creational">Creational · how things get born</h3>
+  <p>Creational patterns exist because the <code class="inl">new X()</code> / <code class="inl">X()</code> call is a hidden dependency: the moment you write the concrete class name, you're welded to it. These patterns move that decision somewhere it can vary.</p>
+
+  <h4 class="subhead">Factory Method — decide the type elsewhere</h4>
+  <p>A factory is a function or method whose job is to pick and build the right concrete type, so callers ask for <em>what they want</em> and receive <em>whatever fits</em>. The caller depends on the abstraction; only the factory knows the concrete names.</p>
+<pre><span class="kw">def</span> <span class="fn">make_parser</span>(kind: str) -&gt; <span class="cls">Parser</span>:
+    <span class="kw">if</span> kind == <span class="str">"json"</span>:  <span class="kw">return</span> <span class="cls">JsonParser</span>()
+    <span class="kw">if</span> kind == <span class="str">"xml"</span>:   <span class="kw">return</span> <span class="cls">XmlParser</span>()
+    <span class="kw">if</span> kind == <span class="str">"csv"</span>:   <span class="kw">return</span> <span class="cls">CsvParser</span>()
+    <span class="kw">raise</span> ValueError(kind)
+
+<span class="cmt"># caller stays blissfully ignorant of concrete classes:</span>
+parser = make_parser(fmt)
+data = parser.parse(text)   <span class="cmt"># polymorphism does the rest</span></pre>
+
+  <h4 class="subhead">Builder — assemble something complicated, step by step</h4>
+  <p>When an object needs many parts and many are optional, a constructor with twelve arguments is a crime scene. A Builder lets you add parts in readable steps and produce the finished object at the end — and it can validate the whole configuration before handing it over.</p>
+
+  <div class="lab">
+    <div class="lab-bar"><div class="lights"><i></i><i></i><i></i></div><b>lab · pizza_builder.py</b><span class="tag">live</span></div>
+    <div class="lab-body">
+      <p class="tiny">Chain steps to configure. Nothing is built until you call <code class="inl">.build()</code> — which is also where validation happens.</p>
+      <div class="controls" id="buildCtl">
+        <button class="btn" data-step="size:S">size(S)</button>
+        <button class="btn" data-step="size:L">size(L)</button>
+        <button class="btn" data-step="cheese">add_cheese()</button>
+        <button class="btn" data-step="mushroom">add(mushroom)</button>
+        <button class="btn" data-step="olive">add(olive)</button>
+        <button class="btn primary" id="buildDo">.build()</button>
+        <button class="btn" id="buildReset">reset</button>
+      </div>
+      <pre id="buildCode" style="min-height:80px;margin:6px 0">Pizza.builder()</pre>
+      <div class="legend"><span class="tiny" id="buildOut"></span></div>
+    </div>
+  </div>
+
+  <h4 class="subhead">Singleton — the pattern to distrust</h4>
+  <p>A Singleton guarantees exactly one instance exists globally. It's genuinely useful for a few things (a connection pool, a logger). But it's also a <em>global variable in a costume</em>: it couples everything that touches it, hides dependencies, and makes tests miserable because state leaks between them. Reach for it rarely, and when you do, prefer passing the single instance in (injection) over reaching out to a global.</p>
+  <div class="callout danger"><b class="t">Why Singletons hurt at scale</b>Every module that grabs the global singleton has an <em>invisible</em> dependency on it — invisible because it's not in any signature. Multiply that across a large team and you get a system where nothing can be tested or reasoned about in isolation. The coupling you can't see is the coupling that kills you.</div>
+</section>
+<section class="mod wrap" id="structural">
+  <div class="mod-tag">Module II · 02</div>
+  <h2>Structural · composing bigger shapes</h2>
+  <p class="mod-sub">These patterns are about wiring objects together so the whole is more capable than the parts — without any part knowing the whole exists.</p>
+
+  <h4 class="subhead">Adapter — make an incompatible thing fit</h4>
+  <p>You have code that expects a <code class="inl">.pay(amount)</code> interface, and a third-party library that offers <code class="inl">.charge_card(cents, token)</code>. An Adapter is a thin wrapper that speaks your interface on the outside and the library's on the inside. It's how you keep a foreign dependency from leaking its vocabulary all through your codebase — quarantine the weirdness in one class.</p>
+
+  <h4 class="subhead">Facade — one simple door over a complicated room</h4>
+  <p>A subsystem has ten classes and a fiddly startup sequence. A Facade offers one clean method — <code class="inl">order.checkout()</code> — that orchestrates the mess behind it. Callers get simplicity; the complexity still exists but is no longer everyone's problem.</p>
+
+  <h4 class="subhead">Decorator — add behavior by wrapping, not editing</h4>
+  <p>The Decorator is Open/Closed made concrete. Instead of editing a class to add a feature, you wrap it in another object with the same interface that adds its bit and delegates the rest. Wrappers stack in any order. This is exactly how HTTP middleware, stream filters, and I/O layers work.</p>
+
+  <div class="lab">
+    <div class="lab-bar"><div class="lights"><i></i><i></i><i></i></div><b>lab · decorator_stack.py</b><span class="tag">live</span></div>
+    <div class="lab-body">
+      <p class="tiny">A bare <code class="inl">DataSource</code> reads/writes text. Wrap it with layers — each has the same interface, so they nest. Watch a write travel <em>down</em> through the layers and a read travel back <em>up</em>.</p>
+      <div class="controls" id="decoCtl">
+        <button class="btn" data-wrap="Encrypt">wrap Encrypt</button>
+        <button class="btn" data-wrap="Compress">wrap Compress</button>
+        <button class="btn" data-wrap="Log">wrap Log</button>
+        <button class="btn primary" id="decoWrite">write("hello")</button>
+        <button class="btn" id="decoReset">reset to bare</button>
+      </div>
+      <svg viewBox="0 0 700 260" class="stage" id="decoStage" style="height:270px"></svg>
+      <div class="legend"><span class="tiny" id="decoOut"></span></div>
+    </div>
+  </div>
+</section>
+
+<section class="mod wrap" id="behavioral">
+  <div class="mod-tag">Module II · 03</div>
+  <h2>Behavioral · how objects collaborate</h2>
+  <p class="mod-sub">The richest family. These govern who talks to whom, who decides what, and how work moves — the patterns you'll reach for most often in real systems.</p>
+
+  <h4 class="subhead">Strategy — swap an algorithm at runtime</h4>
+  <p>When one job can be done several ways (sort by price / rating / distance; compress with gzip / brotli), don't bake a giant <code class="inl">if</code> into the class. Pull each way out into its own object with a shared interface, and let the context hold whichever one it's told to. Swapping behavior becomes swapping an object.</p>
+
+  <div class="lab">
+    <div class="lab-bar"><div class="lights"><i></i><i></i><i></i></div><b>lab · strategy.py</b><span class="tag">live</span></div>
+    <div class="lab-body">
+      <p class="tiny">The <code class="inl">Router</code> plans a trip. It holds a strategy object; swap it and the same <code class="inl">route()</code> call behaves completely differently — with zero changes to <code class="inl">Router</code>.</p>
+      <div class="controls" id="stratCtl">
+        <button class="btn sel" data-strat="fast">Fastest</button>
+        <button class="btn" data-strat="short">Shortest</button>
+        <button class="btn" data-strat="scenic">Scenic</button>
+      </div>
+      <svg viewBox="0 0 700 200" class="stage" id="stratStage" style="height:200px"></svg>
+      <div class="legend"><span class="tiny" id="stratOut"></span></div>
+    </div>
+  </div>
+
+  <h4 class="subhead">Observer — publish once, notify many</h4>
+  <p>An object (the <em class="term">subject</em>) keeps a list of interested parties (<em class="term">observers</em>) and notifies all of them when something happens — without knowing or caring who they are. This is the beating heart of event systems, reactive UIs, and message buses. The subject is decoupled from its audience: subscribers come and go and it never changes.</p>
+
+  <div class="lab">
+    <div class="lab-bar"><div class="lights"><i></i><i></i><i></i></div><b>lab · observer.py</b><span class="tag">live</span></div>
+    <div class="lab-body">
+      <p class="tiny">A <code class="inl">StockTicker</code> publishes price changes. Subscribe some displays, then publish — every subscriber reacts. Unsubscribe one and it goes dark. The ticker's code is identical throughout.</p>
+      <div class="controls" id="obsCtl">
+        <button class="btn" data-sub="Chart">+ Chart</button>
+        <button class="btn" data-sub="Alert">+ Alert</button>
+        <button class="btn" data-sub="Logger">+ Logger</button>
+        <button class="btn primary" id="obsPub">publish(price++)</button>
+        <button class="btn" id="obsClear">clear all</button>
+      </div>
+      <svg viewBox="0 0 700 220" class="stage" id="obsStage" style="height:220px"></svg>
+      <div class="legend"><span class="tiny" id="obsOut">No subscribers yet.</span></div>
+    </div>
+  </div>
+
+  <h4 class="subhead">State — let the object change its own behavior</h4>
+  <p>An object behaves differently depending on what mode it's in — a document is <em>draft</em>, then <em>in review</em>, then <em>published</em>, and the same <code class="inl">publish()</code> call means different things in each. Instead of a tangle of flags and <code class="inl">if</code>s, give each state its own object that knows which transitions are legal. Illegal moves become impossible by construction.</p>
+
+  <div class="lab">
+    <div class="lab-bar"><div class="lights"><i></i><i></i><i></i></div><b>lab · state_machine.py</b><span class="tag">live</span></div>
+    <div class="lab-body">
+      <p class="tiny">A document's lifecycle. Only legal transitions light up. Try to publish a draft directly — the state itself refuses.</p>
+      <div class="controls" id="smCtl">
+        <button class="btn" data-ev="submit">submit()</button>
+        <button class="btn" data-ev="approve">approve()</button>
+        <button class="btn" data-ev="reject">reject()</button>
+        <button class="btn" data-ev="publish">publish()</button>
+        <button class="btn" id="smReset">reset</button>
+      </div>
+      <svg viewBox="0 0 700 180" class="stage" id="smStage" style="height:180px"></svg>
+      <div class="legend"><span class="tiny" id="smOut"></span></div>
+    </div>
+  </div>
+
+  <div class="quiz" data-quiz>
+    <div class="q">A notification system currently has one class with <code class="inl">if channel == "email" … elif "sms" … elif "push"</code> repeated in five methods. Marketing wants to add Slack and WhatsApp. Which pattern most directly removes the pain?</div>
+    <button class="opt" data-correct>Strategy — one object per channel behind a shared <code class="inl">send()</code> interface; adding a channel is adding a class, editing nothing.</button>
+    <button class="opt">Singleton — make the notifier global.</button>
+    <button class="opt">Builder — assemble the notification in steps.</button>
+    <button class="opt">Facade — hide the if/elif behind one method.</button>
+    <div class="fb"></div>
+  </div>
+</section>
+<section class="mod wrap" id="bigo">
+  <div class="mod-tag">Module III · 01</div>
+  <h2>The cost of work — Big-O, felt not memorized</h2>
+  <p class="mod-sub">Big-O answers one question: <em>as the input grows, how fast does the work grow?</em> It ignores constants and hardware because those don't change the shape of the curve — and the shape is what decides whether your feature survives a million users.</p>
+
+  <p>The trap is memorizing a table. The skill is <em>feeling</em> the curves. <code class="inl">O(n²)</code> isn't "slow"; it's "fine at n=100, a catastrophe at n=100,000." Move the slider below and watch the gap between algorithms explode. That visceral gap is why an engineer will spend a day turning an <code class="inl">O(n²)</code> loop into an <code class="inl">O(n)</code> pass over a hash set.</p>
+
+  <div class="lab">
+    <div class="lab-bar"><div class="lights"><i></i><i></i><i></i></div><b>lab · growth_curves</b><span class="tag">interactive</span></div>
+    <div class="lab-body">
+      <canvas id="bigoCanvas" class="stage" style="height:300px" width="700" height="300"></canvas>
+      <div class="controls">
+        <label class="ctl">input size n <input type="range" id="bigoN" min="8" max="512" value="80"></label>
+        <span class="readout" id="bigoNval">80</span>
+      </div>
+      <div class="legend">
+        <span><i style="background:#5fd39a"></i>O(1) constant</span>
+        <span><i style="background:#48d9c8"></i>O(log n)</span>
+        <span><i style="background:#7d9dff"></i>O(n)</span>
+        <span><i style="background:#b98cff"></i>O(n log n)</span>
+        <span><i style="background:#f2b03c"></i>O(n²)</span>
+        <span><i style="background:#f2708c"></i>O(2ⁿ)</span>
+      </div>
+      <div class="legend"><span class="tiny" id="bigoOut"></span></div>
+    </div>
+  </div>
+
+  <div class="callout key"><b class="t">The mental ladder</b>Learn this ordering by heart, best to worst: <code class="inl">O(1)</code> ▸ <code class="inl">O(log n)</code> ▸ <code class="inl">O(n)</code> ▸ <code class="inl">O(n log n)</code> ▸ <code class="inl">O(n²)</code> ▸ <code class="inl">O(2ⁿ)</code>. Most "make it faster" work is really "move one rung down this ladder" — usually by trading memory for time via a hash structure.</div>
+
+  <div class="callout myth"><b class="t">Common misconception</b>Big-O is about <em>growth</em>, not <em>speed</em>. An <code class="inl">O(n²)</code> algorithm can beat an <code class="inl">O(n log n)</code> one for small n, because the hidden constants matter there. Big-O only promises who wins <em>eventually</em>. For tiny, fixed inputs, the simplest code often wins in practice.</div>
+</section>
+
+<section class="mod wrap" id="structures">
+  <div class="mod-tag">Module III · 02</div>
+  <h2>Data structures — choosing the right container</h2>
+  <p class="mod-sub">A data structure is a deal: it makes some operations cheap by making others expensive. Picking one is picking which operations you want to be fast. There is no "best" — only "best for this access pattern."</p>
+
+  <table>
+    <tr><th>Structure</th><th>Access</th><th>Search</th><th>Insert</th><th>Delete</th><th>Best when…</th></tr>
+    <tr><td><code>Array / List</code></td><td><span class="pill g">O(1)</span></td><td><span class="pill a">O(n)</span></td><td><span class="pill a">O(n)</span></td><td><span class="pill a">O(n)</span></td><td>you index by position, iterate a lot</td></tr>
+    <tr><td><code>Linked List</code></td><td><span class="pill a">O(n)</span></td><td><span class="pill a">O(n)</span></td><td><span class="pill g">O(1)</span></td><td><span class="pill g">O(1)</span></td><td>you splice at known spots, no random access</td></tr>
+    <tr><td><code>Hash Map</code></td><td>—</td><td><span class="pill g">O(1)*</span></td><td><span class="pill g">O(1)*</span></td><td><span class="pill g">O(1)*</span></td><td>you look things up by key (the workhorse)</td></tr>
+    <tr><td><code>Balanced BST</code></td><td>—</td><td><span class="pill a">O(log n)</span></td><td><span class="pill a">O(log n)</span></td><td><span class="pill a">O(log n)</span></td><td>you need sorted order <em>and</em> fast lookup</td></tr>
+    <tr><td><code>Heap</code></td><td>—</td><td><span class="pill a">O(n)</span></td><td><span class="pill a">O(log n)</span></td><td><span class="pill a">O(log n)</span></td><td>you repeatedly need the min/max (priority)</td></tr>
+    <tr><td><code>Stack / Queue</code></td><td>—</td><td>—</td><td><span class="pill g">O(1)</span></td><td><span class="pill g">O(1)</span></td><td>order matters: LIFO undo, FIFO tasks</td></tr>
+  </table>
+  <p class="tiny">* Hash map operations are O(1) <em>average</em> but O(n) worst case under bad collisions. In practice, with a decent hash, treat them as constant — this is why hash maps are the most reached-for structure in all of programming.</p>
+
+  <div class="callout key"><b class="t">The single most common optimization</b>See a nested loop scanning a list to check "have I seen this?" — that's <code class="inl">O(n²)</code>. Replace the inner scan with a hash set lookup and it collapses to <code class="inl">O(n)</code>. Memory bought you a rung down the ladder. You will do this a hundred times in your career.</div>
+
+  <h4 class="subhead">Why hash maps feel like magic</h4>
+  <p>A hash map turns a key into an array index via a hash function, so it jumps <em>straight</em> to the slot instead of scanning. Collisions (two keys landing in the same slot) are handled by chaining or probing. The whole trick is: computing the location is cheaper than searching for it. Understand this one structure deeply and half of practical performance work becomes obvious.</p>
+</section>
+
+<section class="mod wrap" id="sorting">
+  <div class="mod-tag">Module III · 03</div>
+  <h2>Sorting, made visible</h2>
+  <p class="mod-sub">Sorting is the classic lens for seeing algorithmic trade-offs, because you can literally watch a good idea beat a naive one. Pick an algorithm and press play.</p>
+
+  <div class="lab">
+    <div class="lab-bar"><div class="lights"><i></i><i></i><i></i></div><b>lab · sort_visualizer</b><span class="tag">animated</span></div>
+    <div class="lab-body">
+      <div class="controls" id="sortCtl">
+        <button class="btn sel" data-sort="bubble">Bubble</button>
+        <button class="btn" data-sort="insertion">Insertion</button>
+        <button class="btn" data-sort="selection">Selection</button>
+        <button class="btn" data-sort="quick">Quicksort</button>
+        <button class="btn" data-sort="merge">Merge</button>
+      </div>
+      <canvas id="sortCanvas" class="stage" style="height:240px" width="700" height="240"></canvas>
+      <div class="controls">
+        <button class="btn primary" id="sortPlay">Shuffle &amp; play</button>
+        <label class="ctl">speed <input type="range" id="sortSpeed" min="1" max="20" value="9"></label>
+        <span class="tiny" id="sortMeta"></span>
+      </div>
+      <div class="legend">
+        <span><i style="background:#7d9dff"></i>settled</span>
+        <span><i style="background:#f2b03c"></i>comparing</span>
+        <span><i style="background:#f2708c"></i>swapping / pivot</span>
+        <span><i style="background:#5fd39a"></i>sorted</span>
+      </div>
+      <div class="legend"><span class="tiny" id="sortOut"></span></div>
+    </div>
+  </div>
+
+  <p>Bubble, insertion, and selection are all <code class="inl">O(n²)</code> — they compare roughly every pair. Watch them crawl. Quicksort and merge sort are <code class="inl">O(n log n)</code>: they <strong>divide</strong> the problem in half repeatedly instead of walking it linearly, and that <code class="inl">log n</code> number of halvings is the entire speedup. The same "divide and conquer" shape reappears in binary search, balanced trees, and distributed map-reduce — learn it once, recognize it everywhere.</p>
+  <div class="callout myth"><b class="t">Common misconception</b>"Quicksort is always fastest." Its worst case is <code class="inl">O(n²)</code> (on already-sorted data with a naive pivot), and merge sort is stable and predictable but uses extra memory. Real standard libraries use hybrids (like Timsort) that switch strategies based on the data. "Fastest" always depends on the input.</div>
+</section>
+<section class="mod wrap" id="graphs">
+  <div class="mod-tag">Module III · 04</div>
+  <h2>Trees &amp; graphs — structure as a map</h2>
+  <p class="mod-sub">Most hard real-world data isn't a flat list — it's connected. Trees model hierarchy (files, org charts, the DOM). Graphs model relationships (roads, social networks, dependencies). Traversal is how you walk them, and the walk order is the whole trick.</p>
+
+  <h4 class="subhead">Binary search tree — order you can descend</h4>
+  <p>In a BST, every node's left subtree is smaller and right subtree is larger. That invariant means searching is like binary search: at each node you go left or right, halving what's left. Balanced, that's <code class="inl">O(log n)</code>. Watch a value's search path light up.</p>
+
+  <div class="lab">
+    <div class="lab-bar"><div class="lights"><i></i><i></i><i></i></div><b>lab · bst_traversal</b><span class="tag">animated</span></div>
+    <div class="lab-body">
+      <svg viewBox="0 0 700 240" class="stage" id="bstStage" style="height:240px"></svg>
+      <div class="controls" id="bstCtl">
+        <button class="btn" data-find="27">search(27)</button>
+        <button class="btn" data-find="65">search(65)</button>
+        <button class="btn" data-find="9">search(9)</button>
+        <button class="btn" data-find="88">search(88)</button>
+        <span style="width:14px"></span>
+        <button class="btn" data-trav="in">in-order (sorted!)</button>
+        <button class="btn" data-trav="pre">pre-order</button>
+        <button class="btn" data-trav="post">post-order</button>
+      </div>
+      <div class="legend"><span class="tiny" id="bstOut">Search descends by comparing; in-order traversal always yields sorted output.</span></div>
+    </div>
+  </div>
+
+  <h4 class="subhead">BFS vs DFS — the two ways to explore anything</h4>
+  <p>Given a graph, you can explore <strong>breadth-first</strong> (a ripple: all neighbors, then their neighbors — uses a <em>queue</em>, finds shortest unweighted paths) or <strong>depth-first</strong> (a probe: follow one path to its end, then backtrack — uses a <em>stack</em> or recursion, natural for exhausting possibilities). Same graph, two personalities. Run both and watch the order differ.</p>
+
+  <div class="lab">
+    <div class="lab-bar"><div class="lights"><i></i><i></i><i></i></div><b>lab · graph_search</b><span class="tag">animated</span></div>
+    <div class="lab-body">
+      <svg viewBox="0 0 700 260" class="stage" id="graphStage" style="height:260px"></svg>
+      <div class="controls">
+        <button class="btn primary" data-search="bfs" id="gBfs">Run BFS (queue)</button>
+        <button class="btn primary" data-search="dfs" id="gDfs">Run DFS (stack)</button>
+        <button class="btn" id="gReset">reset</button>
+      </div>
+      <div class="legend">
+        <span><i style="background:#7d9dff"></i>unvisited</span>
+        <span><i style="background:#f2b03c"></i>frontier (in the queue/stack)</span>
+        <span><i style="background:#5fd39a"></i>visited</span>
+      </div>
+      <div class="legend"><span class="tiny" id="graphOut">Start node is top-left. Watch the visiting order.</span></div>
+    </div>
+  </div>
+
+  <div class="callout key"><b class="t">Why this matters beyond interviews</b>"Find the shortest chain of friends" is BFS. "Detect a circular dependency in a build" is DFS cycle detection. "Crawl every reachable page" is either. Once you see a problem as <em>nodes and edges</em>, a whole toolbox of proven algorithms unlocks — and most senior engineering is recognizing that a messy business problem is secretly a graph problem.</p></div>
+
+  <div class="quiz" data-quiz>
+    <div class="q">You must find the fewest number of hops between two users in a social network (all connections equal weight). Which traversal, and why?</div>
+    <button class="opt" data-correct>BFS — it explores in expanding rings, so the first time it reaches the target is guaranteed to be via a shortest path.</button>
+    <button class="opt">DFS — it dives deep, so it finds the target fastest.</button>
+    <button class="opt">Either; traversal order doesn't affect path length.</button>
+    <button class="opt">Neither; you must sort the users first.</button>
+    <div class="fb"></div>
+  </div>
+</section>
+<section class="mod wrap" id="systems">
+  <div class="mod-tag">Module IV · 01</div>
+  <h2>Why large systems break — and why the good ones don't</h2>
+  <p class="mod-sub">Everything so far scales <em>down</em> to a single program. Now we go up: dozens of services, networks that lie, machines that die mid-request. The principles are the same — hide the volatile, limit coupling — but the failure modes are new and violent.</p>
+
+  <p>A single program fails cleanly: it crashes, you see a stack trace. A distributed system fails <em>partially and dishonestly</em>. A service doesn't go down — it goes <em>slow</em>. A network call doesn't fail — it hangs for 30 seconds. And that slowness is contagious: the classic <strong>cascading failure</strong>. One slow database makes every request pile up waiting; those waiting requests hold threads; threads run out; now a <em>healthy</em> service upstream can't respond either, because it's stuck waiting on the one that's stuck. A single sick component takes down the whole city.</p>
+
+  <div class="callout danger"><b class="t">The failure that eats companies</b>Retries make it worse. When a service is struggling and every caller "helpfully" retries, you've just tripled the load on the thing that was already drowning. This is a <em>retry storm</em>, and it turns a small blip into a total outage. The fixes below exist to break exactly these feedback loops.</div>
+
+  <h3 class="head" id="resilience">Resilience patterns · engineering for failure</h3>
+  <p>You cannot prevent failure at scale — components <em>will</em> die. Resilient design means failure stays <em>local and brief</em> instead of <em>global and permanent</em>. Four moves do most of the work.</p>
+
+  <h4 class="subhead">Timeouts — refuse to wait forever</h4>
+  <p>Every remote call gets a deadline. Without one, a hung dependency holds your resources hostage indefinitely. A timeout converts "hang forever" into "fail fast," which you can then handle. This is the cheapest, highest-leverage resilience move there is, and the one most often forgotten.</p>
+
+  <h4 class="subhead">Circuit breaker — stop knocking on a locked door</h4>
+  <p>Borrowed from electrical engineering. If calls to a dependency keep failing, the breaker <strong>trips open</strong>: further calls fail <em>instantly</em> without even trying, giving the sick service room to recover instead of pounding it. After a cooldown it goes <em>half-open</em> — lets one test call through — and closes again only if that succeeds. Run the simulation:</p>
+
+  <div class="lab">
+    <div class="lab-bar"><div class="lights"><i></i><i></i><i></i></div><b>lab · circuit_breaker</b><span class="tag">interactive</span></div>
+    <div class="lab-body">
+      <p class="tiny">Toggle the downstream service to "failing," then send traffic. Watch the breaker trip open to protect the system, cool down, test with a probe, and recover.</p>
+      <div class="controls">
+        <button class="btn" id="cbHealth">downstream: <b id="cbHstate">healthy</b></button>
+        <button class="btn primary" id="cbSend">send 1 request</button>
+        <button class="btn" id="cbBurst">send 8 requests</button>
+        <button class="btn" id="cbReset">reset</button>
+      </div>
+      <svg viewBox="0 0 700 160" class="stage" id="cbStage" style="height:160px"></svg>
+      <div class="legend"><span class="tiny" id="cbOut">Breaker CLOSED — requests flow through.</span></div>
+    </div>
+  </div>
+
+  <h4 class="subhead">Idempotency — make retries safe</h4>
+  <p>An operation is <em class="term">idempotent</em> if doing it twice equals doing it once. "Set balance to $100" is idempotent; "add $100" is not. At scale, messages get delivered twice and requests get retried, so you <em>design</em> operations to be replayable — usually by attaching a unique request ID and ignoring duplicates. This is what lets you retry safely instead of double-charging a customer.</p>
+
+  <h4 class="subhead">Bulkhead &amp; backpressure — contain the flood</h4>
+  <p>A ship's bulkheads keep one flooded compartment from sinking the vessel. In software, you isolate resources (separate thread pools / connection pools per dependency) so one exhausted pool can't starve the rest. <strong>Backpressure</strong> is the system telling upstream "slow down, I'm full" instead of accepting work it can't handle and collapsing. Bounded queues that reject when full are backpressure in action — dropping some load to save the whole.</p>
+
+  <div class="callout key"><b class="t">The unifying insight</b>Every resilience pattern is a way to <em>break a feedback loop</em> or <em>bound a resource</em>. Timeouts bound waiting. Breakers break the retry loop. Bulkheads bound blast radius. Backpressure bounds intake. Name the unbounded thing, put a limit on it — that's the whole discipline.</div>
+</section>
+<section class="mod wrap" id="dataflow">
+  <div class="mod-tag">Module IV · 02</div>
+  <h2>State, events, and scaling out</h2>
+  <p class="mod-sub">How do you serve a million users when one machine serves a thousand? You add machines — and suddenly <em>where the state lives</em> becomes the hardest question in the system.</p>
+
+  <h4 class="subhead">Statelessness — the key that unlocks scale</h4>
+  <p>If a server holds no per-user memory between requests (no in-memory session), then <em>any</em> server can handle <em>any</em> request. That means you scale by simply adding identical, interchangeable machines behind a load balancer — <strong>horizontal scaling</strong>. Push the state out to a shared store (a database, a cache like Redis) and keep the servers dumb and disposable. Statelessness is why the web scales.</p>
+
+  <h4 class="subhead">Event-driven architecture — decoupling in time</h4>
+  <p>Instead of service A calling service B directly (and waiting, and being coupled to B being alive), A publishes an <em>event</em> — "order placed" — to a message broker. B, C, and D consume it whenever they're ready. A doesn't know they exist. This is the Observer pattern scaled to the whole system: publishers and subscribers decoupled across services and across <em>time</em>. If B is down, the event waits in the queue instead of failing the request.</p>
+
+  <div class="callout key"><b class="t">Notice the fractal</b>Observer inside one program becomes a message queue between services. Strategy becomes pluggable microservices. Facade becomes an API gateway. Dependency Inversion becomes "depend on a message contract, not a service's internals." <strong>The small patterns and the big patterns are the same patterns.</strong> That's the whole reason this course puts them in one place.</div>
+
+  <h4 class="subhead">Consistency — the trade nobody escapes (CAP)</h4>
+  <p>When data is spread across machines and the network between them can fail, you must choose (during that failure) between <strong>consistency</strong> (every reader sees the latest write, or an error) and <strong>availability</strong> (every request gets an answer, possibly stale). You cannot have both while <em>partitioned</em> — that's the CAP theorem. A bank ledger chooses consistency; a social media like-count chooses availability. There is no free lunch; there is only a deliberate choice about which lie you can tolerate.</p>
+
+  <h4 class="subhead">Sharding &amp; replication — divide the data, copy the data</h4>
+  <p>Too much data for one machine? <strong>Shard</strong> it: split rows across machines by a key (users A–M here, N–Z there). Need to survive a machine dying, or serve more reads? <strong>Replicate</strong> it: keep copies. Replication then reintroduces the consistency question — when do the copies agree? Every scaling technique buys a capability and bills you in complexity somewhere else. Senior engineering is knowing the bill before you sign.</p>
+
+  <div class="quiz" data-quiz>
+    <div class="q">Your API servers keep user login sessions in local memory. Traffic doubles, you add three more servers behind a load balancer, and users start getting randomly logged out. What's the root cause?</div>
+    <button class="opt" data-correct>The servers are <em>stateful</em> — a user's session lives on one machine, so requests routed to a different machine don't find it. Move session state to a shared store to make servers interchangeable.</button>
+    <button class="opt">The load balancer is broken and should be removed.</button>
+    <button class="opt">You need a Singleton to hold all sessions.</button>
+    <button class="opt">The database is too slow; add an index.</button>
+    <div class="fb"></div>
+  </div>
+</section>
+
+<section class="mod wrap" id="concurrency">
+  <div class="mod-tag">Module V · 01</div>
+  <h2>Concurrency — many things at once, without corruption</h2>
+  <p class="mod-sub">A single-threaded program does one thing at a time and is easy to reason about. The moment two flows of execution touch the same data, a new class of bug appears — one that vanishes when you look at it. Mastering concurrency is mostly about <em>discipline around shared state</em>.</p>
+
+  <p>First, two words people conflate. <strong>Concurrency</strong> is <em>structuring</em> a program as independent tasks that can make progress in overlapping time (one chef juggling several dishes). <strong>Parallelism</strong> is <em>literally</em> running them at the same instant on multiple cores (several chefs). You can have concurrency on one core; you need multiple cores for parallelism. Async code is concurrency; a thread pool crunching numbers is parallelism.</p>
+
+  <h4 class="subhead">The race condition — the bug that isn't there when you look</h4>
+  <p>When two threads read-modify-write the same variable, the steps interleave. Thread A reads <code class="inl">count=5</code>, thread B reads <code class="inl">count=5</code>, both add one, both write <code class="inl">6</code>. Two increments, one winner: a <em class="term">lost update</em>. It happens only sometimes, only under load, never in the debugger. This is why concurrency bugs are feared.</p>
+
+  <div class="lab">
+    <div class="lab-bar"><div class="lights"><i></i><i></i><i></i></div><b>lab · race_condition.py</b><span class="tag">live</span></div>
+    <div class="lab-body">
+      <p class="tiny">Two threads each increment a shared counter 1,000 times. Expected total: 2,000. Run it without a lock, then with one, and watch the difference.</p>
+      <div class="controls">
+        <button class="btn" id="raceLock">lock: <b id="raceLstate">OFF</b></button>
+        <button class="btn primary" id="raceRun">run both threads</button>
+      </div>
+      <svg viewBox="0 0 700 170" class="stage" id="raceStage" style="height:170px"></svg>
+      <div class="legend"><span class="tiny" id="raceOut">Lock is OFF — expect lost updates.</span></div>
+    </div>
+  </div>
+
+  <p>The fix is a <em class="term">mutex</em> (mutual exclusion lock): a token only one thread can hold. Around the critical section you <code class="inl">acquire()</code> then <code class="inl">release()</code>, so the read-modify-write becomes indivisible (<em>atomic</em>). Related tools: a <em>semaphore</em> (a lock allowing N holders), a <em>read-write lock</em> (many readers or one writer), and <em>atomic</em> operations the hardware guarantees are indivisible.</p>
+
+  <div class="callout myth"><b class="t">Common misconception</b>"Just add locks everywhere." Locks are correctness at the cost of throughput — over-locking serializes your program back into single-threaded, and worse, invites <em>deadlock</em>. The art is locking the <em>smallest</em> region for the <em>shortest</em> time, or avoiding shared mutable state entirely (immutability and message-passing sidestep the whole problem).</div>
+
+  <h4 class="subhead">Deadlock — the standoff</h4>
+  <p>Thread A holds lock 1 and waits for lock 2. Thread B holds lock 2 and waits for lock 1. Neither will ever move. That's a <em class="term">deadlock</em>, and it needs four conditions at once (mutual exclusion, hold-and-wait, no preemption, circular wait). Break any one and it can't happen. The cheapest break: <strong>lock ordering</strong> — everyone always acquires locks in the same global order, so a cycle is impossible.</p>
+
+  <div class="lab">
+    <div class="lab-bar"><div class="lights"><i></i><i></i><i></i></div><b>lab · dining_philosophers</b><span class="tag">interactive</span></div>
+    <div class="lab-body">
+      <p class="tiny">Two threads, two locks. In "naive" mode each grabs its locks in opposite order and they deadlock. Flip to "ordered" and the cycle can't form.</p>
+      <div class="controls">
+        <button class="btn" id="deadMode">strategy: <b id="deadMstate">naive</b></button>
+        <button class="btn primary" id="deadRun">run</button>
+        <button class="btn" id="deadReset">reset</button>
+      </div>
+      <svg viewBox="0 0 700 190" class="stage" id="deadStage" style="height:190px"></svg>
+      <div class="legend"><span class="tiny" id="deadOut">Naive strategy — watch the circular wait form.</span></div>
+    </div>
+  </div>
+
+  <h4 class="subhead">The async alternative — one thread, no locks</h4>
+  <p>Web servers and UIs mostly wait on I/O (network, disk), not CPU. For that, threads are overkill. The <em class="term">event loop</em> model runs on a <strong>single thread</strong>: when a task hits an <code class="inl">await</code> (a slow I/O call), it steps aside and the loop runs other ready tasks, resuming the first when its data arrives. No shared-memory races, because only one thing runs at a time — but you must never <em>block</em> the loop with heavy CPU work, or everything freezes.</p>
+
+  <div class="lab">
+    <div class="lab-bar"><div class="lights"><i></i><i></i><i></i></div><b>lab · event_loop</b><span class="tag">animated</span></div>
+    <div class="lab-body">
+      <p class="tiny">Queue up async tasks. The single thread picks one, runs until it <code class="inl">await</code>s I/O, parks it, and grabs the next ready task. Watch cooperative multitasking.</p>
+      <div class="controls">
+        <button class="btn" id="loopAdd">+ queue a task</button>
+        <button class="btn primary" id="loopRun">run the loop</button>
+        <button class="btn" id="loopReset">reset</button>
+      </div>
+      <svg viewBox="0 0 700 200" class="stage" id="loopStage" style="height:200px"></svg>
+      <div class="legend"><span class="tiny" id="loopOut">Queue some tasks, then run.</span></div>
+    </div>
+  </div>
+
+  <div class="quiz" data-quiz>
+    <div class="q">Your image-processing service uses async/await and handles thousands of connections on one thread beautifully — until you add a CPU-heavy resize step inline, and now all requests stall. Why?</div>
+    <button class="opt" data-correct>The resize <em>blocks the event loop</em> — while one task hogs the single thread with CPU work, no other task can run. Heavy CPU work belongs in a separate thread/process pool.</button>
+    <button class="opt">You forgot a mutex; add locks around the resize.</button>
+    <button class="opt">Async is always slower than threads; switch to threads.</button>
+    <button class="opt">The connections deadlocked on each other.</button>
+    <div class="fb"></div>
+  </div>
+</section>
+
+<section class="mod wrap" id="databases">
+  <div class="mod-tag">Module VI · 01</div>
+  <h2>Databases — where state actually lives</h2>
+  <p class="mod-sub">Your code is ephemeral; your data is forever. The database is the one component that must never lie, never lose a write, and still answer fast under load. Understanding <em>how</em> it does that separates engineers who use a database from engineers who can trust one.</p>
+
+  <h4 class="subhead">Indexes — why a query is fast or a disaster</h4>
+  <p>Without an index, finding rows means a <strong>full table scan</strong>: read every row and check — <code class="inl">O(n)</code>. An index is a separate, sorted structure (usually a <strong>B-tree</strong>) that lets the database <em>descend</em> to the rows it wants in <code class="inl">O(log n)</code>, exactly like the BST search you already met. The trade: indexes cost storage and slow down writes (every insert must update the index too). Index the columns you filter and join on; don't index everything.</p>
+
+  <div class="lab">
+    <div class="lab-bar"><div class="lights"><i></i><i></i><i></i></div><b>lab · index_vs_scan</b><span class="tag">animated</span></div>
+    <div class="lab-body">
+      <p class="tiny">Find <code class="inl">id = 57</code> in a table. Watch a full scan check rows one by one, then watch a B-tree index jump straight there.</p>
+      <div class="controls">
+        <button class="btn primary" id="idxScan">SELECT … (no index)</button>
+        <button class="btn primary" id="idxIndex">SELECT … (with index)</button>
+        <button class="btn" id="idxReset">reset</button>
+      </div>
+      <svg viewBox="0 0 700 210" class="stage" id="idxStage" style="height:210px"></svg>
+      <div class="legend"><span class="tiny" id="idxOut">Same query, two costs.</span></div>
+    </div>
+  </div>
+
+  <h4 class="subhead">Transactions &amp; ACID — all-or-nothing correctness</h4>
+  <p>A transaction groups operations so they succeed or fail as a unit. <strong>ACID</strong> names its guarantees: <em>Atomicity</em> (all or none — a transfer never debits without crediting), <em>Consistency</em> (invariants hold before and after), <em>Isolation</em> (concurrent transactions don't corrupt each other), <em>Durability</em> (once committed, it survives a crash). Isolation is the subtle one — it comes in <em>levels</em>, and each level permits certain anomalies in exchange for speed.</p>
+
+  <table>
+    <tr><th>Isolation level</th><th>Prevents</th><th>Still allows</th></tr>
+    <tr><td><code>Read Uncommitted</code></td><td>—</td><td>dirty reads (seeing uncommitted data)</td></tr>
+    <tr><td><code>Read Committed</code></td><td>dirty reads</td><td>non-repeatable reads</td></tr>
+    <tr><td><code>Repeatable Read</code></td><td>non-repeatable reads</td><td>phantom rows</td></tr>
+    <tr><td><code>Serializable</code></td><td>everything</td><td>nothing — but slowest</td></tr>
+  </table>
+  <div class="callout key"><b class="t">The engineering choice</b>Higher isolation = more correctness, less concurrency. Most systems run at <em>Read Committed</em> and handle the rare anomaly explicitly, reserving <em>Serializable</em> for the few transactions where money or safety is on the line. Knowing which level you're on — and what it lets slip — is a mark of a database-literate engineer.</div>
+
+  <h4 class="subhead">SQL vs NoSQL — a modeling choice, not a fashion</h4>
+  <p>Relational (SQL) databases give you rigid schemas, joins, and ACID — ideal when data is highly structured and relationships matter (orders, ledgers). NoSQL is a family: document stores (flexible schemas), key-value (raw speed), wide-column (huge scale), graph (relationship-heavy). They typically trade strong consistency and joins for horizontal scale and flexibility. The right question isn't "which is better" but "what shape is my data and what access pattern do I need?"</p>
+
+  <h4 class="subhead">Consistent hashing — distributing data without chaos</h4>
+  <p>To spread keys across N machines, the naive <code class="inl">hash(key) % N</code> is a trap: change N (add or lose a machine) and <em>almost every</em> key remaps, triggering a storm of data movement. <strong>Consistent hashing</strong> places both machines and keys on a ring; each key belongs to the next machine clockwise. Add or remove a machine and only the keys in <em>one</em> arc move. This is how distributed caches and databases resize gracefully.</p>
+
+  <div class="lab">
+    <div class="lab-bar"><div class="lights"><i></i><i></i><i></i></div><b>lab · consistent_hashing</b><span class="tag">interactive</span></div>
+    <div class="lab-body">
+      <p class="tiny">Keys (small dots) belong to the next node (large dot) clockwise on the ring. Add a node and watch how few keys move — only the arc behind the newcomer.</p>
+      <div class="controls">
+        <button class="btn" id="ringAddKey">+ key</button>
+        <button class="btn" id="ringAddNode">+ node</button>
+        <button class="btn" id="ringRemoveNode">− node</button>
+        <button class="btn" id="ringReset">reset</button>
+      </div>
+      <svg viewBox="0 0 700 300" class="stage" id="ringStage" style="height:300px"></svg>
+      <div class="legend"><span class="tiny" id="ringOut">Add keys and nodes; watch the mapping.</span></div>
+    </div>
+  </div>
+</section>
+<section class="mod wrap" id="network">
+  <div class="mod-tag">Module VII · 01</div>
+  <h2>The network — a request's journey</h2>
+  <p class="mod-sub">Type a URL, get a page. Between those two moments, a dozen systems cooperate across the planet in under a second. An expert can narrate every hop — because every hop is a place things break, slow down, or can be made faster.</p>
+
+  <div class="lab">
+    <div class="lab-bar"><div class="lights"><i></i><i></i><i></i></div><b>lab · request_lifecycle</b><span class="tag">animated</span></div>
+    <div class="lab-body">
+      <p class="tiny">Follow one HTTPS request from browser to server and back. Each stage adds latency — watch the running total, and notice how much is spent just <em>establishing</em> the connection before any data flows.</p>
+      <div class="controls"><button class="btn primary" id="reqSend">GET https://api.app.com/user</button><button class="btn" id="reqReset">reset</button></div>
+      <svg viewBox="0 0 700 220" class="stage" id="reqStage" style="height:220px"></svg>
+      <div class="legend"><span class="tiny" id="reqOut">Press send to trace the request.</span></div>
+    </div>
+  </div>
+
+  <p>The stages: <strong>DNS</strong> turns <code class="inl">api.app.com</code> into an IP address (a phone-book lookup, cached aggressively). <strong>TCP handshake</strong> (SYN, SYN-ACK, ACK) establishes a reliable pipe — one full round trip before any data. <strong>TLS handshake</strong> negotiates encryption keys — another round trip or two. Only then does the <strong>HTTP request</strong> go out and the response come back. This is why <em>connection reuse</em> (keep-alive), <em>HTTP/2 multiplexing</em>, and edge <em>CDNs</em> matter so much: they amortize or eliminate that expensive setup.</p>
+
+  <div class="callout key"><b class="t">Latency numbers worth memorizing</b>Memory reference: ~100 ns. SSD read: ~100 µs. Same-datacenter round trip: ~0.5 ms. Cross-continent round trip: ~150 ms. The ratios matter more than the exacts: <strong>network is millions of times slower than memory</strong>. That single fact drives caching, batching, and "chatty vs chunky" API design.</div>
+
+  <h4 class="subhead">REST vs gRPC — how services talk</h4>
+  <p><strong>REST</strong> models everything as resources (nouns) manipulated with HTTP verbs (<code class="inl">GET</code>, <code class="inl">POST</code>, <code class="inl">PUT</code>, <code class="inl">DELETE</code>) — human-readable, cacheable, universal. <strong>gRPC</strong> uses binary protocol buffers over HTTP/2 — faster and strongly typed, great for internal service-to-service calls, less browser-friendly. REST for public/edge APIs; gRPC for high-throughput internal ones is a common, sensible split.</p>
+
+  <h4 class="subhead">Load balancing — spreading the flood</h4>
+  <p>One server can't take all traffic, so a <em class="term">load balancer</em> sits in front and distributes requests across a pool. The <em>algorithm</em> matters: round-robin is simple and fair; least-connections routes to the least-busy server (better under uneven load); hash-based (sticky) sends the same client to the same server (needed when servers hold session state — though as you learned, stateless servers dodge this).</p>
+
+  <div class="lab">
+    <div class="lab-bar"><div class="lights"><i></i><i></i><i></i></div><b>lab · load_balancer</b><span class="tag">interactive</span></div>
+    <div class="lab-body">
+      <p class="tiny">Send requests and watch the balancer distribute them. Switch algorithms — notice how least-connections keeps servers even when one request is "heavy."</p>
+      <div class="controls" id="lbCtl">
+        <button class="btn sel" data-lb="rr">Round-robin</button>
+        <button class="btn" data-lb="least">Least-connections</button>
+        <button class="btn" data-lb="hash">Hash (sticky)</button>
+      </div>
+      <div class="controls"><button class="btn primary" id="lbSend">send request</button><button class="btn" id="lbBurst">send 6</button><button class="btn" id="lbReset">reset</button></div>
+      <svg viewBox="0 0 700 200" class="stage" id="lbStage" style="height:200px"></svg>
+      <div class="legend"><span class="tiny" id="lbOut">Pick an algorithm and send traffic.</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="mod wrap" id="caching">
+  <div class="mod-tag">Module VIII · 01</div>
+  <h2>Caching — the first and last resort of performance</h2>
+  <p class="mod-sub">A cache stores the result of expensive work so the next request gets it cheaply. It's the highest-leverage performance tool in existence — and the source of the two famously hardest problems in computer science.</p>
+
+  <p>The logic is simple: check the cache (a <em>hit</em> returns instantly); on a <em>miss</em>, do the real work, store the result, return it. A cache trades <strong>memory and staleness risk</strong> for <strong>speed</strong>. It works because of <em>locality</em>: the same data tends to be requested again soon.</p>
+
+  <h4 class="subhead">Eviction — a cache is finite, so something must go</h4>
+  <p>When the cache fills, which entry do you drop? The workhorse policy is <strong>LRU (Least Recently Used)</strong>: evict whatever hasn't been touched for the longest, betting that recently-used items will be used again. Alternatives exist (LFU by frequency, FIFO, random), but LRU is the default because locality usually holds.</p>
+
+  <div class="lab">
+    <div class="lab-bar"><div class="lights"><i></i><i></i><i></i></div><b>lab · lru_cache</b><span class="tag">interactive</span></div>
+    <div class="lab-body">
+      <p class="tiny">Cache capacity is 4. Access a key — a hit moves it to "most recent"; a miss loads it and, if full, evicts the least-recently-used. Watch the ordering shift.</p>
+      <div class="controls" id="lruCtl">
+        <button class="btn" data-key="A">get(A)</button><button class="btn" data-key="B">get(B)</button>
+        <button class="btn" data-key="C">get(C)</button><button class="btn" data-key="D">get(D)</button>
+        <button class="btn" data-key="E">get(E)</button><button class="btn" data-key="F">get(F)</button>
+        <button class="btn" id="lruReset">reset</button>
+      </div>
+      <svg viewBox="0 0 700 150" class="stage" id="lruStage" style="height:150px"></svg>
+      <div class="legend"><span class="tiny" id="lruOut">Cache empty. Access some keys.</span></div>
+    </div>
+  </div>
+
+  <h4 class="subhead">Write strategies &amp; the invalidation problem</h4>
+  <p>How does a cache stay in sync with the source of truth? <strong>Cache-aside</strong> (app checks cache, loads on miss) is most common. <strong>Write-through</strong> writes to cache and store together (consistent, slower writes). <strong>Write-back</strong> writes to cache first, flushes later (fast, risks loss on crash). And the eternal headache — <em>invalidation</em>: when the underlying data changes, stale cache entries must be evicted or they'll serve lies.</p>
+
+  <div class="callout myth"><b class="t">"There are only two hard things…"</b>…in computer science: cache invalidation, naming things, and off-by-one errors. It's a joke, but invalidation earns its place. A cache that's slightly wrong is often worse than no cache — it fails silently and confusingly. Design invalidation <em>first</em>, not as an afterthought.</div>
+  <div class="callout danger"><b class="t">Cache stampede</b>When a popular cached item expires, thousands of requests miss simultaneously and all hammer the database at once to recompute it — a self-inflicted spike that can take the database down. Fixes: staggered expiry, a lock so only one request recomputes, or serving slightly-stale data while one worker refreshes.</div>
+</section>
+<section class="mod wrap" id="security">
+  <div class="mod-tag">Module IX · 01</div>
+  <h2>Security — assume everything is hostile</h2>
+  <p class="mod-sub">Security isn't a feature you add; it's a posture you hold everywhere. The expert mindset: treat every input as an attack, every network as tapped, and every layer as one that might fall — so you build several. This section is about principles and defense, not how to break anything.</p>
+
+  <h4 class="subhead">Authentication vs authorization — two different questions</h4>
+  <p>People constantly confuse them. <strong>Authentication (authn)</strong> asks <em>"who are you?"</em> — proving identity (password, token, key). <strong>Authorization (authz)</strong> asks <em>"what are you allowed to do?"</em> — checking permissions once identity is known. You authenticate <em>once</em>; you authorize on <em>every</em> sensitive action. A system that authenticates but forgets to authorize is the classic "any logged-in user can read anyone's data" breach.</p>
+
+  <h4 class="subhead">Hashing vs encryption — one-way vs two-way</h4>
+  <p>Another constant mix-up. <strong>Encryption</strong> is <em>reversible</em>: with the key, ciphertext becomes plaintext again. Use it for data you need to read back (messages, files in transit). <strong>Hashing</strong> is <em>one-way</em>: you can compute the hash but never reverse it. Use it for passwords — you store the hash, and to check a login you hash the attempt and compare. A stolen password database of proper hashes reveals nothing directly.</p>
+
+  <div class="lab">
+    <div class="lab-bar"><div class="lights"><i></i><i></i><i></i></div><b>lab · hash_vs_encrypt</b><span class="tag">interactive</span></div>
+    <div class="lab-body">
+      <p class="tiny">Take a password and try both. Encryption can be undone with the key. Hashing (with a random <em>salt</em>) cannot — the arrow only points one way.</p>
+      <div class="controls">
+        <button class="btn primary" id="secHash">hash("hunter2")</button>
+        <button class="btn primary" id="secEnc">encrypt("hunter2")</button>
+        <button class="btn" id="secDec" disabled>try to reverse it</button>
+        <button class="btn" id="secReset">reset</button>
+      </div>
+      <svg viewBox="0 0 700 170" class="stage" id="secStage" style="height:170px"></svg>
+      <div class="legend"><span class="tiny" id="secOut">Pick an operation.</span></div>
+    </div>
+  </div>
+  <div class="callout key"><b class="t">Why the salt matters</b>A <em>salt</em> is random data mixed into each password before hashing, so two users with the same password get different hashes — defeating precomputed "rainbow table" attacks. Always use a slow, salted password hash (bcrypt, argon2), never a raw fast hash. The slowness is a feature: it caps how fast an attacker can guess.</div>
+
+  <h4 class="subhead">The vulnerabilities that cause most breaches</h4>
+  <p>You don't need to exploit these — you need to <em>never write them</em>. <strong>Injection</strong> (SQL, command): untrusted input is treated as code. The fix is universal — never concatenate input into a query; use <em>parameterized queries</em> that keep data and code separate. <strong>Cross-site scripting (XSS)</strong>: untrusted input rendered as HTML runs in a victim's browser; the fix is to escape/encode all output. The pattern behind both: <strong>never trust input, and never let data cross into the code channel.</strong></p>
+
+  <h4 class="subhead">Defense in depth &amp; least privilege</h4>
+  <p><strong>Defense in depth</strong>: assume any single control can fail, so stack independent ones — a firewall <em>and</em> input validation <em>and</em> authorization <em>and</em> encryption at rest. An attacker must beat all of them. <strong>Least privilege</strong>: every user, service, and token gets the minimum access it needs and nothing more, so a compromised component can't reach far.</p>
+
+  <div class="lab">
+    <div class="lab-bar"><div class="lights"><i></i><i></i><i></i></div><b>lab · defense_in_depth</b><span class="tag">interactive</span></div>
+    <div class="lab-body">
+      <p class="tiny">Send an attacker at the system. Each layer has an independent chance to stop it. Toggle layers off to see how removing "just one" control raises the odds of a full breach.</p>
+      <div class="controls" id="didLayers">
+        <button class="btn sel" data-layer="0">Firewall</button>
+        <button class="btn sel" data-layer="1">Input validation</button>
+        <button class="btn sel" data-layer="2">AuthZ check</button>
+        <button class="btn sel" data-layer="3">Encryption at rest</button>
+      </div>
+      <div class="controls"><button class="btn primary" id="didAttack">launch attack</button></div>
+      <svg viewBox="0 0 700 150" class="stage" id="didStage" style="height:150px"></svg>
+      <div class="legend"><span class="tiny" id="didOut">All layers on. Launch an attack.</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="mod wrap" id="testing">
+  <div class="mod-tag">Module X · 01</div>
+  <h2>Testing &amp; quality — confidence, made mechanical</h2>
+  <p class="mod-sub">Tests aren't about catching bugs today; they're about being able to <em>change code fearlessly</em> tomorrow. A well-tested system is one you can refactor aggressively because a red bar will catch you the instant you break something.</p>
+
+  <h4 class="subhead">The test pyramid — shape your suite</h4>
+  <p>Not all tests are equal. <strong>Unit tests</strong> check one piece in isolation — fast, precise, plentiful (the wide base). <strong>Integration tests</strong> check pieces working together — slower, fewer (the middle). <strong>End-to-end tests</strong> drive the whole system like a user — slowest, brittlest, fewest (the tip). Invert the pyramid (mostly slow E2E tests) and your suite becomes so slow and flaky that people stop running it — which is worse than no tests, because it's false confidence plus wasted time.</p>
+
+  <div class="lab">
+    <div class="lab-bar"><div class="lights"><i></i><i></i><i></i></div><b>lab · test_pyramid</b><span class="tag">interactive</span></div>
+    <div class="lab-body">
+      <p class="tiny">Drag the balance between fast unit tests and slow E2E tests. Watch total suite speed and confidence-per-second shift.</p>
+      <div class="controls"><label class="ctl">unit ◂──▸ e2e <input type="range" id="pyrSlider" min="0" max="100" value="20"></label></div>
+      <svg viewBox="0 0 700 180" class="stage" id="pyrStage" style="height:180px"></svg>
+      <div class="legend"><span class="tiny" id="pyrOut"></span></div>
+    </div>
+  </div>
+
+  <h4 class="subhead">TDD — let the test lead</h4>
+  <p>Test-Driven Development inverts the usual order: write a failing test first (<span style="color:#f2708c">red</span>), write the minimum code to pass it (<span style="color:#5fd39a">green</span>), then clean up with the test as a safety net (<span style="color:#7d9dff">refactor</span>). It forces you to define "done" before you build, and it guarantees every line is covered by a test that once failed for the right reason.</p>
+
+  <div class="lab">
+    <div class="lab-bar"><div class="lights"><i></i><i></i><i></i></div><b>lab · tdd_loop</b><span class="tag">interactive</span></div>
+    <div class="lab-body">
+      <p class="tiny">Step through the red-green-refactor cycle.</p>
+      <div class="controls"><button class="btn primary" id="tddStep">next step ▸</button><button class="btn" id="tddReset">reset</button></div>
+      <svg viewBox="0 0 700 160" class="stage" id="tddStage" style="height:160px"></svg>
+      <div class="legend"><span class="tiny" id="tddOut"></span></div>
+    </div>
+  </div>
+
+  <div class="callout myth"><b class="t">Common misconception</b>"100% coverage means bug-free." Coverage measures which lines <em>ran</em> during tests, not whether you <em>asserted the right things</em>. You can execute every line and check nothing meaningful. Coverage is a floor that reveals untested code; it is not a ceiling that proves correctness. Chase confidence, not the percentage.</div>
+
+  <h4 class="subhead">Mocks &amp; test doubles — isolating the unit</h4>
+  <p>To test one piece without its slow or unpredictable collaborators (a payment gateway, the clock, a database), you swap them for <em>test doubles</em>: stubs return canned answers, mocks verify the right calls were made, fakes are lightweight working versions. This is exactly where <em>dependency inversion</em> pays off — because your code depends on an interface, you can inject a fake in the test and the real thing in production.</p>
+</section>
+<section class="mod wrap" id="cleancode">
+  <div class="mod-tag">Module XI · 01</div>
+  <h2>Clean code &amp; technical debt — the long game</h2>
+  <p class="mod-sub">Code is read far more often than it's written, and it's maintained far longer than it's built. Expert engineers optimize for the reader six months from now — usually themselves — because that's where the real cost of software lives.</p>
+
+  <h4 class="subhead">Names are the documentation that can't go stale</h4>
+  <p>The single highest-leverage habit is naming. A variable called <code class="inl">d</code> forces the reader to reconstruct meaning; <code class="inl">days_until_expiry</code> hands it to them. Functions should be verbs that say what they do; a function named <code class="inl">process()</code> tells you nothing. If you need a comment to explain <em>what</em> a line does, the code isn't clear enough — comments should explain <em>why</em>, not <em>what</em>.</p>
+
+  <h4 class="subhead">The three principles worth internalizing</h4>
+  <ul>
+    <li><strong>DRY</strong> (Don't Repeat Yourself) — every piece of knowledge has one authoritative home. But beware: DRY is about <em>knowledge</em>, not <em>text</em>. Two lines that look alike but change for different reasons should <em>not</em> be merged — that's false DRY, and it couples things that should stay independent.</li>
+    <li><strong>KISS</strong> (Keep It Simple) — the simplest thing that works beats the clever thing you'll have to decode later. Cleverness is a loan against future understanding.</li>
+    <li><strong>YAGNI</strong> (You Aren't Gonna Need It) — don't build for imagined futures. Speculative flexibility is complexity you pay for now and usually never use.</li>
+  </ul>
+
+  <h4 class="subhead">Code smells — the warning signs</h4>
+  <p>A <em class="term">smell</em> isn't a bug; it's a surface hint of a deeper design problem. Long functions, huge classes ("god objects"), long parameter lists, deeply nested <code class="inl">if</code>s, duplicated blocks, and "feature envy" (a method more interested in another object's data than its own) all signal that responsibilities are in the wrong place. Refactoring is the disciplined act of improving structure <em>without</em> changing behavior — safe precisely because your tests hold behavior fixed.</p>
+
+  <div class="lab">
+    <div class="lab-bar"><div class="lights"><i></i><i></i><i></i></div><b>lab · refactor</b><span class="tag">before / after</span></div>
+    <div class="lab-body">
+      <p class="tiny">The same logic, two ways. Toggle to see how naming, guard clauses, and single-responsibility turn a smell into something readable — behavior identical.</p>
+      <div class="controls"><button class="btn sel" id="refBefore">smelly</button><button class="btn" id="refAfter">refactored</button></div>
+      <pre id="refCode" style="min-height:180px;margin:6px 0"></pre>
+      <div class="legend"><span class="tiny" id="refOut"></span></div>
+    </div>
+  </div>
+
+  <h4 class="subhead">Technical debt — the metaphor that governs teams</h4>
+  <p>Every shortcut you take to ship faster is a <em class="term">debt</em>: it borrows time now and charges <em>interest</em> — every future change in that area is slower and riskier. Some debt is smart (a deliberate loan to hit a deadline, repaid soon). Some is reckless (mess with no plan to fix it). The danger is <em>unacknowledged</em> debt: when interest payments (bugs, slow features) quietly consume the team's capacity until nothing new ships. Naming debt explicitly, and budgeting to repay it, is a senior skill as much as a technical one.</p>
+  <div class="callout key"><b class="t">The through-line returns</b>Notice that clean code serves the exact same master as every module before it: <em>managing change cheaply</em>. Good names, small functions, and low duplication all reduce the blast radius of a future edit — the same goal as encapsulation, patterns, and loose coupling, now at the level of the individual line.</div>
+</section>
+
+<section class="mod wrap" id="delivery">
+  <div class="mod-tag">Module XII · 01</div>
+  <h2>Delivery &amp; operations — code isn't done until it's running safely</h2>
+  <p class="mod-sub">Writing the code is half the job. Getting it to production reliably, watching it in the wild, and recovering when it misbehaves is the other half — the half that separates a programmer from an engineer who ships systems people depend on.</p>
+
+  <h4 class="subhead">CI/CD — the automated path to production</h4>
+  <p><strong>Continuous Integration</strong> means every change is automatically built and tested the moment it's pushed, so integration problems surface in minutes, not at a painful merge months later. <strong>Continuous Delivery/Deployment</strong> extends that pipeline all the way to release. A good pipeline is a series of gates — build, test, security scan, deploy — where a failure at any stage stops the line before bad code reaches users.</p>
+
+  <div class="lab">
+    <div class="lab-bar"><div class="lights"><i></i><i></i><i></i></div><b>lab · ci_cd_pipeline</b><span class="tag">interactive</span></div>
+    <div class="lab-body">
+      <p class="tiny">Push a commit through the pipeline. Toggle a stage to "flaky" and watch the pipeline stop the release — bad code never reaches production.</p>
+      <div class="controls">
+        <button class="btn" id="ciBreak">tests: <b id="ciBstate">passing</b></button>
+        <button class="btn primary" id="ciRun">push commit</button>
+        <button class="btn" id="ciReset">reset</button>
+      </div>
+      <svg viewBox="0 0 700 130" class="stage" id="ciStage" style="height:130px"></svg>
+      <div class="legend"><span class="tiny" id="ciOut">Push a commit to run the pipeline.</span></div>
+    </div>
+  </div>
+
+  <h4 class="subhead">Containers &amp; orchestration — "it works on my machine," solved</h4>
+  <p>A <strong>container</strong> packages your app with its exact dependencies so it runs identically on a laptop, a test server, and production — killing the "works on my machine" class of bug. When you have hundreds of containers, an <strong>orchestrator</strong> (like Kubernetes) schedules them across machines, restarts crashed ones, and scales them up and down with load. The mental model: containers make one unit reproducible; orchestration makes many units reliable.</p>
+
+  <h4 class="subhead">Safe deployment — never flip the whole switch</h4>
+  <p>Deploying to 100% of users at once means a bad release hits everyone at once. Safer strategies limit blast radius. <strong>Blue-green</strong>: run two identical environments, switch traffic to the new one instantly, switch back if it's bad. <strong>Canary</strong>: route a small slice of traffic (say 5%) to the new version, watch its error rate, and only widen if it's healthy — automatically rolling back if not.</p>
+
+  <div class="lab">
+    <div class="lab-bar"><div class="lights"><i></i><i></i><i></i></div><b>lab · canary_deploy</b><span class="tag">interactive</span></div>
+    <div class="lab-body">
+      <p class="tiny">Roll out v2 gradually. If you ship it "buggy," the canary's error rate spikes and the system auto-rolls-back before most users are affected.</p>
+      <div class="controls">
+        <button class="btn" id="canaryBug">v2 build: <b id="canaryBstate">healthy</b></button>
+        <button class="btn primary" id="canaryStart">start rollout</button>
+        <button class="btn" id="canaryReset">reset</button>
+      </div>
+      <svg viewBox="0 0 700 190" class="stage" id="canaryStage" style="height:190px"></svg>
+      <div class="legend"><span class="tiny" id="canaryOut">v1 serving 100%. Start a canary rollout of v2.</span></div>
+    </div>
+  </div>
+
+  <h4 class="subhead">Observability — you can't fix what you can't see</h4>
+  <p>In production you can't attach a debugger, so you instrument. The three pillars: <strong>logs</strong> (timestamped events — what happened), <strong>metrics</strong> (aggregated numbers over time — how much, how fast, error rates), and <strong>traces</strong> (the path of one request across many services — where the time went). Together they answer the 3 a.m. question: <em>what is broken, where, and since when?</em> A system you can't observe is one you're operating blind.</p>
+  <div class="callout key"><b class="t">The operational mindset</b>Everything in Module IV (resilience) assumed you'd <em>notice</em> failure. Observability is how you notice. Metrics trigger the alert, traces localize the cause, logs explain it, and the resilience patterns contain it while you fix it. Building, observing, and recovering are one continuous loop — that loop is what "running a system" actually means.</div>
+</section>
+
+<section class="mod wrap" id="closing" style="border-bottom:none">
+  <div class="mod-tag">The through-line</div>
+  <h2>One idea, four scales</h2>
+  <p class="mod-sub">If you remember nothing else, remember this: from a single method to a global system, every principle here serves the same master.</p>
+
+  <svg viewBox="0 0 760 200" class="stage" id="throughFlow" style="max-width:760px;height:200px" aria-label="one idea across four scales"></svg>
+
+  <p style="margin-top:24px"><strong>Manage change by isolating what varies behind a stable interface, and put a bound on everything that could grow without limit.</strong> Encapsulation hides volatile state. Polymorphism isolates volatile types. Patterns isolate volatile decisions. Good data structures bound the cost of operations. Resilience patterns bound the blast radius of failure. It is the same instinct, applied at every zoom level — the object, the module, the service, the fleet.</p>
+
+  <p>The keywords will change. The languages will change. This instinct is the thing that makes an engineer, and it's the one thing worth mastering. You now have a felt sense of it, not just a definition — go build something large and watch it hold.</p>
+
+  <div class="explain"><details><summary>▸ Final self-check: explain to a rubber duck why "hide the volatile behind a stable interface" links polymorphism, the Strategy pattern, and event-driven microservices.</summary>
+    <p>All three name a <em>point of variation</em> and put a stable contract in front of it. Polymorphism: the varying thing is the concrete type; the stable contract is the method signature the caller invokes. Strategy: the varying thing is the algorithm; the stable contract is the strategy interface the context holds. Event-driven services: the varying thing is <em>who reacts and when</em>; the stable contract is the event's schema on the broker. In each case the code on the near side of the contract is closed to modification but open to new variations arriving on the far side — so the system grows by <em>addition</em>, never by <em>risky edits to working code</em>. Different scales, one move.</p>
+  </details></div>
+</section>
+
+<footer class="wrap">
+  <p>The Machine Room · a standalone, offline workbench. Everything runs in your browser — no network, no tracking. Progress is saved locally on this device.</p>
+  <p class="muted">Built for deep practice. The labs are toys; the principles are load-bearing.</p>
+</footer>
+</main>
+</div>
+<div class="tocmini"><button id="tocBtn" aria-label="jump to top">↑</button></div>
+<script>
+"use strict";
+const NS="http://www.w3.org/2000/svg";
+const $=(s,r=document)=>r.querySelector(s);
+const $$=(s,r=document)=>Array.from(r.querySelectorAll(s));
+const RM=window.matchMedia&&window.matchMedia("(prefers-reduced-motion:reduce)").matches;
+function el(tag,attrs={},txt){const e=document.createElementNS(NS,tag);for(const k in attrs)e.setAttribute(k,attrs[k]);if(txt!=null)e.textContent=txt;return e;}
+function clear(n){while(n.firstChild)n.removeChild(n.firstChild);}
+const wait=ms=>new Promise(r=>setTimeout(r,RM?1:ms));
+
+/* ========== NAV: active section + progress + local progress dots ========== */
+(function(){
+  const links=$$(".navlink");
+  const map={};links.forEach(a=>map[a.getAttribute("href").slice(1)]=a);
+  const secs=$$("section.mod, #top");
+  const fill=$("#pfill");
+  let seen=JSON.parse(localStorage.getItem("mr_seen")||"[]");
+  function paintDone(){links.forEach(a=>{const id=a.getAttribute("href").slice(1);if(seen.includes(id))a.classList.add("done");});}
+  paintDone();
+  const io=new IntersectionObserver(entries=>{
+    entries.forEach(e=>{
+      const id=e.target.id;
+      if(e.isIntersecting){
+        links.forEach(l=>l.classList.remove("active"));
+        if(map[id])map[id].classList.add("active");
+        if(id&&!seen.includes(id)){seen.push(id);localStorage.setItem("mr_seen",JSON.stringify(seen));if(map[id])map[id].classList.add("done");}
+      }
+    });
+  },{rootMargin:"-45% 0px -50% 0px"});
+  secs.forEach(s=>io.observe(s));
+  function onScroll(){
+    const h=document.documentElement;
+    const p=h.scrollTop/(h.scrollHeight-h.clientHeight);
+    fill.style.width=(p*100)+"%";
+  }
+  document.addEventListener("scroll",onScroll,{passive:true});onScroll();
+  const tb=$("#tocBtn");if(tb)tb.onclick=()=>window.scrollTo({top:0,behavior:RM?"auto":"smooth"});
+})();
+
+/* ========== QUIZZES ========== */
+$$("[data-quiz]").forEach(q=>{
+  const opts=$$(".opt",q),fb=$(".fb",q);
+  opts.forEach(o=>o.addEventListener("click",()=>{
+    if(q.dataset.answered)return;q.dataset.answered="1";
+    opts.forEach(x=>{if(x.dataset.correct!=null)x.classList.add("correct");});
+    if(o.dataset.correct==null)o.classList.add("wrong");
+    fb.textContent=o.dataset.correct!=null?"Correct — that's the reasoning that matters here.":"Not quite — the highlighted option is the one that removes the coupling. Read why it wins.";
+    fb.classList.add("show");
+  }));
+});
+
+/* ========== HERO signal flow ========== */
+(function(){
+  const g=$("#pulses");if(!g)return;
+  const paths=["#w1","#w2","#w3","#w4"].map(s=>$(s)).filter(Boolean);
+  const dots=paths.map(()=>{const c=el("circle",{r:4,fill:"#48d9c8"});g.appendChild(c);return c;});
+  let t=0;
+  function frame(){
+    t+=0.006;
+    paths.forEach((p,i)=>{
+      const len=p.getTotalLength();
+      const off=((t+i*0.22)%1)*len;
+      const pt=p.getPointAtLength(off);
+      dots[i].setAttribute("cx",pt.x);dots[i].setAttribute("cy",pt.y);
+      dots[i].setAttribute("opacity", 0.4+0.6*Math.abs(Math.sin((t+i*0.22)*Math.PI)));
+    });
+    if(!RM)requestAnimationFrame(frame);
+  }
+  if(RM){paths.forEach((p,i)=>{const pt=p.getPointAtLength(p.getTotalLength()*0.5);dots[i].setAttribute("cx",pt.x);dots[i].setAttribute("cy",pt.y);});}
+  else requestAnimationFrame(frame);
+})();
+
+/* ========== POLYMORPHISM lab ========== */
+(function(){
+  const stage=$("#polyStage");if(!stage)return;
+  const out=$("#polyOut");let shapes=[];
+  const defs={
+    circle:{sides:0,area:r=>Math.PI*r*r,name:"Circle",col:"#48d9c8"},
+    square:{sides:4,area:r=>(r*1.6)*(r*1.6),name:"Square",col:"#7d9dff"},
+    triangle:{sides:3,area:r=>0.5*(r*1.9)*(r*1.6),name:"Triangle",col:"#b98cff"},
+    pentagon:{sides:5,area:r=>2.377*r*r,name:"Pentagon",col:"#f2b03c"}
+  };
+  function draw(){
+    clear(stage);
+    if(!shapes.length){out.textContent="Add some shapes, then run the loop.";return;}
+    const gap=Math.min(150,660/shapes.length);
+    shapes.forEach((s,i)=>{
+      const cx=60+i*gap+gap/2, cy=95, r=26, d=defs[s.type];
+      const gEl=el("g",{});gEl.dataset.i=i;
+      if(s.type==="circle")gEl.appendChild(el("circle",{cx,cy,r,fill:"none",stroke:d.col,"stroke-width":2.5}));
+      else{
+        const pts=[];const n=d.sides;const rot=n===3?-Math.PI/2:(n===4?Math.PI/4:-Math.PI/2);
+        for(let k=0;k<n;k++){const a=rot+k*2*Math.PI/n;pts.push((cx+r*Math.cos(a))+","+(cy+r*Math.sin(a)));}
+        gEl.appendChild(el("polygon",{points:pts.join(" "),fill:"none",stroke:d.col,"stroke-width":2.5}));
+      }
+      gEl.appendChild(el("text",{x:cx,y:cy+55,"text-anchor":"middle","font-family":"ui-monospace, SFMono-Regular, Menlo, monospace","font-size":11,fill:"#9fb0c9"},d.name));
+      const at=el("text",{x:cx,y:cy+5,"text-anchor":"middle","font-family":"ui-monospace, SFMono-Regular, Menlo, monospace","font-size":10,fill:d.col,opacity:0,class:"areaLbl"});
+      gEl.appendChild(at);stage.appendChild(gEl);
+    });
+  }
+  $("#polyCtl").addEventListener("click",e=>{
+    const t=e.target.dataset.add;if(!t)return;
+    if(shapes.length>=7){out.textContent="Stage full — clear to add more.";return;}
+    shapes.push({type:t});draw();out.textContent=`shapes = [ ${shapes.map(s=>defs[s.type].name.toLowerCase()).join(", ")} ] — the loop hasn't been told what any of these are.`;
+  });
+  $("#polyClear").onclick=()=>{shapes=[];draw();};
+  $("#polyRun").onclick=async()=>{
+    if(!shapes.length){out.textContent="Add shapes first.";return;}
+    let total=0;
+    const groups=$$("g",stage);
+    for(let i=0;i<shapes.length;i++){
+      const g=groups[i];const d=defs[shapes[i].type];const a=d.area(26);total+=a;
+      g.querySelector("*").setAttribute("stroke-width","4.5");
+      const lbl=g.querySelector(".areaLbl");lbl.textContent=a.toFixed(0);lbl.setAttribute("opacity","1");
+      out.innerHTML=`for shape in shapes: total += <b style="color:var(--signal)">shape.area()</b>  →  running total ${total.toFixed(0)}`;
+      await wait(500);
+      g.querySelector("*").setAttribute("stroke-width","2.5");
+    }
+    out.innerHTML=`Done. Every shape answered <code>area()</code> its own way. Total = <b style="color:var(--signal)">${total.toFixed(0)}</b>. The loop never used a single <code>if type ==</code>.`;
+  };
+  draw();
+})();
+
+/* ========== DEPENDENCY INVERSION lab ========== */
+(function(){
+  const stage=$("#diStage");if(!stage)return;
+  const out=$("#diOut"),swap=$("#diSwap"),b=$("#diBefore"),a=$("#diAfter");
+  let provider="Email";
+  function box(x,y,w,h,label,col,sub){
+    const g=el("g",{});g.appendChild(el("rect",{x,y,width:w,height:h,rx:10,fill:"#141f30",stroke:col,"stroke-width":2}));
+    g.appendChild(el("text",{x:x+w/2,y:y+(sub?h/2-2:h/2+4),"text-anchor":"middle","font-family":"ui-monospace, SFMono-Regular, Menlo, monospace","font-size":12.5,fill:"#dbe6f5"},label));
+    if(sub)g.appendChild(el("text",{x:x+w/2,y:y+h/2+15,"text-anchor":"middle","font-family":"ui-monospace, SFMono-Regular, Menlo, monospace","font-size":10,fill:"#6d829e"},sub));
+    stage.appendChild(g);return g;
+  }
+  function arrow(x1,y1,x2,y2,col,dash){
+    const l=el("line",{x1,y1,x2,y2,stroke:col,"stroke-width":2});if(dash)l.setAttribute("stroke-dasharray","5 4");stage.appendChild(l);
+    const ang=Math.atan2(y2-y1,x2-x1);stage.appendChild(el("polygon",{points:`${x2},${y2} ${x2-9*Math.cos(ang-.4)},${y2-9*Math.sin(ang-.4)} ${x2-9*Math.cos(ang+.4)},${y2-9*Math.sin(ang+.4)}`,fill:col}));
+  }
+  function before(){
+    clear(stage);swap.style.display="none";b.classList.add("sel");a.classList.remove("sel");
+    box(70,90,180,60,"OrderService","#f2708c","high-level logic");
+    box(450,90,180,60,"EmailSender","#f2708c","concrete detail");
+    arrow(250,120,450,120,"#f2708c");
+    stage.appendChild(el("text",{x:350,y:110,"text-anchor":"middle","font-family":"ui-monospace, SFMono-Regular, Menlo, monospace","font-size":10.5,fill:"#f2708c"},"depends on ↓"));
+    stage.appendChild(el("text",{x:350,y:200,"text-anchor":"middle","font-family":"ui-monospace, SFMono-Regular, Menlo, monospace","font-size":12,fill:"#f2708c"},"welded to Email. Swapping providers = surgery on the logic."));
+    out.textContent="The valuable logic points directly at a replaceable detail. Bad arrow direction.";
+  }
+  function after(){
+    clear(stage);swap.style.display="flex";a.classList.add("sel");b.classList.remove("sel");
+    box(60,90,170,60,"OrderService","#48d9c8","high-level logic");
+    box(290,90,150,70,"«Notifier»","#7d9dff","abstraction (owned by logic)");
+    box(510,95,150,55,provider+"Sender","#5fd39a","plugged-in detail");
+    arrow(230,120,290,120,"#48d9c8");
+    arrow(510,122,440,127,"#5fd39a",true);
+    stage.appendChild(el("text",{x:475,y:112,"text-anchor":"middle","font-family":"ui-monospace, SFMono-Regular, Menlo, monospace","font-size":10,fill:"#5fd39a"},"implements"));
+    stage.appendChild(el("text",{x:360,y:205,"text-anchor":"middle","font-family":"ui-monospace, SFMono-Regular, Menlo, monospace","font-size":12,fill:"#48d9c8"},"Both sides depend on the middle. Details plug IN."));
+    out.innerHTML=`Active provider: <b style="color:var(--signal)">${provider}Sender</b>. OrderService's code is byte-for-byte identical no matter which you pick.`;
+  }
+  b.onclick=before;a.onclick=after;
+  swap.addEventListener("click",e=>{const p=e.target.dataset.prov;if(!p)return;provider=p;after();
+    if(p==="Fake")out.innerHTML=`Plugged in <b style="color:var(--signal)">FakeSender</b> — now you can test OrderService with zero network. That testability is the payoff of inversion.`;});
+  before();
+})();
+
+/* ========== BUILDER lab ========== */
+(function(){
+  const code=$("#buildCode");if(!code)return;
+  const out=$("#buildOut");let steps=[],size=null;
+  function render(){
+    let s="Pizza.builder()";
+    steps.forEach(st=>{s+=`\n      .${st}`;});
+    code.textContent=s;
+  }
+  $("#buildCtl").addEventListener("click",e=>{
+    const st=e.target.dataset.step;if(!st)return;
+    if(st.startsWith("size:")){size=st.split(":")[1];steps=steps.filter(x=>!x.startsWith("size("));steps.unshift(`size("${size}")`);}
+    else if(st==="cheese")steps.push("add_cheese()");
+    else steps.push(`add("${st}")`);
+    render();out.textContent="Configuring… nothing is built yet. State lives in the builder.";
+  });
+  $("#buildReset").onclick=()=>{steps=[];size=null;render();out.textContent="";};
+  $("#buildDo").onclick=()=>{
+    if(!size){out.innerHTML=`<b style="color:#f2708c">build() failed:</b> size is required. The builder validated the whole config before constructing — no half-built pizza escapes.`;return;}
+    const toppings=steps.filter(s=>s.startsWith('add(')).map(s=>s.match(/"(.*)"/)[1]);
+    const cheese=steps.some(s=>s==="add_cheese()");
+    code.textContent+="\n      .build()";
+    out.innerHTML=`✓ Built one immutable <b style="color:var(--signal)">Pizza(size=${size}, cheese=${cheese}, toppings=[${toppings.join(", ")||"—"}])</b>. Validation happened once, at the end.`;
+  };
+  render();
+})();
+
+/* ========== DECORATOR lab ========== */
+(function(){
+  const stage=$("#decoStage");if(!stage)return;
+  const out=$("#decoOut");let layers=["DataSource"];
+  const conf={Log:{col:"#f2b03c",t:v=>v,note:"logs, passes through"},Compress:{col:"#7d9dff",t:v=>v.replace(/l/g,"")+"·zip",note:"compresses"},Encrypt:{col:"#b98cff",t:v=>v.split("").map(c=>"#").join(""),note:"encrypts"}};
+  function draw(active){
+    clear(stage);
+    const order=layers.slice().reverse(); // outermost first (top)
+    const n=order.length;const pad=14;
+    order.forEach((name,i)=>{
+      const inset=i*26;const y=14+i*20;
+      const x=40+inset,w=620-inset*2,h=232-i*40;
+      const col=conf[name]?conf[name].col:"#5fd39a";
+      const r=el("rect",{x,y,width:w,height:Math.max(h,34),rx:9,fill:i===n-1?"#0a1119":"none",stroke:col,"stroke-width":active===name?3.2:1.8,opacity:name==="DataSource"?1:.95});
+      stage.appendChild(r);
+      stage.appendChild(el("text",{x:x+12,y:y+18,"font-family":"ui-monospace, SFMono-Regular, Menlo, monospace","font-size":11.5,fill:col},name+(name==="DataSource"?"":"Decorator")));
+    });
+  }
+  $("#decoCtl").addEventListener("click",e=>{
+    const w=e.target.dataset.wrap;if(!w)return;
+    if(layers.includes(w)){out.textContent=w+" already in the stack.";return;}
+    layers.push(w);draw();out.textContent=`Wrapped with ${w}. Stack (outer→inner): ${layers.slice().reverse().join(" → ")}. Same interface at every level.`;
+  });
+  $("#decoReset").onclick=()=>{layers=["DataSource"];draw();out.textContent="Back to a bare DataSource.";};
+  $("#decoWrite").onclick=async()=>{
+    let payload='"hello"';
+    const order=layers.slice().reverse();
+    for(let i=0;i<order.length;i++){
+      const name=order[i];draw(name);
+      if(conf[name]){payload='"'+conf[name].t(payload.replace(/"/g,""))+'"';out.innerHTML=`${name} → ${conf[name].note}: payload now ${payload}`;}
+      else out.innerHTML=`Reached the core DataSource → stored ${payload}.`;
+      await wait(650);
+    }
+    draw();out.innerHTML=`Write travelled outer→inner, each layer transforming ${'"hello"'} → stored as <b style="color:var(--signal)">${payload}</b>. A read reverses the trip. No layer knows the others exist.`;
+  };
+  draw();
+})();
+
+/* ========== STRATEGY lab ========== */
+(function(){
+  const stage=$("#stratStage");if(!stage)return;
+  const out=$("#stratOut");const ctl=$("#stratCtl");
+  const A={x:70,y:100},B={x:630,y:100};
+  const strat={
+    fast:{col:"#48d9c8",d:`M70 100 L630 100`,label:"Fastest",dist:"52 km",time:"38 min",via:"via highway"},
+    short:{col:"#7d9dff",d:`M70 100 Q350 60 630 100`,label:"Shortest",dist:"41 km",time:"55 min",via:"via back roads"},
+    scenic:{col:"#b98cff",d:`M70 100 C200 20 260 180 400 90 S560 170 630 100`,label:"Scenic",dist:"68 km",time:"1 h 20",via:"via the coast"}
+  };
+  function draw(k){
+    clear(stage);
+    stage.appendChild(el("path",{d:"M70 100 L630 100",stroke:"#25384f","stroke-width":1,fill:"none","stroke-dasharray":"3 5"}));
+    const s=strat[k];
+    const p=el("path",{d:s.d,stroke:s.col,"stroke-width":3.5,fill:"none","stroke-linecap":"round"});stage.appendChild(p);
+    [["Start",A,"#5fd39a"],["End",B,"#f2708c"]].forEach(([t,pt,c])=>{
+      stage.appendChild(el("circle",{cx:pt.x,cy:pt.y,r:8,fill:"#141f30",stroke:c,"stroke-width":2.5}));
+      stage.appendChild(el("text",{x:pt.x,y:pt.y+26,"text-anchor":"middle","font-family":"ui-monospace, SFMono-Regular, Menlo, monospace","font-size":11,fill:c},t));
+    });
+    if(!RM){const L=p.getTotalLength();p.setAttribute("stroke-dasharray",L);p.setAttribute("stroke-dashoffset",L);p.animate([{strokeDashoffset:L},{strokeDashoffset:0}],{duration:700,fill:"forwards"});}
+    out.innerHTML=`router.set_strategy(<b style="color:${s.col}">${s.label}Route</b>); router.route(A,B) → ${s.dist}, ${s.time}, ${s.via}. <span class="muted">Router class: unchanged.</span>`;
+  }
+  ctl.addEventListener("click",e=>{const k=e.target.dataset.strat;if(!k)return;$$(".btn",ctl).forEach(b=>b.classList.remove("sel"));e.target.classList.add("sel");draw(k);});
+  draw("fast");
+})();
+
+/* ========== OBSERVER lab ========== */
+(function(){
+  const stage=$("#obsStage");if(!stage)return;
+  const out=$("#obsOut");let subs=[],price=100;
+  const conf={Chart:"#48d9c8",Alert:"#f2708c",Logger:"#7d9dff"};
+  function draw(){
+    clear(stage);
+    stage.appendChild(el("rect",{x:40,y:80,width:150,height:60,rx:10,fill:"#141f30",stroke:"#f2b03c","stroke-width":2}));
+    stage.appendChild(el("text",{x:115,y:106,"text-anchor":"middle","font-family":"ui-monospace, SFMono-Regular, Menlo, monospace","font-size":12,fill:"#dbe6f5"},"StockTicker"));
+    stage.appendChild(el("text",{x:115,y:124,"text-anchor":"middle","font-family":"ui-monospace, SFMono-Regular, Menlo, monospace","font-size":13,fill:"#f2b03c"},"$"+price));
+    if(!subs.length)return;
+    const gap=Math.min(60,180/subs.length);
+    subs.forEach((s,i)=>{
+      const y=30+i*Math.max(gap,42);const x=470;
+      stage.appendChild(el("line",{x1:190,y1:110,x2:x,y2:y+20,stroke:conf[s.name],"stroke-width":1.5,opacity:.5,class:"wire"+i}));
+      stage.appendChild(el("rect",{x,y,width:170,height:40,rx:9,fill:"#141f30",stroke:conf[s.name],"stroke-width":2}));
+      stage.appendChild(el("text",{x:x+12,y:y+25,"font-family":"ui-monospace, SFMono-Regular, Menlo, monospace","font-size":11.5,fill:conf[s.name]},s.name+" ▸ "+s.val));
+      const rm=el("text",{x:x+158,y:y+25,"text-anchor":"end","font-family":"ui-monospace, SFMono-Regular, Menlo, monospace","font-size":13,fill:"#6d829e",style:"cursor:pointer"},"×");
+      rm.addEventListener("click",()=>{subs.splice(i,1);draw();out.textContent=`${s.name} unsubscribed — it stops receiving updates. Ticker code untouched.`;});
+      stage.appendChild(rm);
+    });
+  }
+  $("#obsCtl").addEventListener("click",e=>{
+    const s=e.target.dataset.sub;if(!s)return;
+    if(subs.length>=3||subs.find(x=>x.name===s)){out.textContent="Already subscribed (max 3 here).";return;}
+    subs.push({name:s,val:"—"});draw();out.textContent=`${s} subscribed. StockTicker just added it to a list — it has no idea what a ${s} does.`;
+  });
+  $("#obsClear").onclick=()=>{subs=[];draw();out.textContent="No subscribers. publish() still runs — it just notifies an empty list.";};
+  $("#obsPub").onclick=async()=>{
+    price+=Math.floor(Math.random()*7)+1;draw();
+    if(!subs.length){out.textContent=`published $${price} to 0 subscribers. The ticker doesn't care.`;return;}
+    for(let i=0;i<subs.length;i++){
+      const w=$(".wire"+i,stage);if(w){w.setAttribute("opacity","1");w.setAttribute("stroke-width","3");}
+      subs[i].val = subs[i].name==="Alert"?(price>115?"HIGH!":"ok"):subs[i].name==="Logger"?("logged $"+price):("$"+price);
+      draw();await wait(360);
+      const w2=$(".wire"+i,stage);if(w2){w2.setAttribute("opacity",".5");w2.setAttribute("stroke-width","1.5");}
+    }
+    out.innerHTML=`One <b style="color:var(--flag)">publish($${price})</b> → every subscriber reacted its own way, in one pass. Add or remove subscribers freely; the ticker never changes.`;
+  };
+  draw();
+})();
+
+/* ========== STATE MACHINE lab ========== */
+(function(){
+  const stage=$("#smStage");if(!stage)return;
+  const out=$("#smOut"),ctl=$("#smCtl");
+  const states=["draft","review","approved","published"];
+  const pos={draft:90,review:255,approved:420,published:590};
+  const trans={draft:{submit:"review"},review:{approve:"approved",reject:"draft"},approved:{publish:"published",reject:"draft"},published:{}};
+  let cur="draft";
+  function draw(flash){
+    clear(stage);
+    // edges
+    stage.appendChild(el("line",{x1:150,y1:70,x2:225,y2:70,stroke:"#25384f","stroke-width":2}));
+    stage.appendChild(el("line",{x1:315,y1:70,x2:390,y2:70,stroke:"#25384f","stroke-width":2}));
+    stage.appendChild(el("line",{x1:480,y1:70,x2:560,y2:70,stroke:"#25384f","stroke-width":2}));
+    states.forEach(s=>{
+      const x=pos[s];const on=s===cur;
+      stage.appendChild(el("rect",{x:x-55,y:48,width:110,height:44,rx:22,fill:on?"#173a34":"#141f30",stroke:on?"#48d9c8":"#25384f","stroke-width":on?3:1.6}));
+      stage.appendChild(el("text",{x,y:75,"text-anchor":"middle","font-family":"ui-monospace, SFMono-Regular, Menlo, monospace","font-size":12.5,fill:on?"#48d9c8":"#9fb0c9"},s));
+    });
+    stage.appendChild(el("text",{x:350,y:150,"text-anchor":"middle","font-family":"ui-monospace, SFMono-Regular, Menlo, monospace","font-size":13,fill:flash&&flash.bad?"#f2708c":"#9fb0c9"},flash?flash.msg:`current state: ${cur}. Only its legal transitions will fire.`));
+    // highlight legal buttons
+    $$(".btn",ctl).forEach(b=>{const ev=b.dataset.ev;if(!ev)return;const legal=trans[cur][ev];b.classList.toggle("sel",!!legal);});
+  }
+  ctl.addEventListener("click",e=>{
+    const ev=e.target.dataset.ev;if(!ev)return;
+    const next=trans[cur][ev];
+    if(!next){draw({bad:true,msg:`✗ ${ev}() is illegal from "${cur}" — the state object itself refuses. No flags, no bugs.`});return;}
+    const from=cur;cur=next;draw({msg:`✓ ${ev}(): ${from} → ${cur}`});
+  });
+  $("#smReset").onclick=()=>{cur="draft";draw();};
+  draw();
+})();
+
+/* ========== BIG-O grapher ========== */
+(function(){
+  const cv=$("#bigoCanvas");if(!cv)return;
+  const ctx=cv.getContext("2d");const out=$("#bigoOut");const slider=$("#bigoN"),nval=$("#bigoNval");
+  const W=cv.width,H=cv.height,padL=40,padB=28,padT=14,padR=12;
+  const fns=[
+    {f:n=>1,c:"#5fd39a",name:"O(1)"},
+    {f:n=>Math.log2(n),c:"#48d9c8",name:"O(log n)"},
+    {f:n=>n,c:"#7d9dff",name:"O(n)"},
+    {f:n=>n*Math.log2(n),c:"#b98cff",name:"O(n log n)"},
+    {f:n=>n*n,c:"#f2b03c",name:"O(n²)"},
+    {f:n=>Math.pow(2,n),c:"#f2708c",name:"O(2ⁿ)"}
+  ];
+  function draw(N){
+    ctx.clearRect(0,0,W,H);
+    // scale the y-axis to the quadratic curve so the polynomial family stays readable;
+    // the exponential deliberately shoots off the top (clipped) — that IS the lesson.
+    const cap=Math.min(N,22);
+    let maxY=Math.max(N*N, N*Math.log2(N));
+    // axes
+    ctx.strokeStyle="#25384f";ctx.lineWidth=1;ctx.beginPath();
+    ctx.moveTo(padL,padT);ctx.lineTo(padL,H-padB);ctx.lineTo(W-padR,H-padB);ctx.stroke();
+    ctx.fillStyle="#6d829e";ctx.font="11px ui-monospace,monospace";
+    ctx.fillText("operations",padL+4,padT+10);ctx.fillText("input n →",W-70,H-8);
+    const X=n=>padL+(n/N)*(W-padL-padR);
+    const Y=v=>H-padB-(Math.min(v,maxY)/maxY)*(H-padB-padT);
+    fns.forEach(fn=>{
+      ctx.strokeStyle=fn.c;ctx.lineWidth=2.4;ctx.beginPath();
+      let started=false;
+      const lim=fn.name==="O(2ⁿ)"?cap:N;
+      for(let n=1;n<=lim;n+=Math.max(1,Math.floor(N/220))){
+        const v=fn.f(n);if(!isFinite(v))break;
+        const x=X(n),y=Y(v);
+        if(!started){ctx.moveTo(x,y);started=true;}else ctx.lineTo(x,y);
+        if(v>maxY)break;
+      }
+      ctx.stroke();
+    });
+    const opsAt=N=> ({c:"1",log:Math.log2(N).toFixed(1),lin:N,nlog:(N*Math.log2(N)).toFixed(0),sq:N*N,exp:N<=30?Math.pow(2,N).toExponential(1):"astronomical"});
+    const o=opsAt(N);
+    out.innerHTML=`At n=<b style="color:var(--signal)">${N}</b>: O(1)=1 · O(log n)≈${o.log} · O(n)=${o.lin} · O(n log n)≈${o.nlog} · O(n²)=${o.sq} · O(2ⁿ)=${o.exp}. Feel the gap widen as you drag.`;
+  }
+  slider.addEventListener("input",()=>{nval.textContent=slider.value;draw(+slider.value);});
+  draw(+slider.value);
+})();
+
+/* ========== SORT visualizer ========== */
+(function(){
+  const cv=$("#sortCanvas");if(!cv)return;
+  const ctx=cv.getContext("2d");const out=$("#sortOut"),meta=$("#sortMeta");
+  const W=cv.width,H=cv.height;const N=42;let arr=[],algo="bubble",running=false,token=0;
+  const ctl=$("#sortCtl");
+  const info={bubble:["O(n²)","repeatedly swaps adjacent out-of-order pairs; big values 'bubble' up"],
+    insertion:["O(n²)","grows a sorted prefix, inserting each new item into place"],
+    selection:["O(n²)","repeatedly finds the minimum of the rest and puts it next"],
+    quick:["O(n log n) avg","picks a pivot, partitions around it, recurses on each side"],
+    merge:["O(n log n)","splits in half, sorts each, merges the two sorted halves"]};
+  function shuffle(){arr=[];for(let i=0;i<N;i++)arr.push(Math.random());}
+  function render(a,comparing,swapping,sorted){
+    ctx.clearRect(0,0,W,H);const bw=W/a.length;
+    for(let i=0;i<a.length;i++){
+      const h=a[i]*(H-16)+8;let col="#7d9dff";
+      if(sorted&&sorted.has(i))col="#5fd39a";
+      if(comparing&&comparing.includes(i))col="#f2b03c";
+      if(swapping&&swapping.includes(i))col="#f2708c";
+      ctx.fillStyle=col;ctx.fillRect(i*bw+1,H-h,bw-2,h);
+    }
+  }
+  // frame generators return array of {a,c,s,done(Set)}
+  function genBubble(a){const f=[],done=new Set();a=a.slice();for(let i=0;i<a.length;i++){for(let j=0;j<a.length-1-i;j++){f.push({a:a.slice(),c:[j,j+1],done:new Set(done)});if(a[j]>a[j+1]){[a[j],a[j+1]]=[a[j+1],a[j]];f.push({a:a.slice(),s:[j,j+1],done:new Set(done)});}}done.add(a.length-1-i);}for(let i=0;i<a.length;i++)done.add(i);f.push({a:a.slice(),done});return f;}
+  function genInsertion(a){const f=[],done=new Set();a=a.slice();for(let i=1;i<a.length;i++){let j=i;while(j>0&&a[j-1]>a[j]){f.push({a:a.slice(),c:[j-1,j],done:new Set(done)});[a[j-1],a[j]]=[a[j],a[j-1]];f.push({a:a.slice(),s:[j-1,j],done:new Set(done)});j--;}}for(let i=0;i<a.length;i++)done.add(i);f.push({a:a.slice(),done});return f;}
+  function genSelection(a){const f=[],done=new Set();a=a.slice();for(let i=0;i<a.length;i++){let m=i;for(let j=i+1;j<a.length;j++){f.push({a:a.slice(),c:[m,j],done:new Set(done)});if(a[j]<a[m])m=j;}if(m!==i){[a[i],a[m]]=[a[m],a[i]];f.push({a:a.slice(),s:[i,m],done:new Set(done)});}done.add(i);}f.push({a:a.slice(),done});return f;}
+  function genQuick(a){const f=[],done=new Set();a=a.slice();
+    function qs(lo,hi){if(lo>=hi){if(lo===hi)done.add(lo);return;}const pivot=a[hi];let i=lo;for(let j=lo;j<hi;j++){f.push({a:a.slice(),c:[j,hi],s:[hi],done:new Set(done)});if(a[j]<pivot){[a[i],a[j]]=[a[j],a[i]];f.push({a:a.slice(),s:[i,j],done:new Set(done)});i++;}}[a[i],a[hi]]=[a[hi],a[i]];f.push({a:a.slice(),s:[i,hi],done:new Set(done)});done.add(i);qs(lo,i-1);qs(i+1,hi);}
+    qs(0,a.length-1);for(let i=0;i<a.length;i++)done.add(i);f.push({a:a.slice(),done});return f;}
+  function genMerge(a){const f=[],done=new Set();a=a.slice();
+    function ms(lo,hi){if(hi-lo<1)return;const mid=(lo+hi)>>1;ms(lo,mid);ms(mid+1,hi);
+      const tmp=[];let i=lo,j=mid+1;
+      while(i<=mid&&j<=hi){f.push({a:a.slice(),c:[i,j],done:new Set(done)});if(a[i]<=a[j])tmp.push(a[i++]);else tmp.push(a[j++]);}
+      while(i<=mid)tmp.push(a[i++]);while(j<=hi)tmp.push(a[j++]);
+      for(let k=0;k<tmp.length;k++){a[lo+k]=tmp[k];f.push({a:a.slice(),s:[lo+k],done:new Set(done)});}
+    }
+    ms(0,a.length-1);for(let i=0;i<a.length;i++)done.add(i);f.push({a:a.slice(),done});return f;}
+  const gens={bubble:genBubble,insertion:genInsertion,selection:genSelection,quick:genQuick,merge:genMerge};
+  async function play(){
+    if(running){token++;}running=true;const my=++token;
+    shuffle();const frames=gens[algo](arr);
+    let comps=0;frames.forEach(fr=>{if(fr.c)comps++;});
+    meta.textContent=`n=${N} · ${frames.length} frames · ${info[algo][0]}`;
+    const speed=+$("#sortSpeed").value;const delay=Math.max(2,42-speed*2);
+    for(let k=0;k<frames.length;k++){
+      if(my!==token){return;}
+      const fr=frames[k];render(fr.a,fr.c,fr.s,fr.done);
+      await wait(delay);
+    }
+    render(frames[frames.length-1].a,null,null,frames[frames.length-1].done);
+    out.innerHTML=`<b style="color:var(--signal)">${algo}</b> — ${info[algo][1]}. ${info[algo][0]}.`;
+    running=false;
+  }
+  ctl.addEventListener("click",e=>{const k=e.target.dataset.sort;if(!k)return;algo=k;$$(".btn",ctl).forEach(b=>b.classList.remove("sel"));e.target.classList.add("sel");out.innerHTML=`${algo}: ${info[algo][1]}. Press play.`;});
+  $("#sortPlay").onclick=play;
+  shuffle();render(arr);out.innerHTML="Pick an algorithm, then shuffle & play.";
+})();
+
+/* ========== BST traversal ========== */
+(function(){
+  const stage=$("#bstStage");if(!stage)return;
+  const out=$("#bstOut"),ctl=$("#bstCtl");
+  const nodes=[
+    {v:50,x:350,y:34,l:1,r:2},{v:30,x:185,y:88,l:3,r:4},{v:70,x:515,y:88,l:5,r:6},
+    {v:15,x:110,y:146,l:7,r:8},{v:40,x:262,y:146,l:null,r:null},{v:60,x:440,y:146,l:null,r:9},{v:85,x:592,y:146,l:null,r:10},
+    {v:9,x:62,y:204,l:null,r:null},{v:27,x:158,y:204,l:null,r:null},{v:65,x:492,y:204,l:null,r:null},{v:88,x:648,y:204,l:null,r:null}
+  ];
+  function draw(hi,path){
+    clear(stage);hi=hi||new Set();
+    nodes.forEach((n,i)=>{[n.l,n.r].forEach(c=>{if(c!=null){const ch=nodes[c];const onp=path&&path.includes(i)&&path.includes(c);stage.appendChild(el("line",{x1:n.x,y1:n.y,x2:ch.x,y2:ch.y,stroke:onp?"#48d9c8":"#25384f","stroke-width":onp?3:1.6}));}});});
+    nodes.forEach((n,i)=>{const on=hi.has(i);stage.appendChild(el("circle",{cx:n.x,cy:n.y,r:17,fill:on?"#173a34":"#141f30",stroke:on?"#48d9c8":"#7d9dff","stroke-width":on?3:2}));stage.appendChild(el("text",{x:n.x,y:n.y+5,"text-anchor":"middle","font-family":"ui-monospace, SFMono-Regular, Menlo, monospace","font-size":12,fill:on?"#48d9c8":"#dbe6f5"},n.v));});
+  }
+  async function search(target){
+    let i=0;const path=[];const hi=new Set();
+    while(i!=null){
+      path.push(i);hi.add(i);draw(hi,path);
+      out.innerHTML=`at ${nodes[i].v}: ${nodes[i].v===target?"<b style='color:var(--signal)'>found!</b>":target<nodes[i].v?`${target} &lt; ${nodes[i].v} → go left`:`${target} &gt; ${nodes[i].v} → go right`}`;
+      await wait(650);
+      if(nodes[i].v===target)break;
+      i=target<nodes[i].v?nodes[i].l:nodes[i].r;
+    }
+    if(i==null)out.innerHTML=`${target} not found — fell off the tree. Path length = log-ish steps, not a full scan.`;
+  }
+  function traverse(kind){
+    const order=[];
+    function rec(i){if(i==null)return;if(kind==="pre")order.push(i);rec(nodes[i].l);if(kind==="in")order.push(i);rec(nodes[i].r);if(kind==="post")order.push(i);}
+    rec(0);return order;
+  }
+  async function animTrav(kind){
+    const order=traverse(kind);const hi=new Set();const vals=[];
+    for(const i of order){hi.add(i);vals.push(nodes[i].v);draw(hi);out.innerHTML=`${kind}-order: [ ${vals.join(", ")} ]`;await wait(360);}
+    const sorted=kind==="in"?" ← note: perfectly sorted, for free.":"";
+    out.innerHTML=`${kind}-order result: <b style="color:var(--signal)">[ ${vals.join(", ")} ]</b>${sorted}`;
+  }
+  ctl.addEventListener("click",e=>{const fi=e.target.dataset.find,tr=e.target.dataset.trav;if(fi)search(+fi);else if(tr)animTrav(tr);});
+  draw();
+})();
+
+/* ========== GRAPH BFS/DFS ========== */
+(function(){
+  const stage=$("#graphStage");if(!stage)return;
+  const out=$("#graphOut");
+  const nodes={A:[80,130],B:[220,55],C:[220,205],D:[380,55],E:[380,205],F:[540,55],G:[540,205],H:[660,130]};
+  const adj={A:["B","C"],B:["A","D"],C:["A","E"],D:["B","E","F"],E:["C","D","G"],F:["D","H"],G:["E","H"],H:["F","G"]};
+  const edges=[["A","B"],["A","C"],["B","D"],["C","E"],["D","E"],["D","F"],["E","G"],["F","H"],["G","H"]];
+  let running=false,token=0;
+  function draw(state){
+    clear(stage);state=state||{};
+    edges.forEach(([a,b])=>{stage.appendChild(el("line",{x1:nodes[a][0],y1:nodes[a][1],x2:nodes[b][0],y2:nodes[b][1],stroke:"#25384f","stroke-width":2}));});
+    for(const k in nodes){const[x,y]=nodes[k];let col="#7d9dff";if(state[k]==="frontier")col="#f2b03c";if(state[k]==="visited")col="#5fd39a";
+      stage.appendChild(el("circle",{cx:x,cy:y,r:18,fill:"#141f30",stroke:col,"stroke-width":3}));
+      stage.appendChild(el("text",{x,y:y+5,"text-anchor":"middle","font-family":"ui-monospace, SFMono-Regular, Menlo, monospace","font-size":13,fill:col},k));}
+  }
+  async function run(kind){
+    if(running)token++;running=true;const my=++token;
+    const state={},order=[];const start="A";
+    const frontier=[start];state[start]="frontier";draw(state);await wait(500);
+    const visited=new Set();
+    while(frontier.length){
+      if(my!==token)return;
+      const cur=kind==="bfs"?frontier.shift():frontier.pop();
+      if(visited.has(cur))continue;visited.add(cur);state[cur]="visited";order.push(cur);
+      for(const nb of adj[cur]){if(!visited.has(nb)&&state[nb]!=="frontier"){state[nb]="frontier";frontier.push(nb);}}
+      draw(state);out.innerHTML=`${kind.toUpperCase()} using a <b style="color:var(--flag)">${kind==="bfs"?"queue (FIFO)":"stack (LIFO)"}</b> · visited: [ ${order.join(", ")} ]`;
+      await wait(560);
+    }
+    draw(state);out.innerHTML=`${kind.toUpperCase()} complete · order = <b style="color:var(--ok)">[ ${order.join(", ")} ]</b>. ${kind==="bfs"?"Rings out level by level — first arrival = shortest hops.":"Dives down one path, backtracks — natural for exhausting possibilities."}`;
+    running=false;
+  }
+  $("#gBfs").onclick=()=>run("bfs");$("#gDfs").onclick=()=>run("dfs");$("#gReset").onclick=()=>{token++;running=false;draw();out.textContent="Start node is A (left). Watch the visiting order.";};
+  draw();
+})();
+
+/* ========== CIRCUIT BREAKER ========== */
+(function(){
+  const stage=$("#cbStage");if(!stage)return;
+  const out=$("#cbOut"),hstate=$("#cbHstate");
+  let healthy=true,state="CLOSED",fails=0,openedAt=0;const THRESH=3,COOLDOWN=3000;
+  function draw(msg,flow){
+    clear(stage);
+    const col=state==="CLOSED"?"#5fd39a":state==="OPEN"?"#f2708c":"#f2b03c";
+    stage.appendChild(el("rect",{x:40,y:50,width:130,height:56,rx:10,fill:"#141f30",stroke:"#7d9dff","stroke-width":2}));
+    stage.appendChild(el("text",{x:105,y:83,"text-anchor":"middle","font-family":"ui-monospace, SFMono-Regular, Menlo, monospace","font-size":12,fill:"#dbe6f5"},"caller"));
+    // breaker
+    stage.appendChild(el("rect",{x:280,y:44,width:150,height:68,rx:10,fill:"#141f30",stroke:col,"stroke-width":3}));
+    stage.appendChild(el("text",{x:355,y:74,"text-anchor":"middle","font-family":"ui-monospace, SFMono-Regular, Menlo, monospace","font-size":12,fill:"#9fb0c9"},"breaker"));
+    stage.appendChild(el("text",{x:355,y:94,"text-anchor":"middle","font-family":"ui-monospace, SFMono-Regular, Menlo, monospace","font-size":14,fill:col},state));
+    // downstream
+    stage.appendChild(el("rect",{x:540,y:50,width:130,height:56,rx:10,fill:"#141f30",stroke:healthy?"#5fd39a":"#f2708c","stroke-width":2}));
+    stage.appendChild(el("text",{x:605,y:76,"text-anchor":"middle","font-family":"ui-monospace, SFMono-Regular, Menlo, monospace","font-size":12,fill:"#dbe6f5"},"service"));
+    stage.appendChild(el("text",{x:605,y:94,"text-anchor":"middle","font-family":"ui-monospace, SFMono-Regular, Menlo, monospace","font-size":10.5,fill:healthy?"#5fd39a":"#f2708c"},healthy?"healthy":"FAILING"));
+    // wires
+    stage.appendChild(el("line",{x1:170,y1:78,x2:280,y2:78,stroke:flow==="try"||flow==="ok"||flow==="fail"?col:"#25384f","stroke-width":2.5}));
+    const rightCol=flow==="ok"?"#5fd39a":flow==="fail"?"#f2708c":"#25384f";
+    stage.appendChild(el("line",{x1:430,y1:78,x2:540,y2:78,stroke:state==="OPEN"&&flow?"#25384f":rightCol,"stroke-width":2.5,"stroke-dasharray":state==="OPEN"?"5 5":"none"}));
+    if(state==="OPEN"&&flow==="reject")stage.appendChild(el("text",{x:485,y:70,"text-anchor":"middle","font-family":"ui-monospace, SFMono-Regular, Menlo, monospace","font-size":10,fill:"#f2708c"},"⚡ fail fast"));
+    stage.appendChild(el("text",{x:355,y:140,"text-anchor":"middle","font-family":"ui-monospace, SFMono-Regular, Menlo, monospace","font-size":10.5,fill:"#6d829e"},`consecutive failures: ${fails}/${THRESH}`));
+    if(msg)out.innerHTML=msg;
+  }
+  async function request(){
+    // half-open check
+    if(state==="OPEN"&&Date.now()-openedAt>=COOLDOWN){state="HALF_OPEN";draw(`Cooldown elapsed → <b style="color:var(--flag)">HALF_OPEN</b>. Letting one probe through…`);await wait(500);}
+    if(state==="OPEN"){draw(`Breaker <b style="color:#f2708c">OPEN</b> → request rejected instantly, service left alone to recover. No thread wasted.`,"reject");return;}
+    draw("sending…","try");await wait(380);
+    if(healthy){fails=0;if(state==="HALF_OPEN"){state="CLOSED";draw(`Probe succeeded → breaker <b style="color:var(--ok)">CLOSED</b> again. Normal service resumes.`,"ok");return;}draw(`Request <b style="color:var(--ok)">succeeded</b>. Breaker stays CLOSED.`,"ok");}
+    else{fails++;if(state==="HALF_OPEN"){state="OPEN";openedAt=Date.now();draw(`Probe failed → straight back to <b style="color:#f2708c">OPEN</b>. Another cooldown begins.`,"fail");return;}
+      if(fails>=THRESH){state="OPEN";openedAt=Date.now();draw(`${fails}th failure hit the threshold → breaker <b style="color:#f2708c">TRIPS OPEN</b>. Now it protects the system by failing fast for ${COOLDOWN/1000}s.`,"fail");}
+      else draw(`Request <b style="color:#f2708c">failed</b> (${fails}/${THRESH}). Still CLOSED — one more…`,"fail");}
+  }
+  $("#cbHealth").onclick=()=>{healthy=!healthy;hstate.textContent=healthy?"healthy":"failing";draw(healthy?"Downstream restored to healthy. Send a request (in OPEN state, wait for cooldown → probe).":"Downstream now FAILING. Send requests and watch the breaker trip.");};
+  $("#cbSend").onclick=request;
+  $("#cbBurst").onclick=async()=>{for(let i=0;i<8;i++){await request();await wait(650);}};
+  $("#cbReset").onclick=()=>{healthy=true;state="CLOSED";fails=0;hstate.textContent="healthy";draw("Reset. Breaker CLOSED — requests flow through.");};
+  draw("Breaker CLOSED — requests flow through.");
+})();
+
+/* ========== THROUGH-LINE flow ========== */
+(function(){
+  const stage=$("#throughFlow");if(!stage)return;
+  const scales=[["Method","polymorphism","#48d9c8"],["Module","design pattern","#7d9dff"],["Service","message contract","#b98cff"],["Fleet","event bus","#f2b03c"]];
+  scales.forEach((s,i)=>{
+    const x=40+i*180;
+    stage.appendChild(el("rect",{x,y:60,width:150,height:80,rx:12,fill:"#141f30",stroke:s[2],"stroke-width":2}));
+    stage.appendChild(el("text",{x:x+75,y:92,"text-anchor":"middle","font-family":"ui-monospace, SFMono-Regular, Menlo, monospace","font-size":14,fill:s[2]},s[0]));
+    stage.appendChild(el("text",{x:x+75,y:114,"text-anchor":"middle","font-family":"ui-monospace, SFMono-Regular, Menlo, monospace","font-size":10,fill:"#9fb0c9"},"hides "+s[1]));
+    if(i<3){stage.appendChild(el("line",{x1:x+150,y1:100,x2:x+180,y2:100,stroke:"#25384f","stroke-width":2}));stage.appendChild(el("polygon",{points:`${x+180},100 ${x+172},96 ${x+172},104`,fill:"#25384f"}));}
+  });
+  stage.appendChild(el("text",{x:380,y:180,"text-anchor":"middle","font-family":"ui-monospace, SFMono-Regular, Menlo, monospace","font-size":11,fill:"#6d829e"},"same move · bigger box · hide the volatile behind a stable contract"));
+})();
+
+
+/* ================= MODULES V–XII INTERACTIVES ================= */
+/* ===================== NEW MODULES: shared mini-helpers ===================== */
+const MONO="ui-monospace, SFMono-Regular, Menlo, monospace";
+const rnd=(a,b)=>a+Math.random()*(b-a);
+const ri=(a,b)=>Math.floor(rnd(a,b+1));
+function T(x,y,s,o){o=o||{};return el("text",Object.assign({x,y,"font-family":MONO,"font-size":o.size||12,fill:o.fill||"#9fb0c9","text-anchor":o.anchor||"start"},o.attrs||{}),s);}
+function BOX(x,y,w,h,o){o=o||{};return el("rect",Object.assign({x,y,width:w,height:h,rx:o.rx==null?10:o.rx,fill:o.fill||"#141f30",stroke:o.stroke||"#25384f","stroke-width":o.sw||2},o.attrs||{}));}
+function LINE(x1,y1,x2,y2,o){o=o||{};const l=el("line",{x1,y1,x2,y2,stroke:o.stroke||"#25384f","stroke-width":o.sw||2});if(o.dash)l.setAttribute("stroke-dasharray",o.dash);return l;}
+
+/* ===================== RACE CONDITION ===================== */
+(function(){
+  const stage=$("#raceStage");if(!stage)return;
+  const out=$("#raceOut"),lstate=$("#raceLstate");let lock=false,busy=false;
+  function draw(count,a,b,flash){
+    clear(stage);
+    stage.appendChild(BOX(40,40,180,50,{stroke:a?"#f2b03c":"#7d9dff",sw:a?3:2}));
+    stage.appendChild(T(130,70,"Thread A",{anchor:"middle",fill:"#dbe6f5"}));
+    stage.appendChild(BOX(480,40,180,50,{stroke:b?"#f2b03c":"#7d9dff",sw:b?3:2}));
+    stage.appendChild(T(570,70,"Thread B",{anchor:"middle",fill:"#dbe6f5"}));
+    stage.appendChild(BOX(275,105,150,55,{stroke:flash?"#f2708c":"#48d9c8",sw:flash?3:2}));
+    stage.appendChild(T(350,128,"shared count",{anchor:"middle",size:10,fill:"#6d829e"}));
+    stage.appendChild(T(350,150,String(count),{anchor:"middle",size:16,fill:flash?"#f2708c":"#48d9c8"}));
+    stage.appendChild(LINE(220,65,275,120,{stroke:a?"#f2b03c":"#25384f"}));
+    stage.appendChild(LINE(480,65,425,120,{stroke:b?"#f2b03c":"#25384f"}));
+    if(flash)stage.appendChild(T(350,100,"lost update!",{anchor:"middle",size:10,fill:"#f2708c"}));
+  }
+  $("#raceLock").onclick=()=>{if(busy)return;lock=!lock;lstate.textContent=lock?"ON":"OFF";out.textContent=lock?"Lock is ON — increments are now atomic. Expect exactly 2000.":"Lock is OFF — expect lost updates.";};
+  $("#raceRun").onclick=async()=>{
+    if(busy)return;busy=true;
+    let count=0;const target=2000;const lost=lock?0:ri(280,620);const final=target-lost;
+    const steps=36;
+    for(let i=1;i<=steps;i++){
+      const collision=!lock&&Math.random()<0.35;
+      count=Math.round(final*i/steps);
+      draw(count,i%2===0,i%2===1,collision);
+      out.innerHTML=`running… A and B racing on <code>count += 1</code>`;
+      await wait(55);
+    }
+    draw(final,false,false,false);
+    if(lock)out.innerHTML=`✓ With the lock, every increment was atomic → <b style="color:var(--ok)">${final}</b> = expected 2000. Correct, at the cost of serializing the critical section.`;
+    else out.innerHTML=`✗ Expected 2000, got <b style="color:#f2708c">${final}</b>. ${lost} increments were <em>lost</em> when the read-modify-write of A and B interleaved. This bug hides from debuggers.`;
+    busy=false;
+  };
+  draw(0,false,false,false);
+})();
+
+/* ===================== DEADLOCK ===================== */
+(function(){
+  const stage=$("#deadStage");if(!stage)return;
+  const out=$("#deadOut"),mstate=$("#deadMstate");let ordered=false,busy=false;
+  function base(){
+    clear(stage);
+    stage.appendChild(BOX(60,70,120,50,{stroke:"#7d9dff"}));stage.appendChild(T(120,100,"Thread 1",{anchor:"middle",fill:"#dbe6f5"}));
+    stage.appendChild(BOX(520,70,120,50,{stroke:"#7d9dff"}));stage.appendChild(T(580,100,"Thread 2",{anchor:"middle",fill:"#dbe6f5"}));
+    stage.appendChild(el("circle",{cx:290,cy:50,r:22,fill:"#141f30",stroke:"#48d9c8","stroke-width":2}));stage.appendChild(T(290,55,"L1",{anchor:"middle",fill:"#48d9c8"}));
+    stage.appendChild(el("circle",{cx:410,cy:140,r:22,fill:"#141f30",stroke:"#b98cff","stroke-width":2}));stage.appendChild(T(410,145,"L2",{anchor:"middle",fill:"#b98cff"}));
+  }
+  function arrow(x1,y1,x2,y2,col,label,ly){
+    const g=el("g",{});g.appendChild(LINE(x1,y1,x2,y2,{stroke:col,sw:2.5}));
+    const ang=Math.atan2(y2-y1,x2-x1);
+    g.appendChild(el("polygon",{points:`${x2},${y2} ${x2-10*Math.cos(ang-.4)},${y2-10*Math.sin(ang-.4)} ${x2-10*Math.cos(ang+.4)},${y2-10*Math.sin(ang+.4)}`,fill:col}));
+    if(label)g.appendChild(T((x1+x2)/2,ly||((y1+y2)/2-6),label,{anchor:"middle",size:9.5,fill:col}));
+    stage.appendChild(g);
+  }
+  $("#deadMode").onclick=()=>{if(busy)return;ordered=!ordered;mstate.textContent=ordered?"ordered":"naive";out.textContent=ordered?"Ordered strategy — both threads take L1 before L2, so no cycle can form.":"Naive strategy — watch the circular wait form.";base();};
+  $("#deadReset").onclick=()=>{if(busy)return;base();out.textContent=ordered?"Ordered strategy ready.":"Naive strategy ready.";};
+  $("#deadRun").onclick=async()=>{
+    if(busy)return;busy=true;base();
+    if(!ordered){
+      arrow(180,88,270,60,"#48d9c8","holds");await wait(600);
+      arrow(520,88,432,132,"#b98cff","holds");await wait(600);
+      arrow(300,72,392,120,"#f2708c","T1 wants L2",150);await wait(600);
+      arrow(400,120,308,72,"#f2708c","T2 wants L1",64);await wait(500);
+      stage.appendChild(T(350,180,"⚠ DEADLOCK — circular wait, neither can proceed",{anchor:"middle",size:12,fill:"#f2708c"}));
+      out.innerHTML=`<b style="color:#f2708c">Deadlock.</b> T1 holds L1 & wants L2; T2 holds L2 & wants L1. The wait-graph has a cycle → frozen forever.`;
+    }else{
+      arrow(180,88,270,60,"#48d9c8","T1 takes L1 first");await wait(650);
+      arrow(520,95,308,66,"#6d829e","T2 waits for L1 (blocked, no cycle)",30);await wait(700);
+      arrow(300,72,392,120,"#48d9c8","T1 takes L2, does work");await wait(700);
+      stage.appendChild(T(350,180,"✓ T1 finishes & releases → T2 proceeds. No cycle possible.",{anchor:"middle",size:12,fill:"#5fd39a"}));
+      out.innerHTML=`<b style="color:var(--ok)">No deadlock.</b> Because everyone acquires L1 before L2, a circular wait can't form. Lock ordering breaks the cycle condition.`;
+    }
+    busy=false;
+  };
+  base();
+})();
+
+/* ===================== EVENT LOOP ===================== */
+(function(){
+  const stage=$("#loopStage");if(!stage)return;
+  const out=$("#loopOut");let queue=[],nextId=1,busy=false;
+  const cols=["#48d9c8","#7d9dff","#b98cff","#f2b03c","#5fd39a"];
+  function draw(active,waiting,done,label){
+    clear(stage);
+    stage.appendChild(T(60,28,"task queue (ready)",{size:11,fill:"#6d829e"}));
+    queue.forEach((t,i)=>{stage.appendChild(BOX(60+i*70,40,60,34,{stroke:cols[(t-1)%5]}));stage.appendChild(T(90+i*70,62,"t"+t,{anchor:"middle",fill:cols[(t-1)%5]}));});
+    stage.appendChild(BOX(60,110,150,60,{stroke:active!=null?"#48d9c8":"#25384f",sw:active!=null?3:2}));
+    stage.appendChild(T(135,133,"the one thread",{anchor:"middle",size:10,fill:"#6d829e"}));
+    stage.appendChild(T(135,155,active!=null?("running t"+active):"idle",{anchor:"middle",size:13,fill:active!=null?"#48d9c8":"#6d829e"}));
+    stage.appendChild(T(280,110,"awaiting I/O",{size:11,fill:"#6d829e"}));
+    (waiting||[]).forEach((t,i)=>{stage.appendChild(BOX(280+i*70,120,60,34,{stroke:"#f2b03c",dash:"4 3"}));stage.appendChild(T(310+i*70,142,"t"+t,{anchor:"middle",fill:"#f2b03c"}));});
+    stage.appendChild(T(540,110,"done",{size:11,fill:"#6d829e"}));
+    (done||[]).forEach((t,i)=>{stage.appendChild(BOX(540+i*38,120,32,34,{stroke:"#5fd39a"}));stage.appendChild(T(556+i*38,142,"t"+t,{anchor:"middle",size:10,fill:"#5fd39a"}));});
+    if(label)out.innerHTML=label;
+  }
+  $("#loopAdd").onclick=()=>{if(busy)return;if(queue.length>=5){out.textContent="Queue full (5).";return;}queue.push(nextId++);draw(null,[],[],`Queued t${nextId-1}. The loop hasn't started.`);};
+  $("#loopReset").onclick=()=>{if(busy)return;queue=[];nextId=1;draw(null,[],[],"Queue some tasks, then run.");};
+  $("#loopRun").onclick=async()=>{
+    if(busy||!queue.length)return;busy=true;
+    let ready=queue.slice();queue=[];const waiting=[],done=[];
+    draw(null,[],[],"loop starts");await wait(500);
+    while(ready.length||waiting.length){
+      if(ready.length){
+        const t=ready.shift();draw(t,waiting,done,`Thread picks <b style="color:var(--signal)">t${t}</b>, runs it…`);await wait(650);
+        // task awaits I/O
+        waiting.push(t);draw(null,waiting,done,`t${t} hits <code>await</code> (slow I/O) → parked. Thread is free, grabs next task instead of blocking.`);await wait(700);
+        // schedule its completion after some ticks (simulate by resuming oldest waiting when no ready left)
+      } else {
+        // no ready tasks: an I/O completes, resume oldest waiting
+        const t=waiting.shift();draw(t,waiting,done,`I/O for t${t} finished → resumed and completed.`);await wait(600);done.push(t);draw(null,waiting,done);await wait(200);
+      }
+      // opportunistically complete a waiting task if it's been waiting a while and queue empty of ready
+      if(!ready.length&&waiting.length&&Math.random()<0.4){const t=waiting.shift();done.push(t);draw(null,waiting,done,`(I/O for t${t} completed in the background)`);await wait(400);}
+    }
+    draw(null,[],done,`All tasks done on <b style="color:var(--signal)">one thread</b> — no locks, no races. The trick: never block while waiting; yield and run something else.`);
+    busy=false;
+  };
+  draw(null,[],[],"Queue some tasks, then run.");
+})();
+
+/* ===================== INDEX VS SCAN ===================== */
+(function(){
+  const stage=$("#idxStage");if(!stage)return;
+  const out=$("#idxOut");const ids=[13,41,7,88,29,57,62,3,74,95,18,50,36,81];const targetIdx=5;const target=57;let busy=false;
+  function draw(hi,found){
+    clear(stage);
+    stage.appendChild(T(30,24,"users table",{size:11,fill:"#6d829e"}));
+    ids.forEach((id,i)=>{
+      const x=30+(i%7)*95,y=40+Math.floor(i/7)*44;
+      const on=hi&&hi.includes(i);const isTgt=found&&i===targetIdx;
+      stage.appendChild(BOX(x,y,86,34,{stroke:isTgt?"#5fd39a":on?"#f2b03c":"#25384f",sw:isTgt||on?3:1.5}));
+      stage.appendChild(T(x+43,y+22,"id="+id,{anchor:"middle",size:11,fill:isTgt?"#5fd39a":on?"#f2b03c":"#9fb0c9"}));
+    });
+  }
+  $("#idxScan").onclick=async()=>{
+    if(busy)return;busy=true;draw([]);
+    for(let i=0;i<=targetIdx;i++){draw([i]);out.innerHTML=`full scan: checking row ${i+1}… id=${ids[i]} ${ids[i]===target?"→ match!":"→ no"}`;await wait(360);}
+    draw([targetIdx],true);out.innerHTML=`Full scan found id=57 after <b style="color:#f2b03c">${targetIdx+1} comparisons</b>. On a million-row table that's a million reads — O(n).`;
+    busy=false;
+  };
+  $("#idxIndex").onclick=async()=>{
+    if(busy)return;busy=true;draw([]);
+    // draw a mini btree descent overlay
+    const nodes=[[350,150,"root"],[350,150,"[50]"]];
+    const steps=["root node: 57 > 50 → go right","branch: 57 < 62 → go left","leaf: found pointer to id=57"];
+    for(let s=0;s<3;s++){
+      draw(s===2?[targetIdx]:[]);
+      // index box
+      stage.appendChild(BOX(250,150,200,44,{stroke:"#48d9c8",sw:2}));
+      stage.appendChild(T(350,168,"B-tree index",{anchor:"middle",size:10,fill:"#6d829e"}));
+      stage.appendChild(T(350,186,`hop ${s+1}/3: ${steps[s]}`,{anchor:"middle",size:10,fill:"#48d9c8"}));
+      out.innerHTML=`index descent · ${steps[s]}`;
+      await wait(650);
+    }
+    draw([targetIdx],true);
+    stage.appendChild(BOX(250,150,200,44,{stroke:"#5fd39a",sw:2}));stage.appendChild(T(350,177,"3 hops → row",{anchor:"middle",size:11,fill:"#5fd39a"}));
+    out.innerHTML=`The B-tree index reached id=57 in <b style="color:var(--ok)">3 hops</b> — O(log n). On a million rows that's ~20 hops vs a million. Same query, wildly different cost.`;
+    busy=false;
+  };
+  $("#idxReset").onclick=()=>{if(!busy){draw([]);out.textContent="Same query, two costs.";}};
+  draw([]);
+})();
+
+/* ===================== CONSISTENT HASHING RING ===================== */
+(function(){
+  const stage=$("#ringStage");if(!stage)return;
+  const out=$("#ringOut");const cx=350,cy=150,R=110;
+  const pal=["#48d9c8","#7d9dff","#b98cff","#f2b03c","#5fd39a","#f2708c"];
+  let nodes=[],keys=[],nid=0;
+  function pt(a,r){return[cx+r*Math.cos(a-Math.PI/2),cy+r*Math.sin(a-Math.PI/2)];}
+  function ownerOf(kAng){
+    if(!nodes.length)return null;
+    const sorted=nodes.slice().sort((a,b)=>a.a-b.a);
+    for(const n of sorted)if(n.a>=kAng)return n;
+    return sorted[0];
+  }
+  function mapping(){const m={};keys.forEach(k=>{const o=ownerOf(k.a);m[k.id]=o?o.id:null;});return m;}
+  function draw(moved){
+    clear(stage);
+    stage.appendChild(el("circle",{cx,cy,r:R,fill:"none",stroke:"#25384f","stroke-width":2}));
+    keys.forEach(k=>{const o=ownerOf(k.a);const[x,y]=pt(k.a,R);const col=o?pal[o.id%pal.length]:"#6d829e";stage.appendChild(el("circle",{cx:x,cy:y,r:moved&&moved.includes(k.id)?7:5,fill:col,stroke:moved&&moved.includes(k.id)?"#fff":"none","stroke-width":1.5}));});
+    nodes.forEach(n=>{const[x,y]=pt(n.a,R);const col=pal[n.id%pal.length];stage.appendChild(el("circle",{cx:x,cy:y,r:13,fill:"#141f30",stroke:col,"stroke-width":3}));stage.appendChild(T(x,y+4,"N"+n.id,{anchor:"middle",size:10,fill:col}));});
+    stage.appendChild(T(cx,cy-4,`${nodes.length} nodes`,{anchor:"middle",size:12,fill:"#dbe6f5"}));
+    stage.appendChild(T(cx,cy+16,`${keys.length} keys`,{anchor:"middle",size:12,fill:"#9fb0c9"}));
+  }
+  function add(kind){
+    const before=mapping();
+    if(kind==="key")keys.push({id:keys.length,a:rnd(0,2*Math.PI)});
+    if(kind==="node"){nodes.push({id:nid++,a:rnd(0,2*Math.PI)});}
+    if(kind==="rmnode"){if(nodes.length<=1){out.textContent="Keep at least one node.";return;}nodes.pop();}
+    const after=mapping();
+    const moved=keys.filter(k=>before[k.id]!==undefined&&before[k.id]!==after[k.id]).map(k=>k.id);
+    draw(moved);
+    if(kind==="key")out.innerHTML=`Added a key → routed clockwise to its owning node. Keys always land on the next node clockwise.`;
+    else if(kind==="node")out.innerHTML=`Added N${nid-1}. Only <b style="color:var(--signal)">${moved.length} of ${keys.length}</b> keys changed owner (highlighted) — just the arc behind the newcomer. Naive <code>hash % N</code> would have moved almost all of them.`;
+    else out.innerHTML=`Removed a node. Its <b style="color:var(--signal)">${moved.length}</b> keys spilled clockwise to the next node; every other key stayed put.`;
+  }
+  $("#ringAddKey").onclick=()=>{if(keys.length>=18){out.textContent="Enough keys to see the point (max 18).";return;}add("key");};
+  $("#ringAddNode").onclick=()=>{if(nodes.length>=6){out.textContent="Max 6 nodes here.";return;}add("node");};
+  $("#ringRemoveNode").onclick=()=>add("rmnode");
+  $("#ringReset").onclick=()=>{nodes=[{id:0,a:0.6},{id:1,a:2.6},{id:2,a:4.6}];nid=3;keys=[];for(let i=0;i<8;i++)keys.push({id:i,a:rnd(0,2*Math.PI)});draw();out.textContent="3 nodes, 8 keys. Add or remove and watch how little moves.";};
+  $("#ringReset").onclick();
+})();
+
+/* ===================== REQUEST LIFECYCLE ===================== */
+(function(){
+  const stage=$("#reqStage");if(!stage)return;
+  const out=$("#reqOut");let busy=false;
+  const phases=[["DNS lookup",20,"api.app.com → 93.184.x.x","#7d9dff",false],
+    ["TCP handshake",30,"SYN → SYN-ACK → ACK (1 round trip)","#b98cff",true],
+    ["TLS handshake",50,"negotiate encryption keys","#f2b03c",true],
+    ["HTTP request",15,"GET /user →","#48d9c8",true],
+    ["server work",60,"query DB, build JSON","#5fd39a",false],
+    ["response",15,"← 200 OK, 4 KB","#48d9c8",true]];
+  function frame(active,total){
+    clear(stage);
+    stage.appendChild(BOX(30,90,110,50,{stroke:"#7d9dff"}));stage.appendChild(T(85,120,"browser",{anchor:"middle",fill:"#dbe6f5"}));
+    stage.appendChild(BOX(560,90,110,50,{stroke:"#5fd39a"}));stage.appendChild(T(615,120,"server",{anchor:"middle",fill:"#dbe6f5"}));
+    stage.appendChild(LINE(140,115,560,115,{stroke:"#25384f"}));
+    phases.forEach((p,i)=>{
+      const y=30+i*0;const on=i===active,doneP=active>i;
+      stage.appendChild(el("circle",{cx:160+i*70,cy:170,r:6,fill:on?p[3]:doneP?p[3]:"#25384f"}));
+    });
+    if(active>=0){const p=phases[active];
+      stage.appendChild(T(350,55,p[0],{anchor:"middle",size:14,fill:p[3]}));
+      stage.appendChild(T(350,76,p[2],{anchor:"middle",size:11,fill:"#9fb0c9"}));
+      // moving dot
+      const x=p[4]?(active%2===0?300:400):350;
+      stage.appendChild(el("circle",{cx:x,cy:115,r:6,fill:p[3]}));
+    }
+    stage.appendChild(T(350,200,`cumulative latency: ${total} ms`,{anchor:"middle",size:12,fill:total>0?"#f2b03c":"#6d829e"}));
+  }
+  $("#reqSend").onclick=async()=>{
+    if(busy)return;busy=true;let total=0;
+    for(let i=0;i<phases.length;i++){total+=phases[i][1];frame(i,total);out.innerHTML=`<b style="color:${phases[i][3]}">${phases[i][0]}</b> — +${phases[i][1]} ms`;await wait(700);}
+    frame(phases.length,total);
+    out.innerHTML=`Done in <b style="color:#f2b03c">${total} ms</b>. Notice ~${20+30+50} ms was spent <em>before any data moved</em> — on DNS + TCP + TLS setup. That's why keep-alive, HTTP/2 and CDNs (which skip repeat setup) matter so much.`;
+    busy=false;
+  };
+  $("#reqReset").onclick=()=>{if(!busy){frame(-1,0);out.textContent="Press send to trace the request.";}};
+  frame(-1,0);
+})();
+
+/* ===================== LOAD BALANCER ===================== */
+(function(){
+  const stage=$("#lbStage");if(!stage)return;
+  const out=$("#lbOut"),ctl=$("#lbCtl");let algo="rr",rr=0,client=0;
+  const servers=[{load:0,total:0},{load:0,total:0},{load:0,total:0}];
+  function draw(chosen){
+    clear(stage);
+    stage.appendChild(BOX(280,20,140,44,{stroke:"#48d9c8"}));stage.appendChild(T(350,47,"load balancer",{anchor:"middle",size:12,fill:"#48d9c8"}));
+    servers.forEach((s,i)=>{
+      const x=110+i*200;const on=i===chosen;
+      const h=Math.min(70,8+s.load*10);
+      stage.appendChild(BOX(x,110,120,70,{stroke:on?"#f2b03c":"#7d9dff",sw:on?3:2}));
+      stage.appendChild(el("rect",{x:x+12,y:172-h,width:20,height:h,fill:"#48d9c8",rx:3}));
+      stage.appendChild(T(x+60,135,"server "+(i+1),{anchor:"middle",size:11,fill:on?"#f2b03c":"#9fb0c9"}));
+      stage.appendChild(T(x+60,158,`active: ${s.load}`,{anchor:"middle",size:11,fill:"#6d829e"}));
+      stage.appendChild(T(x+60,176,`total: ${s.total}`,{anchor:"middle",size:9.5,fill:"#6d829e"}));
+      stage.appendChild(LINE(350,64,x+60,110,{stroke:on?"#f2b03c":"#25384f",sw:on?2.5:1.5}));
+    });
+  }
+  function pick(){
+    if(algo==="rr"){const s=rr%3;rr++;return s;}
+    if(algo==="least"){let m=0;for(let i=1;i<3;i++)if(servers[i].load<servers[m].load)m=i;return m;}
+    const c=client++;return c%3; // hash sticky by client id (round of 3 clients here → clusters)
+  }
+  function send(){
+    // simulate some active connections finishing
+    servers.forEach(s=>{if(s.load>0&&Math.random()<0.4)s.load--;});
+    const s=pick();servers[s].load++;servers[s].total++;draw(s);
+    const loads=servers.map(x=>x.load).join(" / ");
+    const spread=Math.max(...servers.map(x=>x.total))-Math.min(...servers.map(x=>x.total));
+    out.innerHTML=`${({rr:"Round-robin",least:"Least-connections",hash:"Hash (sticky)"})[algo]} → server ${s+1}. Active loads: ${loads}. ${algo==="least"?"Always routes to the emptiest server — best under uneven work.":algo==="hash"?"Same client always hits the same server — can cluster load.":"Cycles fairly regardless of how busy each server is."}`;
+  }
+  ctl.addEventListener("click",e=>{const a=e.target.dataset.lb;if(!a)return;algo=a;$$(".btn",ctl).forEach(b=>b.classList.remove("sel"));e.target.classList.add("sel");draw();});
+  $("#lbSend").onclick=send;
+  $("#lbBurst").onclick=async()=>{for(let i=0;i<6;i++){send();await wait(280);}};
+  $("#lbReset").onclick=()=>{servers.forEach(s=>{s.load=0;s.total=0;});rr=0;client=0;draw();out.textContent="Pick an algorithm and send traffic.";};
+  draw();
+})();
+
+/* ===================== LRU CACHE ===================== */
+(function(){
+  const stage=$("#lruStage");if(!stage)return;
+  const out=$("#lruOut"),ctl=$("#lruCtl");const CAP=4;let order=[]; // front = MRU
+  function draw(hit,evicted,key){
+    clear(stage);
+    stage.appendChild(T(30,24,"MRU ◂── cache slots ──▸ LRU",{size:11,fill:"#6d829e"}));
+    for(let i=0;i<CAP;i++){
+      const x=40+i*160,k=order[i];const isNew=k===key&&hit!=="hit";
+      stage.appendChild(BOX(x,45,140,55,{stroke:k?(k===key?"#48d9c8":"#7d9dff"):"#1d2c40",sw:k===key?3:2,fill:k?"#141f30":"#0c1420"}));
+      stage.appendChild(T(x+70,79,k?("key "+k):"empty",{anchor:"middle",size:13,fill:k?(k===key?"#48d9c8":"#dbe6f5"):"#3a4a60"}));
+    }
+    if(evicted)stage.appendChild(T(350,130,`evicted least-recently-used: key ${evicted}`,{anchor:"middle",size:11,fill:"#f2708c"}));
+  }
+  function get(k){
+    let hit,evicted=null;
+    const idx=order.indexOf(k);
+    if(idx>=0){order.splice(idx,1);order.unshift(k);hit="hit";}
+    else{hit="miss";if(order.length>=CAP)evicted=order.pop();order.unshift(k);}
+    draw(hit,evicted,k);
+    out.innerHTML=hit==="hit"?`get(${k}) → <b style="color:var(--ok)">HIT</b>. Moved ${k} to most-recently-used.`:`get(${k}) → <b style="color:#f2b03c">MISS</b>. Loaded ${k} to the front${evicted?`, evicted <b style="color:#f2708c">${evicted}</b> (it sat unused longest)`:""}.`;
+  }
+  ctl.addEventListener("click",e=>{const k=e.target.dataset.key;if(k)get(k);});
+  $("#lruReset").onclick=()=>{order=[];draw();out.textContent="Cache empty. Access some keys.";};
+  draw();
+})();
+
+/* ===================== HASH VS ENCRYPT ===================== */
+(function(){
+  const stage=$("#secStage");if(!stage)return;
+  const out=$("#secOut"),dec=$("#secDec");let last=null;
+  function draw(mode){
+    clear(stage);
+    stage.appendChild(BOX(40,60,150,50,{stroke:"#7d9dff"}));stage.appendChild(T(115,82,'"hunter2"',{anchor:"middle",fill:"#dbe6f5"}));stage.appendChild(T(115,100,"plaintext",{anchor:"middle",size:9,fill:"#6d829e"}));
+    if(!mode){stage.appendChild(T(350,90,"pick an operation",{anchor:"middle",size:12,fill:"#6d829e"}));return;}
+    const col=mode==="hash"?"#f2b03c":"#48d9c8";
+    stage.appendChild(LINE(190,85,470,85,{stroke:col,sw:2.5}));
+    stage.appendChild(el("polygon",{points:"470,85 460,80 460,90",fill:col}));
+    stage.appendChild(T(330,74,mode==="hash"?"hash + salt (one-way)":"encrypt with key (two-way)",{anchor:"middle",size:10,fill:col}));
+    if(mode==="encrypt"){stage.appendChild(LINE(470,100,190,100,{stroke:"#5fd39a",sw:2,dash:"5 4"}));stage.appendChild(el("polygon",{points:"190,100 200,95 200,105",fill:"#5fd39a"}));stage.appendChild(T(330,118,"decrypt with key ↩",{anchor:"middle",size:10,fill:"#5fd39a"}));}
+    else{stage.appendChild(T(330,118,"✗ no key, no inverse — cannot get plaintext back",{anchor:"middle",size:10,fill:"#f2708c"}));}
+    stage.appendChild(BOX(470,60,190,50,{stroke:col}));
+    stage.appendChild(T(565,82,mode==="hash"?"a3f9…7b21":"8f#kZ…q2",{anchor:"middle",size:12,fill:col}));
+    stage.appendChild(T(565,100,mode==="hash"?"digest (fixed length)":"ciphertext",{anchor:"middle",size:9,fill:"#6d829e"}));
+  }
+  $("#secHash").onclick=()=>{last="hash";dec.disabled=true;draw("hash");out.innerHTML=`Hashed with a random <b style="color:var(--flag)">salt</b>. This is one-way: a stolen database of these reveals nothing directly. To verify a login, hash the attempt and compare digests.`;};
+  $("#secEnc").onclick=()=>{last="encrypt";dec.disabled=false;draw("encrypt");out.innerHTML=`Encrypted. This is reversible <em>with the key</em>. Use it for data you must read back — never for passwords.`;};
+  $("#secDec").onclick=()=>{if(last!=="encrypt")return;draw("encrypt");stage.appendChild(T(115,135,'→ "hunter2" recovered',{anchor:"middle",size:11,fill:"#5fd39a"}));out.innerHTML=`Decryption reversed the ciphertext back to <b style="color:var(--ok)">"hunter2"</b>. That reversibility is exactly why you never store passwords encrypted — hash them.`;};
+  $("#secReset").onclick=()=>{last=null;dec.disabled=true;draw();out.textContent="Pick an operation.";};
+  draw();
+})();
+
+/* ===================== DEFENSE IN DEPTH ===================== */
+(function(){
+  const stage=$("#didStage");if(!stage)return;
+  const out=$("#didOut"),ctl=$("#didLayers");
+  const names=["Firewall","Input validation","AuthZ check","Encryption"];const P=0.6;
+  let on=[true,true,true,true],busy=false;
+  function breachProb(){return on.reduce((p,e)=>p*(e?(1-P):1),1);}
+  function draw(reached,blockedAt){
+    clear(stage);
+    names.forEach((n,i)=>{
+      const x=40+i*160;const active=on[i];
+      const col=blockedAt===i?"#5fd39a":active?"#7d9dff":"#3a4a60";
+      stage.appendChild(BOX(x,40,140,60,{stroke:col,sw:blockedAt===i?3:2,fill:active?"#141f30":"#0c1420",dash:active?null:"4 3"}));
+      stage.appendChild(T(x+70,68,n,{anchor:"middle",size:11,fill:col}));
+      stage.appendChild(T(x+70,86,active?"on":"OFF",{anchor:"middle",size:9,fill:active?"#6d829e":"#f2708c"}));
+    });
+    if(reached!=null){const x=reached>=names.length?680:40+reached*160-14;stage.appendChild(el("circle",{cx:Math.min(x,690),cy:70,r:7,fill:"#f2708c"}));}
+    stage.appendChild(T(350,130,`breach probability with current layers: ${(breachProb()*100).toFixed(1)}%`,{anchor:"middle",size:12,fill:breachProb()>0.1?"#f2708c":"#5fd39a"}));
+  }
+  ctl.addEventListener("click",e=>{const i=e.target.dataset.layer;if(i==null||busy)return;const idx=+i;on[idx]=!on[idx];e.target.classList.toggle("sel",on[idx]);draw();out.innerHTML=`Toggled ${names[idx]} ${on[idx]?"on":"off"}. Removing one layer multiplies the breach odds — that's why you never rely on a single control.`;});
+  $("#didAttack").onclick=async()=>{
+    if(busy)return;busy=true;
+    for(let i=0;i<names.length;i++){
+      draw(i);await wait(500);
+      if(on[i]&&Math.random()<P){draw(i,i);out.innerHTML=`<b style="color:var(--ok)">Blocked at ${names[i]}.</b> The attack never reached the data. Independent layers give you many chances to stop it.`;busy=false;return;}
+    }
+    draw(names.length+1);out.innerHTML=`<b style="color:#f2708c">Breach!</b> The attack slipped past every enabled layer. With all four on, that's rare (${(breachProb()*100).toFixed(1)}%). Turn layers off and launch again — watch the odds climb.`;
+    busy=false;
+  };
+  draw();
+})();
+
+/* ===================== TEST PYRAMID ===================== */
+(function(){
+  const stage=$("#pyrStage");if(!stage)return;
+  const out=$("#pyrOut"),sl=$("#pyrSlider");
+  function draw(v){
+    clear(stage);
+    const e2e=v/100, unit=1-e2e; // fraction that are slow e2e
+    const total=200;const nUnit=Math.round(total*unit),nE2E=total-nUnit;
+    const time=(nUnit*0.02+nE2E*2).toFixed(1); // seconds
+    // three tiers widths reflect proportion
+    const tiers=[["unit",unit,"#5fd39a",120],["integration",0.3,"#7d9dff",80],["e2e",e2e,"#f2708c",40]];
+    // draw a pyramid: base wide (unit), tip narrow (e2e); widths scaled by count
+    const base=Math.max(60,unit*400+40),mid=180,tip=Math.max(40,e2e*300+30);
+    const cx=250;
+    [[base,120,"#5fd39a","unit "+nUnit],[mid,90,"#7d9dff","integration"],[tip,60,"#f2708c","e2e "+nE2E]].forEach((t,i)=>{
+      const y=40+i*40;stage.appendChild(el("rect",{x:cx-t[0]/2,y,width:t[0],height:32,rx:5,fill:"#141f30",stroke:t[2],"stroke-width":2}));
+      stage.appendChild(T(cx,y+21,t[3],{anchor:"middle",size:11,fill:t[2]}));
+    });
+    stage.appendChild(T(540,70,`suite runtime`,{anchor:"middle",size:11,fill:"#6d829e"}));
+    stage.appendChild(T(540,96,`~${time}s`,{anchor:"middle",size:20,fill:time>60?"#f2708c":time>10?"#f2b03c":"#5fd39a"}));
+    stage.appendChild(T(540,130,e2e>0.5?"slow & flaky":e2e>0.2?"getting heavy":"fast & healthy",{anchor:"middle",size:11,fill:"#9fb0c9"}));
+    out.innerHTML=e2e>0.5?`Top-heavy suite: ~${time}s per run. Devs stop running it → false confidence. Push the base wide.`:`Healthy shape: mostly fast unit tests catch bugs precisely; a few E2E tests confirm the whole works. ~${time}s per run.`;
+  }
+  sl.addEventListener("input",()=>draw(+sl.value));
+  draw(+sl.value);
+})();
+
+/* ===================== TDD LOOP ===================== */
+(function(){
+  const stage=$("#tddStage");if(!stage)return;
+  const out=$("#tddOut");let step=0;
+  const phases=[["RED","#f2708c","Write a failing test first — it defines 'done' and fails for the right reason."],
+    ["GREEN","#5fd39a","Write the minimum code to pass. No gold-plating — just green."],
+    ["REFACTOR","#7d9dff","Now clean up structure with the test as a safety net. Behavior stays fixed."]];
+  function draw(){
+    clear(stage);
+    phases.forEach((p,i)=>{
+      const cx=140+i*210,cy=70;const on=i===step;
+      stage.appendChild(el("circle",{cx,cy,r:on?42:34,fill:on?"#141f30":"#0c1420",stroke:p[1],"stroke-width":on?4:2}));
+      stage.appendChild(T(cx,cy+5,p[0],{anchor:"middle",size:on?14:12,fill:p[1]}));
+      if(i<2){stage.appendChild(LINE(cx+44,cy,cx+166,cy,{stroke:"#25384f",sw:2}));stage.appendChild(el("polygon",{points:`${cx+166},${cy} ${cx+156},${cy-5} ${cx+156},${cy+5}`,fill:"#25384f"}));}
+    });
+    // loop-back arrow
+    stage.appendChild(el("path",{d:"M560 100 Q560 145 350 145 Q140 145 140 105",fill:"none",stroke:"#25384f","stroke-width":2,"stroke-dasharray":"5 4"}));
+    stage.appendChild(T(350,140,"repeat",{anchor:"middle",size:10,fill:"#6d829e"}));
+    stage.appendChild(T(350,25,phases[step][2],{anchor:"middle",size:12,fill:phases[step][1]}));
+    out.innerHTML=`<b style="color:${phases[step][1]}">${phases[step][0]}</b> — ${phases[step][2]}`;
+  }
+  $("#tddStep").onclick=()=>{step=(step+1)%3;draw();};
+  $("#tddReset").onclick=()=>{step=0;draw();};
+  draw();
+})();
+
+/* ===================== REFACTOR TOGGLE ===================== */
+(function(){
+  const code=$("#refCode");if(!code)return;
+  const out=$("#refOut");
+  const smelly=`<span class="kw">def</span> <span class="fn">p</span>(u, t):
+    <span class="kw">if</span> u != <span class="self">None</span>:
+        <span class="kw">if</span> u.a == <span class="self">True</span>:
+            <span class="kw">if</span> t &gt; <span class="num">0</span>:
+                x = t * <span class="num">0.9</span>
+                <span class="kw">return</span> x
+            <span class="kw">else</span>:
+                <span class="kw">return</span> <span class="num">0</span>
+        <span class="kw">else</span>:
+            <span class="kw">return</span> <span class="self">None</span>
+    <span class="kw">else</span>:
+        <span class="kw">return</span> <span class="self">None</span>`;
+  const clean=`<span class="cmt"># guard clauses + names that explain themselves</span>
+<span class="kw">def</span> <span class="fn">discounted_price</span>(user, total):
+    <span class="kw">if</span> user <span class="kw">is</span> <span class="self">None</span> <span class="kw">or</span> <span class="kw">not</span> user.is_active:
+        <span class="kw">return</span> <span class="self">None</span>
+    <span class="kw">if</span> total &lt;= <span class="num">0</span>:
+        <span class="kw">return</span> <span class="num">0</span>
+    <span class="kw">return</span> total * MEMBER_DISCOUNT`;
+  function show(which){
+    code.innerHTML=which==="before"?smelly:clean;
+    $("#refBefore").classList.toggle("sel",which==="before");
+    $("#refAfter").classList.toggle("sel",which==="after");
+    out.innerHTML=which==="before"?`Smells: cryptic names (<code>p</code>, <code>u</code>, <code>a</code>), arrow-shaped nesting, magic number <code>0.9</code>. You must decode it.`:`Same behavior. Guard clauses flatten the nesting, names carry the meaning, and the magic number becomes a named constant. Reads like a sentence.`;
+  }
+  $("#refBefore").onclick=()=>show("before");$("#refAfter").onclick=()=>show("after");
+  show("before");
+})();
+
+/* ===================== CI/CD PIPELINE ===================== */
+(function(){
+  const stage=$("#ciStage");if(!stage)return;
+  const out=$("#ciOut"),bstate=$("#ciBstate");let flaky=false,busy=false;
+  const stages=["Build","Unit tests","Security scan","Deploy"];
+  function draw(states){
+    clear(stage);
+    stages.forEach((s,i)=>{
+      const x=30+i*170;const st=states[i]||"idle";
+      const col=st==="ok"?"#5fd39a":st==="fail"?"#f2708c":st==="run"?"#f2b03c":"#25384f";
+      stage.appendChild(BOX(x,40,150,50,{stroke:col,sw:st==="idle"?1.5:3}));
+      stage.appendChild(T(x+75,63,s,{anchor:"middle",size:12,fill:st==="idle"?"#9fb0c9":col}));
+      stage.appendChild(T(x+75,81,st==="ok"?"✓ passed":st==="fail"?"✗ failed":st==="run"?"running…":"waiting",{anchor:"middle",size:9.5,fill:st==="idle"?"#6d829e":col}));
+      if(i<3)stage.appendChild(LINE(x+150,65,x+200,65,{stroke:"#25384f",sw:2}));
+    });
+  }
+  $("#ciBreak").onclick=()=>{if(busy)return;flaky=!flaky;bstate.textContent=flaky?"flaky":"passing";out.textContent=flaky?"Unit tests set to flaky — push a commit and watch the pipeline stop the release.":"Tests passing.";};
+  $("#ciRun").onclick=async()=>{
+    if(busy)return;busy=true;const st=["idle","idle","idle","idle"];
+    for(let i=0;i<stages.length;i++){
+      st[i]="run";draw(st);out.innerHTML=`stage: <b style="color:var(--flag)">${stages[i]}</b> running…`;await wait(650);
+      if(i===1&&flaky){st[i]="fail";draw(st);out.innerHTML=`<b style="color:#f2708c">${stages[i]} failed</b> → pipeline halts. Deploy never runs. Broken code is stopped before it reaches users — this is CI's whole job.`;busy=false;return;}
+      st[i]="ok";draw(st);await wait(200);
+    }
+    out.innerHTML=`<b style="color:var(--ok)">All gates green → deployed.</b> Every commit takes this exact automated path, so integration problems surface in minutes.`;
+    busy=false;
+  };
+  draw(["idle","idle","idle","idle"]);
+})();
+
+/* ===================== CANARY DEPLOY ===================== */
+(function(){
+  const stage=$("#canaryStage");if(!stage)return;
+  const out=$("#canaryOut"),bstate=$("#canaryBstate");let buggy=false,busy=false;
+  function draw(v2pct,err,rolledBack){
+    clear(stage);
+    const v1=100-v2pct;
+    stage.appendChild(T(60,30,"traffic split",{size:11,fill:"#6d829e"}));
+    // bars
+    const total=580;
+    stage.appendChild(el("rect",{x:60,y:45,width:total*v1/100,height:40,rx:6,fill:"#7d9dff",opacity:.85}));
+    stage.appendChild(el("rect",{x:60+total*v1/100,y:45,width:total*v2pct/100,height:40,rx:6,fill:rolledBack?"#3a4a60":"#5fd39a",opacity:.85}));
+    stage.appendChild(T(60+total*v1/200,70,v1>8?`v1 ${v1}%`:"",{anchor:"middle",size:12,fill:"#0c1420"}));
+    stage.appendChild(T(60+total*v1/100+total*v2pct/200,70,v2pct>8?`v2 ${v2pct}%`:"",{anchor:"middle",size:12,fill:"#0c1420"}));
+    stage.appendChild(T(60,120,"v2 error rate:",{size:12,fill:"#6d829e"}));
+    stage.appendChild(T(180,120,`${err.toFixed(1)}%`,{size:14,fill:err>5?"#f2708c":"#5fd39a"}));
+    // threshold marker
+    stage.appendChild(T(60,150,"auto-rollback threshold: 5%",{size:10,fill:"#6d829e"}));
+    if(rolledBack)stage.appendChild(T(350,175,"⚠ error rate breached threshold → AUTO-ROLLED BACK to v1",{anchor:"middle",size:12,fill:"#f2708c"}));
+  }
+  $("#canaryBug").onclick=()=>{if(busy)return;buggy=!buggy;bstate.textContent=buggy?"buggy":"healthy";out.textContent=buggy?"v2 is buggy — start the rollout and watch the canary catch it early.":"v2 healthy. Start the rollout.";};
+  $("#canaryStart").onclick=async()=>{
+    if(busy)return;busy=true;const steps=[5,25,50,100];
+    for(const pct of steps){
+      const err=buggy?rnd(6,14):rnd(0,1.5);
+      draw(pct,err,false);out.innerHTML=`Routing <b style="color:var(--signal)">${pct}%</b> to v2 · error rate ${err.toFixed(1)}%…`;await wait(850);
+      if(buggy&&err>5){draw(0,err,true);out.innerHTML=`<b style="color:#f2708c">Canary caught it.</b> Only ${pct}% of users saw the bad build before auto-rollback to v1. Blast radius contained — the point of a gradual rollout.`;busy=false;return;}
+    }
+    draw(100,rnd(0,1),false);out.innerHTML=`<b style="color:var(--ok)">v2 fully rolled out.</b> It proved healthy on a small slice first, so widening was safe. No big-bang risk.`;
+    busy=false;
+  };
+  draw(0,0,false);
+})();
+
+</script>
+</body>
+</html>

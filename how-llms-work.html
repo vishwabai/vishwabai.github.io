@@ -1,0 +1,1122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Prediction Machine — How an LLM Works, from Tokens to nanoGPT</title>
+<style>
+:root{
+  --bg:#07090f; --bg2:#0a0d15; --panel:#0d1119; --panel2:#111726; --line:#1c2536;
+  --ink:#d9e1eb; --dim:#8b96a6; --faint:#5a6474;
+  --cy:#4fd8c4; --cy-soft:rgba(79,216,196,.12);
+  --am:#f0a84b; --am-soft:rgba(240,168,75,.12);
+  --mg:#d868a8; --mg-soft:rgba(216,104,168,.12);
+  --bl:#6ea8ff; --bl-soft:rgba(110,168,255,.12);
+  --rd:#ef6a6a;
+  --mono:ui-monospace,'Cascadia Code','JetBrains Mono',Consolas,'Courier New',monospace;
+  --serif:'Iowan Old Style',Palatino,'Palatino Linotype','Book Antiqua',Georgia,serif;
+  --sans:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto} *{animation-duration:.001s!important;transition-duration:.001s!important}}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:16.5px;line-height:1.72;
+  background-image:radial-gradient(ellipse 900px 500px at 75% -100px, rgba(79,216,196,.05), transparent),
+                   radial-gradient(ellipse 700px 400px at 10% 220px, rgba(216,104,168,.04), transparent);}
+::selection{background:rgba(79,216,196,.28)}
+
+/* ---------- layout ---------- */
+.wrap{display:grid;grid-template-columns:250px minmax(0,1fr);max-width:1220px;margin:0 auto;gap:0}
+nav#rail{position:sticky;top:0;height:100vh;overflow-y:auto;padding:26px 14px 40px 18px;border-right:1px solid var(--line);scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+main{padding:0 40px 120px 44px;min-width:0}
+@media(max-width:960px){.wrap{grid-template-columns:1fr}nav#rail{display:none}main{padding:0 18px 90px}}
+
+nav#rail .brand{font-family:var(--mono);font-size:11px;letter-spacing:.22em;color:var(--cy);text-transform:uppercase;margin-bottom:4px}
+nav#rail .brand-sub{font-family:var(--serif);font-size:15px;color:var(--ink);margin-bottom:18px}
+nav#rail a{display:flex;gap:9px;align-items:baseline;color:var(--dim);text-decoration:none;font-size:12.5px;padding:5.5px 8px;border-radius:6px;font-family:var(--mono);line-height:1.35}
+nav#rail a:hover{color:var(--ink);background:var(--panel)}
+nav#rail a.active{color:var(--cy);background:var(--cy-soft)}
+nav#rail a .n{font-size:10px;color:var(--faint);min-width:20px}
+nav#rail a.done .n{color:var(--cy)}
+nav#rail a.done .n::after{content:' ✓'}
+#railbar{height:3px;background:var(--line);border-radius:2px;margin:14px 8px 16px;overflow:hidden}
+#railbar>div{height:100%;width:0%;background:linear-gradient(90deg,var(--cy),var(--mg));transition:width .4s}
+
+/* ---------- hero ---------- */
+header.hero{padding:76px 0 40px;border-bottom:1px solid var(--line);margin-bottom:14px}
+.hero .eyebrow{font-family:var(--mono);font-size:11.5px;letter-spacing:.24em;color:var(--am);text-transform:uppercase;margin-bottom:16px}
+.hero h1{font-family:var(--serif);font-weight:500;font-size:clamp(34px,5vw,54px);line-height:1.12;letter-spacing:-.01em;margin-bottom:20px}
+.hero h1 em{font-style:italic;color:var(--cy)}
+.hero p.lede{font-size:18px;color:var(--dim);max-width:640px;margin-bottom:26px}
+#heroCanvas{width:100%;height:130px;display:block;border:1px solid var(--line);border-radius:12px;background:var(--bg2);margin-top:8px}
+.hero .hint{font-family:var(--mono);font-size:11px;color:var(--faint);margin-top:8px}
+
+/* ---------- sections ---------- */
+section.stage{padding:64px 0 26px;border-bottom:1px solid var(--line)}
+.stage .kicker{display:flex;align-items:center;gap:12px;font-family:var(--mono);font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--cy);margin-bottom:12px}
+.stage .kicker::after{content:'';flex:1;height:1px;background:var(--line)}
+.stage h2{font-family:var(--serif);font-weight:500;font-size:clamp(26px,3.4vw,36px);line-height:1.18;margin-bottom:18px}
+.stage h3{font-family:var(--sans);font-weight:650;font-size:19px;margin:34px 0 10px;color:var(--ink)}
+.stage p{margin-bottom:14px;color:var(--ink)}
+.stage p.mut{color:var(--dim)}
+.stage strong{color:var(--cy);font-weight:650}
+.stage em{color:var(--am);font-style:italic}
+code.k{font-family:var(--mono);font-size:.86em;background:var(--panel2);border:1px solid var(--line);padding:1.5px 6px;border-radius:5px;color:var(--am)}
+
+/* ---------- callouts (Feynman pedagogy) ---------- */
+.box{border:1px solid var(--line);border-left:3px solid var(--cy);background:var(--panel);border-radius:10px;padding:16px 18px;margin:20px 0}
+.box .t{font-family:var(--mono);font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;margin-bottom:7px;color:var(--cy)}
+.box p{margin-bottom:8px}.box p:last-child{margin-bottom:0}
+.box.myth{border-left-color:var(--rd)}.box.myth .t{color:var(--rd)}
+.box.analogy{border-left-color:var(--am)}.box.analogy .t{color:var(--am)}
+.box.deep{border-left-color:var(--mg)}.box.deep .t{color:var(--mg)}
+.box.check{border-left-color:var(--bl)}.box.check .t{color:var(--bl)}
+
+/* ---------- math ---------- */
+.math{font-family:var(--mono);background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:14px 18px;margin:16px 0;font-size:15px;color:var(--ink);overflow-x:auto;line-height:1.9}
+.math .hl{color:var(--cy)} .math .hl2{color:var(--am)} .math .hl3{color:var(--mg)}
+.math .cm{color:var(--faint);font-size:12.5px}
+var{font-style:italic;color:var(--cy);font-family:var(--serif);font-size:1.06em}
+sub,sup{font-size:.7em}
+
+/* ---------- interactive panels ---------- */
+.lab{border:1px solid var(--line);background:linear-gradient(180deg,var(--panel),var(--bg2));border-radius:14px;padding:20px;margin:26px 0;position:relative}
+.lab::before{content:'INTERACTIVE';position:absolute;top:-9px;left:16px;font-family:var(--mono);font-size:9.5px;letter-spacing:.24em;color:var(--am);background:var(--bg);padding:0 8px;border:1px solid var(--line);border-radius:4px}
+.lab .lab-title{font-family:var(--mono);font-size:12.5px;color:var(--ink);margin-bottom:4px;letter-spacing:.04em}
+.lab .lab-sub{font-size:13px;color:var(--dim);margin-bottom:14px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:10px 0}
+button.b{font-family:var(--mono);font-size:12.5px;background:var(--cy-soft);color:var(--cy);border:1px solid rgba(79,216,196,.4);padding:7px 15px;border-radius:8px;cursor:pointer;transition:.15s}
+button.b:hover{background:rgba(79,216,196,.22)}
+button.b:focus-visible,input:focus-visible,textarea:focus-visible,a:focus-visible{outline:2px solid var(--am);outline-offset:2px}
+button.b.warm{background:var(--am-soft);color:var(--am);border-color:rgba(240,168,75,.4)}
+button.b.warm:hover{background:rgba(240,168,75,.22)}
+button.b.ghost{background:transparent;color:var(--dim);border-color:var(--line)}
+button.b:disabled{opacity:.45;cursor:default}
+input[type=text],textarea{font-family:var(--mono);font-size:13.5px;background:var(--bg);border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:9px 12px;width:100%}
+input[type=range]{accent-color:var(--cy)}
+label.rl{font-family:var(--mono);font-size:11.5px;color:var(--dim);display:flex;gap:8px;align-items:center}
+.readout{font-family:var(--mono);font-size:12px;color:var(--am)}
+canvas.cv{width:100%;display:block;background:var(--bg);border:1px solid var(--line);border-radius:10px}
+.small{font-size:12.5px;color:var(--faint);font-family:var(--mono);margin-top:8px;line-height:1.6}
+
+/* token chips */
+.chips{display:flex;flex-wrap:wrap;gap:7px;margin:12px 0;min-height:34px}
+.chip{font-family:var(--mono);font-size:13px;padding:4px 10px;border-radius:7px;border:1px solid;cursor:default;animation:pop .25s ease both}
+@keyframes pop{from{transform:scale(.6);opacity:0}to{transform:scale(1);opacity:1}}
+.chip small{display:block;font-size:9px;opacity:.65;letter-spacing:.05em}
+
+/* matrix display */
+.mx{display:inline-grid;gap:5px;padding:10px 14px;position:relative;font-family:var(--mono);font-size:14px;vertical-align:middle}
+.mx::before,.mx::after{content:'';position:absolute;top:0;bottom:0;width:8px;border:2px solid var(--faint)}
+.mx::before{left:0;border-right:none;border-radius:6px 0 0 6px}
+.mx::after{right:0;border-left:none;border-radius:0 6px 6px 0}
+.mx span{min-width:44px;text-align:center;padding:5px 4px;border-radius:6px;transition:.25s;color:var(--ink)}
+.mx span.ha{background:var(--cy-soft);color:var(--cy);box-shadow:0 0 0 1px rgba(79,216,196,.5)}
+.mx span.hb{background:var(--am-soft);color:var(--am);box-shadow:0 0 0 1px rgba(240,168,75,.5)}
+.mx span.hc{background:var(--mg-soft);color:var(--mg);box-shadow:0 0 0 1px rgba(216,104,168,.6)}
+.mxwrap{display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:center;margin:14px 0}
+.mxop{font-family:var(--serif);font-size:24px;color:var(--dim)}
+
+/* code blocks */
+.codewrap{border:1px solid var(--line);border-radius:12px;margin:18px 0;overflow:hidden;background:var(--bg2)}
+.codewrap .ch{display:flex;justify-content:space-between;align-items:center;font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--dim);background:var(--panel2);padding:8px 14px;border-bottom:1px solid var(--line);text-transform:uppercase}
+pre{font-family:var(--mono);font-size:13px;line-height:1.68;padding:16px 18px;overflow-x:auto;color:#c6d1de;scrollbar-width:thin}
+pre .c{color:#5f6b7d;font-style:italic} pre .kw{color:var(--mg)} pre .fn{color:var(--bl)} pre .st{color:var(--am)} pre .nb{color:var(--cy)} pre .num{color:#e8b4f0}
+.note-strip{border-top:1px dashed var(--line);background:var(--panel);padding:12px 16px;font-size:13.5px;color:var(--dim)}
+.note-strip b{color:var(--am);font-family:var(--mono);font-size:11px;letter-spacing:.15em;text-transform:uppercase;display:block;margin-bottom:4px}
+
+/* quiz */
+.quiz{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:18px;margin:20px 0}
+.quiz .q{font-weight:600;margin-bottom:12px}
+.quiz .opt{display:block;width:100%;text-align:left;font-family:var(--sans);font-size:14.5px;background:var(--bg2);border:1px solid var(--line);color:var(--ink);border-radius:9px;padding:10px 14px;margin:7px 0;cursor:pointer;transition:.15s}
+.quiz .opt:hover{border-color:var(--cy)}
+.quiz .opt.right{border-color:var(--cy);background:var(--cy-soft)}
+.quiz .opt.wrong{border-color:var(--rd);background:rgba(239,106,106,.1)}
+.quiz .expl{display:none;margin-top:10px;font-size:14px;color:var(--dim);border-top:1px dashed var(--line);padding-top:10px}
+.quiz .expl.show{display:block}
+
+/* misc */
+.pipeline{display:flex;gap:0;align-items:stretch;flex-wrap:wrap;margin:20px 0;font-family:var(--mono);font-size:11.5px}
+.pipeline .st{border:1px solid var(--line);background:var(--panel);padding:10px 12px;color:var(--dim);position:relative;flex:1;min-width:105px;text-align:center}
+.pipeline .st b{display:block;color:var(--cy);font-size:12.5px;margin-bottom:2px}
+.pipeline .st:not(:last-child)::after{content:'→';position:absolute;right:-7px;top:50%;transform:translateY(-50%);color:var(--am);z-index:2;background:var(--bg);border-radius:50%}
+.mark{display:inline-flex;gap:8px;align-items:center;font-family:var(--mono);font-size:11.5px;color:var(--dim);border:1px solid var(--line);border-radius:8px;padding:7px 13px;cursor:pointer;margin-top:22px;background:var(--panel)}
+.mark:hover{color:var(--cy);border-color:var(--cy)}
+.mark.on{color:var(--cy);border-color:rgba(79,216,196,.5);background:var(--cy-soft)}
+table.tb{width:100%;border-collapse:collapse;font-size:13.5px;margin:14px 0;font-family:var(--mono)}
+table.tb th{text-align:left;color:var(--am);font-size:11px;letter-spacing:.12em;text-transform:uppercase;border-bottom:1px solid var(--line);padding:8px 10px}
+table.tb td{border-bottom:1px solid var(--line);padding:8px 10px;color:var(--ink)}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-family:var(--mono);font-size:11px;color:var(--dim);margin-top:8px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+details.fold{border:1px solid var(--line);border-radius:10px;margin:14px 0;background:var(--panel)}
+details.fold summary{cursor:pointer;padding:12px 16px;font-family:var(--mono);font-size:12.5px;color:var(--am);list-style:none}
+details.fold summary::before{content:'▸ ';color:var(--faint)}
+details.fold[open] summary::before{content:'▾ '}
+details.fold .inner{padding:4px 16px 14px;border-top:1px dashed var(--line)}
+footer{padding:50px 0 20px;color:var(--faint);font-family:var(--mono);font-size:11.5px;line-height:2}
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav id="rail">
+  <div class="brand">Signal Lab · 01</div>
+  <div class="brand-sub">The Prediction Machine</div>
+  <div id="railbar"><div></div></div>
+  <a href="#s1"><span class="n">01</span>One job: predict</a>
+  <a href="#s2"><span class="n">02</span>Tokens</a>
+  <a href="#s3"><span class="n">03</span>Embeddings</a>
+  <a href="#s4"><span class="n">04</span>Matrix multiply</a>
+  <a href="#s5"><span class="n">05</span>Matmul → learning</a>
+  <a href="#s6"><span class="n">06</span>Attention</a>
+  <a href="#s7"><span class="n">07</span>Transformer block</a>
+  <a href="#s8"><span class="n">08</span>Logits → next token</a>
+  <a href="#s9"><span class="n">09</span>Training loop</a>
+  <a href="#s10"><span class="n">10</span>nanoGPT code</a>
+  <a href="#s11"><span class="n">11</span>Scale &amp; expert notes</a>
+  <a href="#s12"><span class="n">12</span>Explain it back</a>
+</nav>
+<main>
+<header class="hero">
+  <div class="eyebrow">From tokens to gradients · a working tour</div>
+  <h1>A language model is a machine that turns text into numbers, multiplies matrices, and <em>learns which multiplications to regret</em>.</h1>
+  <p class="lede">Everything a GPT does — every apparent flash of understanding — is built from one pipeline: tokenize, embed, attend, multiply, softmax, sample. And everything it <i>knows</i> was carved into its matrices by one signal: the gradient of a prediction error. This file walks the whole path, ending in real nanoGPT code, with live machinery you can poke at every stage.</p>
+  <canvas id="heroCanvas"></canvas>
+  <div class="hint">live: a token stream flowing through embedding → attention → matmul → prediction</div>
+</header>
+
+<!-- ============================== STAGE 1 ============================== -->
+<section class="stage" id="s1">
+  <div class="kicker">Stage 01 · The one job</div>
+  <h2>An LLM does exactly one thing: predict the next token</h2>
+  <p>Strip away the chat interface, the personality, the apparent reasoning. Underneath, a large language model is a function:</p>
+  <div class="math">f(<span class="hl">token₁, token₂, …, tokenₜ</span>) → <span class="hl2">probability distribution over the next token</span></div>
+  <p>Given everything so far, it outputs a probability for <em>every token in its vocabulary</em> being next. GPT-2 has 50,257 tokens in its vocabulary, so its output is 50,257 numbers that sum to 1. Generation is just: predict, sample one token, append it, predict again. A thousand-word essay is a thousand runs of this single function.</p>
+
+  <div class="box myth">
+    <div class="t">Misconception alarm</div>
+    <p><b>"It looks up answers in a database."</b> There is no database. At inference time an LLM is a frozen stack of matrices. The "knowledge" is stored as the <i>values inside those matrices</i> — the same way your knowledge of cycling is stored in synapse strengths, not in a filing cabinet in your skull.</p>
+  </div>
+
+  <div class="box analogy">
+    <div class="t">Two analogies (keep both)</div>
+    <p><b>1 — The autocomplete that ate a library.</b> Phone autocomplete predicts from your last few words using simple counts. An LLM predicts from thousands of tokens of context using ~billions of learned parameters. Same job, unrecognizably better execution.</p>
+    <p><b>2 — Compression.</b> To predict the next token of "the capital of Tamil Nadu is ___" really well, you are forced to <i>know</i> the answer. Good prediction of all human text requires compressing the regularities of grammar, facts, code and logic into the weights. Prediction pressure is what smuggles understanding in.</p>
+  </div>
+
+  <h3>The full pipeline you're about to walk</h3>
+  <div class="pipeline">
+    <div class="st"><b>tokenize</b>text → IDs</div>
+    <div class="st"><b>embed</b>IDs → vectors</div>
+    <div class="st"><b>attend</b>vectors mix</div>
+    <div class="st"><b>MLP</b>think per token</div>
+    <div class="st"><b>×N layers</b>repeat</div>
+    <div class="st"><b>logits</b>scores</div>
+    <div class="st"><b>softmax</b>probs</div>
+    <div class="st"><b>sample</b>next token</div>
+  </div>
+  <p class="mut">Six of those eight boxes are, internally, matrix multiplications. That's why Stage 04–05 — where multiplication becomes learning — is the heart of this file.</p>
+  <button class="mark" data-s="s1">mark stage 01 understood</button>
+</section>
+
+<!-- ============================== STAGE 2 ============================== -->
+<section class="stage" id="s2">
+  <div class="kicker">Stage 02 · Tokens</div>
+  <h2>Text becomes integers before anything else happens</h2>
+  <p>Neural networks eat numbers, not letters. A <strong>tokenizer</strong> chops text into chunks — <em>tokens</em> — and maps each chunk to an integer ID from a fixed vocabulary. Modern models use <strong>Byte-Pair Encoding (BPE)</strong>: start from raw bytes, then repeatedly merge the most frequent adjacent pair into a new vocabulary entry. Common words end up as single tokens; rare words shatter into pieces.</p>
+  <div class="lab">
+    <div class="lab-title">TOKENIZER BENCH</div>
+    <div class="lab-sub">Type anything. A miniature BPE-style tokenizer (greedy longest-match over a small learned vocabulary) splits it and assigns IDs. Notice how common words survive whole while rare ones fragment.</div>
+    <input type="text" id="tokInput" value="The transformer learns to predict unbelievable tokens" aria-label="text to tokenize">
+    <div class="chips" id="tokChips"></div>
+    <div class="small" id="tokStats"></div>
+  </div>
+  <div class="box deep">
+    <div class="t">Why not characters? Why not words?</div>
+    <p><b>Characters</b> make sequences brutally long (attention cost grows with length²) and force the model to relearn spelling before meaning. <b>Words</b> explode the vocabulary (every typo, name and inflection is new) and can't handle anything unseen. BPE sits between: ~50k subword pieces, any string representable, frequent things cheap.</p>
+    <p>Side effects you've seen in the wild: models miscounting the r's in "strawberry" (it may be 1–2 tokens, letters invisible), and weaker arithmetic on unusually-chunked numbers.</p>
+  </div>
+  <p>From here on, the model never sees text again. The sentence above is now just a list like <code class="k">[791, 43678, 47349, ...]</code> — and the next stage gives each integer a soul.</p>
+  <button class="mark" data-s="s2">mark stage 02 understood</button>
+</section>
+
+<!-- ============================== STAGE 3 ============================== -->
+<section class="stage" id="s3">
+  <div class="kicker">Stage 03 · Embeddings</div>
+  <h2>Each token ID becomes a vector — a point in meaning-space</h2>
+  <p>An integer like <code class="k">1042</code> carries no meaning; ID 1042 is not "twice as much" as ID 521. So the first learned operation swaps each ID for a <strong>vector</strong>: a list of, say, 768 numbers. This is literally a table lookup into the <strong>embedding matrix</strong> <var>W</var><sub>E</sub>, of shape <code class="k">vocab_size × n_embd</code> — row <i>i</i> is the vector for token <i>i</i>.</p>
+  <div class="math">x = W<sub>E</sub>[token_id]&nbsp;&nbsp;&nbsp;<span class="cm"># one row of a (50257 × 768) matrix → a 768-dim vector</span></div>
+  <p>Crucially, these vectors are <em>learned</em>, not designed. Training nudges them so that tokens used in similar contexts drift close together. Geometry starts encoding semantics: distance ≈ dissimilarity, and some <em>directions</em> become meaningful (the classic <code class="k">king − man + woman ≈ queen</code>).</p>
+
+  <div class="lab">
+    <div class="lab-title">MEANING-SPACE MAP</div>
+    <div class="lab-sub">A 2-D shadow of an embedding space. Click any two words to measure their similarity — the cosine of the angle between their vectors. Watch related words score high.</div>
+    <canvas class="cv" id="embCanvas" style="height:320px"></canvas>
+    <div class="row"><span class="readout" id="embReadout">click two words…</span>
+      <button class="b ghost" id="embClear">clear</button></div>
+    <div class="small">cos(θ) = (a·b)/(|a||b|) — a dot product, i.e. the seed of everything attention will do in Stage 06.</div>
+  </div>
+
+  <div class="box">
+    <div class="t">Position must be injected</div>
+    <p>Attention (Stage 06) treats its inputs as a <i>set</i> — it has no built-in idea of order. So we add a second lookup: a <b>positional embedding</b> <var>W</var><sub>P</sub> with one learned vector per position. The vector entering the network is <code class="k">x = tok_emb + pos_emb</code>. Same word, different slot → different vector. (Modern models often use RoPE — rotating query/key vectors by position-dependent angles — but nanoGPT's learned table is the clearest starting point.)</p>
+  </div>
+  <div class="box check">
+    <div class="t">Checkpoint</div>
+    <p>You now have a <code class="k">(T × C)</code> matrix: T tokens, each a C-dim vector (nanoGPT calls C <code class="k">n_embd</code>). Every remaining stage is a transformation of this matrix. Ask yourself before scrolling: what operation could let these T rows <i>talk to each other</i>?</p>
+  </div>
+  <button class="mark" data-s="s3">mark stage 03 understood</button>
+</section>
+
+<!-- ============================== STAGE 4 ============================== -->
+<section class="stage" id="s4">
+  <div class="kicker">Stage 04 · The engine</div>
+  <h2>Matrix multiplication: one operation, ~95% of all compute</h2>
+  <p>Here is the operation that GPUs spend their lives on. Multiplying <var>A</var> (shape m×k) by <var>B</var> (shape k×n) gives <var>C</var> (m×n), where every output cell is a <strong>dot product</strong>: row <i>i</i> of A against column <i>j</i> of B.</p>
+  <div class="math">C<sub>ij</sub> = Σ<sub>d</sub> A<sub>id</sub> · B<sub>dj</sub> &nbsp;&nbsp;<span class="cm"># multiply pairwise, add up — that's all</span></div>
+  <div class="lab">
+    <div class="lab-title">MATMUL STEPPER</div>
+    <div class="lab-sub">Step through C = A·B one cell at a time. The <span style="color:var(--cy)">row</span>, the <span style="color:var(--am)">column</span>, and the <span style="color:var(--mg)">cell they produce</span> light up together.</div>
+    <div class="mxwrap">
+      <div class="mx" id="mxA" style="grid-template-columns:repeat(3,auto)"></div>
+      <div class="mxop">·</div>
+      <div class="mx" id="mxB" style="grid-template-columns:repeat(2,auto)"></div>
+      <div class="mxop">=</div>
+      <div class="mx" id="mxC" style="grid-template-columns:repeat(2,auto)"></div>
+    </div>
+    <div class="math" id="mxWork" style="min-height:52px">press <b>step</b> to compute the first cell…</div>
+    <div class="row">
+      <button class="b" id="mxStep">step ▸</button>
+      <button class="b warm" id="mxAuto">auto-play</button>
+      <button class="b ghost" id="mxReset">reset</button>
+    </div>
+  </div>
+
+  <h3>Why this one operation, everywhere?</h3>
+  <p>Because a matrix multiply is a <strong>batch of learned questions</strong>. Think of each <em>column</em> of the weight matrix W as a probe vector — a question. Computing <code class="k">x·W</code> asks all n questions of vector x at once; each output number is "how strongly does x align with probe j?" Stack T token-vectors into X and <code class="k">X·W</code> asks every question of every token simultaneously. That's why it parallelizes so perfectly on GPUs.</p>
+  <div class="box analogy">
+    <div class="t">Analogy: a panel of judges</div>
+    <p>A weight matrix with 768 inputs and 3072 outputs is a panel of 3,072 judges. Each judge (column) has a fixed scorecard of 768 preferences. A token walks in; every judge scores it with a dot product. The output vector is the full score sheet. <b>Training will turn out to be: adjusting the judges' scorecards after every wrong prediction.</b></p>
+  </div>
+  <div class="box deep">
+    <div class="t">Expert corner: where the FLOPs live</div>
+    <p>For a forward pass, a weight matrix of shape (k×n) applied to T tokens costs ≈ 2·T·k·n floating-point ops. Sum over all matrices in GPT-2 and you get the famous estimate <code class="k">FLOPs ≈ 2 · N_params · T</code> per forward pass (≈6·N·T including backward). Attention's own T² term is small until contexts get long. LLM compute <i>is</i> matmul compute — which is exactly why "how does matmul learn?" is the right next question.</p>
+  </div>
+  <button class="mark" data-s="s4">mark stage 04 understood</button>
+</section>
+<!-- ============================== STAGE 5 ============================== -->
+<section class="stage" id="s5">
+  <div class="kicker">Stage 05 · The heart</div>
+  <h2>How matrix multiplication becomes learning</h2>
+  <p>A matrix multiply by itself is dead arithmetic. It becomes <em>learning</em> the moment three things are bolted onto it:</p>
+  <p><strong>1. A loss</strong> — a single number measuring how wrong the prediction was.<br>
+     <strong>2. A gradient</strong> — for every entry <var>w</var><sub>ij</sub> in every matrix, the derivative ∂loss/∂<var>w</var><sub>ij</sub>: "if I nudge this cell up a hair, does the error rise or fall, and how fast?"<br>
+     <strong>3. An update rule</strong> — move every cell a small step <em>against</em> its gradient:</p>
+  <div class="math">w<sub>ij</sub> ← w<sub>ij</sub> − <span class="hl2">η</span> · <span class="hl3">∂L/∂w<sub>ij</sub></span> &nbsp;&nbsp;<span class="cm"># η = learning rate. Repeat a few billion times.</span></div>
+  <p>That's the entire trick. The matrix isn't "programmed"; it's <em>eroded into shape</em> by an endless stream of tiny regret-driven corrections. Each cell only ever follows a local rule — yet collectively the matrix organizes into something that predicts language.</p>
+
+  <div class="box analogy">
+    <div class="t">Analogy: rain carving a valley</div>
+    <p>Each training example is one raindrop. One drop moves almost nothing. But billions of drops, each following the local slope (the gradient), carve riverbeds into the landscape (the weights). Nobody designed the river's path — it is the accumulated memory of where the water needed to go. A trained weight matrix is a fossilized record of every prediction error it survived.</p>
+  </div>
+
+  <div class="lab">
+    <div class="lab-title">WATCH A MATRIX LEARN — LIVE</div>
+    <div class="lab-sub">This is a real bigram language model training in your browser right now — the smallest possible LLM. Its <b>entire brain is one matrix W</b> (27×27): row = current character, and <code class="k">row · softmax</code> = predicted probabilities for the next character. It trains on the tiny corpus below with genuine gradient descent — the same math as GPT, minus the transformer. Press <b>train</b> and watch structure crystallize out of noise.</div>
+    <div class="math" style="font-size:12.5px" id="bgCorpus"></div>
+    <div class="row">
+      <button class="b" id="bgTrain">▸ train 1 epoch</button>
+      <button class="b warm" id="bgAuto">auto-train</button>
+      <button class="b" id="bgSample">generate text</button>
+      <button class="b ghost" id="bgReset">reset weights</button>
+      <label class="rl">lr <input type="range" id="bgLR" min="-2" max="0.7" step="0.1" value="0"> <span class="readout" id="bgLRv">1.0</span></label>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 240px;gap:14px;align-items:start">
+      <div>
+        <canvas class="cv" id="bgHeat" style="height:340px"></canvas>
+        <div class="small">W as a heatmap: row = current char, column = next char. <i style="color:var(--cy)">Bright = high logit.</i> Watch the “q→u” cell, the “·→t” cell (space→t), and vowel columns light up.</div>
+      </div>
+      <div>
+        <canvas class="cv" id="bgLoss" style="height:150px"></canvas>
+        <div class="small" id="bgStats">epoch 0 · loss —<br>random guessing = ln(27) ≈ 3.296</div>
+        <div class="math" id="bgOut" style="font-size:12px;min-height:90px;margin-top:10px">generated text appears here…</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="box">
+    <div class="t">What just happened, precisely</div>
+    <p>For each character pair (c → n) in the corpus: <b>forward</b>: logits = W[c]; probs = softmax(logits); loss = −ln(probs[n]). <b>Backward</b>: the gradient of that loss w.r.t. the logits is beautifully simple: <code class="k">∂L/∂logit_j = probs[j] − 1[j = n]</code> — <i>prediction minus truth</i>. <b>Update</b>: W[c] −= lr · (probs − onehot(n)). The cell for the true next character gets pushed up; every rival gets pushed down, in proportion to how confidently wrong the model was. GPT training is this exact loop, with a transformer inserted between the lookup and the logits.</p>
+  </div>
+  <div class="box myth">
+    <div class="t">Misconception alarm</div>
+    <p><b>"The model memorizes the training data."</b> Look at the heatmap: 27×27 = 729 numbers cannot store the corpus. The matrix is forced to store <i>statistics</i> — reusable regularities — because it lacks the capacity to store instances. Scale that pressure up: GPT-2 saw ~40GB of text into 1.5B params (~6GB as float32, far less as information). Compression forces generalization. (Some verbatim memorization of highly repeated text does occur — but it's the exception the capacity budget permits, not the mechanism.)</p>
+  </div>
+
+  <h3>Gradient descent, seen whole</h3>
+  <div class="lab">
+    <div class="lab-title">LOSS LANDSCAPE DESCENT</div>
+    <div class="lab-sub">All those per-cell updates amount to one thing: sliding downhill on a loss surface with ~billions of axes. Here's a 1-D slice. Drop the ball, tune the learning rate, and find the failure modes yourself.</div>
+    <canvas class="cv" id="gdCanvas" style="height:260px"></canvas>
+    <div class="row">
+      <button class="b" id="gdStep">step</button>
+      <button class="b warm" id="gdRun">run</button>
+      <button class="b ghost" id="gdReset">reset (random start)</button>
+      <label class="rl">learning rate <input type="range" id="gdLR" min="-2.3" max="0.4" step="0.05" value="-1.1"> <span class="readout" id="gdLRv"></span></label>
+    </div>
+    <div class="small">Try: lr ≈ 0.02 (crawls, may stall in the shallow local dip) · lr ≈ 0.3 (healthy) · lr ≈ 2 (explodes — loss diverges, the deep-learning rite of passage).</div>
+  </div>
+  <div class="box deep">
+    <div class="t">Expert corner: why Adam, not plain SGD</div>
+    <p>Real training uses <b>AdamW</b>: it keeps a running mean (momentum, <code class="k">β₁=0.9</code>) and running variance (<code class="k">β₂=0.95</code> in nanoGPT) of each parameter's gradient, and scales each step by mean/√variance. Effect: parameters with noisy or tiny gradients get adaptively larger steps; a heavy ball rolls through small dips. Plus <i>weight decay</i> (the W in AdamW) gently shrinks weights toward 0 — a prior that simple explanations are better. You'll see all of it in nanoGPT's <code class="k">configure_optimizers</code>.</p>
+  </div>
+  <button class="mark" data-s="s5">mark stage 05 understood</button>
+</section>
+
+<!-- ============================== STAGE 6 ============================== -->
+<section class="stage" id="s6">
+  <div class="kicker">Stage 06 · Attention</div>
+  <h2>Attention: tokens vote on which other tokens to read</h2>
+  <p>So far each token is a lonely vector. But meaning is contextual — <em>bank</em> in "river bank" vs "bank loan" must end up as different vectors. <strong>Self-attention</strong> is the mechanism that lets every token rebuild itself as a weighted blend of the tokens before it. Three learned matrices project each token vector x into three roles:</p>
+  <div class="math">
+q = x·W<sub>Q</sub> &nbsp;<span class="cm"># Query — “what am I looking for?”</span><br>
+k = x·W<sub>K</sub> &nbsp;<span class="cm"># Key — “what do I advertise?”</span><br>
+v = x·W<sub>V</sub> &nbsp;<span class="cm"># Value — “what do I hand over if chosen?”</span></div>
+  <p>Token i scores every earlier token j by dot product <code class="k">qᵢ·kⱼ</code> — the same similarity measure from Stage 03. Softmax turns scores into weights, and the token's new content is the weighted sum of values:</p>
+  <div class="math">Attention(Q,K,V) = softmax( <span class="hl">Q·Kᵀ</span> / <span class="hl2">√d<sub>k</sub></span> + <span class="hl3">mask</span> ) · V</div>
+  <p>Three details, each load-bearing: <strong>Q·Kᵀ</strong> computes all T² scores as one matmul. <strong>√d<sub>k</sub></strong> tames the dot products (a sum of d random terms has std ∝ √d; unscaled, softmax saturates and gradients die). The <strong>causal mask</strong> sets every future position's score to −∞ before softmax — token i may only read tokens ≤ i, because the model must work when the future genuinely doesn't exist yet.</p>
+
+  <div class="lab">
+    <div class="lab-title">ATTENTION SCOPE</div>
+    <div class="lab-sub">A real scaled-dot-product attention head over one sentence (small seeded embeddings, actual q·k/√d + causal softmax — not canned numbers). <b>Click any token</b> to see where it looks; arcs and the heatmap row show its attention weights.</div>
+    <div class="chips" id="attChips"></div>
+    <canvas class="cv" id="attArcs" style="height:150px"></canvas>
+    <canvas class="cv" id="attHeat" style="height:300px;margin-top:10px"></canvas>
+    <div class="small">Heatmap: row = query token, column = key token. The upper-right triangle is blank — that's the causal mask forbidding time travel. Note the diagonal (tokens attend to themselves) and how <i>it</i> reaches back to <i>robot</i>.</div>
+  </div>
+
+  <div class="box analogy">
+    <div class="t">Analogy: a silent library</div>
+    <p>Every earlier token sits in a library holding up a <b>key</b> card ("I'm a noun, singular, animate…") and clutching a <b>value</b> folder (its actual content). The current token walks in with a <b>query</b> card ("seeking: the noun this pronoun refers to"). It compares its query against every key, takes a softmax-weighted photocopy of the matching folders, and staples the blend to itself. Nobody speaks; it's all dot products.</p>
+  </div>
+  <div class="box deep">
+    <div class="t">Expert corner: multi-head, and what heads become</div>
+    <p>One attention pattern per layer is too little. So split the C=768 channels into <code class="k">n_head=12</code> heads of 64 dims; each head runs attention independently in its own subspace, then outputs are concatenated and mixed by W<sub>O</sub>. Heads specialize emergently: interpretability work (e.g. Anthropic's induction-head studies) finds previous-token heads, syntax heads, and <b>induction heads</b> that implement "…A B … A → predict B" — a learned copy-paste that's a core ingredient of in-context learning. Nobody assigned these jobs; gradient descent invented them.</p>
+  </div>
+  <button class="mark" data-s="s6">mark stage 06 understood</button>
+</section>
+
+<!-- ============================== STAGE 7 ============================== -->
+<section class="stage" id="s7">
+  <div class="kicker">Stage 07 · The block</div>
+  <h2>The transformer block: communicate, then compute — and repeat</h2>
+  <p>Attention lets tokens <em>talk</em>; the <strong>MLP</strong> lets each token <em>think</em> about what it heard. A transformer block wires them together with two stabilizers — residual connections and LayerNorm — and the whole model is just this block stacked N times (12 for GPT-2 small, 96+ for frontier models).</p>
+  <div class="math"><span class="cm"># one block, exactly as nanoGPT writes it (pre-LN):</span><br>
+x = x + <span class="hl">attn</span>( ln₁(x) )&nbsp;&nbsp;&nbsp;<span class="cm"># communicate: mix info across tokens</span><br>
+x = x + <span class="hl2">mlp</span>( ln₂(x) )&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm"># compute: process each token independently</span></div>
+  <p>The MLP is two matmuls with a nonlinearity between — expand to 4×C dims, apply GELU, project back:</p>
+  <div class="math">mlp(x) = GELU(x·W₁ + b₁)·W₂ + b₂ &nbsp;&nbsp;<span class="cm"># W₁: (768→3072), W₂: (3072→768) — ⅔ of all params live here</span></div>
+
+  <div class="box">
+    <div class="t">Why each piece exists</div>
+    <p><b>Residual (x + f(x)):</b> the block computes a <i>correction</i>, not a replacement. Information flows through an untouched highway; gradients flow backward through it too, which is what makes 100-layer training possible. Think of the residual stream as a shared whiteboard each block reads and politely appends to.</p>
+    <p><b>LayerNorm:</b> re-centers and re-scales each token's vector before each sub-block — keeping activations in the range where gradients are healthy, layer after layer.</p>
+    <p><b>GELU nonlinearity:</b> without it, all those stacked matmuls would collapse into one big matmul (linear × linear = linear) and depth would buy nothing. The gentle curve between W₁ and W₂ is what lets the network compose genuinely new functions. The 4×-wide hidden layer acts like a key–value memory: research shows MLP neurons firing for specific concepts and facts.</p>
+  </div>
+  <div class="box deep">
+    <div class="t">Expert corner: the residual stream view</div>
+    <p>A productive mental model from interpretability work: the residual stream is a <b>communication bus</b> of width C. Attention heads and MLPs are peripherals that read from it (via their input matrices) and write to it (via their output matrices) in learned subspaces. Features are directions in this space; circuits are chains of components passing information through it. Depth = more read-modify-write cycles on the same bus.</p>
+  </div>
+  <button class="mark" data-s="s7">mark stage 07 understood</button>
+</section>
+<!-- ============================== STAGE 8 ============================== -->
+<section class="stage" id="s8">
+  <div class="kicker">Stage 08 · Output</div>
+  <h2>Logits → softmax → a roll of the dice</h2>
+  <p>After the last block, the final token's vector is multiplied by one last matrix — the <strong>unembedding</strong> / language-model head, shape <code class="k">n_embd × vocab_size</code>. Out come 50,257 raw scores called <strong>logits</strong>. Softmax converts them to probabilities:</p>
+  <div class="math">P(token j) = e<sup>z<sub>j</sub>/<span class="hl2">T</span></sup> / Σ<sub>k</sub> e<sup>z<sub>k</sub>/<span class="hl2">T</span></sup> &nbsp;&nbsp;<span class="cm"># T = temperature</span></div>
+  <p>Then the model <em>samples</em>. Always taking the argmax makes text loop and flatten; sampling from the distribution keeps it alive. <strong>Temperature</strong> divides the logits first: T→0 sharpens toward greedy determinism, T&gt;1 flattens toward chaos. <strong>Top-k</strong> keeps only the k highest logits before softmax, cutting off the long tail of nonsense.</p>
+  <div class="lab">
+    <div class="lab-title">SAMPLING CONSOLE</div>
+    <div class="lab-sub">Real logits for the context “The robot picked up the ___”. Drag temperature and top-k; the distribution recomputes live. Then sample.</div>
+    <canvas class="cv" id="smCanvas" style="height:250px"></canvas>
+    <div class="row">
+      <label class="rl">temperature <input type="range" id="smT" min="0.05" max="2.5" step="0.05" value="1"> <span class="readout" id="smTv">1.00</span></label>
+      <label class="rl">top-k <input type="range" id="smK" min="1" max="10" step="1" value="10"> <span class="readout" id="smKv">10</span></label>
+      <button class="b" id="smSample">sample next token</button>
+    </div>
+    <div class="math" id="smOut" style="min-height:44px">The robot picked up the <span class="hl2">…</span></div>
+  </div>
+  <div class="box myth">
+    <div class="t">Misconception alarm</div>
+    <p><b>"The model chooses its words."</b> The model outputs a distribution; a random number generator outside the network picks the token. Same weights + same prompt + temperature 0 → same essay, forever. The "creativity" knob is literally a division performed on the logits.</p>
+  </div>
+  <button class="mark" data-s="s8">mark stage 08 understood</button>
+</section>
+
+<!-- ============================== STAGE 9 ============================== -->
+<section class="stage" id="s9">
+  <div class="kicker">Stage 09 · Training</div>
+  <h2>The training loop: every token grades the model simultaneously</h2>
+  <p>Now close the loop from Stage 05, at full scale. Take a chunk of real text of length T+1. Feed the first T tokens through the model. Thanks to the causal mask, position i's output is a prediction of token i+1 <em>made without peeking</em> — so <strong>one forward pass yields T predictions and T losses at once</strong>. The loss is cross-entropy: the average of −ln(probability the model gave the true next token).</p>
+  <div class="math">L = −(1/T) Σ<sub>i</sub> ln P<sub>θ</sub>(x<sub>i+1</sub> | x<sub>1..i</sub>)
+&nbsp;&nbsp;<span class="cm"># “how surprised were you, on average?”</span><br>
+<span class="cm"># L = ln(50257) ≈ 10.8 → clueless · GPT-2 ≈ 3.1 · modern frontier ≪ that</span></div>
+  <p>Then <strong>backpropagation</strong> — the chain rule, applied backward through every matmul, softmax and GELU — computes ∂L/∂w for all parameters in one sweep, costing only ~2× the forward pass. The two rules worth memorizing:</p>
+  <div class="math"><span class="cm"># through a matmul  Y = X·W :</span><br>
+∂L/∂W = Xᵀ·(∂L/∂Y)&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm"># gradient of weights = input ⊗ output-error</span><br>
+∂L/∂X = (∂L/∂Y)·Wᵀ&nbsp;&nbsp;&nbsp;<span class="cm"># error flows backward through the same weights, transposed</span><br><br>
+<span class="cm"># through softmax + cross-entropy (the miracle cancellation):</span><br>
+∂L/∂logit<sub>j</sub> = <span class="hl">P<sub>j</sub> − 1[j = target]</span>&nbsp;&nbsp;<span class="cm"># prediction minus truth — as in the bigram lab</span></div>
+  <div class="box analogy">
+    <div class="t">Analogy: blame accounting</div>
+    <p>The loss is a debt. Backprop is the auditor walking the books in reverse, splitting the debt among every weight according to the chain rule: “this cell contributed 0.0003% of the error.” The optimizer then collects — each weight pays its share by moving against its gradient. ∂L/∂W = Xᵀ·δ says blame lands where <i>input was large AND output-error was large</i>: exactly the cells that actively caused the mistake.</p>
+  </div>
+  <div class="box deep">
+    <div class="t">Expert corner: the three-phase life cycle</div>
+    <p><b>1 Pretraining</b> — the above loop over trillions of tokens of internet text: weeks on thousands of GPUs; ~all of the capability. <b>2 Supervised fine-tuning</b> — same loss on curated (instruction → good answer) pairs; teaches the assistant format. <b>3 RLHF / preference optimization</b> — humans (or a reward model) rank outputs; the policy is nudged toward preferred behavior. Steps 2–3 barely change the weights (relatively) — they steer the giant prediction engine, they don't build it.</p>
+  </div>
+  <button class="mark" data-s="s9">mark stage 09 understood</button>
+</section>
+
+<!-- ============================== STAGE 10 ============================== -->
+<section class="stage" id="s10">
+  <div class="kicker">Stage 10 · The code</div>
+  <h2>nanoGPT: the whole architecture in ~90 lines that matter</h2>
+  <p class="mut">Below is the essential model code of Andrej Karpathy's <b>nanoGPT</b> (MIT license, lightly trimmed/annotated), the cleanest GPT-2 implementation in existence. Read it top-down against Stages 03–09 — every line now has a stage behind it. Shapes: <code class="k">B</code>=batch, <code class="k">T</code>=sequence length, <code class="k">C</code>=n_embd, <code class="k">nh</code>=heads, <code class="k">hs</code>=C/nh.</p>
+
+  <div class="codewrap"><div class="ch"><span>model.py · causal self-attention</span><span>stage 06</span></div>
+<pre><span class="kw">class</span> <span class="fn">CausalSelfAttention</span>(nn.Module):
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, config):
+        <span class="kw">super</span>().__init__()
+        <span class="c"># ONE matrix computes Q,K,V for all heads at once: (C → 3C)</span>
+        self.c_attn = nn.Linear(config.n_embd, <span class="num">3</span> * config.n_embd)
+        self.c_proj = nn.Linear(config.n_embd, config.n_embd)  <span class="c"># W_O: re-mix heads</span>
+        self.n_head, self.n_embd = config.n_head, config.n_embd
+
+    <span class="kw">def</span> <span class="fn">forward</span>(self, x):
+        B, T, C = x.size()
+        q, k, v = self.c_attn(x).split(self.n_embd, dim=<span class="num">2</span>)   <span class="c"># each (B,T,C)</span>
+        <span class="c"># carve C channels into nh independent heads of size hs</span>
+        k = k.view(B, T, self.n_head, C // self.n_head).transpose(<span class="num">1</span>, <span class="num">2</span>)  <span class="c"># (B,nh,T,hs)</span>
+        q = q.view(B, T, self.n_head, C // self.n_head).transpose(<span class="num">1</span>, <span class="num">2</span>)
+        v = v.view(B, T, self.n_head, C // self.n_head).transpose(<span class="num">1</span>, <span class="num">2</span>)
+        <span class="c"># THE equation: softmax(QKᵀ/√d + mask)·V  — fused Flash-Attention kernel</span>
+        y = F.scaled_dot_product_attention(q, k, v, is_causal=<span class="nb">True</span>)
+        y = y.transpose(<span class="num">1</span>, <span class="num">2</span>).contiguous().view(B, T, C)  <span class="c"># concat heads</span>
+        <span class="kw">return</span> self.c_proj(y)</pre>
+  <div class="note-strip"><b>the math it runs</b>For each head: att = softmax((q·kᵀ)·hs<sup>−½</sup> + causal_mask), then y = att·v. The older nanoGPT versions spell it out — <code class="k">att = (q @ k.transpose(-2,-1)) * (1.0/math.sqrt(k.size(-1)))</code>, then <code class="k">att.masked_fill(bias==0, float('-inf'))</code>, softmax, <code class="k">att @ v</code>. FlashAttention computes the identical result while never materializing the T×T matrix in slow memory — tiles it through on-chip SRAM.</div></div>
+
+  <div class="codewrap"><div class="ch"><span>model.py · MLP and Block</span><span>stage 07</span></div>
+<pre><span class="kw">class</span> <span class="fn">MLP</span>(nn.Module):
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, config):
+        <span class="kw">super</span>().__init__()
+        self.c_fc   = nn.Linear(config.n_embd, <span class="num">4</span> * config.n_embd)  <span class="c"># expand ×4</span>
+        self.gelu   = nn.GELU()                                     <span class="c"># the nonlinearity</span>
+        self.c_proj = nn.Linear(<span class="num">4</span> * config.n_embd, config.n_embd)  <span class="c"># project back</span>
+    <span class="kw">def</span> <span class="fn">forward</span>(self, x):
+        <span class="kw">return</span> self.c_proj(self.gelu(self.c_fc(x)))
+
+<span class="kw">class</span> <span class="fn">Block</span>(nn.Module):
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, config):
+        <span class="kw">super</span>().__init__()
+        self.ln_1, self.attn = nn.LayerNorm(config.n_embd), CausalSelfAttention(config)
+        self.ln_2, self.mlp  = nn.LayerNorm(config.n_embd), MLP(config)
+    <span class="kw">def</span> <span class="fn">forward</span>(self, x):
+        x = x + self.attn(self.ln_1(x))   <span class="c"># communicate  (+ residual highway)</span>
+        x = x + self.mlp(self.ln_2(x))    <span class="c"># compute      (+ residual highway)</span>
+        <span class="kw">return</span> x</pre>
+  <div class="note-strip"><b>read it as prose</b>“Normalize, let tokens exchange information, add the correction to the stream; normalize, let each token process privately, add that too.” Stage 07, verbatim.</div></div>
+
+  <div class="codewrap"><div class="ch"><span>model.py · the GPT itself</span><span>stages 03 + 08 + 09</span></div>
+<pre><span class="kw">class</span> <span class="fn">GPT</span>(nn.Module):
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, config):
+        <span class="kw">super</span>().__init__()
+        self.transformer = nn.ModuleDict(<span class="kw">dict</span>(
+            wte = nn.Embedding(config.vocab_size, config.n_embd), <span class="c"># token table   (S03)</span>
+            wpe = nn.Embedding(config.block_size, config.n_embd), <span class="c"># position table(S03)</span>
+            h   = nn.ModuleList([Block(config) <span class="kw">for</span> _ <span class="kw">in</span> <span class="kw">range</span>(config.n_layer)]),
+            ln_f= nn.LayerNorm(config.n_embd),
+        ))
+        self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=<span class="nb">False</span>)
+        <span class="c"># weight tying: the unembedding IS the embedding, transposed. Saves 38M</span>
+        <span class="c"># params in GPT-2 and helps: reading and writing share one meaning-space.</span>
+        self.transformer.wte.weight = self.lm_head.weight
+
+    <span class="kw">def</span> <span class="fn">forward</span>(self, idx, targets=<span class="nb">None</span>):
+        B, T = idx.size()
+        pos = torch.arange(<span class="num">0</span>, T, device=idx.device)
+        tok_emb = self.transformer.wte(idx)      <span class="c"># (B,T,C)  IDs → vectors</span>
+        pos_emb = self.transformer.wpe(pos)      <span class="c"># (T,C)    where am I?</span>
+        x = tok_emb + pos_emb
+        <span class="kw">for</span> block <span class="kw">in</span> self.transformer.h:         <span class="c"># N read-modify-write cycles</span>
+            x = block(x)
+        x = self.transformer.ln_f(x)
+        logits = self.lm_head(x)                 <span class="c"># (B,T,vocab) scores  (S08)</span>
+        loss = <span class="nb">None</span>
+        <span class="kw">if</span> targets <span class="kw">is not</span> <span class="nb">None</span>:                  <span class="c"># training: T losses at once (S09)</span>
+            loss = F.cross_entropy(logits.view(-<span class="num">1</span>, logits.size(-<span class="num">1</span>)),
+                                   targets.view(-<span class="num">1</span>), ignore_index=-<span class="num">1</span>)
+        <span class="kw">return</span> logits, loss</pre>
+  <div class="note-strip"><b>the shape journey</b>(B,T) ints → embed → (B,T,C) → 12 blocks, shape unchanged (residual stream!) → lm_head → (B,T,50257) → cross-entropy against the same text shifted left by one. The <i>data is its own label</i> — that's why pretraining scales: no human annotation needed.</div></div>
+
+  <div class="codewrap"><div class="ch"><span>generation + training loop</span><span>stages 08 + 05</span></div>
+<pre><span class="nb">@torch.no_grad</span>()
+<span class="kw">def</span> <span class="fn">generate</span>(self, idx, max_new_tokens, temperature=<span class="num">1.0</span>, top_k=<span class="nb">None</span>):
+    <span class="kw">for</span> _ <span class="kw">in</span> <span class="kw">range</span>(max_new_tokens):
+        idx_cond = idx[:, -self.config.block_size:]   <span class="c"># crop to context window</span>
+        logits, _ = self(idx_cond)
+        logits = logits[:, -<span class="num">1</span>, :] / temperature       <span class="c"># last position only (S08)</span>
+        <span class="kw">if</span> top_k: <span class="c"># keep k best, drown the rest</span>
+            v, _ = torch.topk(logits, top_k)
+            logits[logits &lt; v[:, [-<span class="num">1</span>]]] = -<span class="kw">float</span>(<span class="st">'inf'</span>)
+        probs = F.softmax(logits, dim=-<span class="num">1</span>)
+        idx_next = torch.multinomial(probs, num_samples=<span class="num">1</span>)  <span class="c"># the dice roll</span>
+        idx = torch.cat((idx, idx_next), dim=<span class="num">1</span>)      <span class="c"># append, repeat</span>
+    <span class="kw">return</span> idx
+
+<span class="c"># ---- train.py, reduced to its skeleton ----</span>
+<span class="kw">for</span> it <span class="kw">in</span> <span class="kw">range</span>(max_iters):
+    X, Y = get_batch(<span class="st">'train'</span>)        <span class="c"># Y is X shifted left by one token</span>
+    logits, loss = model(X, Y)        <span class="c"># forward</span>
+    loss.backward()                   <span class="c"># backprop: chain rule through everything</span>
+    torch.nn.utils.clip_grad_norm_(model.parameters(), <span class="num">1.0</span>)  <span class="c"># tame spikes</span>
+    optimizer.step()                  <span class="c"># AdamW: w ← w − lr·m̂/(√v̂+ε) − lr·λ·w</span>
+    optimizer.zero_grad(set_to_none=<span class="nb">True</span>)</pre>
+  <div class="note-strip"><b>that's the whole religion</b>Five lines of loop. Everything else in train.py is engineering: LR warmup + cosine decay, gradient accumulation (simulate huge batches), mixed precision (bfloat16 matmuls), DDP (shard across GPUs), checkpointing. The learning itself is these five lines — the same five your bigram matrix ran in Stage 05.</div></div>
+
+  <div class="lab">
+    <div class="lab-title">PARAMETER MICROSCOPE</div>
+    <div class="lab-sub">Where do GPT-2's 124M parameters actually live? Drag the config and the census recomputes from the exact formulas.</div>
+    <div class="row">
+      <label class="rl">n_layer <input type="range" id="pcL" min="1" max="48" value="12"><span class="readout" id="pcLv">12</span></label>
+      <label class="rl">n_embd <input type="range" id="pcC" min="64" max="1600" step="64" value="768"><span class="readout" id="pcCv">768</span></label>
+      <label class="rl">vocab <input type="range" id="pcV" min="1000" max="100000" step="1000" value="50000"><span class="readout" id="pcVv">50k</span></label>
+    </div>
+    <canvas class="cv" id="pcCanvas" style="height:170px"></canvas>
+    <div class="small" id="pcStats"></div>
+    <div class="small">Formulas per layer: attention = 4C² (+biases) · MLP = 8C² (+biases) · embeddings = vocab·C (tied with head). Notice: params scale as <b>C²</b>, so width is quadratically expensive; depth is linear.</div>
+  </div>
+  <button class="mark" data-s="s10">mark stage 10 understood</button>
+</section>
+<!-- ============================== STAGE 11 ============================== -->
+<section class="stage" id="s11">
+  <div class="kicker">Stage 11 · Scale</div>
+  <h2>From nanoGPT to frontier models: same skeleton, industrial muscles</h2>
+  <p>Everything you just read is the complete architecture. Frontier models differ mostly in scale and a handful of upgrades:</p>
+  <table class="tb">
+    <tr><th>ingredient</th><th>nanoGPT / GPT-2</th><th>modern frontier stack</th></tr>
+    <tr><td>position info</td><td>learned table (wpe)</td><td>RoPE — rotate q,k by position angle; extrapolates better</td></tr>
+    <tr><td>normalization</td><td>LayerNorm</td><td>RMSNorm (drop the mean-subtraction; cheaper, works)</td></tr>
+    <tr><td>nonlinearity</td><td>GELU</td><td>SwiGLU — gated MLP: (xW₁ ⊙ swish(xW_g))W₂</td></tr>
+    <tr><td>attention</td><td>full multi-head</td><td>GQA/MQA — many query heads share few K,V heads (shrinks KV-cache)</td></tr>
+    <tr><td>params</td><td>124M</td><td>10⁹–10¹²; often MoE: a router picks 2 of N expert MLPs per token</td></tr>
+    <tr><td>context</td><td>1,024 tokens</td><td>10⁵–10⁶+, via RoPE scaling + attention variants</td></tr>
+    <tr><td>data</td><td>~10B tokens (OpenWebText)</td><td>~10¹³ tokens, heavily filtered and mixed</td></tr>
+  </table>
+
+  <h3>Three expert ideas worth owning</h3>
+  <div class="box deep">
+    <div class="t">1 · The KV-cache — why generation is memory-bound</div>
+    <p>During generation, each new token needs attention over all previous keys/values — which haven't changed. So cache them. Cost per token drops from O(T²) recompute to O(T) reads, but the cache is huge: <code class="k">2 · n_layer · n_head · head_size · T · bytes</code> per sequence. At long context, moving this cache through memory bandwidth — not FLOPs — is the bottleneck. This is why GQA, paged attention, and quantized caches exist, and why your tokens/sec drops as a chat grows.</p>
+  </div>
+  <div class="box deep">
+    <div class="t">2 · Scaling laws — loss is a budget, not a mystery</div>
+    <p>Loss falls as a smooth power law in parameters N and tokens D. The Chinchilla analysis showed compute-optimal training wants roughly <b>D ≈ 20·N</b> — GPT-3 was undertrained for its size. Modern practice deliberately over-trains small models far past 20:1 because inference cost depends on N alone. Capability, to first order, is purchased in FLOPs.</p>
+  </div>
+  <div class="box deep">
+    <div class="t">3 · Emergence lives in the residual stream</div>
+    <p>Nothing in the code says "grammar module" or "arithmetic unit." Yet trained models contain induction heads, IOI circuits, French-detecting neurons. The lesson of Stage 05 at scale: <b>a sufficiently large pile of matrices under sufficiently long prediction pressure organizes itself into algorithms.</b> Mechanistic interpretability is the reverse-engineering of what gradient descent wrote.</p>
+  </div>
+  <div class="box myth">
+    <div class="t">Final misconception sweep</div>
+    <p><b>"It's just statistics, so it can't reason"</b> and <b>"it reasons, so it's not statistics"</b> are both lazy. The truth is stranger: gradient descent on next-token prediction discovers <i>circuits</i> — real algorithms implemented in linear algebra — because algorithms predict better than lookup tables. Whether that constitutes "reasoning" is a definitional fight; that it's mechanistically more than n-gram counting is settled.</p>
+  </div>
+  <button class="mark" data-s="s11">mark stage 11 understood</button>
+</section>
+
+<!-- ============================== STAGE 12 ============================== -->
+<section class="stage" id="s12">
+  <div class="kicker">Stage 12 · Consolidate</div>
+  <h2>Explain it back — the Feynman test</h2>
+  <p>You only own an idea when you can rebuild it from nothing. First, the quiz; then the rebuild.</p>
+
+  <div class="quiz" data-a="1"><div class="q">1 · A weight matrix "learns" because…</div>
+    <button class="opt">it stores training sentences for later retrieval</button>
+    <button class="opt">each cell is repeatedly nudged opposite to its gradient of the prediction loss</button>
+    <button class="opt">the matmul algorithm itself adapts to the data</button>
+    <div class="expl">Learning = loss + gradient + update rule. The multiplication never changes; the <b>numbers being multiplied</b> do, each cell following ∂L/∂w downhill. (a) fails on capacity grounds — see the 27×27 bigram; (c) confuses the operation with its operands.</div></div>
+
+  <div class="quiz" data-a="2"><div class="q">2 · Why divide attention scores by √dₖ?</div>
+    <button class="opt">to keep probabilities summing to one</button>
+    <button class="opt">to make attention run faster on GPUs</button>
+    <button class="opt">dot products of d-dim vectors grow like √d; unscaled, softmax saturates and gradients vanish</button>
+    <div class="expl">The variance of a sum of d independent products is ∝ d, so magnitude ∝ √d. Huge logits → softmax outputs a near one-hot → derivatives ≈ 0 → the attention head stops learning. Softmax itself handles (a); (b) is irrelevant to a scalar divide.</div></div>
+
+  <div class="quiz" data-a="0"><div class="q">3 · One forward pass over T tokens produces how many training signals?</div>
+    <button class="opt">T — every position predicts its successor, thanks to the causal mask</button>
+    <button class="opt">1 — only the final token's prediction is scored</button>
+    <button class="opt">T² — every token predicts every other token</button>
+    <div class="expl">Because position i provably can't see past i, its output is a legitimate prediction of token i+1. A 1,024-token chunk delivers 1,024 graded exam questions per pass — the efficiency that makes pretraining feasible.</div></div>
+
+  <div class="quiz" data-a="2"><div class="q">4 · Remove every GELU from GPT-2. What remains?</div>
+    <button class="opt">the same model, slightly less accurate</button>
+    <button class="opt">a model that can't be trained</button>
+    <button class="opt">effectively one big linear map — all stacked matmuls collapse together</button>
+    <div class="expl">Linear ∘ linear = linear (attention softmax adds some nonlinearity, but the MLPs — ⅔ of parameters — would collapse). Depth without nonlinearity buys nothing; the humble activation function is what makes 96 layers mean something.</div></div>
+
+  <div class="quiz" data-a="1"><div class="q">5 · ∂L/∂logits under cross-entropy + softmax equals…</div>
+    <button class="opt">target − prediction</button>
+    <button class="opt">prediction − target (probs minus one-hot)</button>
+    <button class="opt">−ln(prediction)</button>
+    <div class="expl">The exponentials and the log cancel into <code class="k">p − y</code>: push up the truth, push down rivals in proportion to misplaced confidence. You watched this exact vector update the bigram heatmap in Stage 05. (c) is the loss, not its gradient.</div></div>
+
+  <div class="lab">
+    <div class="lab-title">THE REBUILD</div>
+    <div class="lab-sub">Close your eyes and narrate the full journey of the prompt “the cat sat on the” to a curious 12-year-old — tokens → vectors → attention → blocks → logits → dice → and how the matrices got their values. Then write your weakest link below (stored locally, only for you).</div>
+    <textarea id="feyn" rows="4" placeholder="The step I still can't explain simply is…"></textarea>
+    <div class="row"><button class="b" id="feynSave">save note</button><span class="readout" id="feynStat"></span></div>
+  </div>
+
+  <div class="box">
+    <div class="t">Where to go next</div>
+    <p>1 · Karpathy: <i>Let's build GPT from scratch</i> + <i>makemore</i> series — type every line. 2 · Read real <code class="k">nanoGPT/model.py</code> end to end; it will now feel familiar. 3 · <i>Attention Is All You Need</i> (2017) and the Chinchilla paper (2022). 4 · Anthropic's <i>A Mathematical Framework for Transformer Circuits</i> + induction-heads work — Stage 11's residual-stream view, formalized. 5 · Train nanoGPT on Shakespeare on any GPU; watch loss 4.2 → 1.5 and feel Stage 05 in your bones.</p>
+  </div>
+  <button class="mark" data-s="s12">mark stage 12 understood</button>
+</section>
+
+<footer>
+  THE PREDICTION MACHINE · single-file, offline, no dependencies · all demos compute for real (greedy tokenizer, live SGD bigram, seeded scaled-dot-product attention, exact param census)<br>
+  code excerpts adapted from Andrej Karpathy's nanoGPT (MIT) · progress &amp; notes stored in your browser's localStorage only
+</footer>
+</main>
+</div>
+<script>
+(function(){
+"use strict";
+/* ---------------- utilities ---------------- */
+function $(id){return document.getElementById(id);}
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+// seeded RNG (mulberry32) so demos are deterministic
+function rng(seed){var t=seed>>>0;return function(){t+=0x6D2B79F5;var r=Math.imul(t^t>>>15,1|t);r^=r+Math.imul(r^r>>>7,61|r);return((r^r>>>14)>>>0)/4294967296;};}
+function gauss(rand){var u=0,v=0;while(u===0)u=rand();while(v===0)v=rand();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+function softmax(arr){var m=Math.max.apply(null,arr);var ex=arr.map(function(z){return Math.exp(z-m);});var s=ex.reduce(function(a,b){return a+b;},0);return ex.map(function(e){return e/s;});}
+// hi-DPI canvas setup; returns ctx with logical w/h attached
+function setup(cv){var d=window.devicePixelRatio||1;var r=cv.getBoundingClientRect();cv.width=Math.round(r.width*d);cv.height=Math.round(r.height*d);var c=cv.getContext('2d');c.setTransform(d,0,0,d,0,0);c.W=r.width;c.H=r.height;return c;}
+var reduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+var CY='#4fd8c4',AM='#f0a84b',MG='#d868a8',BL='#6ea8ff',DIM='#8b96a6',FAINT='#5a6474',LINE='#1c2536',BG='#07090f';
+var MONO='11px ui-monospace, Consolas, monospace';
+
+/* ---------------- hero: token stream ---------------- */
+(function(){
+  var cv=$('heroCanvas');if(!cv)return;var ctx=setup(cv);
+  var stages=['embed','attend','matmul','softmax'];
+  var toks=['The','pre','dict','ion','mach','ine','runs','on','mat','mul'];
+  var parts=[];for(var i=0;i<toks.length;i++)parts.push({t:toks[i],x:-i*70,hue:i});
+  function frame(){
+    ctx.clearRect(0,0,ctx.W,ctx.H);var W=ctx.W,H=ctx.H;
+    // stage gates
+    for(var s=0;s<stages.length;s++){var gx=W*0.28+s*(W*0.17);
+      ctx.strokeStyle=LINE;ctx.setLineDash([3,4]);ctx.beginPath();ctx.moveTo(gx,14);ctx.lineTo(gx,H-26);ctx.stroke();ctx.setLineDash([]);
+      ctx.fillStyle=FAINT;ctx.font='9px ui-monospace,monospace';ctx.textAlign='center';ctx.fillText(stages[s].toUpperCase(),gx,H-10);}
+    for(var p=0;p<parts.length;p++){var o=parts[p];
+      if(!reduced)o.x+=1.1;if(o.x>W+40)o.x=-60;
+      var ph=clamp((o.x-W*0.2)/(W*0.75),0,1); // 0=text 1=number
+      var y=H/2+Math.sin(o.x/45+p)*14*(1-ph*0.6);
+      var col=ph<0.33?CY:(ph<0.66?AM:MG);
+      ctx.font='12px ui-monospace,monospace';ctx.textAlign='center';
+      if(ph<0.25){ctx.fillStyle=CY;ctx.fillText(o.t,o.x,y);}
+      else if(ph<0.9){ // vector bars
+        ctx.fillStyle=col;for(var b=0;b<4;b++){var h=4+8*Math.abs(Math.sin(p*3+b*1.7+o.x/60));ctx.globalAlpha=0.85;ctx.fillRect(o.x-10+b*6,y-h/2,4,h);}ctx.globalAlpha=1;}
+      else{ctx.fillStyle=MG;ctx.fillText((0.1+0.8*Math.abs(Math.sin(p*7))).toFixed(2),o.x,y);}
+    }
+    ctx.fillStyle=DIM;ctx.font='10px ui-monospace,monospace';ctx.textAlign='left';
+    ctx.fillText('text →',10,H/2+3);ctx.textAlign='right';ctx.fillText('→ P(next token)',W-10,H/2+3);
+    if(!reduced)requestAnimationFrame(frame);
+  }
+  frame();if(reduced)frame();
+})();
+
+/* ---------------- stage 2: tokenizer ---------------- */
+(function(){
+  var vocab=['the','trans','form','er','ing','learn','predict','token','believ','able','un','tion','ed','er','s',' ','ly','pre','ers','at','en','it','is','to','of','and','model','att','ention','mat','rix'];
+  vocab.sort(function(a,b){return b.length-a.length;});
+  var cols=[[CY,'rgba(79,216,196,.1)'],[AM,'rgba(240,168,75,.1)'],[MG,'rgba(216,104,168,.1)'],[BL,'rgba(110,168,255,.1)']];
+  function tokenize(text){
+    var out=[],i=0,t=text.toLowerCase();
+    while(i<t.length){var hit=null;
+      for(var v=0;v<vocab.length;v++){if(t.startsWith(vocab[v],i)){hit=vocab[v];break;}}
+      if(hit){out.push(hit);i+=hit.length;}else{out.push(t[i]);i++;}
+    }return out;
+  }
+  function fakeId(s){var h=0;for(var i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))>>>0;return h%50257;}
+  function render(){
+    var toks=tokenize($('tokInput').value);var box=$('tokChips');box.innerHTML='';
+    toks.forEach(function(tk,i){var c=cols[i%4];var el=document.createElement('span');el.className='chip';
+      el.style.color=c[0];el.style.borderColor=c[0];el.style.background=c[1];el.style.animationDelay=(i*0.03)+'s';
+      el.innerHTML=(tk===' '?'␣':tk.replace(/</g,'&lt;'))+'<small>id '+fakeId(tk)+'</small>';box.appendChild(el);});
+    var chars=$('tokInput').value.length;
+    $('tokStats').textContent=chars+' characters → '+toks.length+' tokens · compression '+(toks.length?(chars/toks.length).toFixed(2):'—')+' chars/token (GPT-2 averages ~4 on English)';
+  }
+  $('tokInput').addEventListener('input',render);render();
+})();
+
+/* ---------------- stage 3: embedding map ---------------- */
+(function(){
+  var cv=$('embCanvas');if(!cv)return;
+  // clusters with hand-set 2D positions; each word gets an 8-dim vector = cluster prototype + noise
+  var R=rng(7);
+  var clusters=[
+    {proto:null,color:CY,words:[['cat',.16,.28],['dog',.24,.20],['kitten',.10,.40],['puppy',.30,.32],['tiger',.20,.47]]},
+    {proto:null,color:AM,words:[['run',.46,.72],['walk',.55,.80],['jump',.40,.83],['sprint',.52,.64]]},
+    {proto:null,color:MG,words:[['king',.78,.24],['queen',.86,.30],['prince',.74,.36],['royal',.84,.16]]},
+    {proto:null,color:BL,words:[['matrix',.74,.70],['vector',.84,.62],['tensor',.80,.80],['gradient',.68,.84]]}
+  ];
+  var words=[];
+  clusters.forEach(function(cl){
+    var proto=[];for(var d=0;d<8;d++)proto.push(gauss(R));
+    cl.words.forEach(function(w){var v=proto.map(function(p){return p+gauss(R)*0.28;});
+      words.push({w:w[0],x:w[1],y:w[2],v:v,color:cl.color});});
+  });
+  function cos(a,b){var d=0,na=0,nb=0;for(var i=0;i<a.length;i++){d+=a[i]*b[i];na+=a[i]*a[i];nb+=b[i]*b[i];}return d/Math.sqrt(na*nb);}
+  var sel=[];var ctx;
+  function draw(){
+    ctx=setup(cv);var W=ctx.W,H=ctx.H;ctx.clearRect(0,0,W,H);
+    // grid
+    ctx.strokeStyle='rgba(79,216,196,.06)';for(var g=0;g<10;g++){ctx.beginPath();ctx.moveTo(W*g/10,0);ctx.lineTo(W*g/10,H);ctx.stroke();ctx.beginPath();ctx.moveTo(0,H*g/10);ctx.lineTo(W,H*g/10);ctx.stroke();}
+    if(sel.length===2){ctx.strokeStyle=AM;ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(sel[0].x*W,sel[0].y*H);ctx.lineTo(sel[1].x*W,sel[1].y*H);ctx.stroke();ctx.setLineDash([]);}
+    words.forEach(function(w){
+      var x=w.x*W,y=w.y*H,on=sel.indexOf(w)>=0;
+      ctx.beginPath();ctx.arc(x,y,on?7:4.5,0,7);ctx.fillStyle=w.color;ctx.globalAlpha=on?1:.85;ctx.fill();ctx.globalAlpha=1;
+      if(on){ctx.strokeStyle=w.color;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(x,y,11,0,7);ctx.stroke();ctx.lineWidth=1;}
+      ctx.fillStyle=on?'#fff':DIM;ctx.font=MONO;ctx.textAlign='center';ctx.fillText(w.w,x,y-12);
+    });
+  }
+  cv.addEventListener('click',function(e){
+    var r=cv.getBoundingClientRect();var mx=(e.clientX-r.left)/r.width,my=(e.clientY-r.top)/r.height;
+    var best=null,bd=1e9;words.forEach(function(w){var d=(w.x-mx)*(w.x-mx)+(w.y-my)*(w.y-my);if(d<bd){bd=d;best=w;}});
+    if(bd>0.01)return;
+    if(sel.indexOf(best)>=0)sel.splice(sel.indexOf(best),1);else{sel.push(best);if(sel.length>2)sel.shift();}
+    if(sel.length===2){var c=cos(sel[0].v,sel[1].v);
+      $('embReadout').innerHTML='cos(<b style="color:'+CY+'">'+sel[0].w+'</b>, <b style="color:'+AM+'">'+sel[1].w+'</b>) = <b>'+c.toFixed(3)+'</b> '+(c>0.6?'— same neighborhood of meaning':c>0.2?'— loosely related':'— strangers');}
+    else $('embReadout').textContent=sel.length===1?sel[0].w+' selected — pick one more':'click two words…';
+    draw();
+  });
+  $('embClear').addEventListener('click',function(){sel=[];$('embReadout').textContent='click two words…';draw();});
+  window.addEventListener('resize',draw);draw();
+})();
+
+/* ---------------- stage 4: matmul stepper ---------------- */
+(function(){
+  var A=[[2,1,3],[0,4,1]], B=[[1,2],[0,1],[3,0]];
+  var m=2,k=3,n=2,step=-1,timer=null;
+  function C(i,j){var s=0;for(var d=0;d<k;d++)s+=A[i][d]*B[d][j];return s;}
+  function build(){
+    var ea=$('mxA'),eb=$('mxB'),ec=$('mxC');ea.innerHTML=eb.innerHTML=ec.innerHTML='';
+    A.forEach(function(row){row.forEach(function(v){var s=document.createElement('span');s.textContent=v;ea.appendChild(s);});});
+    B.forEach(function(row){row.forEach(function(v){var s=document.createElement('span');s.textContent=v;eb.appendChild(s);});});
+    for(var i=0;i<m*n;i++){var s=document.createElement('span');s.textContent='·';s.style.color=FAINT;ec.appendChild(s);}
+  }
+  function show(){
+    build();
+    if(step<0){$('mxWork').innerHTML='press <b>step</b> to compute the first cell…';return;}
+    var i=Math.floor(step/n),j=step%n;
+    var ea=$('mxA').children,eb=$('mxB').children,ec=$('mxC').children;
+    for(var d=0;d<k;d++)ea[i*k+d].className='ha';
+    for(var d2=0;d2<k;d2++)eb[d2*n+j].className='hb';
+    for(var c=0;c<=step;c++){var ci=Math.floor(c/n),cj=c%n;ec[c].textContent=C(ci,cj);ec[c].style.color='';}
+    ec[step].className='hc';
+    var terms=[];for(var d3=0;d3<k;d3++)terms.push('<span class="hl">'+A[i][d3]+'</span>×<span class="hl2">'+B[d3][j]+'</span>');
+    $('mxWork').innerHTML='C<sub>'+(i+1)+(j+1)+'</sub> = row '+(i+1)+' · col '+(j+1)+' = '+terms.join(' + ')+' = <span class="hl3"><b>'+C(i,j)+'</b></span><br><span class="cm">one dot product per output cell — '+(m*k*n)+' multiplies total for this '+m+'×'+k+' · '+k+'×'+n+'</span>';
+  }
+  function advance(){step=(step+1)%(m*n);show();}
+  $('mxStep').addEventListener('click',function(){if(timer){clearInterval(timer);timer=null;$('mxAuto').textContent='auto-play';}advance();});
+  $('mxAuto').addEventListener('click',function(){
+    if(timer){clearInterval(timer);timer=null;this.textContent='auto-play';return;}
+    this.textContent='pause';timer=setInterval(advance,1100);advance();});
+  $('mxReset').addEventListener('click',function(){if(timer){clearInterval(timer);timer=null;$('mxAuto').textContent='auto-play';}step=-1;show();});
+  show();
+})();
+
+/* ---------------- stage 5: live bigram trainer ---------------- */
+(function(){
+  var corpus='the quick brown fox jumps over the lazy dog the transformer learns to predict the next token and the matrix quietly turns error into knowledge the model that predicts the text must understand the text';
+  $('bgCorpus').innerHTML='<span class="cm">corpus (200 chars):</span> "'+corpus+'"';
+  var chars=' abcdefghijklmnopqrstuvwxyz';var V=27;
+  function ci(ch){return chars.indexOf(ch);}
+  var R=rng(42),W,epoch,losses;
+  function reset(){W=[];for(var i=0;i<V;i++){var row=[];for(var j=0;j<V;j++)row.push(gauss(R)*0.05);W.push(row);}epoch=0;losses=[];$('bgOut').textContent='generated text appears here…';stats('—');drawHeat();drawLoss();}
+  function lr(){return Math.pow(10,parseFloat($('bgLR').value));}
+  function trainEpoch(){
+    var L=0,N=0,eta=lr();
+    for(var t=0;t<corpus.length-1;t++){
+      var c=ci(corpus[t]),nx=ci(corpus[t+1]);if(c<0||nx<0)continue;
+      var p=softmax(W[c]);L+=-Math.log(p[nx]+1e-12);N++;
+      for(var j=0;j<V;j++){var g=p[j]-(j===nx?1:0);W[c][j]-=eta*g;} // dL/dlogit = p - onehot
+    }
+    epoch++;var avg=L/N;losses.push(avg);if(losses.length>240)losses.shift();
+    stats(avg.toFixed(4));drawHeat();drawLoss();
+  }
+  function stats(l){$('bgStats').innerHTML='epoch '+epoch+' · loss <b style="color:'+AM+'">'+l+'</b><br>random guessing = ln(27) ≈ 3.296';}
+  function drawHeat(){
+    var ctx=setup($('bgHeat'));var Wd=ctx.W,H=ctx.H;ctx.clearRect(0,0,Wd,H);
+    var pad=22,cw=(Wd-pad-6)/V,chh=(H-pad-6)/V;
+    var mx=0.001;for(var i=0;i<V;i++)for(var j=0;j<V;j++)mx=Math.max(mx,Math.abs(W[i][j]));
+    for(var i2=0;i2<V;i2++){for(var j2=0;j2<V;j2++){
+      var v=W[i2][j2]/mx; // -1..1
+      if(v>=0)ctx.fillStyle='rgba(79,216,196,'+(v*0.95).toFixed(3)+')';
+      else ctx.fillStyle='rgba(216,104,168,'+(-v*0.85).toFixed(3)+')';
+      ctx.fillRect(pad+j2*cw,pad+i2*chh,cw-0.8,chh-0.8);
+    }}
+    ctx.fillStyle=FAINT;ctx.font='9px ui-monospace,monospace';ctx.textAlign='center';
+    for(var a=0;a<V;a++){var lab=chars[a]===' '?'·':chars[a];
+      ctx.fillText(lab,pad+a*cw+cw/2,14);ctx.fillText(lab,10,pad+a*chh+chh/2+3);}
+    ctx.fillStyle=FAINT;ctx.textAlign='left';ctx.fillText('next →',pad,H-2);
+  }
+  function drawLoss(){
+    var ctx=setup($('bgLoss'));var Wd=ctx.W,H=ctx.H;ctx.clearRect(0,0,Wd,H);
+    ctx.strokeStyle=LINE;ctx.strokeRect(0.5,0.5,Wd-1,H-1);
+    var base=3.296,y0=function(v){return H-8-(clamp(v,0,3.6)/3.6)*(H-16);};
+    ctx.strokeStyle=FAINT;ctx.setLineDash([3,3]);ctx.beginPath();ctx.moveTo(0,y0(base));ctx.lineTo(Wd,y0(base));ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle=FAINT;ctx.font='9px ui-monospace,monospace';ctx.fillText('ln 27',4,y0(base)-3);
+    if(losses.length<2)return;
+    ctx.strokeStyle=AM;ctx.lineWidth=1.6;ctx.beginPath();
+    losses.forEach(function(l,i){var x=8+(Wd-16)*i/(losses.length-1);var y=y0(l);if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);});
+    ctx.stroke();ctx.lineWidth=1;
+  }
+  function sample(){
+    var out='',c=ci(' ');
+    for(var t=0;t<120;t++){
+      var p=softmax(W[c]);var r=Math.random(),acc=0,pick=V-1;
+      for(var j=0;j<V;j++){acc+=p[j];if(r<=acc){pick=j;break;}}
+      out+=chars[pick];c=pick;
+    }
+    $('bgOut').innerHTML='<span class="cm">sampled from W ('+epoch+' epochs):</span><br>"'+out+'"'+(epoch===0?'<br><span class="cm">pure noise — now train and sample again</span>':'');
+  }
+  var auto=null;
+  $('bgTrain').addEventListener('click',trainEpoch);
+  $('bgAuto').addEventListener('click',function(){
+    if(auto){clearInterval(auto);auto=null;this.textContent='auto-train';return;}
+    this.textContent='stop';auto=setInterval(trainEpoch,120);});
+  $('bgSample').addEventListener('click',sample);
+  $('bgReset').addEventListener('click',function(){if(auto){clearInterval(auto);auto=null;$('bgAuto').textContent='auto-train';}R=rng(42);reset();});
+  $('bgLR').addEventListener('input',function(){$('bgLRv').textContent=lr().toFixed(2);});
+  $('bgLRv').textContent=lr().toFixed(2);
+  window.addEventListener('resize',function(){drawHeat();drawLoss();});
+  reset();
+})();
+
+/* ---------------- stage 5b: gradient descent ---------------- */
+(function(){
+  var cv=$('gdCanvas');if(!cv)return;
+  function f(w){return 0.08*Math.pow(w,4)-0.5*w*w+0.15*w+1.2+0.35*Math.sin(3*w);}
+  function df(w){return 0.32*Math.pow(w,3)-w+0.15+1.05*Math.cos(3*w);}
+  var wMin=-3.2,wMax=3.2,w=2.6,path=[],run=null;
+  function lr(){return Math.pow(10,parseFloat($('gdLR').value));}
+  function toXY(ctx,wv,y){var X=(wv-wMin)/(wMax-wMin)*ctx.W;var yMin=-0.6,yMax=3.4;var Y=ctx.H-((y-yMin)/(yMax-yMin))*ctx.H;return[X,Y];}
+  function draw(){
+    var ctx=setup(cv);ctx.clearRect(0,0,ctx.W,ctx.H);
+    ctx.strokeStyle=BL;ctx.lineWidth=1.6;ctx.beginPath();
+    for(var i=0;i<=300;i++){var wv=wMin+(wMax-wMin)*i/300;var p=toXY(ctx,wv,f(wv));if(i===0)ctx.moveTo(p[0],p[1]);else ctx.lineTo(p[0],p[1]);}
+    ctx.stroke();ctx.lineWidth=1;
+    // path
+    ctx.strokeStyle='rgba(240,168,75,.5)';ctx.beginPath();
+    path.forEach(function(pw,i){var p=toXY(ctx,pw,f(pw));if(i===0)ctx.moveTo(p[0],p[1]);else ctx.lineTo(p[0],p[1]);});ctx.stroke();
+    path.forEach(function(pw){var p=toXY(ctx,pw,f(pw));ctx.fillStyle='rgba(240,168,75,.45)';ctx.beginPath();ctx.arc(p[0],p[1],2.4,0,7);ctx.fill();});
+    // ball + tangent
+    var b=toXY(ctx,w,f(w));var g=df(w);
+    var t1=toXY(ctx,w-0.5,f(w)-0.5*g),t2=toXY(ctx,w+0.5,f(w)+0.5*g);
+    ctx.strokeStyle=MG;ctx.setLineDash([4,3]);ctx.beginPath();ctx.moveTo(t1[0],t1[1]);ctx.lineTo(t2[0],t2[1]);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle=AM;ctx.beginPath();ctx.arc(b[0],b[1],7,0,7);ctx.fill();
+    ctx.fillStyle=DIM;ctx.font=MONO;ctx.textAlign='left';
+    ctx.fillText('w = '+w.toFixed(3)+'   L(w) = '+f(w).toFixed(3)+'   dL/dw = '+g.toFixed(3),10,16);
+    ctx.fillText('update: w ← w − '+lr().toFixed(3)+' × '+g.toFixed(2),10,32);
+  }
+  function step(){w=clamp(w-lr()*df(w),wMin*1.5,wMax*1.5);path.push(w);if(path.length>80)path.shift();draw();
+    if(Math.abs(w)>wMax*1.3){if(run){clearInterval(run);run=null;$('gdRun').textContent='run';}}}
+  $('gdStep').addEventListener('click',step);
+  $('gdRun').addEventListener('click',function(){
+    if(run){clearInterval(run);run=null;this.textContent='run';return;}
+    this.textContent='stop';run=setInterval(step,90);});
+  $('gdReset').addEventListener('click',function(){if(run){clearInterval(run);run=null;$('gdRun').textContent='run';}w=wMin+Math.random()*(wMax-wMin);path=[];draw();});
+  $('gdLR').addEventListener('input',function(){$('gdLRv').textContent=lr().toFixed(3);draw();});
+  $('gdLRv').textContent=lr().toFixed(3);
+  window.addEventListener('resize',draw);draw();
+})();
+
+/* ---------------- stage 6: attention scope ---------------- */
+(function(){
+  var cvA=$('attArcs');if(!cvA)return;
+  var sent=['the','robot','lifted','the','box','because','it','was','strong'];
+  var T=sent.length,D=8,R=rng(1234);
+  // seeded token embeddings; give 'it' and 'robot' correlated vectors so the head plausibly links them
+  var emb=[];for(var i=0;i<T;i++){var v=[];for(var d=0;d<D;d++)v.push(gauss(R));emb.push(v);}
+  for(var d0=0;d0<D;d0++)emb[6][d0]=emb[1][d0]*0.8+gauss(R)*0.3; // it ~ robot
+  for(var d1=0;d1<D;d1++)emb[3][d1]=emb[0][d1]*0.9+gauss(R)*0.2; // the ~ the
+  function matvec(M,v){return M.map(function(row){var s=0;for(var i=0;i<v.length;i++)s+=row[i]*v[i];return s;});}
+  function randM(){var M=[];for(var i=0;i<D;i++){var r=[];for(var j=0;j<D;j++)r.push(gauss(R)*0.5);M.push(r);}return M;}
+  var Wq=randM(),Wk=randM();
+  var Q=emb.map(function(x){return matvec(Wq,x);}),K=emb.map(function(x){return matvec(Wk,x);});
+  var att=[];
+  for(var i2=0;i2<T;i2++){var scores=[];
+    for(var j2=0;j2<T;j2++){
+      if(j2>i2){scores.push(-1e9);continue;} // causal mask
+      var s=0;for(var d2=0;d2<D;d2++)s+=Q[i2][d2]*K[j2][d2];scores.push(s/Math.sqrt(D));}
+    att.push(softmax(scores));}
+  var sel=6;
+  var chipEls=[];
+  sent.forEach(function(w,i){var el=document.createElement('button');el.className='chip';el.style.cursor='pointer';el.style.background='transparent';
+    el.textContent=w;el.setAttribute('aria-label','show attention for token '+w);
+    el.addEventListener('click',function(){sel=i;paint();});
+    $('attChips').appendChild(el);chipEls.push(el);});
+  function paint(){
+    chipEls.forEach(function(el,i){
+      el.style.color=i===sel?BG:(i<=sel?CY:FAINT);
+      el.style.borderColor=i===sel?CY:(i<=sel?'rgba(79,216,196,.4)':LINE);
+      el.style.background=i===sel?CY:'transparent';});
+    drawArcs();drawHeat();
+  }
+  function drawArcs(){
+    var ctx=setup(cvA);ctx.clearRect(0,0,ctx.W,ctx.H);var W=ctx.W,H=ctx.H;
+    var xs=sent.map(function(_,i){return W*(i+0.5)/T;});
+    sent.forEach(function(w,i){ctx.fillStyle=i===sel?CY:(i<=sel?DIM:FAINT);ctx.font=MONO;ctx.textAlign='center';ctx.fillText(w,xs[i],H-8);});
+    for(var j=0;j<=sel;j++){var a=att[sel][j];if(a<0.005)continue;
+      ctx.strokeStyle='rgba(240,168,75,'+Math.min(1,a*1.6+0.06)+')';ctx.lineWidth=0.8+a*7;
+      ctx.beginPath();var x1=xs[sel],x2=xs[j];
+      if(j===sel){ctx.arc(x1,H-24,9,0,Math.PI,true);}
+      else{var mx=(x1+x2)/2,rise=Math.min(H-46,18+Math.abs(x1-x2)*0.35);
+        ctx.moveTo(x1,H-22);ctx.quadraticCurveTo(mx,H-22-rise,x2,H-22);}
+      ctx.stroke();
+      ctx.fillStyle=AM;ctx.font='9px ui-monospace,monospace';ctx.textAlign='center';
+      if(a>0.09)ctx.fillText((a*100).toFixed(0)+'%',j===sel?xs[j]:( (x1+x2)/2 ),j===sel?H-38:H-26-Math.min(H-46,18+Math.abs(x1-x2)*0.35)/1.05);
+    }
+    ctx.lineWidth=1;
+  }
+  function drawHeat(){
+    var ctx=setup($('attHeat'));ctx.clearRect(0,0,ctx.W,ctx.H);var W=ctx.W,H=ctx.H;
+    var padL=62,padT=20,cw=(W-padL-8)/T,chh=(H-padT-8)/T;
+    for(var i=0;i<T;i++){for(var j=0;j<T;j++){
+      var x=padL+j*cw,y=padT+i*chh;
+      if(j>i){ctx.strokeStyle='rgba(90,100,116,.18)';ctx.strokeRect(x+0.5,y+0.5,cw-1,chh-1);continue;}
+      var a=att[i][j];
+      ctx.fillStyle='rgba(79,216,196,'+(0.04+a*0.95)+')';ctx.fillRect(x,y,cw-1,chh-1);
+      if(i===sel){ctx.strokeStyle=AM;ctx.strokeRect(x+0.5,y+0.5,cw-1,chh-1);}
+      if(a>0.12){ctx.fillStyle=a>0.45?BG:'#eafffa';ctx.font='9px ui-monospace,monospace';ctx.textAlign='center';ctx.fillText((a*100).toFixed(0),x+cw/2,y+chh/2+3);}
+    }}
+    ctx.fillStyle=DIM;ctx.font='9.5px ui-monospace,monospace';
+    for(var t=0;t<T;t++){ctx.textAlign='right';ctx.fillStyle=t===sel?AM:DIM;ctx.fillText(sent[t],padL-6,padT+t*chh+chh/2+3);
+      ctx.textAlign='center';ctx.fillStyle=DIM;ctx.save();ctx.translate(padL+t*cw+cw/2,12);ctx.fillText(sent[t].slice(0,4),0,0);ctx.restore();}
+  }
+  window.addEventListener('resize',paint);paint();
+})();
+
+/* ---------------- stage 8: sampling console ---------------- */
+(function(){
+  var cv=$('smCanvas');if(!cv)return;
+  var cands=[{w:'box',z:4.1},{w:'ball',z:3.4},{w:'wrench',z:2.9},{w:'phone',z:2.5},{w:'cat',z:1.8},{w:'pace',z:1.2},{w:'signal',z:0.8},{w:'violin',z:0.1},{w:'moon',z:-0.6},{w:'entropy',z:-1.2}];
+  function dist(){
+    var T=parseFloat($('smT').value),k=parseInt($('smK').value,10);
+    var idx=cands.map(function(c,i){return i;}).sort(function(a,b){return cands[b].z-cands[a].z;});
+    var keep={};idx.slice(0,k).forEach(function(i){keep[i]=true;});
+    var logits=cands.map(function(c,i){return keep[i]?c.z/T:-1e9;});
+    return softmax(logits);
+  }
+  function draw(flash){
+    var ctx=setup(cv);ctx.clearRect(0,0,ctx.W,ctx.H);var W=ctx.W,H=ctx.H;
+    var p=dist();var bw=(W-20)/cands.length;
+    cands.forEach(function(c,i){
+      var h=p[i]*(H-58),x=10+i*bw,y=H-30-h;
+      ctx.fillStyle=(flash===i)?AM:(p[i]<1e-6?'rgba(90,100,116,.25)':'rgba(79,216,196,'+(0.35+p[i]*0.9)+')');
+      ctx.fillRect(x+4,y,bw-8,h);
+      ctx.fillStyle=flash===i?AM:DIM;ctx.font='10px ui-monospace,monospace';ctx.textAlign='center';
+      ctx.fillText(c.w,x+bw/2,H-16);
+      if(p[i]>0.004)ctx.fillText((p[i]*100).toFixed(p[i]>0.1?0:1)+'%',x+bw/2,y-5);
+      ctx.fillStyle=FAINT;ctx.fillText('z='+c.z.toFixed(1),x+bw/2,H-4);
+    });
+  }
+  function refresh(){$('smTv').textContent=parseFloat($('smT').value).toFixed(2);$('smKv').textContent=$('smK').value;draw(-1);}
+  $('smT').addEventListener('input',refresh);$('smK').addEventListener('input',refresh);
+  $('smSample').addEventListener('click',function(){
+    var p=dist(),r=Math.random(),acc=0,pick=0;
+    for(var i=0;i<p.length;i++){acc+=p[i];if(r<=acc){pick=i;break;}}
+    $('smOut').innerHTML='The robot picked up the <span class="hl2"><b>'+cands[pick].w+'</b></span> <span class="cm">(drawn with p='+(p[pick]*100).toFixed(1)+'%)</span>';
+    draw(pick);
+  });
+  window.addEventListener('resize',refresh);refresh();
+})();
+
+/* ---------------- stage 10: parameter microscope ---------------- */
+(function(){
+  var cv=$('pcCanvas');if(!cv)return;
+  function fmt(n){return n>=1e9?(n/1e9).toFixed(2)+'B':n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?(n/1e3).toFixed(0)+'k':''+n;}
+  function calc(){
+    var L=parseInt($('pcL').value,10),C=parseInt($('pcC').value,10),V=parseInt($('pcV').value,10),Tk=1024;
+    var attn=L*(4*C*C+4*C);        // qkv (3C·C)+proj(C·C)+biases
+    var mlp=L*(8*C*C+5*C);         // C·4C + 4C·C + biases
+    var ln=L*2*2*C+2*C;            // 2 LN/block (γ,β) + final
+    var embd=V*C+Tk*C;             // tied head
+    var total=attn+mlp+ln+embd;
+    return{L:L,C:C,V:V,attn:attn,mlp:mlp,ln:ln,embd:embd,total:total};
+  }
+  function draw(){
+    var d=calc();
+    $('pcLv').textContent=d.L;$('pcCv').textContent=d.C;$('pcVv').textContent=(d.V/1000)+'k';
+    var ctx=setup(cv);ctx.clearRect(0,0,ctx.W,ctx.H);var W=ctx.W,H=ctx.H;
+    var parts=[['MLP matrices',d.mlp,CY],['attention matrices',d.attn,AM],['embeddings (tied)',d.embd,MG],['layernorms',d.ln,BL]];
+    var x=10,barY=26,barH=42;
+    parts.forEach(function(p){
+      var w=(W-20)*p[1]/d.total;
+      ctx.fillStyle=p[2];ctx.globalAlpha=0.8;ctx.fillRect(x,barY,Math.max(w,1),barH);ctx.globalAlpha=1;x+=w;});
+    ctx.fillStyle=DIM;ctx.font=MONO;ctx.textAlign='left';
+    ctx.fillText('TOTAL ≈ '+fmt(d.total)+' parameters ('+(d.total*4/1e6).toFixed(0)+' MB as float32, '+(d.total*2/1e6).toFixed(0)+' MB as bf16)',10,16);
+    var ly=barY+barH+22;x=10;
+    parts.forEach(function(p){ctx.fillStyle=p[2];ctx.fillRect(x,ly-8,9,9);ctx.fillStyle=DIM;
+      var lbl=p[0]+' '+fmt(p[1])+' ('+(100*p[1]/d.total).toFixed(0)+'%)';ctx.fillText(lbl,x+14,ly);x+=ctx.measureText(lbl).width+34;});
+    var cfg=(d.L===12&&d.C===768)?' — this is GPT-2 small (≈124M). Try n_layer 48, n_embd 1600 for GPT-2 XL (≈1.5B).':'';
+    $('pcStats').textContent='forward-pass compute ≈ 2·N·T ≈ '+fmt(2*d.total*1024)+' FLOPs per 1024-token sequence'+cfg;
+  }
+  ['pcL','pcC','pcV'].forEach(function(id){$(id).addEventListener('input',draw);});
+  window.addEventListener('resize',draw);draw();
+})();
+
+/* ---------------- quiz ---------------- */
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=parseInt(q.getAttribute('data-a'),10);
+  var opts=q.querySelectorAll('.opt');
+  opts.forEach(function(o,i){o.addEventListener('click',function(){
+    opts.forEach(function(x,xi){x.classList.remove('right','wrong');if(xi===ans)x.classList.add('right');});
+    if(i!==ans)o.classList.add('wrong');
+    q.querySelector('.expl').classList.add('show');
+  });});
+});
+
+/* ---------------- progress, rail, notes ---------------- */
+var KEY='predmachine.v1';
+var state={};try{state=JSON.parse(localStorage.getItem(KEY)||'{}');}catch(e){state={};}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){}}
+var marks=document.querySelectorAll('.mark');
+function refreshRail(){
+  var done=0,total=marks.length;
+  marks.forEach(function(b){var s=b.getAttribute('data-s');var on=!!state[s];
+    b.classList.toggle('on',on);b.textContent=on?'✓ stage '+s.slice(1).padStart(2,'0')+' understood':'mark stage '+s.slice(1).padStart(2,'0')+' understood';
+    var link=document.querySelector('nav#rail a[href="#'+s+'"]');if(link)link.classList.toggle('done',on);
+    if(on)done++;});
+  document.querySelector('#railbar > div').style.width=(100*done/total)+'%';
+}
+marks.forEach(function(b){b.addEventListener('click',function(){var s=b.getAttribute('data-s');state[s]=!state[s];save();refreshRail();});});
+refreshRail();
+if(state.feyn)$('feyn').value=state.feyn;
+$('feynSave').addEventListener('click',function(){state.feyn=$('feyn').value;save();$('feynStat').textContent='saved locally ✓';setTimeout(function(){$('feynStat').textContent='';},1800);});
+
+/* scrollspy */
+var sections=Array.prototype.slice.call(document.querySelectorAll('section.stage'));
+var links={};document.querySelectorAll('nav#rail a').forEach(function(a){links[a.getAttribute('href').slice(1)]=a;});
+var obs=new IntersectionObserver(function(entries){
+  entries.forEach(function(en){if(en.isIntersecting){
+    Object.keys(links).forEach(function(k){links[k].classList.remove('active');});
+    if(links[en.target.id])links[en.target.id].classList.add('active');}});
+},{rootMargin:'-25% 0px -60% 0px'});
+sections.forEach(function(s){obs.observe(s);});
+})();
+</script>
+</body>
+</html>
