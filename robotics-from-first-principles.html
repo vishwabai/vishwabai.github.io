@@ -1,0 +1,1977 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Robot's Loop — Robotics from First Principles</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+:root{
+  --bg:#0a0e14;
+  --bg-panel:#111722;
+  --bg-panel-2:#161d2b;
+  --bg-raised:#1b2333;
+  --text:#dbe4f0;
+  --text-dim:#8693a8;
+  --text-faint:#566076;
+  --border:#232c3d;
+  --border-bright:#34415a;
+  --good:#6bdc8c;
+  --bad:#ff7a93;
+  --radius:14px;
+  --radius-sm:8px;
+  --c0:#3ee6c7;
+  --c1:#3ee6c7;
+  --c2:#5ea8ff;
+  --c3:#8b7bff;
+  --c4:#c77bff;
+  --c5:#ff8a5b;
+  --c6:#ffd166;
+  --c7:#6bdc8c;
+  --cf:#ff7a93;
+  --accent: var(--c1);
+}
+
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{
+  margin:0;
+  background:
+    radial-gradient(ellipse 1200px 600px at 50% -10%, #131c2c 0%, var(--bg) 60%),
+    var(--bg);
+  color:var(--text);
+  font-family:'IBM Plex Sans', sans-serif;
+  line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,h4{
+  font-family:'Space Grotesk', sans-serif;
+  font-weight:700;
+  margin:0 0 .4em 0;
+  letter-spacing:-0.01em;
+}
+p{margin:0 0 1em 0; color:var(--text);}
+code, .mono{font-family:'IBM Plex Mono', monospace;}
+a{color:var(--accent);}
+::selection{background:var(--accent); color:#0a0e14;}
+
+/* ===== Progress bar ===== */
+#progressBar{
+  position:fixed; top:0; left:0; height:3px; width:0%;
+  background:linear-gradient(90deg, var(--c1), var(--c3), var(--c6), var(--c7));
+  z-index:1000; transition:width .1s linear;
+}
+
+/* ===== Layout helpers ===== */
+.wrap{max-width:920px; margin:0 auto; padding:0 24px;}
+section.chapter{padding:90px 0 60px; border-bottom:1px solid var(--border);}
+section.chapter .wrap{ }
+.eyebrow{
+  display:inline-flex; align-items:center; gap:8px;
+  font-family:'IBM Plex Mono', monospace; font-size:.78rem; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--accent);
+  background:color-mix(in srgb, var(--accent) 14%, transparent);
+  border:1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  padding:5px 12px; border-radius:999px; margin-bottom:18px;
+}
+.chapter h2{font-size:clamp(1.6rem, 4vw, 2.4rem); color:var(--text);}
+.chapter h2 .accent-word{color:var(--accent);}
+.lead{font-size:1.08rem; color:var(--text-dim); max-width:640px;}
+
+/* fade in on scroll */
+.reveal{opacity:0; transform:translateY(18px); transition:opacity .6s ease, transform .6s ease;}
+.reveal.in{opacity:1; transform:translateY(0);}
+@media (prefers-reduced-motion: reduce){
+  .reveal{opacity:1; transform:none; transition:none;}
+  *{animation-duration:.001ms !important; animation-iteration-count:1 !important; scroll-behavior:auto !important;}
+}
+
+/* ===== Hero ===== */
+.hero{
+  position:relative; padding:120px 0 80px; overflow:hidden;
+  border-bottom:1px solid var(--border);
+}
+.hero .wrap{position:relative; z-index:2;}
+.hero-badge{
+  font-family:'IBM Plex Mono',monospace; font-size:.75rem; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--c1); margin-bottom:22px; display:flex; gap:10px; align-items:center;
+}
+.hero-badge::before{content:''; width:8px; height:8px; border-radius:50%; background:var(--c1); box-shadow:0 0 12px var(--c1); animation:pulse 2s infinite;}
+@keyframes pulse{0%,100%{opacity:1;} 50%{opacity:.3;}}
+.hero h1{font-size:clamp(2.2rem, 6vw, 4rem); line-height:1.04; max-width:760px;}
+.hero h1 span{
+  background:linear-gradient(90deg, var(--c1), var(--c3) 50%, var(--c6));
+  -webkit-background-clip:text; background-clip:text; color:transparent;
+}
+.hero p.sub{font-size:1.15rem; color:var(--text-dim); max-width:560px; margin-top:18px;}
+.hero-meta{display:flex; flex-wrap:wrap; gap:14px; margin-top:34px;}
+.pill{
+  font-family:'IBM Plex Mono',monospace; font-size:.8rem; padding:8px 14px; border-radius:999px;
+  background:var(--bg-panel); border:1px solid var(--border-bright); color:var(--text-dim);
+}
+.pill b{color:var(--text);}
+
+/* hero loop diagram */
+.loop-stage{margin-top:54px; background:var(--bg-panel); border:1px solid var(--border); border-radius:var(--radius); padding:28px;}
+.loop-caption{font-size:.82rem; color:var(--text-faint); margin-top:10px; text-align:center; font-family:'IBM Plex Mono',monospace;}
+
+/* ===== Roadmap ===== */
+.roadmap{padding:50px 0 70px;}
+.roadmap h2{font-size:1.3rem;}
+.roadmap-grid{
+  display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:14px; margin-top:24px;
+}
+.road-card{
+  background:var(--bg-panel); border:1px solid var(--border); border-radius:var(--radius-sm);
+  padding:16px 18px; cursor:pointer; text-decoration:none; color:var(--text);
+  display:block; position:relative; transition:border-color .2s, transform .2s;
+  border-left:3px solid var(--rc);
+}
+.road-card:hover{transform:translateY(-2px); border-color:var(--border-bright);}
+.road-card .rc-num{font-family:'IBM Plex Mono',monospace; font-size:.72rem; color:var(--rc); letter-spacing:.1em;}
+.road-card .rc-title{font-weight:600; margin-top:4px; font-size:.95rem;}
+.road-card .rc-check{position:absolute; top:12px; right:12px; font-size:.85rem; opacity:0;}
+.road-card.done .rc-check{opacity:1;}
+.road-card.done{border-color:var(--good);}
+
+/* ===== Callout boxes ===== */
+.box{border-radius:var(--radius); padding:20px 22px; margin:24px 0; border:1px solid var(--border);}
+.box-misconception{
+  display:grid; grid-template-columns:1fr 1fr; gap:0; border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; margin:26px 0;
+}
+.box-misconception > div{padding:18px 20px;}
+.box-misconception .think{background:color-mix(in srgb, var(--bad) 10%, var(--bg-panel)); border-right:1px solid var(--border);}
+.box-misconception .truth{background:color-mix(in srgb, var(--good) 10%, var(--bg-panel));}
+.box-misconception .tag{font-family:'IBM Plex Mono',monospace; font-size:.7rem; letter-spacing:.1em; text-transform:uppercase; margin-bottom:8px; display:block;}
+.box-misconception .think .tag{color:var(--bad);}
+.box-misconception .truth .tag{color:var(--good);}
+@media(max-width:640px){.box-misconception{grid-template-columns:1fr;} .box-misconception .think{border-right:none; border-bottom:1px solid var(--border);}}
+
+.box-analogy{background:var(--bg-panel); border-left:3px solid var(--accent);}
+.box-analogy .tag{font-family:'IBM Plex Mono',monospace; font-size:.72rem; color:var(--accent); text-transform:uppercase; letter-spacing:.1em;}
+.box-analogy h4{margin-top:8px; font-size:1.05rem;}
+
+.box-sticking{background:linear-gradient(135deg, color-mix(in srgb, var(--cf) 8%, var(--bg-panel)), var(--bg-panel)); border:1px solid color-mix(in srgb, var(--cf) 30%, var(--border));}
+.box-sticking .tag{color:var(--cf); font-family:'IBM Plex Mono',monospace; font-size:.72rem; text-transform:uppercase; letter-spacing:.1em;}
+
+.box-takeaway{background:var(--bg-panel-2); border:1px solid var(--border-bright);}
+.box-takeaway .tag{font-family:'IBM Plex Mono',monospace; font-size:.72rem; color:var(--accent); text-transform:uppercase; letter-spacing:.1em;}
+.box-takeaway ul{margin:10px 0 0 0; padding-left:20px;}
+.box-takeaway li{margin-bottom:6px;}
+
+/* ===== Math deep-dive ===== */
+details.box-math{
+  background:var(--bg-panel); border:1px solid var(--border-bright); border-left:3px solid var(--accent);
+  border-radius:var(--radius); padding:18px 22px; margin:24px 0;
+}
+details.box-math summary{
+  cursor:pointer; font-family:'IBM Plex Mono',monospace; font-size:.78rem; text-transform:uppercase; letter-spacing:.1em;
+  color:var(--accent); list-style:none; display:flex; align-items:center; gap:8px;
+}
+details.box-math summary::-webkit-details-marker{display:none;}
+details.box-math summary::before{content:'▸'; transition:transform .2s; display:inline-block;}
+details.box-math[open] summary::before{transform:rotate(90deg);}
+details.box-math .math-body{margin-top:16px;}
+details.box-math h5{font-family:'Space Grotesk',sans-serif; font-size:.95rem; margin:18px 0 6px; color:var(--text);}
+details.box-math h5:first-child{margin-top:0;}
+.eq{
+  font-family:'IBM Plex Mono', monospace; background:var(--bg-raised); border:1px solid var(--border-bright);
+  border-radius:8px; padding:12px 16px; margin:10px 0; font-size:.92rem; overflow-x:auto; color:var(--text);
+}
+.eq .v{color:var(--accent); font-style:italic;}
+.eq-row{margin:4px 0;}
+.derivation-steps{margin:10px 0 0 0; padding-left:20px;}
+.derivation-steps li{margin-bottom:10px; font-size:.92rem; color:var(--text-dim);}
+.derivation-steps .eq{margin:6px 0;}
+table.param-table{width:100%; border-collapse:collapse; margin:12px 0; font-size:.85rem;}
+table.param-table td, table.param-table th{border-bottom:1px solid var(--border); padding:7px 8px; text-align:left;}
+table.param-table th{color:var(--text-faint); font-family:'IBM Plex Mono',monospace; font-size:.72rem; text-transform:uppercase; letter-spacing:.06em;}
+table.param-table td.sym{font-family:'IBM Plex Mono',monospace; color:var(--accent); white-space:nowrap;}
+
+/* ===== Next-steps resource cards ===== */
+.resource-grid{display:grid; grid-template-columns:repeat(auto-fit, minmax(260px,1fr)); gap:16px; margin-top:18px;}
+.resource-card{
+  background:var(--bg-raised); border:1px solid var(--border-bright); border-radius:var(--radius-sm);
+  padding:18px 20px; border-top:3px solid var(--rcolor, var(--accent));
+}
+.resource-card .rc-icon{font-size:1.3rem; margin-bottom:8px; display:block;}
+.resource-card h4{font-size:1rem; margin-bottom:2px;}
+.resource-card .rc-byline{font-family:'IBM Plex Mono',monospace; font-size:.72rem; color:var(--text-faint); text-transform:uppercase; letter-spacing:.06em; margin-bottom:10px; display:block;}
+.resource-card p{font-size:.86rem; color:var(--text-dim); margin-bottom:8px;}
+.resource-card p:last-child{margin-bottom:0;}
+.resource-card .rc-learn{font-size:.82rem; color:var(--text-faint); border-top:1px solid var(--border); padding-top:8px; margin-top:10px;}
+.resource-card .rc-learn b{color:var(--text-dim);}
+.resource-card a.rc-link{font-family:'IBM Plex Mono',monospace; font-size:.78rem; color:var(--accent); text-decoration:none; display:inline-flex; align-items:center; gap:5px; margin-top:10px;}
+.resource-card a.rc-link:hover{text-decoration:underline;}
+
+/* ===== Diagram panel ===== */
+.diagram-panel{background:var(--bg-panel); border:1px solid var(--border); border-radius:var(--radius); padding:18px; margin:22px 0;}
+.diagram-panel svg{width:100%; height:auto; display:block;}
+.diagram-caption{text-align:center; font-size:.8rem; color:var(--text-faint); font-family:'IBM Plex Mono',monospace; margin-top:8px;}
+.replay-btn{
+  display:inline-flex; align-items:center; gap:6px; margin-top:10px; cursor:pointer;
+  background:var(--bg-raised); border:1px solid var(--border-bright); color:var(--text-dim);
+  font-family:'IBM Plex Mono',monospace; font-size:.75rem; padding:6px 12px; border-radius:999px;
+}
+.replay-btn:hover{color:var(--text); border-color:var(--accent);}
+
+/* ===== Interactive blocks shared ===== */
+.interactive{background:var(--bg-panel); border:1px solid var(--border-bright); border-radius:var(--radius); padding:22px; margin:26px 0;}
+.interactive .tag{font-family:'IBM Plex Mono',monospace; font-size:.72rem; color:var(--accent); text-transform:uppercase; letter-spacing:.1em; margin-bottom:10px; display:block;}
+.btn{
+  font-family:'IBM Plex Mono',monospace; font-size:.82rem; cursor:pointer; border-radius:8px;
+  padding:9px 16px; border:1px solid var(--accent); background:color-mix(in srgb, var(--accent) 16%, transparent);
+  color:var(--text); transition:background .2s;
+}
+.btn:hover{background:color-mix(in srgb, var(--accent) 30%, transparent);}
+.btn:disabled{opacity:.4; cursor:not-allowed;}
+.btn-ghost{background:transparent; border:1px solid var(--border-bright); color:var(--text-dim);}
+input[type=range]{accent-color:var(--accent); width:100%;}
+textarea{
+  width:100%; min-height:90px; background:var(--bg-raised); color:var(--text);
+  border:1px solid var(--border-bright); border-radius:8px; padding:12px; font-family:'IBM Plex Sans',sans-serif;
+  resize:vertical;
+}
+textarea:focus, button:focus-visible, .road-card:focus-visible, input:focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
+
+/* quiz */
+.quiz-q{margin-bottom:18px; padding-bottom:16px; border-bottom:1px solid var(--border);}
+.quiz-q:last-child{border-bottom:none;}
+.quiz-q .qtext{font-weight:600; margin-bottom:10px;}
+.quiz-opt{
+  display:block; width:100%; text-align:left; background:var(--bg-raised); border:1px solid var(--border-bright);
+  color:var(--text); padding:10px 14px; border-radius:8px; margin-bottom:8px; cursor:pointer; font-family:'IBM Plex Sans',sans-serif; font-size:.92rem;
+}
+.quiz-opt:hover{border-color:var(--accent);}
+.quiz-opt.correct{border-color:var(--good); background:color-mix(in srgb, var(--good) 18%, var(--bg-raised));}
+.quiz-opt.wrong{border-color:var(--bad); background:color-mix(in srgb, var(--bad) 18%, var(--bg-raised));}
+.quiz-fb{font-size:.85rem; color:var(--text-dim); margin-top:6px; display:none;}
+.quiz-fb.show{display:block;}
+
+/* flashcards */
+.flash-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(150px,1fr)); gap:12px;}
+.flash{
+  perspective:800px; height:110px; cursor:pointer;
+}
+.flash-inner{position:relative; width:100%; height:100%; transition:transform .5s; transform-style:preserve-3d;}
+.flash.flipped .flash-inner{transform:rotateY(180deg);}
+.flash-face{
+  position:absolute; inset:0; backface-visibility:hidden; border-radius:10px;
+  display:flex; align-items:center; justify-content:center; text-align:center; padding:10px;
+  border:1px solid var(--border-bright); font-size:.85rem;
+}
+.flash-front{background:var(--bg-raised); color:var(--text); font-weight:600;}
+.flash-back{background:color-mix(in srgb, var(--accent) 18%, var(--bg-raised)); color:var(--text); transform:rotateY(180deg); font-size:.78rem;}
+
+/* drag match */
+.match-wrap{display:grid; grid-template-columns:1fr 1fr; gap:24px;}
+.match-col h5{font-size:.78rem; text-transform:uppercase; letter-spacing:.08em; color:var(--text-faint); font-family:'IBM Plex Mono',monospace; margin:0 0 10px;}
+.drag-item{
+  background:var(--bg-raised); border:1px solid var(--border-bright); border-radius:8px; padding:10px 12px;
+  margin-bottom:8px; cursor:grab; font-size:.88rem;
+}
+.drag-item.placed{opacity:.35; cursor:default;}
+.drop-target{
+  background:var(--bg-raised); border:1px dashed var(--border-bright); border-radius:8px; padding:10px 12px;
+  margin-bottom:8px; min-height:42px; font-size:.85rem; display:flex; align-items:center; gap:8px;
+}
+.drop-target .placed-label{font-weight:600; color:var(--accent);}
+.drop-target.over{border-color:var(--accent); background:color-mix(in srgb, var(--accent) 10%, var(--bg-raised));}
+.drop-target.correct{border-color:var(--good);}
+.drop-target.wrong{border-color:var(--bad);}
+
+@media(max-width:640px){.match-wrap{grid-template-columns:1fr;}}
+
+/* sortable */
+.sort-list{list-style:none; margin:0; padding:0;}
+.sort-item{
+  background:var(--bg-raised); border:1px solid var(--border-bright); border-radius:8px; padding:10px 14px;
+  margin-bottom:8px; cursor:grab; display:flex; align-items:center; gap:10px; font-size:.9rem;
+}
+.sort-item .handle{color:var(--text-faint); font-family:'IBM Plex Mono',monospace;}
+.sort-item.drag-over{border-color:var(--accent);}
+
+/* hover diagram tooltip */
+.hover-target{cursor:pointer;}
+.tooltip-box{
+  background:var(--bg-raised); border:1px solid var(--border-bright); border-radius:8px; padding:10px 12px;
+  font-size:.85rem; margin-top:12px; min-height:42px; color:var(--text-dim);
+}
+
+/* explain back */
+.explain-model{
+  display:none; margin-top:14px; background:var(--bg-raised); border:1px solid var(--border-bright);
+  border-radius:8px; padding:14px; font-size:.9rem; color:var(--text-dim);
+}
+.explain-model.show{display:block;}
+
+/* details cheat sheet */
+details.cheat{background:var(--bg-panel); border:1px solid var(--border-bright); border-radius:var(--radius); padding:18px; margin-top:20px;}
+details.cheat summary{cursor:pointer; font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:1.05rem;}
+details.cheat table{width:100%; border-collapse:collapse; margin-top:14px; font-size:.85rem;}
+details.cheat td, details.cheat th{border-bottom:1px solid var(--border); padding:8px 6px; text-align:left;}
+
+/* certificate */
+.cert{
+  margin-top:30px; background:radial-gradient(circle at 20% 20%, color-mix(in srgb, var(--accent) 14%, var(--bg-panel)), var(--bg-panel));
+  border:1px solid var(--border-bright); border-radius:var(--radius); padding:40px; text-align:center;
+}
+.cert h3{font-size:1.6rem;}
+.cert .name-input{
+  background:transparent; border:none; border-bottom:2px solid var(--accent); color:var(--text);
+  font-family:'Space Grotesk',sans-serif; font-size:1.3rem; text-align:center; padding:6px; margin:14px 0; width:80%;
+}
+.cert .name-input:focus{outline:none;}
+.cert-seal{font-size:2.4rem; margin-bottom:6px;}
+
+/* footer */
+footer{padding:40px 0 80px; text-align:center; color:var(--text-faint); font-size:.85rem;}
+
+/* chapter accent assignment */
+#ch1{--accent:var(--c1);}
+#ch2{--accent:var(--c2);}
+#ch3{--accent:var(--c3);}
+#ch4{--accent:var(--c4);}
+#ch5{--accent:var(--c5);}
+#ch6{--accent:var(--c6);}
+#ch7{--accent:var(--c7);}
+#synthesis{--accent:var(--cf);}
+
+.score-badge{font-family:'IBM Plex Mono',monospace; font-size:.78rem; color:var(--text-dim); margin-top:8px; display:block;}
+</style>
+</head>
+<body>
+
+<div id="progressBar"></div>
+
+<!-- ============ HERO ============ -->
+<header class="hero">
+  <div class="wrap">
+    <div class="hero-badge">SENSE → THINK → ACT</div>
+    <h1>Robots don't think.<br><span>They close a loop.</span></h1>
+    <p class="sub">A self-contained field guide to robotics, built the way Richard Feynman taught physics: start with what a ten-year-old already understands, then earn every equation. No prior robotics background required.</p>
+    <div class="hero-meta">
+      <span class="pill">⏱ <b>~3–4 hrs</b> to first mastery</span>
+      <span class="pill">📦 8 chapters</span>
+      <span class="pill">🧪 9 interactive labs</span>
+      <span class="pill">🎓 certificate at the end</span>
+    </div>
+
+    <div class="loop-stage reveal">
+      <svg id="heroLoopSVG" viewBox="0 0 700 230" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Animated diagram of the sense, think, act robot loop">
+        <defs>
+          <marker id="arrowHero" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+            <path d="M0,0 L8,3 L0,6 Z" fill="#566076"/>
+          </marker>
+        </defs>
+        <!-- nodes -->
+        <g id="nodeSense">
+          <circle cx="110" cy="115" r="58" fill="#161d2b" stroke="#3ee6c7" stroke-width="2"/>
+          <text x="110" y="108" text-anchor="middle" fill="#3ee6c7" font-family="IBM Plex Mono, monospace" font-size="11">SENSE</text>
+          <text x="110" y="128" text-anchor="middle" fill="#dbe4f0" font-family="IBM Plex Mono, monospace" font-size="20">👁</text>
+        </g>
+        <g id="nodeThink">
+          <circle cx="350" cy="55" r="58" fill="#161d2b" stroke="#8b7bff" stroke-width="2"/>
+          <text x="350" y="48" text-anchor="middle" fill="#8b7bff" font-family="IBM Plex Mono, monospace" font-size="11">THINK</text>
+          <text x="350" y="68" text-anchor="middle" fill="#dbe4f0" font-family="IBM Plex Mono, monospace" font-size="20">🧠</text>
+        </g>
+        <g id="nodeAct">
+          <circle cx="590" cy="115" r="58" fill="#161d2b" stroke="#ff8a5b" stroke-width="2"/>
+          <text x="590" y="108" text-anchor="middle" fill="#ff8a5b" font-family="IBM Plex Mono, monospace" font-size="11">ACT</text>
+          <text x="590" y="128" text-anchor="middle" fill="#dbe4f0" font-family="IBM Plex Mono, monospace" font-size="20">🦾</text>
+        </g>
+        <!-- edges -->
+        <path d="M165,95 Q 250,30 292,40" fill="none" stroke="#566076" stroke-width="2" marker-end="url(#arrowHero)" stroke-dasharray="6 5">
+          <animate attributeName="stroke-dashoffset" from="60" to="0" dur="1.6s" repeatCount="indefinite"/>
+        </path>
+        <path d="M408,45 Q 500,30 537,80" fill="none" stroke="#566076" stroke-width="2" marker-end="url(#arrowHero)" stroke-dasharray="6 5">
+          <animate attributeName="stroke-dashoffset" from="60" to="0" dur="1.6s" begin="0.5s" repeatCount="indefinite"/>
+        </path>
+        <path d="M545,165 Q 350,225 145,168" fill="none" stroke="#566076" stroke-width="2" marker-end="url(#arrowHero)" stroke-dasharray="6 5">
+          <animate attributeName="stroke-dashoffset" from="80" to="0" dur="1.6s" begin="1s" repeatCount="indefinite"/>
+        </path>
+        <text x="350" y="218" text-anchor="middle" fill="#566076" font-family="IBM Plex Mono, monospace" font-size="10">the world changes → sense again → repeat, forever</text>
+      </svg>
+      <p class="loop-caption">Every robot, from a Roomba to a Mars rover, is this loop running at some speed — fast or slow.</p>
+    </div>
+  </div>
+</header>
+
+<!-- ============ ROADMAP ============ -->
+<nav class="roadmap">
+  <div class="wrap">
+    <h2 class="reveal">Your route through the territory</h2>
+    <p class="lead reveal">Click any stop to jump there. Chapters build on each other, so the first time through, go in order.</p>
+    <div class="roadmap-grid" id="roadmapGrid">
+      <a href="#ch0" class="road-card reveal" style="--rc:#3ee6c7" data-ch="ch0"><span class="rc-num">00</span><div class="rc-title">The Big Picture</div><span class="rc-check">✓</span></a>
+      <a href="#ch1" class="road-card reveal" style="--rc:#3ee6c7" data-ch="ch1"><span class="rc-num">01</span><div class="rc-title">Senses &amp; Muscles</div><span class="rc-check">✓</span></a>
+      <a href="#ch2" class="road-card reveal" style="--rc:#5ea8ff" data-ch="ch2"><span class="rc-num">02</span><div class="rc-title">Where Am I? — Frames</div><span class="rc-check">✓</span></a>
+      <a href="#ch3" class="road-card reveal" style="--rc:#8b7bff" data-ch="ch3"><span class="rc-num">03</span><div class="rc-title">Forward Kinematics</div><span class="rc-check">✓</span></a>
+      <a href="#ch4" class="road-card reveal" style="--rc:#c77bff" data-ch="ch4"><span class="rc-num">04</span><div class="rc-title">Inverse Kinematics</div><span class="rc-check">✓</span></a>
+      <a href="#ch5" class="road-card reveal" style="--rc:#ff8a5b" data-ch="ch5"><span class="rc-num">05</span><div class="rc-title">Closing the Loop — PID</div><span class="rc-check">✓</span></a>
+      <a href="#ch6" class="road-card reveal" style="--rc:#ffd166" data-ch="ch6"><span class="rc-num">06</span><div class="rc-title">Perception &amp; SLAM</div><span class="rc-check">✓</span></a>
+      <a href="#ch7" class="road-card reveal" style="--rc:#6bdc8c" data-ch="ch7"><span class="rc-num">07</span><div class="rc-title">Planning &amp; Behavior</div><span class="rc-check">✓</span></a>
+      <a href="#synthesis" class="road-card reveal" style="--rc:#ff7a93" data-ch="synthesis"><span class="rc-num">08</span><div class="rc-title">The Full Stack</div><span class="rc-check">✓</span></a>
+    </div>
+  </div>
+</nav>
+
+<main>
+
+<!-- ============ CHAPTER 0 ============ -->
+<section class="chapter" id="ch0" style="--accent:#3ee6c7">
+  <div class="wrap">
+    <span class="eyebrow reveal">Chapter 00 — Orientation</span>
+    <h2 class="reveal">What <span class="accent-word">robotics</span> actually is, in one sentence</h2>
+    <p class="lead reveal">A robot is anything that <b>senses</b> the world, <b>decides</b> what to do about it, and <b>acts</b> to change the world — on its own, over and over, without a person doing each step by hand.</p>
+
+    <div class="box-misconception reveal">
+      <div class="think"><span class="tag">What you think robotics is</span>Building a humanoid robot that walks and talks like a person — mostly mechanical engineering with some AI sprinkled on top.</div>
+      <div class="truth"><span class="tag">What it actually is</span>A robot can be a one-jointed arm welding the same spot a million times, or a vacuum with no arms at all. The "robotics" part isn't the body — it's the loop: measure, decide, move, repeat.</div>
+    </div>
+
+    <p class="reveal">Here's the test for whether something is a robot: <b>if you unplug the human and the loop keeps running on its own</b>, sensing and reacting to a world that wasn't scripted in advance, it's a robot. A dishwasher runs a fixed timer — not a robot. A robot vacuum that detects a wall and turns — a robot, even with one cheap sensor and one motor.</p>
+
+    <div class="box box-analogy reveal" style="--accent:#3ee6c7">
+      <span class="tag">Feynman analogy</span>
+      <h4>Think of a robot like a person crossing a busy street</h4>
+      <p style="margin-top:8px">You look both ways (<b>sense</b>), your brain decides whether it's safe and picks a path (<b>think</b>), and your legs carry you across (<b>act</b>). You don't do this once — you keep glancing as you walk. That glance-decide-step cycle, running continuously, is the entire idea robotics is built on. Everything in this course — sensors, kinematics, control, planning — is just a more rigorous version of "look both ways."</p>
+    </div>
+
+    <div class="diagram-panel reveal">
+      <svg viewBox="0 0 700 260" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Map of how all robotics subfields connect to the sense think act loop">
+        <g font-family="IBM Plex Mono, monospace" font-size="11">
+          <circle cx="350" cy="130" r="46" fill="#161d2b" stroke="#3ee6c7" stroke-width="2"/>
+          <text x="350" y="127" text-anchor="middle" fill="#3ee6c7" font-size="10">SENSE→THINK</text>
+          <text x="350" y="141" text-anchor="middle" fill="#3ee6c7" font-size="10">→ACT</text>
+
+          <g class="map-node" data-target="ch1"><circle cx="120" cy="60" r="40" fill="#161d2b" stroke="#3ee6c7" stroke-width="1.6" class="hover-target"/><text x="120" y="56" text-anchor="middle" fill="#dbe4f0">Sensors &amp;</text><text x="120" y="70" text-anchor="middle" fill="#dbe4f0">Actuators</text></g>
+
+          <g class="map-node" data-target="ch2"><circle cx="580" cy="60" r="40" fill="#161d2b" stroke="#5ea8ff" stroke-width="1.6" class="hover-target"/><text x="580" y="56" text-anchor="middle" fill="#dbe4f0">Reference</text><text x="580" y="70" text-anchor="middle" fill="#dbe4f0">Frames</text></g>
+
+          <g class="map-node" data-target="ch3"><circle cx="90" cy="190" r="40" fill="#161d2b" stroke="#8b7bff" stroke-width="1.6" class="hover-target"/><text x="90" y="186" text-anchor="middle" fill="#dbe4f0">Forward</text><text x="90" y="200" text-anchor="middle" fill="#dbe4f0">Kinematics</text></g>
+
+          <g class="map-node" data-target="ch4"><circle cx="245" cy="225" r="40" fill="#161d2b" stroke="#c77bff" stroke-width="1.6" class="hover-target"/><text x="245" y="221" text-anchor="middle" fill="#dbe4f0">Inverse</text><text x="245" y="235" text-anchor="middle" fill="#dbe4f0">Kinematics</text></g>
+
+          <g class="map-node" data-target="ch5"><circle cx="455" cy="225" r="40" fill="#161d2b" stroke="#ff8a5b" stroke-width="1.6" class="hover-target"/><text x="455" y="221" text-anchor="middle" fill="#dbe4f0">PID</text><text x="455" y="235" text-anchor="middle" fill="#dbe4f0">Control</text></g>
+
+          <g class="map-node" data-target="ch6"><circle cx="610" cy="190" r="40" fill="#161d2b" stroke="#ffd166" stroke-width="1.6" class="hover-target"/><text x="610" y="186" text-anchor="middle" fill="#dbe4f0">Perception</text><text x="610" y="200" text-anchor="middle" fill="#dbe4f0">/ SLAM</text></g>
+
+          <line x1="155" y1="80" x2="318" y2="115" stroke="#34415a" stroke-width="1.5"/>
+          <line x1="545" y1="80" x2="382" y2="115" stroke="#34415a" stroke-width="1.5"/>
+          <line x1="120" y1="160" x2="330" y2="150" stroke="#34415a" stroke-width="1.5"/>
+          <line x1="260" y1="195" x2="335" y2="158" stroke="#34415a" stroke-width="1.5"/>
+          <line x1="440" y1="195" x2="368" y2="158" stroke="#34415a" stroke-width="1.5"/>
+          <line x1="578" y1="165" x2="380" y2="140" stroke="#34415a" stroke-width="1.5"/>
+        </g>
+      </svg>
+      <p class="diagram-caption">Every chapter you're about to learn is a different specialization of the same central loop. Nothing here is unrelated trivia.</p>
+    </div>
+
+    <div class="box box-sticking reveal">
+      <span class="tag">⚡ Common sticking point</span>
+      <p style="margin-top:8px">People assume robotics is mostly about the <b>body</b> (motors, metal, 3D printing). In practice, most working roboticists spend the majority of their time on the <b>think</b> step — software that turns noisy sensor numbers into a decision. The hardware is often the easy 20%.</p>
+    </div>
+
+    <div class="box box-takeaway reveal">
+      <span class="tag">Key takeaway</span>
+      <ul>
+        <li>A robot = a closed loop of sense → think → act, running without a human doing each cycle by hand.</li>
+        <li>The loop, not the body shape, is what defines "robot."</li>
+        <li>Every topic in this course is a deeper look at one part of that same loop.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CHAPTER 1: Sensors & Actuators ============ -->
+<section class="chapter" id="ch1">
+  <div class="wrap">
+    <span class="eyebrow reveal">Chapter 01 — Beginner</span>
+    <h2 class="reveal">The robot's <span class="accent-word">senses and muscles</span></h2>
+    <p class="lead reveal">Before a robot can think, it needs two things: a way to find out what's going on (a <b>sensor</b>), and a way to change what's going on (an <b>actuator</b>). Everything else in robotics is built on top of these two.</p>
+
+    <div class="box-misconception reveal">
+      <div class="think"><span class="tag">What you think</span>Sensors give a robot perfect, instant information — like a video game character that just "knows" its position.</div>
+      <div class="truth"><span class="tag">What's actually true</span>Every real sensor lies a little. A distance sensor might say "2.01m" when the true distance is 2.00m, and that error wobbles every reading. Robotics is largely the art of making good decisions from slightly-wrong numbers.</div>
+    </div>
+
+    <div class="box box-analogy reveal">
+      <span class="tag">Feynman analogy 1</span>
+      <h4>A sensor is a foggy window, not a clean photograph</h4>
+      <p style="margin-top:8px">Imagine reading a thermometer through frosted glass — you can tell roughly what it says, but never with perfect precision, and it jitters a little even when the temperature hasn't changed. That jitter is called <b>noise</b>, and no sensor is free of it.</p>
+    </div>
+    <div class="box box-analogy reveal">
+      <span class="tag">Feynman analogy 2</span>
+      <h4>An actuator is a muscle with a dial, not a switch</h4>
+      <p style="margin-top:8px">A light switch is on/off. A muscle can push gently or hard, fast or slow. Most actuators (motors) are the same — you don't just say "move," you say "push with this much force, for this long," and the real-world result still depends on friction, weight, and battery charge.</p>
+    </div>
+
+    <div class="diagram-panel reveal">
+      <svg viewBox="0 0 700 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Diagram of a clean signal becoming noisy through a sensor, and a command becoming an imperfect motion through an actuator">
+        <text x="20" y="28" fill="#3ee6c7" font-family="IBM Plex Mono, monospace" font-size="12">SENSOR: real value → noisy reading</text>
+        <line x1="20" y1="60" x2="660" y2="60" stroke="#232c3d"/>
+        <polyline id="cleanLine" points="20,60 660,60" fill="none" stroke="#566076" stroke-width="1.5" stroke-dasharray="4 4"/>
+        <polyline id="noisyLine" fill="none" stroke="#3ee6c7" stroke-width="2"/>
+        <text x="20" y="120" fill="#ff8a5b" font-family="IBM Plex Mono, monospace" font-size="12">ACTUATOR: commanded vs. actual motion</text>
+        <line x1="20" y1="150" x2="660" y2="150" stroke="#232c3d"/>
+        <polyline id="cmdLine" points="20,150 660,150" fill="none" stroke="#566076" stroke-width="1.5" stroke-dasharray="4 4"/>
+        <path id="actualPath" d="M20,150" fill="none" stroke="#ff8a5b" stroke-width="2"/>
+      </svg>
+      <p class="diagram-caption">Top: a flat true value (dashed) vs. what the sensor reports (jittery). Bottom: a commanded step (dashed) vs. the actuator's real, lagged motion.</p>
+      <button class="replay-btn" id="replaySensorDiagram">↻ Replay</button>
+    </div>
+
+    <details>
+      <summary style="cursor:pointer;color:var(--text-dim);font-family:'IBM Plex Mono',monospace;font-size:.85rem;">Reveal the why — what causes sensor noise and actuator lag?</summary>
+      <p style="margin-top:12px">Sensor noise comes from physics you can't avoid: electrical interference, tiny vibrations, quantization (a sensor that only reports whole millimeters can't tell you 2.4mm). Actuator lag comes from inertia — a motor and whatever it's attached to has mass, and mass resists sudden changes in speed. Both of these are <i>why</i> Chapter 5 (control) has to exist at all.</p>
+    </details>
+
+    <div class="interactive reveal">
+      <span class="tag">🧩 Drag-and-drop lab</span>
+      <h4 style="margin-bottom:6px">Match each device to its job</h4>
+      <p style="font-size:.88rem;color:var(--text-dim);margin-bottom:14px">Drag each device on the left onto the role it plays on the right: sensor (it measures the world) or actuator (it changes the world).</p>
+      <div class="match-wrap" id="matchLab">
+        <div class="match-col">
+          <h5>Devices</h5>
+          <div class="drag-item" draggable="true" data-match="sensor">LIDAR (laser distance scanner)</div>
+          <div class="drag-item" draggable="true" data-match="actuator">DC motor</div>
+          <div class="drag-item" draggable="true" data-match="sensor">Camera</div>
+          <div class="drag-item" draggable="true" data-match="actuator">Hydraulic piston</div>
+          <div class="drag-item" draggable="true" data-match="sensor">IMU (gyroscope + accelerometer)</div>
+          <div class="drag-item" draggable="true" data-match="actuator">Servo motor</div>
+        </div>
+        <div class="match-col">
+          <h5>Role</h5>
+          <div class="drop-target" data-accept="sensor" data-label="Sensor — measures the world">Sensor — measures the world</div>
+          <div class="drop-target" data-accept="actuator" data-label="Actuator — changes the world">Actuator — changes the world</div>
+        </div>
+      </div>
+      <button class="btn btn-ghost" id="resetMatch" style="margin-top:14px;">↻ Reset</button>
+      <span class="score-badge" id="matchScore"></span>
+    </div>
+
+    <div class="box box-sticking reveal">
+      <span class="tag">⚡ Common sticking point</span>
+      <p style="margin-top:8px">Beginners assume "better sensors" solve every problem. In practice, a cheap noisy sensor combined with smart software (Chapter 5 and 6) usually beats an expensive sensor with naive software. Money is often better spent on the "think" step than on hardware.</p>
+    </div>
+
+    <details class="box-math reveal">
+      <summary>📐 Math deep dive — modeling noise and motor dynamics rigorously</summary>
+      <div class="math-body">
+        <h5>The sensor noise model</h5>
+        <p style="font-size:.9rem;color:var(--text-dim)">Every real sensor reading <span class="v">z</span> is modeled as the true value <span class="v">x</span> plus a random error term <span class="v">ε</span>:</p>
+        <div class="eq">z&nbsp;=&nbsp;x&nbsp;+&nbsp;ε,&nbsp;&nbsp;&nbsp;ε&nbsp;~&nbsp;N(0,&nbsp;σ²)</div>
+        <p style="font-size:.9rem;color:var(--text-dim)">ε is usually treated as Gaussian (bell-curve) noise with mean 0 and variance σ². σ (sigma) is the sensor's <b>standard deviation</b> — the datasheet number like "±2cm" is roughly 2σ. This single assumption is the foundation of nearly every filtering algorithm in Chapter 6: if you know σ, you know exactly how much to trust a given reading.</p>
+        <p style="font-size:.9rem;color:var(--text-dim)">Averaging <span class="v">n</span> independent readings of the same fixed quantity shrinks the noise:</p>
+        <div class="eq">σ<sub>avg</sub>&nbsp;=&nbsp;σ&nbsp;/&nbsp;√n</div>
+        <p style="font-size:.9rem;color:var(--text-dim)">This is why a robot that takes 100 LIDAR pings of a static wall gets a far tighter distance estimate than a robot trusting a single ping — the error shrinks with the square root of the sample count, not linearly, which is also why the *last* doubling of samples helps far less than the first.</p>
+
+        <h5>The actuator's equation of motion</h5>
+        <p style="font-size:.9rem;color:var(--text-dim)">A DC motor driving a load obeys Newton's second law for rotation. Torque in, minus friction drag, equals inertia times angular acceleration:</p>
+        <div class="eq">J&nbsp;(dω/dt)&nbsp;=&nbsp;τ&nbsp;−&nbsp;bω</div>
+        <table class="param-table">
+          <tr><th>Symbol</th><th>Meaning</th></tr>
+          <tr><td class="sym">J</td><td>moment of inertia of the rotating load (resistance to angular acceleration)</td></tr>
+          <tr><td class="sym">ω</td><td>angular velocity</td></tr>
+          <tr><td class="sym">τ</td><td>applied torque, τ = K<sub>t</sub>·I (proportional to motor current I)</td></tr>
+          <tr><td class="sym">b</td><td>viscous friction / damping coefficient</td></tr>
+        </table>
+        <p style="font-size:.9rem;color:var(--text-dim)">Solving this differential equation for a step input torque gives an exponential approach to a final speed, with a characteristic <b>time constant</b>:</p>
+        <div class="eq">τ<sub>motor</sub>&nbsp;=&nbsp;J&nbsp;/&nbsp;b</div>
+        <p style="font-size:.9rem;color:var(--text-dim)">This is precisely the "lag" you saw in the diagram above — a real motor can never jump instantly to a new speed because that would require infinite torque. The bigger J/b is, the more sluggish the response, and the more aggressively Chapter 5's controller has to compensate.</p>
+      </div>
+    </details>
+
+    <div class="interactive reveal">
+      <span class="tag">✍️ Explain it back</span>
+      <p>In your own words: why does no sensor give a robot a "perfect" reading, and what's one consequence of that?</p>
+      <textarea id="explain1" placeholder="Type your explanation here..."></textarea>
+      <button class="btn" id="explainBtn1" style="margin-top:10px;">Show model answer</button>
+      <div class="explain-model" id="model1">
+        <b>Model answer:</b> Every sensor is a physical device subject to electrical noise, vibration, and limited resolution, so its reading is always an estimate of the true value, not the true value itself. One consequence: a robot can't simply trust a single reading — it has to combine multiple readings over time (or multiple sensors) to get a more reliable picture, which is exactly what Chapter 6 (sensor fusion) covers.
+      </div>
+    </div>
+
+    <div class="interactive reveal" id="quiz1">
+      <span class="tag">✅ Self-check</span>
+    </div>
+
+    <div class="box box-takeaway reveal">
+      <span class="tag">Key takeaway</span>
+      <ul>
+        <li>Sensors measure the world but always with some noise and delay.</li>
+        <li>Actuators change the world but never exactly as commanded — inertia and friction get in the way.</li>
+        <li>Good robotics software assumes both are imperfect from the start, rather than treating them as exact.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CHAPTER 2: Reference Frames ============ -->
+<section class="chapter" id="ch2">
+  <div class="wrap">
+    <span class="eyebrow reveal">Chapter 02 — Beginner</span>
+    <h2 class="reveal">Where am I? — <span class="accent-word">reference frames</span></h2>
+    <p class="lead reveal">"The cup is 30cm in front of the gripper" only means something once you say <i>whose</i> front. Robotics solves this with reference frames: agreed-upon coordinate systems that every measurement is relative to.</p>
+
+    <div class="box-misconception reveal">
+      <div class="think"><span class="tag">What you think</span>A robot has one single notion of "position" — like a dot on a map.</div>
+      <div class="truth"><span class="tag">What's actually true</span>A robot usually juggles many positions at once: the camera's view of an object, the gripper's own joint position, the room's fixed coordinates. None of these numbers mean anything until you say which frame they're measured in — and a huge share of real robot bugs are "frame mismatch" bugs.</div>
+    </div>
+
+    <div class="box box-analogy reveal">
+      <span class="tag">Feynman analogy 1</span>
+      <h4>A reference frame is like "stage left" vs. "audience left"</h4>
+      <p style="margin-top:8px">An actor told to walk "left" means their own left, facing the audience — which is the audience's <i>right</i>. Theater people invented "stage left/right" specifically to avoid that mixup. Robots need the exact same discipline: every number must come with "measured from where, facing which way."</p>
+    </div>
+    <div class="box box-analogy reveal">
+      <span class="tag">Feynman analogy 2</span>
+      <h4>A transform is a translator between two languages</h4>
+      <p style="margin-top:8px">If the camera says "the cup is 10cm to my left," and you need to know where it is relative to the room's corner, you need a translator: a fixed rule for converting camera-language coordinates into room-language coordinates. That translator is called a <b>transform</b>, and it's nothing more than "shift then rotate."</p>
+    </div>
+
+    <div class="diagram-panel reveal">
+      <svg viewBox="0 0 700 260" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Diagram showing a world frame and a rotated robot frame, with hoverable axis labels">
+        <!-- world frame -->
+        <g>
+          <line x1="80" y1="220" x2="220" y2="220" stroke="#5ea8ff" stroke-width="2" marker-end="url(#arrowHero)"/>
+          <line x1="80" y1="220" x2="80" y2="90" stroke="#5ea8ff" stroke-width="2" marker-end="url(#arrowHero)"/>
+          <text x="225" y="224" fill="#5ea8ff" font-family="IBM Plex Mono, monospace" font-size="11">X_world</text>
+          <text x="60" y="86" fill="#5ea8ff" font-family="IBM Plex Mono, monospace" font-size="11">Y_world</text>
+          <circle cx="80" cy="220" r="4" fill="#5ea8ff"/>
+          <text x="64" y="240" fill="#566076" font-family="IBM Plex Mono, monospace" font-size="10">origin (room corner)</text>
+        </g>
+        <!-- robot frame, rotated -->
+        <g id="robotFrameGroup" transform="translate(420,140) rotate(0)">
+          <line x1="0" y1="0" x2="110" y2="0" stroke="#ffd166" stroke-width="2" marker-end="url(#arrowHero)"/>
+          <line x1="0" y1="0" x2="0" y2="-110" stroke="#ffd166" stroke-width="2" marker-end="url(#arrowHero)"/>
+          <text x="116" y="6" fill="#ffd166" font-family="IBM Plex Mono, monospace" font-size="11">X_robot</text>
+          <text x="-34" y="-114" fill="#ffd166" font-family="IBM Plex Mono, monospace" font-size="11">Y_robot</text>
+          <circle cx="0" cy="0" r="4" fill="#ffd166"/>
+          <rect x="-16" y="-12" width="32" height="24" fill="none" stroke="#ffd166" stroke-width="1.4"/>
+        </g>
+        <circle cx="560" cy="60" r="6" fill="#ff7a93"/>
+        <text x="572" y="64" fill="#ff7a93" font-family="IBM Plex Mono, monospace" font-size="11">target object</text>
+      </svg>
+      <p class="diagram-caption">The same target object has different coordinates in the world frame vs. the robot's own (rotated) frame. Use the slider below to rotate the robot frame and see how its read of "where the object is" changes — even though the object never moved.</p>
+    </div>
+
+    <div class="interactive reveal">
+      <span class="tag">🎚 Slider lab</span>
+      <h4 style="margin-bottom:10px">Rotate the robot's frame — watch its "opinion" of the object change</h4>
+      <input type="range" id="frameSlider" min="0" max="360" value="0">
+      <p style="margin-top:10px;font-size:.9rem;" class="mono">Robot heading: <span id="frameAngleLabel">0°</span> &nbsp;|&nbsp; Object position in robot frame: <span id="frameCoordLabel">(–, –)</span></p>
+      <p style="font-size:.85rem;color:var(--text-dim);margin-top:8px">Notice: the object's position in <i>world</i> coordinates never changes. Only the robot's rotated frame makes the numbers shift — which is exactly why mixing up frames causes a robot to "see" things in the wrong place.</p>
+    </div>
+
+    <div class="box box-sticking reveal">
+      <span class="tag">⚡ Common sticking point</span>
+      <p style="margin-top:8px">The order of rotate-then-translate vs. translate-then-rotate matters, and reversing it silently gives a wrong answer that still "looks like a number." This is the single most common bug category in real robot code — always be explicit about which frame a number lives in, and write it in variable names (e.g. <code>cup_pos_in_camera_frame</code>).</p>
+    </div>
+
+    <details class="box-math reveal">
+      <summary>📐 Math deep dive — rotation matrices and homogeneous transforms</summary>
+      <div class="math-body">
+        <h5>The 2D rotation matrix</h5>
+        <p style="font-size:.9rem;color:var(--text-dim)">Rotating a point by angle <span class="v">θ</span> is a linear operation — multiplying by a 2×2 matrix:</p>
+        <div class="eq">
+          <div class="eq-row">⎡x'⎤ &nbsp; ⎡cos θ &nbsp; −sin θ⎤ ⎡x⎤</div>
+          <div class="eq-row">⎣y'⎦ &nbsp;=&nbsp; ⎣sin θ &nbsp; &nbsp;cos θ⎦ ⎣y⎦</div>
+        </div>
+        <p style="font-size:.9rem;color:var(--text-dim)">This is exactly the calculation the slider above runs on every drag: it rotates the object's world coordinates by <b>−θ</b> (the negative of the robot's heading) to find out where the object appears <i>from the robot's point of view</i>. Rotating "the world" backward by the robot's own heading is mathematically identical to rotating the robot's frame forward — that equivalence is worth sitting with, because it trips up almost everyone the first time.</p>
+
+        <h5>Combining rotation and translation: the homogeneous transform</h5>
+        <p style="font-size:.9rem;color:var(--text-dim)">A frame can be both rotated <i>and</i> shifted relative to another. Robotics packages both operations into one 3×3 matrix (in 2D) called a <b>homogeneous transform</b>, by adding a constant "1" row:</p>
+        <div class="eq">
+          <div class="eq-row">⎡x'⎤ &nbsp; ⎡cos θ &nbsp; −sin θ &nbsp; t<sub>x</sub>⎤ ⎡x⎤</div>
+          <div class="eq-row">⎢y'⎥ &nbsp;=&nbsp; ⎢sin θ &nbsp; &nbsp;cos θ &nbsp; t<sub>y</sub>⎥ ⎢y⎥</div>
+          <div class="eq-row">⎣1 ⎦ &nbsp; ⎣ 0 &nbsp; &nbsp; &nbsp; 0 &nbsp; &nbsp; &nbsp; 1 ⎦ ⎣1⎦</div>
+        </div>
+        <p style="font-size:.9rem;color:var(--text-dim)">Call this matrix <span class="v">T</span>. The payoff: chaining frames is now just matrix multiplication. If you know the transform from frame A to frame B, and from B to C, the transform straight from A to C is:</p>
+        <div class="eq">T<sub>A←C</sub>&nbsp;=&nbsp;T<sub>A←B</sub>&nbsp;·&nbsp;T<sub>B←C</sub></div>
+        <p style="font-size:.9rem;color:var(--text-dim)">Matrix multiplication is <b>not commutative</b> (T₁·T₂ ≠ T₂·T₁ in general) — which is the rigorous reason "rotate-then-translate" and "translate-then-rotate" give different answers. This single non-commutativity fact is responsible for a large fraction of all robotics coordinate bugs ever filed.</p>
+
+        <h5>Why this scales to forward kinematics</h5>
+        <p style="font-size:.9rem;color:var(--text-dim)">Chapter 3 is nothing more than this same homogeneous transform, applied once per joint and multiplied together: <span class="v">T<sub>base→hand</sub> = T₁·T₂·T₃·...·T<sub>n</sub></span>. Every transform in the chain just rotates by that joint's angle and translates by that link's length.</p>
+      </div>
+    </details>
+
+    <div class="interactive reveal">
+      <span class="tag">✍️ Explain it back</span>
+      <p>In your own words: why isn't "the object is at (3, 4)" a complete statement on its own?</p>
+      <textarea id="explain2" placeholder="Type your explanation here..."></textarea>
+      <button class="btn" id="explainBtn2" style="margin-top:10px;">Show model answer</button>
+      <div class="explain-model" id="model2">
+        <b>Model answer:</b> A coordinate pair like (3, 4) is only meaningful relative to some chosen origin and orientation — without saying which frame, you can't tell if that's 3 meters east of the room's corner or 3 meters in front of the robot's nose. Two different frames will report wildly different numbers for the exact same physical point, so the frame is part of the data, not an afterthought.
+      </div>
+    </div>
+
+    <div class="interactive reveal" id="quiz2">
+      <span class="tag">✅ Self-check</span>
+    </div>
+
+    <div class="box box-takeaway reveal">
+      <span class="tag">Key takeaway</span>
+      <ul>
+        <li>A coordinate is meaningless without specifying its reference frame.</li>
+        <li>A transform converts a measurement from one frame's "language" into another's.</li>
+        <li>Frame-mismatch bugs are extremely common and usually silent — they don't crash, they just quietly point the robot at the wrong place.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CHAPTER 3: Forward Kinematics ============ -->
+<section class="chapter" id="ch3">
+  <div class="wrap">
+    <span class="eyebrow reveal">Chapter 03 — Intermediate</span>
+    <h2 class="reveal">Forward kinematics — <span class="accent-word">where does the hand end up?</span></h2>
+    <p class="lead reveal">If you know every joint angle of a robot arm, can you calculate exactly where the fingertip is in space? Yes — and that calculation is called <b>forward kinematics</b>.</p>
+
+    <div class="box-misconception reveal">
+      <div class="think"><span class="tag">What you think</span>This requires advanced robotics-specific math you've never seen before.</div>
+      <div class="truth"><span class="tag">What's actually true</span>It's just the same "transform" idea from Chapter 2, chained link by link. If you can place one rotated frame relative to another, you can place a whole arm — you're just doing that step several times in a row.</div>
+    </div>
+
+    <div class="box box-analogy reveal">
+      <span class="tag">Feynman analogy 1</span>
+      <h4>An arm is a chain of "stand here, then walk this far"</h4>
+      <p style="margin-top:8px">Imagine giving directions: "From the flagpole, walk 10 paces, turn 30°, walk 6 more paces, turn 45°, walk 4 more." Each instruction only makes sense relative to where the <i>previous</i> instruction left you. A two-link robot arm is exactly this: shoulder angle places the elbow, elbow angle (relative to the upper arm) places the wrist.</p>
+    </div>
+    <div class="box box-analogy reveal">
+      <span class="tag">Feynman analogy 2</span>
+      <h4>It's like a human arm shadow puppet</h4>
+      <p style="margin-top:8px">Your shoulder and elbow angles fully determine where your fingertip is — you don't separately decide "fingertip position," it falls out automatically once both joint angles are fixed. Forward kinematics is just writing that automatic falling-out as an equation.</p>
+    </div>
+
+    <div class="diagram-panel reveal">
+      <svg viewBox="0 0 700 320" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Two link robot arm diagram with shoulder and elbow joints, animated by sliders below">
+        <line x1="0" y1="280" x2="700" y2="280" stroke="#232c3d"/>
+        <circle cx="200" cy="280" r="5" fill="#566076"/>
+        <text x="160" y="305" fill="#566076" font-family="IBM Plex Mono, monospace" font-size="11">base</text>
+        <line id="link1" x1="200" y1="280" x2="200" y2="180" stroke="#8b7bff" stroke-width="8" stroke-linecap="round"/>
+        <circle id="elbowJoint" cx="200" cy="180" r="9" fill="#161d2b" stroke="#8b7bff" stroke-width="3"/>
+        <line id="link2" x1="200" y1="180" x2="200" y2="100" stroke="#c77bff" stroke-width="8" stroke-linecap="round"/>
+        <circle id="endEffector" cx="200" cy="100" r="9" fill="#ff7a93"/>
+        <text id="endLabel" x="215" y="95" fill="#ff7a93" font-family="IBM Plex Mono, monospace" font-size="12">end effector</text>
+      </svg>
+      <p class="diagram-caption">A two-link arm. Drag the sliders below to set the shoulder and elbow angles and watch forward kinematics calculate where the fingertip lands.</p>
+    </div>
+
+    <div class="interactive reveal">
+      <span class="tag">🎚 Slider lab — Forward kinematics live</span>
+      <h4 style="margin-bottom:10px">Set the joint angles, watch the end-effector position update</h4>
+      <p style="font-size:.85rem;color:var(--text-dim)">Shoulder angle (θ₁)</p>
+      <input type="range" id="theta1" min="-90" max="90" value="0">
+      <p style="font-size:.85rem;color:var(--text-dim);margin-top:14px">Elbow angle (θ₂, relative to upper arm)</p>
+      <input type="range" id="theta2" min="-150" max="150" value="0">
+      <p style="margin-top:14px;font-family:'IBM Plex Mono',monospace;font-size:.9rem;">End effector position: <span id="fkResult">x = 0.0, y = 2.0</span></p>
+      <p style="font-size:.82rem;color:var(--text-faint);margin-top:6px">This is literally the forward kinematics equation: x = L₁sin(θ₁) + L₂sin(θ₁+θ₂), y = L₁cos(θ₁) + L₂cos(θ₁+θ₂) — every joint angle simply gets added into the chain.</p>
+    </div>
+
+    <div class="box box-sticking reveal">
+      <span class="tag">⚡ Common sticking point</span>
+      <p style="margin-top:8px">The elbow angle is usually measured <i>relative to the upper arm</i>, not relative to the world. Forgetting that and treating both angles as "absolute" is the single most common forward-kinematics bug — it's a frame mistake from Chapter 2 wearing a new costume.</p>
+    </div>
+
+    <details class="box-math reveal">
+      <summary>📐 Math deep dive — the full FK chain, and the velocity Jacobian</summary>
+      <div class="math-body">
+        <h5>Deriving the 2-link equation from Chapter 2's transform</h5>
+        <p style="font-size:.9rem;color:var(--text-dim)">Each link contributes one homogeneous transform: rotate by that joint's angle, then translate along the link length. Chaining two links (multiplying the two transforms from Chapter 2) and reading off the final x, y column gives exactly the equation used in the slider above:</p>
+        <div class="eq">
+          <div class="eq-row">x &nbsp;=&nbsp; L₁ sin θ₁ &nbsp;+&nbsp; L₂ sin(θ₁ + θ₂)</div>
+          <div class="eq-row">y &nbsp;=&nbsp; L₁ cos θ₁ &nbsp;+&nbsp; L₂ cos(θ₁ + θ₂)</div>
+        </div>
+        <p style="font-size:.9rem;color:var(--text-dim)">Notice θ₂ always appears added to θ₁ — that's the algebraic fingerprint of "θ₂ is measured relative to link 1," exactly the sticking point above. Real industrial arms (5, 6, or 7 joints) use the identical idea with the formal bookkeeping system called <b>Denavit–Hartenberg (DH) parameters</b>: four numbers per joint (link length, link twist, link offset, joint angle) that fully define that joint's contribution to the chain, so the whole arm becomes one matrix product T = T₁(q₁)·T₂(q₂)·...·Tₙ(qₙ).</p>
+
+        <h5>From position to velocity: the Jacobian</h5>
+        <p style="font-size:.9rem;color:var(--text-dim)">Forward kinematics tells you where the hand <i>is</i>. Often you also need how fast the hand is <i>moving</i>, given how fast each joint is spinning. The matrix that converts joint velocities into hand velocity is the <b>Jacobian</b>, built from partial derivatives:</p>
+        <div class="eq">
+          <div class="eq-row">⎡ẋ⎤ &nbsp; ⎡∂x/∂θ₁ &nbsp; ∂x/∂θ₂⎤ ⎡θ̇₁⎤</div>
+          <div class="eq-row">⎣ẏ⎦ &nbsp;=&nbsp; ⎣∂y/∂θ₁ &nbsp; ∂y/∂θ₂⎦ ⎣θ̇₂⎦ &nbsp;&nbsp;=&nbsp;&nbsp; J(θ)&nbsp;θ̇</div>
+        </div>
+        <p style="font-size:.9rem;color:var(--text-dim)">For the 2-link arm, differentiating the position equations above gives:</p>
+        <div class="eq">
+          <div class="eq-row">∂x/∂θ₁ = L₁cos θ₁ + L₂cos(θ₁+θ₂) &nbsp;&nbsp; ∂x/∂θ₂ = L₂cos(θ₁+θ₂)</div>
+          <div class="eq-row">∂y/∂θ₁ = −L₁sin θ₁ − L₂sin(θ₁+θ₂) &nbsp;&nbsp; ∂y/∂θ₂ = −L₂sin(θ₁+θ₂)</div>
+        </div>
+        <p style="font-size:.9rem;color:var(--text-dim)">The Jacobian reappears constantly in robotics: it's used to convert force at the hand into torque at each joint (its transpose), and a Jacobian that loses rank — drops from full rank to a lower one — flags a <b>singularity</b>, a pose where the arm momentarily loses the ability to move in some direction no matter how the joints spin (the classic example: a fully outstretched arm can't push further outward).</p>
+      </div>
+    </details>
+
+    <div class="interactive reveal">
+      <span class="tag">✍️ Explain it back</span>
+      <p>In your own words: why is forward kinematics "easy" — what makes it a straightforward calculation rather than a search?</p>
+      <textarea id="explain3" placeholder="Type your explanation here..."></textarea>
+      <button class="btn" id="explainBtn3" style="margin-top:10px;">Show model answer</button>
+      <div class="explain-model" id="model3">
+        <b>Model answer:</b> Forward kinematics goes in the "easy" direction: angles → position. There's exactly one answer for any given set of joint angles, computed by chaining transforms link by link, with no guessing involved. It only becomes hard (Chapter 4) when you flip the question around and ask "what angles get me to a chosen position," because many different angle combinations can sometimes reach the same point.
+      </div>
+    </div>
+
+    <div class="interactive reveal" id="quiz3">
+      <span class="tag">✅ Self-check</span>
+    </div>
+
+    <div class="box box-takeaway reveal">
+      <span class="tag">Key takeaway</span>
+      <ul>
+        <li>Forward kinematics: joint angles → end-effector position. Always exactly one answer.</li>
+        <li>It's the same "chain of transforms" idea from Chapter 2, applied link by link.</li>
+        <li>Joint angles are usually relative to the previous link, not the world — track your frames.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CHAPTER 4: Inverse Kinematics ============ -->
+<section class="chapter" id="ch4">
+  <div class="wrap">
+    <span class="eyebrow reveal">Chapter 04 — Intermediate</span>
+    <h2 class="reveal">Inverse kinematics — <span class="accent-word">working backward</span></h2>
+    <p class="lead reveal">Now flip the question: you want the fingertip at a specific point — what joint angles get you there? This is <b>inverse kinematics</b>, and it's harder because the answer isn't always unique.</p>
+
+    <div class="box-misconception reveal">
+      <div class="think"><span class="tag">What you think</span>If forward kinematics has one clean equation, inverse kinematics must too — just solve the equation "backward."</div>
+      <div class="truth"><span class="tag">What's actually true</span>For many arm shapes, a single target point can be reached by more than one combination of joint angles (think: elbow up vs. elbow down). Sometimes there are infinite solutions, sometimes zero (the point is out of reach). Inverse kinematics is a search-and-choose problem, not a single plug-in-the-numbers formula.</div>
+    </div>
+
+    <div class="box box-analogy reveal">
+      <span class="tag">Feynman analogy 1</span>
+      <h4>It's like reaching for a doorknob with your own arm</h4>
+      <p style="margin-top:8px">Try it: reach for a doorknob with your elbow pointing down, then again with your elbow pointing up and out to the side. Your hand lands on the exact same doorknob both times — two completely different joint configurations, one target. Your nervous system picks one without you noticing; a robot has to pick deliberately.</p>
+    </div>
+    <div class="box box-analogy reveal">
+      <span class="tag">Feynman analogy 2</span>
+      <h4>It's like finding a route on a map vs. checking where a route leads</h4>
+      <p style="margin-top:8px">Checking "if I drive this exact sequence of turns, where do I end up?" (forward) is a quick calculation. "What sequence of turns gets me to this address?" (inverse) usually needs a search across many possible routes, because more than one route can work.</p>
+    </div>
+
+    <div class="diagram-panel reveal">
+      <svg viewBox="0 0 700 320" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Two link arm with a clickable target area; clicking computes elbow up and elbow down solutions">
+        <line x1="0" y1="280" x2="700" y2="280" stroke="#232c3d" style="pointer-events:none"/>
+        <rect id="ikClickArea" x="0" y="0" width="700" height="320" fill="transparent"/>
+        <circle cx="350" cy="280" r="5" fill="#566076" style="pointer-events:none"/>
+        <text x="310" y="305" fill="#566076" font-family="IBM Plex Mono, monospace" font-size="11" style="pointer-events:none">base</text>
+        <g id="ikSolutionUp" opacity="0.95" style="pointer-events:none">
+          <line id="ikLink1Up" x1="350" y1="280" x2="350" y2="180" stroke="#c77bff" stroke-width="7" stroke-linecap="round"/>
+          <line id="ikLink2Up" x1="350" y1="180" x2="350" y2="100" stroke="#a78bfa" stroke-width="7" stroke-linecap="round"/>
+        </g>
+        <g id="ikSolutionDown" opacity="0.4" style="pointer-events:none">
+          <line id="ikLink1Down" x1="350" y1="280" x2="350" y2="180" stroke="#ff8a5b" stroke-width="7" stroke-linecap="round"/>
+          <line id="ikLink2Down" x1="350" y1="180" x2="350" y2="100" stroke="#ffb38a" stroke-width="7" stroke-linecap="round"/>
+        </g>
+        <circle id="ikTarget" cx="350" cy="100" r="9" fill="#ff7a93" stroke="#0a0e14" stroke-width="2" style="pointer-events:none"/>
+      </svg>
+      <p class="diagram-caption">Click anywhere in the panel to set a target point. Watch two valid arm shapes — "elbow up" (solid) and "elbow down" (faded) — both reach it.</p>
+    </div>
+
+    <div class="interactive reveal">
+      <span class="tag">🎯 Click-to-target sandbox</span>
+      <h4 style="margin-bottom:6px">Build the solution yourself</h4>
+      <p style="font-size:.88rem;color:var(--text-dim);margin-bottom:14px">Click inside the diagram above. If the point is reachable, you'll see both solutions; if it's too far away, the arm will show its best stretch and tell you the target is unreachable — exactly what a real IK solver has to detect.</p>
+      <p class="mono" id="ikStatus" style="font-size:.88rem;">Click the diagram to try a target.</p>
+      <button class="btn btn-ghost" id="ikToggleSolution" style="margin-top:10px;">Swap which solution is highlighted</button>
+    </div>
+
+    <div class="box box-sticking reveal">
+      <span class="tag">⚡ Common sticking point</span>
+      <p style="margin-top:8px">Newcomers expect IK to always have an answer. In reality, every IK solver needs to handle three outcomes: <b>no solution</b> (unreachable), <b>one solution</b>, and <b>multiple solutions</b> (need a rule for picking, e.g. "closest to current pose" to avoid sudden jerky jumps).</p>
+    </div>
+
+    <details class="box-math reveal">
+      <summary>📐 Math deep dive — solving IK with the law of cosines</summary>
+      <div class="math-body">
+        <h5>Setting up the triangle</h5>
+        <p style="font-size:.9rem;color:var(--text-dim)">The base, elbow, and target point form a triangle with known side lengths L₁ and L₂, and a third side equal to the straight-line distance from base to target:</p>
+        <div class="eq">r&nbsp;=&nbsp;√(x²&nbsp;+&nbsp;y²)</div>
+        <p style="font-size:.9rem;color:var(--text-dim)">For a solution to exist at all, this triangle must be physically possible — the target can't be farther than the arm's full reach, nor closer than the arm's minimum fold:</p>
+        <div class="eq">|L₁&nbsp;−&nbsp;L₂|&nbsp;≤&nbsp;r&nbsp;≤&nbsp;L₁&nbsp;+&nbsp;L₂</div>
+        <p style="font-size:.9rem;color:var(--text-dim)">That inequality is exactly what the sandbox above checks before declaring a target "unreachable."</p>
+
+        <h5>Solving the elbow angle</h5>
+        <p style="font-size:.9rem;color:var(--text-dim)">The law of cosines relates all three sides of the triangle to the interior angle at the elbow:</p>
+        <div class="eq">r²&nbsp;=&nbsp;L₁²&nbsp;+&nbsp;L₂²&nbsp;−&nbsp;2L₁L₂&nbsp;cos(π&nbsp;−&nbsp;θ₂)</div>
+        <p style="font-size:.9rem;color:var(--text-dim)">Rearranged to solve directly for the elbow joint angle θ₂:</p>
+        <div class="eq">θ₂&nbsp;=&nbsp;±cos<sup>−1</sup>&nbsp;⎛<span style="display:inline-block;border-top:1px solid var(--text-dim);padding-top:2px;">x²&nbsp;+&nbsp;y²&nbsp;−&nbsp;L₁²&nbsp;−&nbsp;L₂²</span>⁄<span style="display:inline-block;">2L₁L₂</span>⎞</div>
+        <p style="font-size:.9rem;color:var(--text-dim)">The <b>±</b> is the entire reason two solutions exist: +θ₂ folds the elbow one way, −θ₂ folds it the other, and both land the hand at the identical (x, y) — algebra's confirmation of "elbow up vs. elbow down."</p>
+
+        <h5>Solving the shoulder angle</h5>
+        <p style="font-size:.9rem;color:var(--text-dim)">Once θ₂ is fixed, θ₁ is the angle to the target minus a correction for how much the elbow bend "steals" from that direction:</p>
+        <div class="eq">θ₁&nbsp;=&nbsp;atan2(x,&nbsp;y)&nbsp;−&nbsp;atan2(L₂&nbsp;sin θ₂,&nbsp;&nbsp;L₁&nbsp;+&nbsp;L₂&nbsp;cos θ₂)</div>
+        <p style="font-size:.9rem;color:var(--text-dim)"><code>atan2</code> (rather than plain <code>atan</code>) is used throughout robotics because it correctly resolves the angle in all four quadrants, including straight up, down, left, and right — a plain arctangent silently breaks at those exact boundary cases.</p>
+      </div>
+    </details>
+
+    <div class="interactive reveal">
+      <span class="tag">✍️ Explain it back</span>
+      <p>In your own words: why can the same target point have more than one valid set of joint angles?</p>
+      <textarea id="explain4" placeholder="Type your explanation here..."></textarea>
+      <button class="btn" id="explainBtn4" style="margin-top:10px;">Show model answer</button>
+      <div class="explain-model" id="model4">
+        <b>Model answer:</b> A target point only fixes the position of the very last link. The earlier joints have freedom to bend in different ways (e.g. elbow up vs. elbow down) while the chain of transforms still lands the final link at the same coordinates — geometry allows more than one chain shape to reach an identical endpoint.
+      </div>
+    </div>
+
+    <div class="interactive reveal" id="quiz4">
+      <span class="tag">✅ Self-check</span>
+    </div>
+
+    <div class="box box-takeaway reveal">
+      <span class="tag">Key takeaway</span>
+      <ul>
+        <li>Inverse kinematics: target position → joint angles. Can have zero, one, or many answers.</li>
+        <li>A real IK solver must detect unreachable targets and choose among multiple valid solutions.</li>
+        <li>"Closest to the current pose" is a common tie-breaker to keep motion smooth rather than jumpy.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CHAPTER 5: PID Control ============ -->
+<section class="chapter" id="ch5">
+  <div class="wrap">
+    <span class="eyebrow reveal">Chapter 05 — Intermediate</span>
+    <h2 class="reveal">Closing the loop — <span class="accent-word">PID control</span></h2>
+    <p class="lead reveal">Knowing the right joint angles (Chapter 3 &amp; 4) doesn't mean the motor gets there cleanly. <b>Control</b> is the science of correcting course in real time, the same way you'd nudge a steering wheel to stay in your lane.</p>
+
+    <div class="box-misconception reveal">
+      <div class="think"><span class="tag">What you think</span>To move a motor to a target, you just tell it "go to 90°" and it goes.</div>
+      <div class="truth"><span class="tag">What's actually true</span>A motor that's simply told "go to 90°" will typically overshoot, oscillate, or stall short, because of inertia and friction (Chapter 1). You need continuous feedback: measure the error, correct, measure again — many times per second.</div>
+    </div>
+
+    <div class="box box-analogy reveal">
+      <span class="tag">Feynman analogy 1</span>
+      <h4>It's like adjusting shower temperature</h4>
+      <p style="margin-top:8px">You don't set the shower knob once and walk away — you feel the water, it's too cold, you turn it up a bit, wait, feel again, maybe overshoot to too hot, nudge back. That iterative "feel, adjust, feel, adjust" is literally what a control loop does to a motor, just many times per second instead of every few seconds.</p>
+    </div>
+    <div class="box box-analogy reveal">
+      <span class="tag">Feynman analogy 2</span>
+      <h4>P, I, and D are three different "instincts" combined</h4>
+      <p style="margin-top:8px"><b>P</b>roportional: "the further off I am, the harder I correct" (like steering harder the further you drift from your lane). <b>I</b>ntegral: "I've been a little off for a while now, time to correct that lingering bias" (like noticing you've been slightly biased left for the last mile and compensating). <b>D</b>erivative: "I'm closing in fast, ease off before I overshoot" (like braking earlier when approaching a stop sign quickly).</p>
+    </div>
+
+    <div class="diagram-panel reveal">
+      <svg viewBox="0 0 700 240" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Animated diagram of the PID feedback loop with measure compare correct steps">
+        <g id="pidLoopDiagram" font-family="IBM Plex Mono, monospace" font-size="11">
+          <rect x="20" y="90" width="130" height="60" rx="10" fill="#161d2b" stroke="#ff8a5b" stroke-width="2"/>
+          <text x="85" y="115" text-anchor="middle" fill="#ff8a5b">TARGET</text>
+          <text x="85" y="133" text-anchor="middle" fill="#dbe4f0" font-size="10">desired angle</text>
+
+          <rect x="220" y="20" width="130" height="60" rx="10" fill="#161d2b" stroke="#a78bfa" stroke-width="2"/>
+          <text x="285" y="45" text-anchor="middle" fill="#a78bfa">COMPARE</text>
+          <text x="285" y="63" text-anchor="middle" fill="#dbe4f0" font-size="10">error = target − actual</text>
+
+          <rect x="420" y="90" width="130" height="60" rx="10" fill="#161d2b" stroke="#3ee6c7" stroke-width="2"/>
+          <text x="485" y="115" text-anchor="middle" fill="#3ee6c7">CORRECT</text>
+          <text x="485" y="133" text-anchor="middle" fill="#dbe4f0" font-size="10">P + I + D output</text>
+
+          <rect x="220" y="160" width="130" height="60" rx="10" fill="#161d2b" stroke="#ffd166" stroke-width="2"/>
+          <text x="285" y="185" text-anchor="middle" fill="#ffd166">MEASURE</text>
+          <text x="285" y="203" text-anchor="middle" fill="#dbe4f0" font-size="10">sensor reads actual</text>
+
+          <path d="M150,110 Q190,60 218,55" fill="none" stroke="#566076" stroke-width="2" marker-end="url(#arrowHero)"/>
+          <path d="M352,55 Q400,70 418,108" fill="none" stroke="#566076" stroke-width="2" marker-end="url(#arrowHero)"/>
+          <path d="M485,150 Q485,210 352,195" fill="none" stroke="#566076" stroke-width="2" marker-end="url(#arrowHero)"/>
+          <path d="M218,190 Q170,170 150,135" fill="none" stroke="#566076" stroke-width="2" marker-end="url(#arrowHero)"/>
+        </g>
+      </svg>
+      <p class="diagram-caption">The loop never stops: measure → compare to target → correct → the world changes → measure again. Hundreds of times per second on a real robot.</p>
+    </div>
+
+    <div class="interactive reveal">
+      <span class="tag">🧪 Live playground — tune a PID controller</span>
+      <h4 style="margin-bottom:10px">Drag P, I, D and watch the motor's response graph</h4>
+      <p style="font-size:.85rem;color:var(--text-dim)">Proportional (P) — how hard to react to current error</p>
+      <input type="range" id="pidP" min="0" max="20" value="4" step="0.5">
+      <p style="font-size:.85rem;color:var(--text-dim);margin-top:12px">Integral (I) — how hard to react to lingering error</p>
+      <input type="range" id="pidI" min="0" max="5" value="0" step="0.1">
+      <p style="font-size:.85rem;color:var(--text-dim);margin-top:12px">Derivative (D) — how hard to brake against fast change</p>
+      <input type="range" id="pidD" min="0" max="5" value="0" step="0.1">
+      <svg viewBox="0 0 700 220" style="margin-top:18px;background:var(--bg-raised);border-radius:8px;" id="pidGraph">
+        <line x1="0" y1="110" x2="700" y2="110" stroke="#34415a" stroke-dasharray="4 4"/>
+        <text x="8" y="104" fill="#566076" font-family="IBM Plex Mono, monospace" font-size="10">target</text>
+        <polyline id="pidResponseLine" fill="none" stroke="#3ee6c7" stroke-width="2.5" points=""/>
+      </svg>
+      <p style="font-size:.82rem;color:var(--text-faint);margin-top:8px" id="pidVerdict">Try raising P alone first — watch it overshoot and ring. Then add a little D to damp it.</p>
+    </div>
+
+    <div class="box box-sticking reveal">
+      <span class="tag">⚡ Common sticking point</span>
+      <p style="margin-top:8px">Beginners crank up P to "make it move faster" and get violent oscillation instead, because high P alone has nothing to stop it from overshooting. The fix isn't more P — it's adding D to anticipate and brake, and a touch of I only if there's a persistent steady-state offset.</p>
+    </div>
+
+    <details class="box-math reveal">
+      <summary>📐 Math deep dive — the PID equation, discretized, and how to tune it</summary>
+      <div class="math-body">
+        <h5>The continuous-time control law</h5>
+        <p style="font-size:.9rem;color:var(--text-dim)">The output sent to the motor is the weighted sum of three terms, all computed from the same error signal e(t) = target − measured:</p>
+        <div class="eq">u(t)&nbsp;=&nbsp;K<sub>p</sub>e(t)&nbsp;+&nbsp;K<sub>i</sub>∫₀ᵗ&nbsp;e(τ)dτ&nbsp;+&nbsp;K<sub>d</sub>&nbsp;de(t)/dt</div>
+        <p style="font-size:.9rem;color:var(--text-dim)">The integral term accumulates every bit of past error — it's literally "the area under the error curve so far" — which is exactly why a small but persistent error eventually triggers a real correction, even one too small for the proportional term to notice on its own.</p>
+
+        <h5>What a real microcontroller actually runs</h5>
+        <p style="font-size:.9rem;color:var(--text-dim)">A robot's processor doesn't do calculus — it runs in discrete time steps of size Δt, so the integral becomes a running sum and the derivative becomes a simple difference:</p>
+        <div class="eq">u<sub>k</sub>&nbsp;=&nbsp;K<sub>p</sub>e<sub>k</sub>&nbsp;+&nbsp;K<sub>i</sub>Δt&nbsp;Σᵢ₌₀<sup>k</sup>&nbsp;e<sub>i</sub>&nbsp;+&nbsp;K<sub>d</sub>&nbsp;(e<sub>k</sub>&nbsp;−&nbsp;e<sub>k−1</sub>)/Δt</div>
+        <p style="font-size:.9rem;color:var(--text-dim)">This is the exact formula the live playground above evaluates, once per simulated tick. It's also worth knowing that the unbounded sum Σe<sub>i</sub> can grow forever if the target is ever unreachable (a jammed motor, say) — a failure mode called <b>integral windup</b>, fixed in practice by clamping the running sum to a maximum size.</p>
+
+        <h5>A standard starting recipe: Ziegler–Nichols tuning</h5>
+        <p style="font-size:.9rem;color:var(--text-dim)">Rather than guessing P, I, D from scratch, a classic method is to first set I = D = 0, raise P until the system oscillates at a steady, unshrinking amplitude — call that gain K<sub>u</sub> (the "ultimate gain") and the oscillation period T<sub>u</sub> — then apply this table:</p>
+        <table class="param-table">
+          <tr><th>Controller</th><th>K<sub>p</sub></th><th>K<sub>i</sub></th><th>K<sub>d</sub></th></tr>
+          <tr><td>P only</td><td>0.50&nbsp;K<sub>u</sub></td><td>—</td><td>—</td></tr>
+          <tr><td>PI</td><td>0.45&nbsp;K<sub>u</sub></td><td>1.2&nbsp;K<sub>p</sub>/T<sub>u</sub></td><td>—</td></tr>
+          <tr><td>PID</td><td>0.60&nbsp;K<sub>u</sub></td><td>2&nbsp;K<sub>p</sub>/T<sub>u</sub></td><td>K<sub>p</sub>T<sub>u</sub>/8</td></tr>
+        </table>
+        <p style="font-size:.9rem;color:var(--text-dim)">It's a starting point, not a final answer — real systems still get fine-tuned by hand afterward, exactly the way you've been doing with the sliders above.</p>
+
+        <h5>Why it oscillates: the frequency-domain view</h5>
+        <p style="font-size:.9rem;color:var(--text-dim)">Taking the Laplace transform of the control law turns the calculus into algebra, giving the controller's <b>transfer function</b>:</p>
+        <div class="eq">C(s)&nbsp;=&nbsp;U(s)/E(s)&nbsp;=&nbsp;K<sub>p</sub>&nbsp;+&nbsp;K<sub>i</sub>/s&nbsp;+&nbsp;K<sub>d</sub>s</div>
+        <p style="font-size:.9rem;color:var(--text-dim)">Combined with the motor's own transfer function from Chapter 1's J(dω/dt) = τ − bω, this fraction's denominator — once factored — tells you, before ever running the robot, whether a given P/I/D choice produces a stable, decaying response or a runaway oscillation. This is the formal machinery underneath the trial-and-error you just did with the sliders.</p>
+      </div>
+    </details>
+
+    <div class="interactive reveal">
+      <span class="tag">✍️ Explain it back</span>
+      <p>In your own words: why does a robot need to "measure again" continuously instead of moving once and stopping?</p>
+      <textarea id="explain5" placeholder="Type your explanation here..."></textarea>
+      <button class="btn" id="explainBtn5" style="margin-top:10px;">Show model answer</button>
+      <div class="explain-model" id="model5">
+        <b>Model answer:</b> Because actuators don't move exactly as commanded (Chapter 1) — friction, weight, and momentum throw off a single open-loop command. By repeatedly comparing the actual measured position to the target and correcting, the robot can cancel out those real-world disturbances as they happen, rather than hoping a single command lands perfectly.
+      </div>
+    </div>
+
+    <div class="interactive reveal" id="quiz5">
+      <span class="tag">✅ Self-check</span>
+    </div>
+
+    <div class="box box-takeaway reveal">
+      <span class="tag">Key takeaway</span>
+      <ul>
+        <li>Control = continuously measuring error and correcting, not issuing a single command.</li>
+        <li>P reacts to current error, I reacts to lingering error, D reacts to the rate of change to prevent overshoot.</li>
+        <li>Too much P alone causes oscillation; D is usually the fix, not less P.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+
+<!-- ============ CHAPTER 6: Perception & SLAM ============ -->
+<section class="chapter" id="ch6">
+  <div class="wrap">
+    <span class="eyebrow reveal">Chapter 06 — Advanced</span>
+    <h2 class="reveal">Perception &amp; <span class="accent-word">SLAM</span> — building a map while lost in it</h2>
+    <p class="lead reveal">A delivery robot in a building it has never seen has to solve two problems at once: "where am I?" and "what does this place look like?" Solving both together is called <b>SLAM</b> — Simultaneous Localization and Mapping.</p>
+
+    <div class="box-misconception reveal">
+      <div class="think"><span class="tag">What you think</span>You'd obviously map the building first, then have the robot find its position on that finished map.</div>
+      <div class="truth"><span class="tag">What's actually true</span>You usually can't do that — there often is no pre-made map, and even GPS is unreliable indoors. The robot has to build the map and locate itself <i>on</i> that same map at the same time, using its own imperfect motion estimates and imperfect sensor readings to bootstrap both.</div>
+    </div>
+
+    <div class="box box-analogy reveal">
+      <span class="tag">Feynman analogy 1</span>
+      <h4>It's like exploring a dark house with a flashlight, remembering as you go</h4>
+      <p style="margin-top:8px">You don't have a floor plan. You walk forward, the flashlight reveals a wall here, a doorway there, and you mentally sketch the rooms as you pass through them — while also keeping track of how far you've walked from the front door. Get the step-count slightly wrong and your mental sketch slowly drifts out of alignment with reality.</p>
+    </div>
+    <div class="box box-analogy reveal">
+      <span class="tag">Feynman analogy 2</span>
+      <h4>Sensor fusion is like trusting two different witnesses</h4>
+      <p style="margin-top:8px">If one friend says "we walked about 10 steps" and another says "I saw a red door pass on our left," neither account alone tells you exactly where you are — but combined, your confidence in the true position goes up. SLAM combines many such "witnesses" (wheel odometry, LIDAR scans, camera frames) the same way.</p>
+    </div>
+
+    <div class="diagram-panel reveal">
+      <svg viewBox="0 0 700 240" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Before and after SLAM comparison showing a sparse uncertain map becoming a confident occupancy grid">
+        <g id="slamBefore">
+          <rect x="20" y="20" width="300" height="200" rx="8" fill="#161d2b" stroke="#34415a"/>
+          <text x="35" y="42" fill="#566076" font-family="IBM Plex Mono, monospace" font-size="11">raw sensor pings — no structure yet</text>
+          <circle cx="80" cy="100" r="2.5" fill="#ffd166" opacity="0.6"/>
+          <circle cx="95" cy="130" r="2.5" fill="#ffd166" opacity="0.5"/>
+          <circle cx="150" cy="80" r="2.5" fill="#ffd166" opacity="0.7"/>
+          <circle cx="200" cy="160" r="2.5" fill="#ffd166" opacity="0.4"/>
+          <circle cx="240" cy="90" r="2.5" fill="#ffd166" opacity="0.6"/>
+          <circle cx="110" cy="180" r="2.5" fill="#ffd166" opacity="0.5"/>
+          <circle cx="270" cy="140" r="2.5" fill="#ffd166" opacity="0.5"/>
+          <circle cx="60" cy="60" r="2.5" fill="#ffd166" opacity="0.6"/>
+          <text x="35" y="205" fill="#ff7a93" font-family="IBM Plex Mono, monospace" font-size="10">robot's guess: "??? "</text>
+        </g>
+        <g id="slamAfter">
+          <rect x="380" y="20" width="300" height="200" rx="8" fill="#161d2b" stroke="#3ee6c7"/>
+          <text x="395" y="42" fill="#3ee6c7" font-family="IBM Plex Mono, monospace" font-size="11">after fusing many scans over time</text>
+          <rect x="400" y="60" width="260" height="10" fill="#3ee6c7" opacity="0.8"/>
+          <rect x="400" y="60" width="10" height="130" fill="#3ee6c7" opacity="0.8"/>
+          <rect x="650" y="60" width="10" height="130" fill="#3ee6c7" opacity="0.8"/>
+          <rect x="400" y="180" width="260" height="10" fill="#3ee6c7" opacity="0.8"/>
+          <rect x="500" y="100" width="50" height="50" fill="#5ea8ff" opacity="0.5"/>
+          <circle cx="430" cy="160" r="6" fill="#ff7a93"/>
+          <text x="395" y="205" fill="#3ee6c7" font-family="IBM Plex Mono, monospace" font-size="10">confident occupancy grid + robot pose</text>
+        </g>
+      </svg>
+      <p class="diagram-caption">Left: scattered, low-confidence readings right after entering an unknown room. Right: the same space after SLAM has fused dozens of scans into a confident map with the robot located inside it.</p>
+    </div>
+
+    <div class="interactive reveal">
+      <span class="tag">🔀 Before / After toggle</span>
+      <h4 style="margin-bottom:6px">Reveal what SLAM actually adds</h4>
+      <p style="font-size:.88rem;color:var(--text-dim);margin-bottom:12px">Toggle between "single scan" and "fused over time" to see why one snapshot is never enough.</p>
+      <button class="btn" id="slamToggleBtn">Show: Single Scan</button>
+      <p class="tooltip-box" id="slamToggleText">A single LIDAR scan only sees what's directly visible right now — it has no idea what's behind that wall, and a moving robot's single scan is also smeared by its own motion.</p>
+    </div>
+
+    <div class="interactive reveal">
+      <span class="tag">🃏 Flashcards — perception vocabulary</span>
+      <div class="flash-grid" id="slamFlashGrid"></div>
+    </div>
+
+    <div class="box box-sticking reveal">
+      <span class="tag">⚡ Common sticking point</span>
+      <p style="margin-top:8px">People assume more sensors always means a better map. In reality, the hard part of SLAM is <b>loop closure</b> — recognizing "I've been in this exact spot before" after wandering away and coming back, so accumulated drift can be corrected. Without loop closure, even great sensors slowly produce a map that curls in on itself.</p>
+    </div>
+
+    <details class="box-math reveal">
+      <summary>📐 Math deep dive — the Bayes filter and the Kalman filter</summary>
+      <div class="math-body">
+        <h5>The Bayes filter: the master equation behind SLAM</h5>
+        <p style="font-size:.9rem;color:var(--text-dim)">A robot's confidence about its own state x at time t — its <b>belief</b> — is updated in two stages every cycle: predict using the motion model, then correct using the sensor model.</p>
+        <div class="eq">
+          <div class="eq-row">Predict:&nbsp; bel̄(x<sub>t</sub>)&nbsp;=&nbsp;∫&nbsp;P(x<sub>t</sub>&nbsp;|&nbsp;x<sub>t−1</sub>,&nbsp;u<sub>t</sub>)&nbsp;bel(x<sub>t−1</sub>)&nbsp;dx<sub>t−1</sub></div>
+          <div class="eq-row">Update:&nbsp;&nbsp; bel(x<sub>t</sub>)&nbsp;=&nbsp;η&nbsp;P(z<sub>t</sub>&nbsp;|&nbsp;x<sub>t</sub>)&nbsp;bel̄(x<sub>t</sub>)</div>
+        </div>
+        <p style="font-size:.9rem;color:var(--text-dim)">In plain language: "predict" spreads out your confidence using how the robot just moved (and how unreliable that motion estimate is), then "update" sharpens it back up using how well a new sensor reading matches each candidate position. η is just a normalizing constant so the probabilities sum to 1. Every SLAM algorithm in production — particle filters, Kalman filters, pose-graph optimizers — is a different, more computationally tractable way of approximating this exact equation.</p>
+
+        <h5>The Kalman filter: the Bayes filter for straight lines and Gaussians</h5>
+        <p style="font-size:.9rem;color:var(--text-dim)">When the motion and sensor models are linear and all the noise is Gaussian, the Bayes filter integral above collapses into simple matrix algebra — the <b>Kalman filter</b>. Predict step:</p>
+        <div class="eq">
+          <div class="eq-row">x̂<sub>t</sub><sup>−</sup>&nbsp;=&nbsp;A&nbsp;x̂<sub>t−1</sub>&nbsp;+&nbsp;B&nbsp;u<sub>t</sub></div>
+          <div class="eq-row">P<sub>t</sub><sup>−</sup>&nbsp;=&nbsp;A&nbsp;P<sub>t−1</sub>&nbsp;A<sup>T</sup>&nbsp;+&nbsp;Q</div>
+        </div>
+        <p style="font-size:.9rem;color:var(--text-dim)">x̂ is the estimated state (e.g. position and velocity), P is the uncertainty (covariance) around that estimate, A models how the state evolves on its own, B·u is the effect of a known control input, and Q is how much noisy uncertainty the motion itself adds each step. Update step, once a new measurement z arrives:</p>
+        <div class="eq">
+          <div class="eq-row">K<sub>t</sub>&nbsp;=&nbsp;P<sub>t</sub><sup>−</sup>&nbsp;H<sup>T</sup>&nbsp;(H&nbsp;P<sub>t</sub><sup>−</sup>&nbsp;H<sup>T</sup>&nbsp;+&nbsp;R)<sup>−1</sup></div>
+          <div class="eq-row">x̂<sub>t</sub>&nbsp;=&nbsp;x̂<sub>t</sub><sup>−</sup>&nbsp;+&nbsp;K<sub>t</sub>(z<sub>t</sub>&nbsp;−&nbsp;H&nbsp;x̂<sub>t</sub><sup>−</sup>)</div>
+          <div class="eq-row">P<sub>t</sub>&nbsp;=&nbsp;(I&nbsp;−&nbsp;K<sub>t</sub>H)&nbsp;P<sub>t</sub><sup>−</sup></div>
+        </div>
+        <p style="font-size:.9rem;color:var(--text-dim)">K<sub>t</sub> is the <b>Kalman gain</b> — the precise, principled answer to "how much should I trust this new reading versus my existing estimate?" When the sensor is very noisy (R is large), K shrinks toward 0 and the filter barely moves its estimate; when the sensor is very precise (R is small), K grows toward 1 and the filter snaps almost entirely to the new reading. That single ratio is the rigorous version of the "trusting two witnesses" analogy from earlier in this chapter.</p>
+      </div>
+    </details>
+
+    <div class="interactive reveal">
+      <span class="tag">✍️ Explain it back</span>
+      <p>In your own words: why can't a robot just build the map first and then localize itself on it, the way you might assume?</p>
+      <textarea id="explain6" placeholder="Type your explanation here..."></textarea>
+      <button class="btn" id="explainBtn6" style="margin-top:10px;">Show model answer</button>
+      <div class="explain-model" id="model6">
+        <b>Model answer:</b> Building an accurate map requires knowing where you were standing for each sensor reading, but figuring out where you're standing usually requires already having a map to compare against — the two problems depend on each other. SLAM algorithms solve this by estimating both simultaneously and letting each one improve the other over time, rather than insisting on a strict order.
+      </div>
+    </div>
+
+    <div class="interactive reveal" id="quiz6">
+      <span class="tag">✅ Self-check</span>
+    </div>
+
+    <div class="box box-takeaway reveal">
+      <span class="tag">Key takeaway</span>
+      <ul>
+        <li>SLAM solves "where am I" and "what's the map" together, because each depends on the other.</li>
+        <li>Sensor fusion combines multiple imperfect "witnesses" into a more confident estimate.</li>
+        <li>Loop closure — recognizing a previously visited place — is what keeps long-term maps from drifting.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CHAPTER 7: Planning & Behavior ============ -->
+<section class="chapter" id="ch7">
+  <div class="wrap">
+    <span class="eyebrow reveal">Chapter 07 — Expert / Synthesis</span>
+    <h2 class="reveal">Planning &amp; behavior — <span class="accent-word">deciding what to do</span></h2>
+    <p class="lead reveal">With a map (Ch. 6), a way to move precisely (Ch. 3–5), the last piece is deciding <i>what</i> to do: which path to take, and which behavior to run when the unexpected happens.</p>
+
+    <div class="box-misconception reveal">
+      <div class="think"><span class="tag">What you think</span>"Path planning" means finding the single best route, like a GPS app, and that's the whole problem.</div>
+      <div class="truth"><span class="tag">What's actually true</span>Path planning is necessary but not sufficient. A real robot also needs a <b>behavior layer</b> above it deciding things like "should I be navigating at all right now, or should I be waiting, charging, or asking for help?" Planning is nested: high-level behavior choice, then a path for that behavior, then moment-to-moment control to follow it.</div>
+    </div>
+
+    <div class="box box-analogy reveal">
+      <span class="tag">Feynman analogy 1</span>
+      <h4>It's like a delivery driver's whole day, not just one route</h4>
+      <p style="margin-top:8px">A delivery driver doesn't just compute the shortest path to one address — they decide the order of stops, react if a road is closed, and know when to simply stop driving and ask for directions. The route-finding (path planning) is one layer inside a bigger decision-making process (behavior).</p>
+    </div>
+    <div class="box box-analogy reveal">
+      <span class="tag">Feynman analogy 2</span>
+      <h4>A behavior tree is like a flowchart of habits, not a single decision</h4>
+      <p style="margin-top:8px">Think of your own morning routine as a tree of fallbacks: "if the alarm didn't go off, check phone; if phone's dead, ask a family member; if no one's around, just guess the time." A robot's behavior layer is built the same way — a tree of "try this, and if it fails, fall back to that."</p>
+    </div>
+
+    <div class="diagram-panel reveal">
+      <svg viewBox="0 0 700 240" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Nested diagram showing behavior layer containing path planning containing control">
+        <rect x="20" y="20" width="660" height="200" rx="14" fill="none" stroke="#6bdc8c" stroke-width="2" stroke-dasharray="6 4"/>
+        <text x="36" y="44" fill="#6bdc8c" font-family="IBM Plex Mono, monospace" font-size="11">BEHAVIOR LAYER — "what should I be doing?"</text>
+        <rect x="60" y="64" width="580" height="130" rx="12" fill="none" stroke="#ffd166" stroke-width="2" stroke-dasharray="6 4"/>
+        <text x="76" y="86" fill="#ffd166" font-family="IBM Plex Mono, monospace" font-size="11">PATH PLANNING — "what route, given the map?"</text>
+        <rect x="100" y="104" width="500" height="68" rx="10" fill="#161d2b" stroke="#ff8a5b" stroke-width="2"/>
+        <text x="116" y="126" fill="#ff8a5b" font-family="IBM Plex Mono, monospace" font-size="11">CONTROL — "how do I follow this path, moment to moment?"</text>
+        <text x="116" y="148" fill="#dbe4f0" font-family="IBM Plex Mono, monospace" font-size="10">(this is the PID loop from Chapter 5)</text>
+      </svg>
+      <p class="diagram-caption">Three nested layers, slow-to-fast: behavior decides the goal, planning finds a route, control executes it tick by tick.</p>
+    </div>
+
+    <div class="interactive reveal">
+      <span class="tag">🔢 Sortable sequencer</span>
+      <h4 style="margin-bottom:6px">Order the planning pipeline correctly</h4>
+      <p style="font-size:.88rem;color:var(--text-dim);margin-bottom:14px">Drag to reorder these steps into the sequence a delivery robot actually executes them in, from first to last.</p>
+      <ul class="sort-list" id="sortList">
+        <li class="sort-item" draggable="true" data-correct="1"><span class="handle">⠿</span> Decide the high-level goal (e.g. "deliver package to room 304")</li>
+        <li class="sort-item" draggable="true" data-correct="2"><span class="handle">⠿</span> Check the current map for a route from here to room 304</li>
+        <li class="sort-item" draggable="true" data-correct="3"><span class="handle">⠿</span> Compute a specific path avoiding known obstacles</li>
+        <li class="sort-item" draggable="true" data-correct="4"><span class="handle">⠿</span> Run the control loop to follow the path, correcting drift</li>
+        <li class="sort-item" draggable="true" data-correct="5"><span class="handle">⠿</span> Re-sense and re-plan if a new obstacle appears mid-route</li>
+      </ul>
+      <button class="btn" id="checkSort" style="margin-top:10px;">Check order</button>
+      <button class="btn btn-ghost" id="shuffleSort" style="margin-top:10px;">↻ Shuffle</button>
+      <span class="score-badge" id="sortResult"></span>
+    </div>
+
+    <div class="interactive reveal">
+      <span class="tag">✏️ Fill in the blank</span>
+      <p style="margin-bottom:10px">Complete the sentence: a robot that re-plans the instant a new obstacle appears, instead of freezing or crashing, is exhibiting what's usually called ______ behavior.</p>
+      <input type="text" id="fillBlank" placeholder="Type one word..." style="background:var(--bg-raised);border:1px solid var(--border-bright);color:var(--text);padding:10px 14px;border-radius:8px;width:100%;max-width:280px;font-family:'IBM Plex Sans',sans-serif;">
+      <button class="btn" id="checkBlank" style="margin-left:8px;">Check</button>
+      <p class="quiz-fb" id="blankFeedback"></p>
+    </div>
+
+    <div class="box box-sticking reveal">
+      <span class="tag">⚡ Common sticking point</span>
+      <p style="margin-top:8px">Students often plan a path once and assume it's final. Real environments change — a person walks into the hallway — so planning must be cheap enough to re-run frequently. Spending too much compute on a "perfect" path that's stale by the time it finishes executing is a classic mistake.</p>
+    </div>
+
+    <details class="box-math reveal">
+      <summary>📐 Math deep dive — A* search and configuration space</summary>
+      <div class="math-body">
+        <h5>Path planning as graph search</h5>
+        <p style="font-size:.9rem;color:var(--text-dim)">Once the map is divided into cells (Chapter 6's occupancy grid), finding a route becomes a graph search problem: each free cell is a node, each move to a neighboring free cell is an edge. The most widely used algorithm, <b>A*</b> (A-star), picks which node to expand next by minimizing:</p>
+        <div class="eq">f(n)&nbsp;=&nbsp;g(n)&nbsp;+&nbsp;h(n)</div>
+        <table class="param-table">
+          <tr><th>Symbol</th><th>Meaning</th></tr>
+          <tr><td class="sym">g(n)</td><td>the actual cost already paid to reach node n from the start (known exactly)</td></tr>
+          <tr><td class="sym">h(n)</td><td>a heuristic — an estimate of the remaining cost from n to the goal</td></tr>
+        </table>
+        <p style="font-size:.9rem;color:var(--text-dim)">A common, cheap heuristic is straight-line (Euclidean) distance to the goal, since no real path can ever be shorter than a straight line:</p>
+        <div class="eq">h(n)&nbsp;=&nbsp;√((x<sub>n</sub>&nbsp;−&nbsp;x<sub>goal</sub>)²&nbsp;+&nbsp;(y<sub>n</sub>&nbsp;−&nbsp;y<sub>goal</sub>)²)</div>
+        <p style="font-size:.9rem;color:var(--text-dim)">A* is <b>guaranteed</b> to find the shortest possible path as long as h(n) never overestimates the true remaining cost — a property called <b>admissibility</b>. Set h(n) = 0 everywhere and A* reduces exactly to <b>Dijkstra's algorithm</b>, which explores uniformly outward in all directions; a good admissible heuristic just lets A* skip exploring directions that obviously lead away from the goal, which is why A* is normally dramatically faster in practice.</p>
+
+        <h5>Configuration space: planning for a body, not a point</h5>
+        <p style="font-size:.9rem;color:var(--text-dim)">A* plans for a single point moving between grid cells, but a real robot has a physical size and possibly multiple joint angles. Robotics solves this by planning in <b>configuration space (C-space)</b> — a space where each axis is one degree of freedom of the robot (e.g. x, y, heading for a mobile robot; θ₁, θ₂ for the 2-link arm), and obstacles are inflated outward by the robot's own radius before search ever begins:</p>
+        <div class="eq">C<sub>obstacle</sub>&nbsp;=&nbsp;{&nbsp;q&nbsp;∈&nbsp;C&nbsp;|&nbsp;robot(q)&nbsp;∩&nbsp;obstacle&nbsp;≠&nbsp;∅&nbsp;}</div>
+        <p style="font-size:.9rem;color:var(--text-dim)">Once obstacles are expressed this way, the robot can be treated as a single point inside C-space for the purposes of search — the same A* algorithm above runs unmodified, just in a space with more axes (for the 2-link arm, C-space is literally the 2D θ₁–θ₂ plane from Chapter 4's sandbox, with unreachable or colliding angle combinations marked as obstacles).</p>
+      </div>
+    </details>
+
+    <div class="interactive reveal">
+      <span class="tag">✍️ Explain it back</span>
+      <p>In your own words: why is path planning "necessary but not sufficient" for a robot to act well in the world?</p>
+      <textarea id="explain7" placeholder="Type your explanation here..."></textarea>
+      <button class="btn" id="explainBtn7" style="margin-top:10px;">Show model answer</button>
+      <div class="explain-model" id="model7">
+        <b>Model answer:</b> A path tells the robot how to get from A to B, but doesn't decide whether going to B is even the right thing to do right now, or what to do if the path becomes blocked. A behavior layer above planning makes those higher-level calls — when to plan, when to pause, when to ask for help — so planning is just one tool the behavior layer reaches for.
+      </div>
+    </div>
+
+    <div class="interactive reveal" id="quiz7">
+      <span class="tag">✅ Self-check</span>
+    </div>
+
+    <div class="box box-takeaway reveal">
+      <span class="tag">Key takeaway</span>
+      <ul>
+        <li>Behavior (what to do) sits above path planning (which route) which sits above control (how to follow it).</li>
+        <li>Re-planning needs to be cheap and frequent, because real environments change mid-execution.</li>
+        <li>"Robust" robotics is mostly about graceful fallback, not a single perfect plan.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FINAL SYNTHESIS ============ -->
+<section class="chapter" id="synthesis">
+  <div class="wrap">
+    <span class="eyebrow reveal">Chapter 08 — Synthesis</span>
+    <h2 class="reveal">The whole <span class="accent-word">autonomy stack</span>, in one picture</h2>
+    <p class="lead reveal">Every chapter you just learned is one layer of the exact same loop from the very first page. Here's how they actually stack on a real robot.</p>
+
+    <div class="diagram-panel reveal">
+      <svg viewBox="0 0 700 420" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Unified stack diagram from sensors at the bottom up through behavior at the top">
+        <g font-family="IBM Plex Mono, monospace" font-size="11" text-anchor="middle">
+          <rect x="60" y="20" width="580" height="46" rx="8" fill="#161d2b" stroke="#6bdc8c" stroke-width="2"/>
+          <text x="350" y="48" fill="#6bdc8c">07 · BEHAVIOR — what should I be doing?</text>
+
+          <rect x="60" y="76" width="580" height="46" rx="8" fill="#161d2b" stroke="#ffd166" stroke-width="2"/>
+          <text x="350" y="104" fill="#ffd166">06 · PERCEPTION / SLAM — where am I, what's around me?</text>
+
+          <rect x="60" y="132" width="580" height="46" rx="8" fill="#161d2b" stroke="#ff8a5b" stroke-width="2"/>
+          <text x="350" y="160" fill="#ff8a5b">05 · CONTROL (PID) — correcting toward the goal continuously</text>
+
+          <rect x="60" y="188" width="580" height="46" rx="8" fill="#161d2b" stroke="#c77bff" stroke-width="2"/>
+          <text x="350" y="216" fill="#c77bff">04 · INVERSE KINEMATICS — what angles reach the target?</text>
+
+          <rect x="60" y="244" width="580" height="46" rx="8" fill="#161d2b" stroke="#8b7bff" stroke-width="2"/>
+          <text x="350" y="272" fill="#8b7bff">03 · FORWARD KINEMATICS — where do these angles put the hand?</text>
+
+          <rect x="60" y="300" width="580" height="46" rx="8" fill="#161d2b" stroke="#5ea8ff" stroke-width="2"/>
+          <text x="350" y="328" fill="#5ea8ff">02 · REFERENCE FRAMES — whose coordinates are these?</text>
+
+          <rect x="60" y="356" width="580" height="46" rx="8" fill="#161d2b" stroke="#3ee6c7" stroke-width="2"/>
+          <text x="350" y="384" fill="#3ee6c7">01 · SENSORS &amp; ACTUATORS — the raw, noisy inputs and outputs</text>
+
+          <line x1="350" y1="66" x2="350" y2="76" stroke="#34415a"/>
+          <line x1="350" y1="122" x2="350" y2="132" stroke="#34415a"/>
+          <line x1="350" y1="178" x2="350" y2="188" stroke="#34415a"/>
+          <line x1="350" y1="234" x2="350" y2="244" stroke="#34415a"/>
+          <line x1="350" y1="290" x2="350" y2="300" stroke="#34415a"/>
+          <line x1="350" y1="346" x2="350" y2="356" stroke="#34415a"/>
+        </g>
+      </svg>
+      <p class="diagram-caption">Each layer feeds the one above it, and every layer ultimately exists to make one more reliable pass through sense → think → act.</p>
+    </div>
+
+    <div class="box box-analogy reveal" style="--accent:#ff7a93">
+      <span class="tag">Feynman recap</span>
+      <h4>You already knew the shape of this on page one</h4>
+      <p style="margin-top:8px">Looking both ways before crossing a street is sensing (Ch.1) in a reference frame that's "you, facing the road" (Ch.2). Your brain computing where your foot will land (Ch.3) and adjusting your stride to dodge a puddle (Ch.4) is kinematics. Correcting your balance step by step (Ch.5) is control. Recognizing "I've crossed here before" (Ch.6) is perception. And deciding whether to cross at all (Ch.7) is behavior. Nothing in this course was ever a separate idea from that first street-crossing.</p>
+    </div>
+
+    <details class="cheat reveal">
+      <summary>📋 Printable cheat sheet — click to reveal</summary>
+      <table>
+        <tr><th>Chapter</th><th>Core idea</th><th>Key formula</th></tr>
+        <tr><td>01 Sensors/Actuators</td><td>Measurements and motion are always imperfect</td><td>z = x + ε, ε~N(0,σ²) &nbsp;|&nbsp; J(dω/dt) = τ − bω</td></tr>
+        <tr><td>02 Reference Frames</td><td>Coordinates need a stated origin + orientation</td><td>p<sub>A</sub> = T<sub>A←B</sub> · p<sub>B</sub>, &nbsp;T<sub>A←C</sub> = T<sub>A←B</sub>T<sub>B←C</sub></td></tr>
+        <tr><td>03 Forward Kinematics</td><td>Angles → position, always one answer</td><td>x = L₁sinθ₁ + L₂sin(θ₁+θ₂); J(θ) = ∂(x,y)/∂(θ₁,θ₂)</td></tr>
+        <tr><td>04 Inverse Kinematics</td><td>Position → angles, 0/1/many answers</td><td>θ₂ = ±cos⁻¹((x²+y²−L₁²−L₂²)/2L₁L₂)</td></tr>
+        <tr><td>05 PID Control</td><td>Continuously correct toward target</td><td>u(t) = K<sub>p</sub>e + K<sub>i</sub>∫e dt + K<sub>d</sub>(de/dt)</td></tr>
+        <tr><td>06 SLAM</td><td>Map and position estimated together</td><td>bel(x<sub>t</sub>) = η P(z<sub>t</sub>|x<sub>t</sub>) ∫P(x<sub>t</sub>|x<sub>t−1</sub>,u<sub>t</sub>)bel(x<sub>t−1</sub>)</td></tr>
+        <tr><td>07 Planning/Behavior</td><td>Behavior &gt; planning &gt; control, nested</td><td>f(n) = g(n) + h(n) &nbsp;(A* search cost)</td></tr>
+      </table>
+
+      <h5 style="font-family:'Space Grotesk',sans-serif;font-size:.95rem;margin:22px 0 8px;color:var(--text);">Symbol glossary</h5>
+      <table class="param-table">
+        <tr><th>Symbol</th><th>Meaning</th></tr>
+        <tr><td class="sym">θ, ω</td><td>joint angle, angular velocity</td></tr>
+        <tr><td class="sym">L₁, L₂</td><td>link lengths</td></tr>
+        <tr><td class="sym">T</td><td>homogeneous transform (rotation + translation in one matrix)</td></tr>
+        <tr><td class="sym">J</td><td>Jacobian (kinematics) or moment of inertia (dynamics) — context dependent</td></tr>
+        <tr><td class="sym">K<sub>p</sub>, K<sub>i</sub>, K<sub>d</sub></td><td>proportional, integral, derivative control gains</td></tr>
+        <tr><td class="sym">bel(x)</td><td>the robot's probability distribution over its own state</td></tr>
+        <tr><td class="sym">P, K, Q, R</td><td>Kalman filter: covariance, gain, process noise, measurement noise</td></tr>
+        <tr><td class="sym">g(n), h(n)</td><td>A* search: known cost so far, estimated remaining cost</td></tr>
+      </table>
+    </details>
+
+
+    <div class="cert reveal">
+      <div class="cert-seal">🤖</div>
+      <h3>Certificate of Completion</h3>
+      <p style="color:var(--text-dim)">This certifies that</p>
+      <input type="text" class="name-input" id="certName" placeholder="Type your name">
+      <p style="color:var(--text-dim)">has completed <b>The Robot's Loop</b> — Robotics from First Principles, all 8 chapters, sense to behavior.</p>
+      <p style="font-family:'IBM Plex Mono',monospace;font-size:.8rem;color:var(--text-faint);margin-top:14px;" id="certDate"></p>
+      <p style="font-size:.78rem;color:var(--text-faint);margin-top:18px;">Screenshot this card to keep it.</p>
+    </div>
+
+    <div class="box box-takeaway reveal" style="margin-top:30px;">
+      <span class="tag">Where to go next</span>
+      <p style="font-size:.92rem;margin-top:10px;">These four are the standard next steps roboticists actually take after learning the fundamentals — one framework to build with, two books to go deeper on the math, and hands-on practice to feel where equations and reality diverge.</p>
+
+      <div class="resource-grid">
+        <div class="resource-card" style="--rcolor:#5ea8ff">
+          <span class="rc-icon">🧩</span>
+          <h4>ROS / ROS2</h4>
+          <span class="rc-byline">Software framework</span>
+          <p>The middleware that wires everything in this course together on a real robot. Sensor drivers, the SLAM stack, the planner, and the controller each run as separate <b>nodes</b> that talk over publish/subscribe <b>topics</b> — so a camera node can publish images that a perception node subscribes to, without either knowing the other exists.</p>
+          <p class="rc-learn"><b>You'll use:</b> <code>rviz</code> (visualize frames, maps, and sensor data live), <b>Nav2</b> (a ready-made planning + control stack built on Ch. 5–7), <b>MoveIt</b> (inverse kinematics and motion planning for arms, built on Ch. 3–4), and <b>tf2</b> (manages exactly the reference-frame transforms from Chapter 2 across a whole robot automatically).</p>
+          <a class="rc-link" href="https://docs.ros.org" target="_blank" rel="noopener">docs.ros.org ↗</a>
+        </div>
+
+        <div class="resource-card" style="--rcolor:#ffd166">
+          <span class="rc-icon">📘</span>
+          <h4>Probabilistic Robotics</h4>
+          <span class="rc-byline">Thrun, Burgard &amp; Fox</span>
+          <p>The standard graduate text for everything in Chapter 6, taken to full rigor: Bayes filters derived from first principles, the Kalman filter and its nonlinear cousins (Extended and Unscented KF), particle filters for Monte Carlo localization, and occupancy-grid and pose-graph SLAM.</p>
+          <p class="rc-learn"><b>Read this if:</b> the Bayes filter and Kalman filter equations in Chapter 6's math deep dive made sense but you want the full derivations, convergence proofs, and worked robot examples behind them.</p>
+        </div>
+
+        <div class="resource-card" style="--rcolor:#8b7bff">
+          <span class="rc-icon">📗</span>
+          <h4>Modern Robotics</h4>
+          <span class="rc-byline">Lynch &amp; Park — free online</span>
+          <p>A rigorous, freely available textbook (with matching video lectures and code libraries in Python/MATLAB/Mathematica) covering kinematics and dynamics properly: screw theory and the product-of-exponentials formulation, a more elegant and singularity-robust alternative to the Denavit–Hartenberg parameters mentioned in Chapter 3, plus trajectory generation, dynamics, and motion planning.</p>
+          <p class="rc-learn"><b>Read this if:</b> Chapters 3–4's two-link arm math felt approachable and you want the general n-joint, 3D version with full derivations.</p>
+          <a class="rc-link" href="https://hades.mech.northwestern.edu/index.php/Modern_Robotics" target="_blank" rel="noopener">Modern Robotics (free) ↗</a>
+        </div>
+
+        <div class="resource-card" style="--rcolor:#6bdc8c">
+          <span class="rc-icon">🛠️</span>
+          <h4>Simulators &amp; hardware</h4>
+          <span class="rc-byline">Where the equations meet reality</span>
+          <p><b>Gazebo</b> and <b>Webots</b> are free, physics-accurate simulators that integrate with ROS — you can run every algorithm in this course against a simulated robot with realistic sensor noise and motor dynamics before ever touching hardware. For a photorealistic, GPU-accelerated option aimed at perception and reinforcement learning, look at <b>NVIDIA Isaac Sim</b>.</p>
+          <p class="rc-learn"><b>Then go physical:</b> a low-cost two-wheeled kit (e.g. a TurtleBot, or a DIY Raspberry Pi/Arduino rig with an ultrasonic or LIDAR sensor) is the fastest way to feel firsthand what Chapter 1 meant by "no sensor gives a perfect reading" — simulators can approximate noise, but real hardware guarantees it.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>Built with the Feynman method: simple first, analogy before formula, confusion named out loud. Works fully offline once loaded.</p>
+  </div>
+</footer>
+
+
+<script>
+(function(){
+"use strict";
+var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ---------- progress bar ---------- */
+var bar = document.getElementById('progressBar');
+function updateBar(){
+  var h = document.documentElement;
+  var scrolled = (h.scrollTop || document.body.scrollTop);
+  var height = h.scrollHeight - h.clientHeight;
+  bar.style.width = (height>0 ? (scrolled/height*100) : 0) + '%';
+}
+document.addEventListener('scroll', updateBar, {passive:true});
+updateBar();
+
+/* ---------- reveal on scroll ---------- */
+var revealEls = document.querySelectorAll('.reveal');
+if('IntersectionObserver' in window){
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); }
+    });
+  }, {threshold:0.12});
+  revealEls.forEach(function(el){ io.observe(el); });
+}else{
+  revealEls.forEach(function(el){ el.classList.add('in'); });
+}
+
+/* ---------- roadmap progress tracking ---------- */
+var PROGRESS_KEY = 'robotics-course-progress-v1';
+function loadProgress(){ try{ return JSON.parse(localStorage.getItem(PROGRESS_KEY))||{}; }catch(e){ return {}; } }
+function saveProgress(p){ try{ localStorage.setItem(PROGRESS_KEY, JSON.stringify(p)); }catch(e){} }
+var progress = loadProgress();
+function markDone(id){
+  if(progress[id]) return;
+  progress[id]=true; saveProgress(progress);
+  var card = document.querySelector('.road-card[data-ch="'+id+'"]');
+  if(card) card.classList.add('done');
+}
+document.querySelectorAll('.road-card').forEach(function(c){
+  if(progress[c.getAttribute('data-ch')]) c.classList.add('done');
+});
+document.querySelectorAll('section.chapter').forEach(function(sec){
+  if('IntersectionObserver' in window){
+    var sIo = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){ if(e.isIntersecting){ markDone(sec.id); } });
+    }, {threshold:0, rootMargin:'-45% 0px -45% 0px'});
+    sIo.observe(sec);
+  }
+});
+
+/* ---------- roadmap map nodes (chapter 0) jump links ---------- */
+document.querySelectorAll('.map-node').forEach(function(g){
+  var t = g.getAttribute('data-target');
+  if(!t) return;
+  g.style.cursor='pointer';
+  g.addEventListener('click', function(){ var el=document.getElementById(t); if(el) el.scrollIntoView({behavior: reduced?'auto':'smooth'}); });
+});
+
+/* ---------- generic quiz renderer ---------- */
+function renderQuiz(containerId, questions){
+  var c = document.getElementById(containerId);
+  if(!c) return;
+  questions.forEach(function(q, qi){
+    var qDiv = document.createElement('div');
+    qDiv.className = 'quiz-q';
+    var qt = document.createElement('div');
+    qt.className = 'qtext';
+    qt.textContent = (qi+1) + '. ' + q.q;
+    qDiv.appendChild(qt);
+    var fb = document.createElement('div');
+    fb.className = 'quiz-fb';
+    q.options.forEach(function(opt, oi){
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'quiz-opt';
+      b.textContent = opt;
+      b.addEventListener('click', function(){
+        if(qDiv.dataset.answered) return;
+        qDiv.dataset.answered = '1';
+        var allBtns = qDiv.querySelectorAll('.quiz-opt');
+        allBtns.forEach(function(ab, abi){
+          ab.disabled = true;
+          if(abi === q.correct) ab.classList.add('correct');
+          else if(abi === oi) ab.classList.add('wrong');
+        });
+        fb.textContent = (oi===q.correct ? '✓ Correct. ' : '✗ Not quite. ') + q.explain;
+        fb.classList.add('show');
+      });
+      qDiv.appendChild(b);
+    });
+    qDiv.appendChild(fb);
+    c.appendChild(qDiv);
+  });
+}
+
+renderQuiz('quiz1', [
+  {q:'Why does a sensor reading rarely equal the true value exactly?', options:['Sensors are usually defective from the factory','Physical noise, vibration, and limited resolution always introduce some error','Robots intentionally round numbers to save memory'], correct:1, explain:'Even a perfectly functioning sensor is subject to real physical noise and limited resolution.'},
+  {q:'If a robot commands a motor to "move to 90°," why might it not land exactly there?', options:['Inertia, friction, and load resist instant, exact motion','Motors always ignore the first command sent','90° is an invalid angle for most motors'], correct:0, explain:'Real-world physics (mass, friction, load) means commanded motion and actual motion always differ somewhat.'},
+  {q:'What is the practical lesson from "sensors and actuators are imperfect"?', options:['Always buy the most expensive sensor available','Software should be designed assuming noisy inputs and imprecise outputs from the start','Robots should avoid using sensors when possible'], correct:1, explain:'Good robotics software treats imperfection as the default, not an edge case.'}
+]);
+
+renderQuiz('quiz2', [
+  {q:'Why is "the object is at (3, 4)" an incomplete statement?', options:['Because (3,4) is not a valid coordinate','Because it doesn\'t say which reference frame the coordinates are measured in','Because robots can only understand whole numbers'], correct:1, explain:'A coordinate is only meaningful once you know its origin and orientation — i.e., its frame.'},
+  {q:'What does a "transform" do?', options:['It deletes outdated sensor data','It converts a measurement from one frame into another frame','It powers the robot\'s motors'], correct:1, explain:'A transform translates coordinates from one frame\'s point of view into another\'s.'},
+  {q:'What is a classic symptom of a "frame mismatch" bug?', options:['The robot crashes immediately with an error message','The robot quietly acts on the wrong position without any obvious error','The robot\'s battery drains faster than expected'], correct:1, explain:'Frame mismatches are dangerous precisely because they tend to fail silently, not loudly.'}
+]);
+
+renderQuiz('quiz3', [
+  {q:'What does forward kinematics calculate?', options:['Joint angles needed to reach a target position','The end-effector position, given known joint angles','How fast a motor can spin'], correct:1, explain:'Forward kinematics goes from known angles to a calculated position.'},
+  {q:'How many valid answers does forward kinematics have for a given set of joint angles?', options:['Always exactly one','Usually zero or many','It varies randomly'], correct:0, explain:'Forward kinematics is a direct calculation — one set of angles always produces exactly one end-effector position.'},
+  {q:'Why is the elbow angle usually measured relative to the upper arm rather than the world?', options:['Because elbows can only bend one way','Because each joint\'s rotation naturally composes onto the frame of the link before it','Because absolute angles are illegal in robotics'], correct:1, explain:'Each joint extends the chain of transforms from the previous link\'s own frame, exactly like Chapter 2.'}
+]);
+
+renderQuiz('quiz4', [
+  {q:'Why can inverse kinematics have more than one valid solution?', options:['Because robot motors are inaccurate','Because different joint configurations (e.g. elbow up vs. down) can place the final link at the same point','Because IK only works for two-link arms'], correct:1, explain:'Earlier joints have freedom to bend differently while still landing the last link at an identical target.'},
+  {q:'What must a real IK solver do when a target is out of reach?', options:['Crash the control program','Detect the unreachable case and respond gracefully (e.g. reach as close as possible)','Ignore the target and keep the arm motionless forever'], correct:1, explain:'Unreachable targets are a normal case any IK solver needs to detect and handle.'},
+  {q:'Why might a robot prefer the IK solution "closest to its current pose"?', options:['It uses less battery to compute','It avoids sudden, jerky configuration jumps between consecutive moves','It is always the mathematically only correct answer'], correct:1, explain:'Picking the nearest solution keeps motion smooth instead of snapping between very different arm shapes.'}
+]);
+
+renderQuiz('quiz5', [
+  {q:'What is the role of the "P" term in PID control?', options:['It reacts proportionally to how large the current error is','It stores the robot\'s entire movement history','It only activates once per minute'], correct:0, explain:'Proportional control reacts harder the further off the current position is from the target.'},
+  {q:'What commonly happens if P is set very high with no D term?', options:['The motor moves perfectly with no issues','The system overshoots and oscillates around the target','The motor stops responding entirely'], correct:1, explain:'High P alone has nothing to brake the approach, causing overshoot and oscillation.'},
+  {q:'What does the "D" (derivative) term respond to?', options:['The total accumulated error over time','How quickly the error is currently changing, to anticipate and brake overshoot','The robot\'s battery voltage'], correct:1, explain:'Derivative control looks at the rate of change of error to dampen fast approaches before they overshoot.'}
+]);
+
+renderQuiz('quiz6', [
+  {q:'What does SLAM solve simultaneously?', options:['Battery charging and motor calibration','Localization (where am I) and mapping (what does the space look like)','Speech recognition and object grasping'], correct:1, explain:'SLAM stands for Simultaneous Localization And Mapping — both problems solved together.'},
+  {q:'Why can\'t a robot just build the full map first, then localize on it?', options:['Mapping software is always too slow','Knowing your position usually requires a map, and building a map usually requires knowing your position — the two depend on each other','Maps are illegal to store on robots'], correct:1, explain:'The two problems are interdependent, so SLAM estimates both together rather than in strict sequence.'},
+  {q:'What is "loop closure" in SLAM?', options:['Turning the robot off and on again','Recognizing a previously visited location to correct accumulated drift in the map','Closing a physical door behind the robot'], correct:1, explain:'Loop closure detects revisited places, letting the map correct drift that built up over the journey.'}
+]);
+
+renderQuiz('quiz7', [
+  {q:'Why is path planning "necessary but not sufficient" on its own?', options:['It only works for robots with wheels','It tells the robot how to reach a destination but not whether or when it should go there at all','Paths can only be computed once per day'], correct:1, explain:'A behavior layer above planning decides the higher-level question of what the robot should be doing.'},
+  {q:'In the nested stack, which layer directly executes the PID control loop from Chapter 5?', options:['The behavior layer','The control layer, at the bottom of the planning stack','The mapping layer'], correct:1, explain:'Control is the innermost, fastest-running layer that actually follows the planned path tick by tick.'},
+  {q:'Why does a real robot need to re-plan frequently rather than computing one "perfect" path?', options:['Because perfect paths are computationally impossible','Because real environments change while the robot is moving, so a stale path can become invalid','Because re-planning saves battery life'], correct:1, explain:'Dynamic environments mean a path can go stale, so cheap, frequent re-planning is more robust than one expensive plan.'}
+]);
+
+/* ---------- explain-back buttons ---------- */
+for(var i=1;i<=7;i++){
+  (function(idx){
+    var btn = document.getElementById('explainBtn'+idx);
+    var model = document.getElementById('model'+idx);
+    if(btn && model){
+      btn.addEventListener('click', function(){
+        model.classList.toggle('show');
+        btn.textContent = model.classList.contains('show') ? 'Hide model answer' : 'Show model answer';
+      });
+    }
+  })(i);
+}
+
+/* ---------- Chapter 1: sensor noise / actuator lag diagram ---------- */
+function drawSensorDiagram(){
+  var noisy = document.getElementById('noisyLine');
+  var actual = document.getElementById('actualPath');
+  if(!noisy || !actual) return;
+  var pts = [];
+  for(var x=20; x<=660; x+=8){
+    var y = 60 + (Math.random()-0.5)*22;
+    pts.push(x+','+y);
+  }
+  noisy.setAttribute('points', pts.join(' '));
+
+  var d = 'M20,150';
+  var settle = 150;
+  for(var x2=20; x2<=660; x2+=8){
+    var t = (x2-20)/640;
+    var y2;
+    if(t < 0.15){ y2 = 150; }
+    else {
+      var tt = (t-0.15)/0.85;
+      y2 = 150 - (1 - Math.exp(-tt*4))*60 - Math.sin(tt*14)*Math.exp(-tt*4)*8;
+    }
+    d += ' L'+x2+','+y2;
+  }
+  actual.setAttribute('d', d);
+}
+drawSensorDiagram();
+var replayBtn = document.getElementById('replaySensorDiagram');
+if(replayBtn) replayBtn.addEventListener('click', drawSensorDiagram);
+
+/* ---------- Chapter 1: drag and drop matching ---------- */
+(function(){
+  var matchLab = document.getElementById('matchLab');
+  if(!matchLab) return;
+  var dragItems = matchLab.querySelectorAll('.drag-item');
+  var dropTargets = matchLab.querySelectorAll('.drop-target');
+  var placedCount = 0, correctCount = 0;
+  var total = dragItems.length;
+  var scoreEl = document.getElementById('matchScore');
+
+  function updateScore(){
+    scoreEl.textContent = placedCount===total ? ('Score: '+correctCount+' / '+total+' correct.') : '';
+  }
+
+  dragItems.forEach(function(item){
+    item.addEventListener('dragstart', function(e){
+      e.dataTransfer.setData('text/plain', item.textContent + '||' + item.dataset.match);
+      e.dataTransfer.setData('application/x-id', generateId(item));
+    });
+    // click-to-select fallback for accessibility
+    item.setAttribute('tabindex','0');
+    item.addEventListener('click', function(){
+      if(item.classList.contains('placed')) return;
+      matchLab.querySelectorAll('.drag-item').forEach(function(d){ d.style.outline=''; });
+      item.style.outline = '2px solid var(--accent)';
+      matchLab._selected = item;
+    });
+  });
+
+  function generateId(el){
+    if(!el.dataset.uid){ el.dataset.uid = 'm'+Math.random().toString(36).slice(2); }
+    return el.dataset.uid;
+  }
+  dragItems.forEach(generateId);
+
+  dropTargets.forEach(function(target){
+    target.addEventListener('dragover', function(e){ e.preventDefault(); target.classList.add('over'); });
+    target.addEventListener('dragleave', function(){ target.classList.remove('over'); });
+    target.addEventListener('drop', function(e){
+      e.preventDefault();
+      target.classList.remove('over');
+      var uid = e.dataTransfer.getData('application/x-id');
+      var item = matchLab.querySelector('[data-uid="'+uid+'"]');
+      placeItem(item, target);
+    });
+    target.addEventListener('click', function(){
+      if(matchLab._selected){ placeItem(matchLab._selected, target); matchLab._selected.style.outline=''; matchLab._selected=null; }
+    });
+  });
+
+  function placeItem(item, target){
+    if(!item || item.classList.contains('placed')) return;
+    var correct = item.dataset.match === target.dataset.accept;
+    item.classList.add('placed');
+    var label = document.createElement('div');
+    label.className = 'placed-label';
+    label.textContent = '→ ' + item.textContent;
+    label.style.color = correct ? 'var(--good)' : 'var(--bad)';
+    target.appendChild(label);
+    placedCount++;
+    if(correct) correctCount++;
+    updateScore();
+  }
+
+  document.getElementById('resetMatch').addEventListener('click', function(){
+    placedCount = 0; correctCount = 0;
+    matchLab.querySelectorAll('.drag-item').forEach(function(i){ i.classList.remove('placed'); i.style.outline=''; });
+    matchLab.querySelectorAll('.drop-target').forEach(function(t){
+      var labels = t.querySelectorAll('.placed-label');
+      labels.forEach(function(l){ l.remove(); });
+    });
+    scoreEl.textContent = '';
+  });
+})();
+
+/* ---------- Chapter 2: reference frame slider ---------- */
+(function(){
+  var slider = document.getElementById('frameSlider');
+  if(!slider) return;
+  var group = document.getElementById('robotFrameGroup');
+  var angleLabel = document.getElementById('frameAngleLabel');
+  var coordLabel = document.getElementById('frameCoordLabel');
+  // object world position relative to robot frame origin (420,140) in SVG space
+  var objWorldX = 560, objWorldY = 60;
+  var originX = 420, originY = 140;
+  function update(){
+    var deg = parseFloat(slider.value);
+    group.setAttribute('transform', 'translate('+originX+','+originY+') rotate('+(-deg)+')');
+    angleLabel.textContent = deg + '°';
+    var rad = deg * Math.PI/180;
+    var dx = objWorldX - originX, dy = -(objWorldY - originY);
+    var rx = dx*Math.cos(rad) + dy*Math.sin(rad);
+    var ry = -dx*Math.sin(rad) + dy*Math.cos(rad);
+    coordLabel.textContent = '(' + (rx/40).toFixed(1) + ', ' + (ry/40).toFixed(1) + ') m';
+  }
+  slider.addEventListener('input', update);
+  update();
+})();
+
+/* ---------- Chapter 3: forward kinematics sliders ---------- */
+(function(){
+  var t1 = document.getElementById('theta1');
+  var t2 = document.getElementById('theta2');
+  if(!t1 || !t2) return;
+  var link1 = document.getElementById('link1');
+  var link2 = document.getElementById('link2');
+  var elbow = document.getElementById('elbowJoint');
+  var endEff = document.getElementById('endEffector');
+  var endLabel = document.getElementById('endLabel');
+  var fkResult = document.getElementById('fkResult');
+  var baseX = 200, baseY = 280;
+  var L1 = 100, L2 = 90;
+  function update(){
+    var a1 = parseFloat(t1.value) * Math.PI/180;
+    var a2 = parseFloat(t2.value) * Math.PI/180;
+    var ex = baseX + L1*Math.sin(a1);
+    var ey = baseY - L1*Math.cos(a1);
+    var fx = ex + L2*Math.sin(a1+a2);
+    var fy = ey - L2*Math.cos(a1+a2);
+    link1.setAttribute('x1', baseX); link1.setAttribute('y1', baseY);
+    link1.setAttribute('x2', ex); link1.setAttribute('y2', ey);
+    elbow.setAttribute('cx', ex); elbow.setAttribute('cy', ey);
+    link2.setAttribute('x1', ex); link2.setAttribute('y1', ey);
+    link2.setAttribute('x2', fx); link2.setAttribute('y2', fy);
+    endEff.setAttribute('cx', fx); endEff.setAttribute('cy', fy);
+    endLabel.setAttribute('x', fx+15); endLabel.setAttribute('y', fy-5);
+    var xMeters = ((fx-baseX)/90).toFixed(2);
+    var yMeters = ((baseY-fy)/90).toFixed(2);
+    fkResult.textContent = 'x = '+xMeters+', y = '+yMeters+'  (meters, arbitrary scale)';
+  }
+  t1.addEventListener('input', update);
+  t2.addEventListener('input', update);
+  update();
+})();
+
+/* ---------- Chapter 4: inverse kinematics click sandbox ---------- */
+(function(){
+  var clickArea = document.getElementById('ikClickArea');
+  if(!clickArea) return;
+  var L1=100, L2=90, baseX=350, baseY=280;
+  var link1Up=document.getElementById('ikLink1Up'), link2Up=document.getElementById('ikLink2Up');
+  var link1Down=document.getElementById('ikLink1Down'), link2Down=document.getElementById('ikLink2Down');
+  var target=document.getElementById('ikTarget');
+  var status=document.getElementById('ikStatus');
+  var groupUp=document.getElementById('ikSolutionUp'), groupDown=document.getElementById('ikSolutionDown');
+  var highlightUp = true;
+
+  function setArm(link1, link2, baseAng, elbowAng){
+    var ex = baseX + L1*Math.sin(baseAng);
+    var ey = baseY - L1*Math.cos(baseAng);
+    var fx = ex + L2*Math.sin(baseAng+elbowAng);
+    var fy = ey - L2*Math.cos(baseAng+elbowAng);
+    link1.setAttribute('x1', baseX); link1.setAttribute('y1', baseY);
+    link1.setAttribute('x2', ex); link1.setAttribute('y2', ey);
+    link2.setAttribute('x1', ex); link2.setAttribute('y1', ey);
+    link2.setAttribute('x2', fx); link2.setAttribute('y2', fy);
+  }
+
+  function solveIK(px, py){
+    var dx = px-baseX, dy = baseY-py;
+    var dist = Math.sqrt(dx*dx+dy*dy);
+    var reachable = dist <= (L1+L2) && dist >= Math.abs(L1-L2);
+    var clampedDist = Math.min(Math.max(dist, Math.abs(L1-L2)+0.01), L1+L2-0.01);
+    var cosE = (L1*L1+L2*L2-clampedDist*clampedDist)/(2*L1*L2);
+    cosE = Math.min(1, Math.max(-1, cosE));
+    var elbowAngle = Math.acos(cosE); // interior angle
+    var phi = Math.atan2(dx, dy); // angle to target from base
+    var cosA = (L1*L1+clampedDist*clampedDist-L2*L2)/(2*L1*clampedDist);
+    cosA = Math.min(1, Math.max(-1, cosA));
+    var alpha = Math.acos(cosA);
+
+    var baseAngUp = phi - alpha;
+    var elbowAngUp = Math.PI - elbowAngle;
+    var baseAngDown = phi + alpha;
+    var elbowAngDown = -(Math.PI - elbowAngle);
+
+    setArm(link1Up, link2Up, baseAngUp, elbowAngUp);
+    setArm(link1Down, link2Down, baseAngDown, elbowAngDown);
+    target.setAttribute('cx', px); target.setAttribute('cy', py);
+    return reachable;
+  }
+
+  clickArea.addEventListener('click', function(e){
+    var svg = clickArea.ownerSVGElement;
+    var pt = svg.createSVGPoint();
+    pt.x = e.clientX; pt.y = e.clientY;
+    var ctm = clickArea.getScreenCTM().inverse();
+    var loc = pt.matrixTransform(ctm);
+    var reachable = solveIK(loc.x, loc.y);
+    if(reachable){
+      status.textContent = 'Target reachable. Two solutions shown: elbow-up (solid) and elbow-down (faded).';
+    } else {
+      status.textContent = 'Target unreachable — outside the arm\'s working range. A real IK solver would clamp to the nearest reachable point instead of crashing.';
+    }
+  });
+
+  document.getElementById('ikToggleSolution').addEventListener('click', function(){
+    highlightUp = !highlightUp;
+    groupUp.style.opacity = highlightUp ? '0.95' : '0.4';
+    groupDown.style.opacity = highlightUp ? '0.4' : '0.95';
+  });
+
+  solveIK(350, 100);
+})();
+
+/* ---------- Chapter 5: PID playground ---------- */
+(function(){
+  var pP=document.getElementById('pidP'), pI=document.getElementById('pidI'), pD=document.getElementById('pidD');
+  if(!pP) return;
+  var line = document.getElementById('pidResponseLine');
+  var verdict = document.getElementById('pidVerdict');
+
+  function simulate(){
+    var Kp=parseFloat(pP.value), Ki=parseFloat(pI.value), Kd=parseFloat(pD.value);
+    var target=1, pos=0, vel=0, integral=0, prevErr=target-pos;
+    var mass=1, damping=0.6, dt=0.05;
+    var pts=[]; var n=120;
+    var maxOvershoot=0, settled=true, oscillations=0, lastSign=0;
+    for(var i=0;i<n;i++){
+      var err = target-pos;
+      integral += err*dt;
+      var deriv = (err-prevErr)/dt;
+      prevErr = err;
+      var force = Kp*err + Ki*integral + Kd*deriv;
+      var accel = (force - damping*vel)/mass;
+      vel += accel*dt;
+      pos += vel*dt;
+      var sign = err<0?-1:1;
+      if(i>5 && sign!==lastSign && Math.abs(err)>0.03){ oscillations++; }
+      lastSign = sign;
+      if(pos-target > maxOvershoot) maxOvershoot = pos-target;
+      var px = 10 + (i/(n-1))*680;
+      var py = 110 - pos*90;
+      py = Math.max(6, Math.min(214, py));
+      pts.push(px+','+py);
+    }
+    line.setAttribute('points', pts.join(' '));
+    if(Kp<1 && Ki<0.3 && Kd<0.3){ verdict.textContent='With everything near zero, there\'s almost no correction — the motor barely moves toward target at all.'; }
+    else if(maxOvershoot>0.35 || oscillations>3){ verdict.textContent='Overshoot and ringing — try adding more D to brake the approach, or lowering P slightly.'; }
+    else if(maxOvershoot<0.05 && oscillations<=1){ verdict.textContent='Smooth, well-damped response — close to a well-tuned controller.'; }
+    else { verdict.textContent='Some overshoot, settling reasonably — fine-tune D to tighten it further.'; }
+  }
+  pP.addEventListener('input', simulate);
+  pI.addEventListener('input', simulate);
+  pD.addEventListener('input', simulate);
+  simulate();
+})();
+
+/* ---------- Chapter 6: SLAM before/after toggle ---------- */
+(function(){
+  var btn = document.getElementById('slamToggleBtn');
+  if(!btn) return;
+  var before = document.getElementById('slamBefore');
+  var after = document.getElementById('slamAfter');
+  var text = document.getElementById('slamToggleText');
+  var showingSingle = true;
+  function render(){
+    before.style.opacity = showingSingle ? '1' : '0.25';
+    after.style.opacity = showingSingle ? '0.25' : '1';
+    btn.textContent = showingSingle ? 'Show: Fused Over Time' : 'Show: Single Scan';
+    text.textContent = showingSingle
+      ? 'A single LIDAR scan only sees what\'s directly visible right now — it has no idea what\'s behind that wall, and a moving robot\'s single scan is also smeared by its own motion.'
+      : 'After fusing dozens of scans, taken from slightly different positions and aligned against each other, the scattered points snap into confident walls and open floor — and the robot\'s own position becomes confident too.';
+  }
+  btn.addEventListener('click', function(){ showingSingle = !showingSingle; render(); });
+  render();
+})();
+
+/* ---------- Chapter 6: flashcards ---------- */
+(function(){
+  var grid = document.getElementById('slamFlashGrid');
+  if(!grid) return;
+  var cards = [
+    {front:'LIDAR', back:'A sensor that measures distance by timing laser pulses bouncing off surfaces.'},
+    {front:'Occupancy grid', back:'A map divided into cells, each marked free, occupied, or unknown.'},
+    {front:'Odometry', back:'Estimating motion from wheel turns or motor encoders — drifts over time.'},
+    {front:'Loop closure', back:'Recognizing a previously visited place to correct accumulated map drift.'},
+    {front:'Sensor fusion', back:'Combining readings from multiple sensors into one more confident estimate.'},
+    {front:'Pose', back:'A robot\'s full position and orientation together, e.g. (x, y, heading).'}
+  ];
+  cards.forEach(function(c){
+    var card = document.createElement('div');
+    card.className = 'flash';
+    card.tabIndex = 0;
+    card.innerHTML = '<div class="flash-inner"><div class="flash-face flash-front">'+c.front+'</div><div class="flash-face flash-back">'+c.back+'</div></div>';
+    function flip(){ card.classList.toggle('flipped'); }
+    card.addEventListener('click', flip);
+    card.addEventListener('keydown', function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); flip(); } });
+    grid.appendChild(card);
+  });
+})();
+
+/* ---------- Chapter 7: sortable sequencer ---------- */
+(function(){
+  var list = document.getElementById('sortList');
+  if(!list) return;
+  var dragEl = null;
+  Array.prototype.forEach.call(list.children, function(item){
+    item.addEventListener('dragstart', function(){ dragEl = item; setTimeout(function(){ item.style.opacity='0.4'; },0); });
+    item.addEventListener('dragend', function(){ item.style.opacity='1'; list.querySelectorAll('.sort-item').forEach(function(i){i.classList.remove('drag-over');}); });
+    item.addEventListener('dragover', function(e){ e.preventDefault(); item.classList.add('drag-over'); });
+    item.addEventListener('dragleave', function(){ item.classList.remove('drag-over'); });
+    item.addEventListener('drop', function(e){
+      e.preventDefault();
+      item.classList.remove('drag-over');
+      if(dragEl && dragEl!==item){
+        var items = Array.prototype.slice.call(list.children);
+        var dragIdx = items.indexOf(dragEl), dropIdx = items.indexOf(item);
+        if(dragIdx<dropIdx) item.after(dragEl); else item.before(dragEl);
+      }
+    });
+  });
+  document.getElementById('checkSort').addEventListener('click', function(){
+    var items = Array.prototype.slice.call(list.children);
+    var correct = items.every(function(it, idx){ return parseInt(it.dataset.correct,10)===idx+1; });
+    var result = document.getElementById('sortResult');
+    result.textContent = correct ? '✓ Correct order!' : '✗ Not quite the right order yet — keep dragging.';
+    result.style.color = correct ? 'var(--good)' : 'var(--bad)';
+  });
+  document.getElementById('shuffleSort').addEventListener('click', function(){
+    var items = Array.prototype.slice.call(list.children);
+    for(var i=items.length-1;i>0;i--){
+      var j = Math.floor(Math.random()*(i+1));
+      var tmp = items[i]; items[i]=items[j]; items[j]=tmp;
+    }
+    items.forEach(function(it){ list.appendChild(it); });
+    document.getElementById('sortResult').textContent='';
+  });
+})();
+
+/* ---------- Chapter 7: fill in the blank ---------- */
+(function(){
+  var btn = document.getElementById('checkBlank');
+  if(!btn) return;
+  var input = document.getElementById('fillBlank');
+  var fb = document.getElementById('blankFeedback');
+  var accepted = ['reactive','adaptive','replanning','re-planning','dynamic','responsive'];
+  btn.addEventListener('click', function(){
+    var val = input.value.trim().toLowerCase();
+    var ok = accepted.indexOf(val) !== -1;
+    fb.classList.add('show');
+    fb.textContent = ok
+      ? '✓ Right idea — "reactive" (or "adaptive"/"re-planning") behavior is the term: adjusting the plan in response to a changing world.'
+      : '✗ Close, but the expected term is "reactive" (re-planning in response to a change) — try that word.';
+  });
+})();
+
+/* ---------- Certificate date ---------- */
+(function(){
+  var dateEl = document.getElementById('certDate');
+  if(!dateEl) return;
+  var d = new Date();
+  dateEl.textContent = d.toLocaleDateString(undefined, {year:'numeric', month:'long', day:'numeric'});
+})();
+
+})();
+</script>
+</body>
+</html>

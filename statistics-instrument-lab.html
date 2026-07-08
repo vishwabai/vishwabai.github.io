@@ -1,0 +1,2399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Statistics — The Instrument Lab</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..900&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+:root{
+  --ink: #0B1220;
+  --ink-2: #101A2E;
+  --ink-3: #16223C;
+  --parchment: #E8E4D8;
+  --parchment-dim: #B9B4A4;
+  --amber: #D9A441;
+  --amber-dim: rgba(217,164,65,0.18);
+  --teal: #3FA796;
+  --teal-dim: rgba(63,167,150,0.16);
+  --coral: #E2725B;
+  --coral-dim: rgba(226,114,91,0.16);
+  --slate: #5C6B73;
+  --line: rgba(232,228,216,0.12);
+  --radius: 10px;
+  --display: 'Fraunces', serif;
+  --body: 'Inter', sans-serif;
+  --mono: 'IBM Plex Mono', monospace;
+  --dur-fast: 220ms;
+  --dur-reveal: 550ms;
+  --dur-complex: 1400ms;
+}
+
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{
+  margin:0;
+  background:var(--ink);
+  color:var(--parchment);
+  font-family:var(--body);
+  line-height:1.65;
+  font-size:16px;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,h4{
+  font-family:var(--display);
+  font-weight:600;
+  margin:0 0 0.5em 0;
+  letter-spacing:-0.01em;
+}
+p{margin:0 0 1em 0;}
+code, .mono{font-family:var(--mono);}
+a{color:var(--amber);}
+
+::selection{background:var(--amber-dim); color:var(--parchment);}
+
+#progress-rail{
+  position:fixed; top:0; left:0; right:0; height:3px;
+  background:rgba(232,228,216,0.06); z-index:1000;
+}
+#progress-fill{
+  height:100%; width:0%;
+  background:linear-gradient(90deg,var(--teal),var(--amber));
+  transition:width 80ms linear;
+}
+
+nav.dial-nav{
+  position:fixed; top:3px; left:0; right:0; z-index:999;
+  background:rgba(11,18,32,0.86);
+  backdrop-filter:blur(8px);
+  border-bottom:1px solid var(--line);
+  display:flex; align-items:center; justify-content:space-between;
+  padding:10px 22px;
+}
+nav.dial-nav .brand{
+  font-family:var(--display); font-weight:600; font-size:1.05rem;
+  color:var(--parchment); display:flex; align-items:center; gap:8px;
+}
+nav.dial-nav .brand svg{width:22px;height:22px;}
+nav.dial-nav .chapter-pips{display:flex; gap:6px; align-items:center;}
+.pip{
+  width:9px;height:9px;border-radius:50%;
+  background:rgba(232,228,216,0.18);
+  border:1px solid rgba(232,228,216,0.25);
+  cursor:pointer; transition:all var(--dur-fast) ease;
+  position:relative;
+}
+.pip[data-done="true"]{background:var(--teal); border-color:var(--teal);}
+.pip:hover{transform:scale(1.3);}
+.pip .pip-label{
+  position:absolute; top:18px; left:50%; transform:translateX(-50%);
+  font-size:11px; color:var(--parchment-dim); white-space:nowrap;
+  opacity:0; pointer-events:none; transition:opacity var(--dur-fast);
+}
+.pip:hover .pip-label{opacity:1;}
+@media (max-width:760px){ nav.dial-nav .chapter-pips{display:none;} }
+
+.shell{max-width:920px; margin:0 auto; padding:0 24px;}
+.wide-shell{max-width:1180px; margin:0 auto; padding:0 24px;}
+
+section.chapter{
+  padding:120px 0 90px 0;
+  border-bottom:1px solid var(--line);
+  position:relative;
+}
+section.chapter::before{
+  content: attr(data-chnum);
+  position:absolute;
+  top:50px; left:0;
+  font-family:var(--mono);
+  font-size:13px;
+  color:var(--parchment-dim);
+  letter-spacing:0.12em;
+}
+.shell{position:relative;}
+
+.reveal{
+  opacity:0; transform:translateY(18px);
+  transition:opacity var(--dur-reveal) cubic-bezier(.2,.7,.3,1), transform var(--dur-reveal) cubic-bezier(.2,.7,.3,1);
+}
+.reveal.in{opacity:1; transform:translateY(0);}
+@media (prefers-reduced-motion: reduce){
+  .reveal{opacity:1; transform:none; transition:none;}
+  *{animation-duration:0.001ms !important; animation-iteration-count:1 !important; transition-duration:0.001ms !important;}
+}
+
+.eyebrow{
+  font-family:var(--mono); font-size:12px; letter-spacing:0.14em; text-transform:uppercase;
+  color:var(--amber); margin-bottom:10px; display:block;
+}
+.chapter h2{font-size:2.1rem; color:var(--parchment); max-width:14ch;}
+.chapter .dek{font-size:1.15rem; color:var(--parchment-dim); max-width:48ch; margin-bottom:38px;}
+
+.misconception{
+  display:grid; grid-template-columns:1fr 1fr; gap:0;
+  border:1px solid var(--line); border-radius:var(--radius); overflow:hidden;
+  margin:28px 0 38px 0;
+}
+@media (max-width:680px){ .misconception{grid-template-columns:1fr;} }
+.misconception > div{padding:20px 22px;}
+.misconception .think{background:var(--coral-dim); border-right:1px solid var(--line);}
+.misconception .truth{background:var(--teal-dim);}
+@media (max-width:680px){ .misconception .think{border-right:none; border-bottom:1px solid var(--line);} }
+.misconception .label{
+  font-family:var(--mono); font-size:11px; letter-spacing:0.1em; text-transform:uppercase;
+  display:block; margin-bottom:8px;
+}
+.misconception .think .label{color:var(--coral);}
+.misconception .truth .label{color:var(--teal);}
+.misconception p{margin:0; font-size:0.97rem;}
+
+.analogy-row{display:grid; grid-template-columns:1fr 1fr; gap:18px; margin:24px 0 32px 0;}
+@media (max-width:680px){ .analogy-row{grid-template-columns:1fr;} }
+.analogy-card{
+  background:var(--ink-2); border:1px solid var(--line); border-radius:var(--radius);
+  padding:18px 20px; position:relative;
+}
+.analogy-card .tag{font-size:22px; margin-bottom:8px; display:block;}
+.analogy-card h4{font-size:1rem; color:var(--amber); margin-bottom:6px;}
+.analogy-card p{font-size:0.93rem; color:var(--parchment-dim); margin:0;}
+
+.diagram-frame{
+  background:var(--ink-2); border:1px solid var(--line); border-radius:var(--radius);
+  padding:24px; margin:28px 0 8px 0; overflow:hidden;
+}
+.diagram-frame svg{width:100%; height:auto; display:block;}
+.diagram-caption{
+  text-align:center; font-size:0.82rem; color:var(--parchment-dim); margin:10px 0 32px 0;
+  font-family:var(--mono);
+}
+.replay-btn{
+  display:inline-flex; align-items:center; gap:6px;
+  background:transparent; border:1px solid var(--line); color:var(--parchment-dim);
+  font-family:var(--mono); font-size:11px; padding:5px 10px; border-radius:6px;
+  cursor:pointer; margin-top:8px;
+}
+.replay-btn:hover{border-color:var(--amber); color:var(--amber);}
+
+.sticking{
+  border:1px solid var(--coral); border-left:4px solid var(--coral);
+  background:rgba(226,114,91,0.07); border-radius:0 8px 8px 0;
+  padding:18px 20px; margin:30px 0;
+}
+.sticking .label{
+  font-family:var(--mono); font-size:12px; color:var(--coral); letter-spacing:0.08em;
+  text-transform:uppercase; display:flex; align-items:center; gap:6px; margin-bottom:8px;
+}
+.sticking p{font-size:0.95rem; margin:0;}
+
+details.reveal-why{
+  background:var(--ink-2); border:1px solid var(--line); border-radius:var(--radius);
+  padding:0; margin:18px 0; overflow:hidden;
+}
+details.reveal-why summary{
+  cursor:pointer; padding:14px 18px; font-family:var(--mono); font-size:0.88rem;
+  color:var(--teal); list-style:none; display:flex; align-items:center; gap:8px;
+}
+details.reveal-why summary::before{content:"▸"; transition:transform var(--dur-fast);}
+details.reveal-why[open] summary::before{transform:rotate(90deg);}
+details.reveal-why .why-body{padding:0 18px 18px 18px; font-size:0.92rem; color:var(--parchment-dim);}
+
+details.math-box{
+  background:var(--ink-3); border:1px solid var(--amber); border-radius:var(--radius);
+  padding:0; margin:18px 0; overflow:hidden;
+}
+details.math-box summary{
+  cursor:pointer; padding:14px 18px; font-family:var(--mono); font-size:0.88rem;
+  color:var(--amber); list-style:none; display:flex; align-items:center; gap:8px;
+}
+details.math-box summary::before{content:"∑"; transition:transform var(--dur-fast); font-size:0.95em;}
+details.math-box[open] summary::before{transform:rotate(180deg);}
+details.math-box .math-body{padding:2px 18px 18px 18px; font-size:0.92rem; color:var(--parchment-dim);}
+.formula-block{
+  font-family:var(--mono); background:var(--ink); border:1px solid var(--line); border-radius:6px;
+  padding:11px 15px; margin:12px 0; color:var(--teal); font-size:0.95rem; overflow-x:auto;
+  line-height:1.5;
+}
+.formula-block .fterm{color:var(--amber);}
+.worked-example{
+  margin-top:14px; padding:13px 15px; background:rgba(217,164,65,0.06);
+  border-left:3px solid var(--amber); border-radius:0 6px 6px 0;
+}
+.worked-example .we-label{
+  font-family:var(--mono); font-size:11px; color:var(--amber); text-transform:uppercase;
+  letter-spacing:0.06em; display:block; margin-bottom:8px;
+}
+.worked-example ol, .worked-example ul{margin:6px 0; padding-left:20px;}
+.worked-example li{margin-bottom:4px; font-size:0.9rem;}
+.worked-example .we-result{
+  font-family:var(--mono); color:var(--teal); font-weight:600; margin-top:6px; display:block;
+}
+
+.interactive-block{
+  background:var(--ink-3); border:1px solid var(--line); border-radius:var(--radius);
+  padding:22px 24px; margin:30px 0;
+}
+.interactive-block .int-label{
+  font-family:var(--mono); font-size:11px; letter-spacing:0.1em; text-transform:uppercase;
+  color:var(--amber); margin-bottom:14px; display:block;
+}
+input[type=range]{width:100%; accent-color:var(--amber);}
+.slider-readout{font-family:var(--mono); font-size:0.95rem; color:var(--teal); margin-top:8px;}
+button.lab-btn{
+  background:var(--amber); color:var(--ink); border:none; border-radius:7px;
+  padding:9px 16px; font-family:var(--body); font-weight:600; font-size:0.88rem;
+  cursor:pointer; transition:transform var(--dur-fast);
+}
+button.lab-btn.secondary{background:transparent; border:1px solid var(--teal); color:var(--teal);}
+button.lab-btn:hover{transform:translateY(-1px);}
+button.lab-btn:active{transform:translateY(0px) scale(0.98);}
+
+.match-grid{display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-top:10px;}
+@media (max-width:600px){ .match-grid{grid-template-columns:1fr;} }
+.match-col h5{font-family:var(--mono); font-size:11px; color:var(--parchment-dim); text-transform:uppercase; margin-bottom:10px;}
+.drag-item{
+  background:var(--ink-2); border:1px solid var(--line); border-radius:7px;
+  padding:10px 12px; margin-bottom:8px; cursor:grab; font-size:0.9rem;
+  user-select:none;
+}
+.drag-item.placed{opacity:0.4; cursor:default;}
+.drop-zone{
+  border:1.5px dashed var(--line); border-radius:7px; padding:10px 12px; margin-bottom:8px;
+  min-height:42px; font-size:0.9rem; display:flex; flex-direction:column; gap:6px; color:var(--parchment-dim);
+  transition:border-color var(--dur-fast), background var(--dur-fast);
+}
+.drop-zone .zone-label{font-size:0.85rem;}
+.drop-zone .zone-items{display:flex; flex-direction:column; gap:4px;}
+.drop-zone .zone-items .zone-chip{
+  background:var(--teal-dim); border:1px solid var(--teal); border-radius:5px;
+  padding:5px 8px; font-size:0.82rem; color:var(--parchment);
+}
+.drop-zone.over{border-color:var(--amber); background:var(--amber-dim);}
+.drop-zone.correct{border-color:var(--teal); background:var(--teal-dim); color:var(--parchment);}
+.drop-zone.incorrect{border-color:var(--coral); background:var(--coral-dim); color:var(--parchment);}
+
+.blank-input{
+  background:var(--ink); border:1px solid var(--teal); color:var(--parchment);
+  font-family:var(--mono); padding:3px 8px; border-radius:5px; width:90px; text-align:center;
+}
+.blank-input.correct{border-color:var(--teal); box-shadow:0 0 0 2px var(--teal-dim);}
+.blank-input.incorrect{border-color:var(--coral); box-shadow:0 0 0 2px var(--coral-dim);}
+
+.sequence-list{list-style:none; padding:0; margin:0;}
+.sequence-list li{
+  background:var(--ink-2); border:1px solid var(--line); border-radius:7px;
+  padding:10px 14px; margin-bottom:8px; cursor:grab; display:flex; align-items:center; gap:10px;
+  font-size:0.9rem;
+}
+.sequence-list li .handle{color:var(--parchment-dim); font-family:var(--mono);}
+.sequence-list li .seq-text{flex:1;}
+.sequence-list li .seq-controls{display:flex; gap:4px;}
+.seq-btn{
+  background:transparent; border:1px solid var(--line); color:var(--parchment-dim);
+  border-radius:5px; width:24px; height:24px; cursor:pointer; font-size:10px; line-height:1;
+}
+.seq-btn:hover{border-color:var(--amber); color:var(--amber);}
+.sequence-list li.dragging{opacity:0.4;}
+
+.explain-back textarea{
+  width:100%; min-height:90px; background:var(--ink); border:1px solid var(--line);
+  border-radius:8px; color:var(--parchment); padding:12px 14px; font-family:var(--body);
+  font-size:0.93rem; resize:vertical;
+}
+.explain-back textarea:focus{outline:none; border-color:var(--amber);}
+.model-answer{
+  display:none; background:var(--teal-dim); border:1px solid var(--teal); border-radius:8px;
+  padding:14px 16px; margin-top:12px; font-size:0.9rem;
+}
+.model-answer.show{display:block;}
+.model-answer .label{font-family:var(--mono); font-size:11px; color:var(--teal); text-transform:uppercase; margin-bottom:6px; display:block;}
+
+.quiz{margin-top:34px;}
+.quiz h4{font-size:1.05rem; color:var(--parchment); margin-bottom:16px;}
+.quiz-q{margin-bottom:22px;}
+.quiz-q .qtext{font-size:0.95rem; margin-bottom:10px; font-weight:500;}
+.quiz-opts{display:flex; flex-direction:column; gap:8px;}
+.quiz-opt{
+  text-align:left; background:var(--ink-2); border:1px solid var(--line); border-radius:7px;
+  padding:10px 14px; color:var(--parchment); cursor:pointer; font-size:0.9rem; font-family:var(--body);
+  transition:border-color var(--dur-fast);
+}
+.quiz-opt:hover{border-color:var(--amber);}
+.quiz-opt.selected-correct{border-color:var(--teal); background:var(--teal-dim);}
+.quiz-opt.selected-incorrect{border-color:var(--coral); background:var(--coral-dim);}
+.quiz-feedback{font-size:0.85rem; margin-top:8px; padding:10px 12px; border-radius:6px; display:none;}
+.quiz-feedback.show{display:block;}
+.quiz-feedback.correct{background:var(--teal-dim); color:var(--parchment);}
+.quiz-feedback.incorrect{background:var(--coral-dim); color:var(--parchment);}
+
+.takeaway{
+  margin-top:34px; padding:20px 22px; border-radius:var(--radius);
+  background:linear-gradient(135deg, var(--amber-dim), transparent);
+  border:1px solid var(--amber);
+}
+.takeaway .label{font-family:var(--mono); font-size:11px; color:var(--amber); text-transform:uppercase; letter-spacing:0.08em; display:block; margin-bottom:8px;}
+.takeaway p{margin:0; font-size:0.95rem;}
+
+.hero{min-height:100vh; display:flex; flex-direction:column; justify-content:center; padding:100px 0 60px 0; position:relative;}
+.hero .eyebrow{margin-bottom:18px;}
+.hero h1{font-size:clamp(2.6rem,6vw,4.4rem); line-height:1.05; max-width:14ch;}
+.hero .hero-dek{font-size:1.2rem; color:var(--parchment-dim); max-width:46ch; margin:18px 0 10px 0;}
+.hero-grid{display:grid; grid-template-columns:1.1fr 0.9fr; gap:50px; align-items:center;}
+@media (max-width:860px){ .hero-grid{grid-template-columns:1fr;} }
+.time-badge{
+  display:inline-flex; align-items:center; gap:8px; margin-top:22px;
+  font-family:var(--mono); font-size:12px; color:var(--teal);
+  border:1px solid var(--teal); border-radius:20px; padding:6px 14px;
+}
+.roadmap-cards{margin-top:50px;}
+.roadmap-cards h3{font-family:var(--mono); font-size:13px; letter-spacing:0.1em; text-transform:uppercase; color:var(--parchment-dim); margin-bottom:18px; font-weight:500;}
+.rm-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:14px;}
+@media (max-width:900px){ .rm-grid{grid-template-columns:repeat(2,1fr);} }
+@media (max-width:520px){ .rm-grid{grid-template-columns:1fr;} }
+.rm-card{
+  background:var(--ink-2); border:1px solid var(--line); border-radius:9px;
+  padding:16px; cursor:pointer; transition:border-color var(--dur-fast), transform var(--dur-fast);
+  text-decoration:none; color:var(--parchment); display:block;
+}
+.rm-card:hover{border-color:var(--amber); transform:translateY(-2px);}
+.rm-card .num{font-family:var(--mono); font-size:11px; color:var(--amber);}
+.rm-card .title{font-size:0.92rem; font-weight:600; margin-top:4px;}
+.rm-card .desc{font-size:0.8rem; color:var(--parchment-dim); margin-top:4px;}
+
+.synthesis{padding:110px 0 100px 0;}
+.cheat-sheet{display:none; background:var(--ink-2); border:1px solid var(--line); border-radius:var(--radius); padding:26px; margin-top:24px;}
+.cheat-sheet.show{display:block;}
+.cheat-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:18px;}
+@media (max-width:680px){ .cheat-grid{grid-template-columns:1fr;} }
+.cheat-item h5{font-size:0.92rem; color:var(--amber); margin-bottom:4px;}
+.cheat-item .formula{font-family:var(--mono); font-size:0.85rem; color:var(--teal); display:block; margin-bottom:4px;}
+.cheat-item p{font-size:0.82rem; color:var(--parchment-dim); margin:0;}
+
+.certificate{
+  border:2px solid var(--amber); border-radius:14px; padding:40px;
+  background:radial-gradient(circle at 30% 20%, rgba(217,164,65,0.08), transparent 60%), var(--ink-2);
+  text-align:center; margin-top:30px; display:none;
+}
+.certificate.show{display:block;}
+.certificate .cert-eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:0.16em; color:var(--amber); text-transform:uppercase;}
+.certificate h3{font-size:1.8rem; margin:14px 0 6px 0;}
+.certificate .cert-name{font-family:var(--mono); font-size:1.1rem; color:var(--teal); border-bottom:1px solid var(--line); display:inline-block; padding:4px 18px; margin:10px 0;}
+.certificate .cert-date{font-size:0.85rem; color:var(--parchment-dim); margin-top:10px;}
+
+.next-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-top:20px;}
+@media (max-width:760px){ .next-grid{grid-template-columns:1fr;} }
+.next-card{background:var(--ink-2); border:1px solid var(--line); border-radius:9px; padding:16px;}
+.next-card h5{font-size:0.92rem; margin-bottom:6px;}
+.next-card p{font-size:0.82rem; color:var(--parchment-dim); margin-bottom:8px;}
+.next-card a{font-size:0.82rem; font-family:var(--mono);}
+
+footer.site-end{text-align:center; padding:50px 24px 80px; color:var(--parchment-dim); font-size:0.82rem;}
+
+@keyframes pulse-needle{
+  0%,100%{transform:rotate(var(--rot,-50deg));}
+  50%{transform:rotate(calc(var(--rot,-50deg) + 4deg));}
+}
+@keyframes particle-burst{
+  0%{transform:translate(0,0) scale(1); opacity:1;}
+  100%{transform:translate(var(--tx),var(--ty)) scale(0); opacity:0;}
+}
+.particle{
+  position:absolute; width:6px; height:6px; border-radius:50%; background:var(--amber);
+  animation:particle-burst 700ms ease-out forwards;
+}
+</style>
+</head>
+<body>
+<div id="progress-rail"><div id="progress-fill"></div></div>
+
+<nav class="dial-nav">
+  <div class="brand">
+    <svg viewBox="0 0 24 24" fill="none"><path d="M3 18 C 6 8, 9 20, 12 6 C 15 20, 18 8, 21 18" stroke="#D9A441" stroke-width="1.6" stroke-linecap="round"/></svg>
+    Instrument Lab
+  </div>
+  <div class="chapter-pips" id="chapter-pips">
+    <!-- pips injected by JS -->
+  </div>
+</nav>
+
+<!-- ============ CHAPTER 0 — HERO ============ -->
+<header class="hero shell" id="ch0">
+  <div class="hero-grid">
+    <div>
+      <span class="eyebrow">Chapter 0 — Orientation</span>
+      <h1>Statistics is just a way of being honest about what you don't know.</h1>
+      <p class="hero-dek">You already use it badly, every day — when you eyeball a graph, trust a gut feeling about which version of a feature "feels faster," or decide a coin is rigged after three flips. This course gives you the instrument to do it properly: to measure uncertainty instead of guessing at it.</p>
+      <div class="time-badge">⏱ ~7–9 hrs to first-pass mastery</div>
+      <div style="margin-top:18px;">
+        <button class="lab-btn" onclick="document.getElementById('ch1').scrollIntoView({behavior:'smooth'})">Start with Chapter 1 →</button>
+      </div>
+    </div>
+    <div class="diagram-frame" style="margin:0;">
+      <svg id="hero-dial" viewBox="0 0 320 280" aria-label="Animated bell-curve instrument dial">
+        <defs>
+          <linearGradient id="curveFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#D9A441" stop-opacity="0.55"/>
+            <stop offset="100%" stop-color="#D9A441" stop-opacity="0.02"/>
+          </linearGradient>
+        </defs>
+        <circle cx="160" cy="170" r="100" fill="none" stroke="#1F2C49" stroke-width="2"/>
+        <path id="bell-path" d="M 70 210 C 100 210, 120 80, 160 80 C 200 80, 220 210, 250 210" fill="none" stroke="#3FA796" stroke-width="2.5" stroke-linecap="round"/>
+        <path id="bell-fill" d="M 70 210 C 100 210, 120 80, 160 80 C 200 80, 220 210, 250 210 L 250 210 L 70 210 Z" fill="url(#curveFill)" opacity="0"/>
+        <line x1="160" y1="170" x2="160" y2="95" stroke="#D9A441" stroke-width="3" stroke-linecap="round" id="dial-needle" style="transform-origin:160px 170px;"/>
+        <circle cx="160" cy="170" r="6" fill="#D9A441"/>
+        <text x="160" y="245" text-anchor="middle" fill="#B9B4A4" font-family="IBM Plex Mono" font-size="11">measuring the shape of uncertainty</text>
+      </svg>
+    </div>
+  </div>
+
+  <div class="roadmap-cards reveal">
+    <h3>The map ahead</h3>
+    <div class="rm-grid">
+      <a class="rm-card" href="#ch1"><span class="num">01</span><div class="title">Data Itself</div><div class="desc">What a "variable" actually is, and why its type changes everything.</div></a>
+      <a class="rm-card" href="#ch2"><span class="num">02</span><div class="title">Center &amp; Spread</div><div class="desc">One number to summarize a thousand — and how it lies to you.</div></a>
+      <a class="rm-card" href="#ch3"><span class="num">03</span><div class="title">Probability Basics</div><div class="desc">The grammar of "how likely," and where intuition breaks.</div></a>
+      <a class="rm-card" href="#ch8"><span class="num">04</span><div class="title">Combinatorics &amp; Binomial</div><div class="desc">Counting outcomes correctly — why "at least one" isn't simple multiplication.</div></a>
+      <a class="rm-card" href="#ch4"><span class="num">05</span><div class="title">The Normal Curve</div><div class="desc">Why bell curves show up everywhere, and how to read one.</div></a>
+      <a class="rm-card" href="#ch5"><span class="num">06</span><div class="title">Sampling &amp; CLT</div><div class="desc">Why a small sample can still tell you something true.</div></a>
+      <a class="rm-card" href="#ch6"><span class="num">07</span><div class="title">Hypothesis Testing</div><div class="desc">The actual meaning of a p-value — and the meaning everyone gets wrong.</div></a>
+      <a class="rm-card" href="#ch9"><span class="num">08</span><div class="title">Effect Size &amp; Power</div><div class="desc">Significant isn't the same as important — and "no effect" might just mean "not enough data."</div></a>
+      <a class="rm-card" href="#ch7"><span class="num">09</span><div class="title">Estimation &amp; Correlation</div><div class="desc">Confidence intervals, correlation, and the causation trap.</div></a>
+      <a class="rm-card" href="#synthesis"><span class="num">★</span><div class="title">Synthesis</div><div class="desc">One mental model that connects all nine instruments.</div></a>
+    </div>
+  </div>
+</header>
+
+<!-- ============ CHAPTER 1 — DATA ITSELF ============ -->
+<section class="chapter shell" id="ch1" data-chnum="01 / DATA">
+  <span class="eyebrow reveal">Chapter 1</span>
+  <h2 class="reveal">Data Itself</h2>
+  <p class="dek reveal">Before you can summarize, test, or predict anything, you have to know what kind of thing you're holding. A spreadsheet column isn't just "numbers" — it's a specific kind of measurement, and that type decides every tool you're allowed to use on it.</p>
+
+  <div class="misconception reveal">
+    <div class="think"><span class="label">What you think</span><p>"Data" is just numbers in a column. If it's a number, I can average it, plot it, and run any statistic on it.</p></div>
+    <div class="truth"><span class="label">What's actually true</span><p>A customer ID is a number, but averaging it is meaningless. Data has a <em>type</em> — categorical, ordinal, or numeric — and the type, not the fact that it's stored as a digit, decides what operations are valid.</p></div>
+  </div>
+
+  <div class="analogy-row reveal">
+    <div class="analogy-card">
+      <span class="tag">🧰</span>
+      <h4>The toolbox analogy</h4>
+      <p>A wrench and a screwdriver both look like "metal tools," but you can't use a wrench on a Phillips screw. Data types work the same way: <strong>mean</strong>, <strong>median</strong>, and <strong>mode</strong> are different tools, and only some fit each type of data.</p>
+    </div>
+    <div class="analogy-card">
+      <span class="tag">🎽</span>
+      <h4>The race-bib analogy</h4>
+      <p>Runner #7 didn't finish "7 times better" than runner #1 — the number is just a label. T-shirt sizes (S/M/L) have order but no fixed gap between them. Height in cm has both order <em>and</em> a true, measurable distance. Three different jobs for three different number-shapes.</p>
+    </div>
+  </div>
+
+  <div class="diagram-frame">
+    <svg viewBox="0 0 700 220" id="ch1-diagram" aria-label="Three data type branches growing from a single trunk">
+      <line x1="350" y1="200" x2="350" y2="150" stroke="#5C6B73" stroke-width="3"/>
+      <g class="branch" data-branch="1">
+        <line x1="350" y1="150" x2="150" y2="70" stroke="#E2725B" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="220" stroke-dashoffset="220"/>
+        <circle cx="150" cy="70" r="5" fill="#E2725B" opacity="0"/>
+        <text x="150" y="50" text-anchor="middle" fill="#E2725B" font-family="IBM Plex Mono" font-size="12" opacity="0">Categorical</text>
+        <text x="150" y="92" text-anchor="middle" fill="#B9B4A4" font-family="Inter" font-size="10.5" opacity="0">"red" "blue" "green"</text>
+      </g>
+      <g class="branch" data-branch="2">
+        <line x1="350" y1="150" x2="350" y2="40" stroke="#D9A441" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="220" stroke-dashoffset="220"/>
+        <circle cx="350" cy="40" r="5" fill="#D9A441" opacity="0"/>
+        <text x="350" y="22" text-anchor="middle" fill="#D9A441" font-family="IBM Plex Mono" font-size="12" opacity="0">Ordinal</text>
+        <text x="350" y="60" text-anchor="middle" fill="#B9B4A4" font-family="Inter" font-size="10.5" opacity="0">S, M, L, XL</text>
+      </g>
+      <g class="branch" data-branch="3">
+        <line x1="350" y1="150" x2="550" y2="70" stroke="#3FA796" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="220" stroke-dashoffset="220"/>
+        <circle cx="550" cy="70" r="5" fill="#3FA796" opacity="0"/>
+        <text x="550" y="50" text-anchor="middle" fill="#3FA796" font-family="IBM Plex Mono" font-size="12" opacity="0">Numeric</text>
+        <text x="550" y="92" text-anchor="middle" fill="#B9B4A4" font-family="Inter" font-size="10.5" opacity="0">height: 172.4 cm</text>
+      </g>
+      <rect x="320" y="195" width="60" height="14" rx="3" fill="#16223C" stroke="#5C6B73"/>
+      <text x="350" y="205" text-anchor="middle" fill="#B9B4A4" font-family="IBM Plex Mono" font-size="9">one column</text>
+    </svg>
+  </div>
+  <p class="diagram-caption">Three branches a single data column can grow into — each unlocking different operations.</p>
+  <button class="replay-btn" onclick="playCh1Diagram()">↺ Replay</button>
+
+  <details class="reveal-why">
+    <summary>Reveal the why — why does it matter so much?</summary>
+    <div class="why-body">
+      <p>If you average a "ranking" (1st, 2nd, 3rd place) you get nonsense like "1.5th place" — a category that doesn't exist. If you compute "mode" (most frequent value) on someone's exact height in cm, you'll usually get one value that happens to repeat by coincidence, telling you nothing about the "typical" height. The type of data is a contract: it tells you which questions are even askable.</p>
+    </div>
+  </details>
+
+  <div class="interactive-block">
+    <span class="int-label">Drag-and-drop · Match the data type</span>
+    <p style="font-size:0.9rem; color:var(--parchment-dim); margin-bottom:14px;">Drag each example into the bucket it belongs to.</p>
+    <p style="font-size:0.8rem; color:var(--parchment-dim); margin:8px 0 0 0;">Keyboard / tap alternative: select an example, then select the bucket to place it.</p>
+    <div class="match-grid">
+      <div class="match-col">
+        <h5>Examples</h5>
+        <div class="drag-item" draggable="true" tabindex="0" role="button" data-answer="categorical">Browser used: Chrome / Firefox / Safari</div>
+        <div class="drag-item" draggable="true" tabindex="0" role="button" data-answer="ordinal">Customer satisfaction: Low / Medium / High</div>
+        <div class="drag-item" draggable="true" tabindex="0" role="button" data-answer="numeric">Server response time: 184ms</div>
+        <div class="drag-item" draggable="true" tabindex="0" role="button" data-answer="categorical">Deployment region: us-east / eu-west</div>
+        <div class="drag-item" draggable="true" tabindex="0" role="button" data-answer="numeric">Number of failed login attempts: 3</div>
+      </div>
+      <div class="match-col">
+        <h5>Buckets</h5>
+        <div class="drop-zone" data-type="categorical" tabindex="0" role="button"><span class="zone-label">Categorical — labels, no order</span><div class="zone-items"></div></div>
+        <div class="drop-zone" data-type="ordinal" tabindex="0" role="button"><span class="zone-label">Ordinal — order, no fixed gap</span><div class="zone-items"></div></div>
+        <div class="drop-zone" data-type="numeric" tabindex="0" role="button"><span class="zone-label">Numeric — order + real distance</span><div class="zone-items"></div></div>
+      </div>
+    </div>
+    <div id="ch1-match-feedback" class="quiz-feedback" style="margin-top:12px;"></div>
+  </div>
+
+  <details class="math-box">
+    <summary>📐 The Math — frequencies, proportions, and the mode</summary>
+    <div class="math-body">
+      <p>Even "just labels" support real arithmetic — you count them. For a categorical column with categories <span class="fterm">c₁, c₂, …, cₖ</span>, the frequency of category <span class="fterm">cᵢ</span> is simply how many rows equal it, and the proportion is that count divided by the total:</p>
+      <div class="formula-block">proportion(cᵢ) = count(cᵢ) / n &nbsp;&nbsp;&nbsp; where n = total rows</div>
+      <p>The <strong>mode</strong> — the only "center" measure that's valid for categorical data — is just the category with the highest count:</p>
+      <div class="formula-block">mode = argmax cᵢ &nbsp;[ count(cᵢ) ]</div>
+      <div class="worked-example">
+        <span class="we-label">Worked example</span>
+        <p>Browser column from 20 requests: Chrome ×12, Firefox ×5, Safari ×3.</p>
+        <ol>
+          <li>proportion(Chrome) = 12/20 = 0.60 → 60%</li>
+          <li>proportion(Firefox) = 5/20 = 0.25 → 25%</li>
+          <li>proportion(Safari) = 3/20 = 0.15 → 15%</li>
+        </ol>
+        <span class="we-result">mode = Chrome (the highest count, 12)</span>
+      </div>
+    </div>
+  </details>
+
+  <div class="sticking">
+    <span class="label">⚡ Common sticking point</span>
+    <p>People get tripped up by numbers that <em>look</em> numeric but aren't — ZIP codes, ID numbers, phone numbers, even "rating out of 5" stars. The test that actually works: ask "does subtracting two of these values produce a meaningful distance?" 90210 − 10001 means nothing. 5 stars − 2 stars arguably doesn't mean a fixed "3 units of happiness" either (that's why star ratings are ordinal, not numeric, even though everyone averages them anyway).</p>
+  </div>
+
+  <div class="explain-back">
+    <p style="font-weight:600; margin-bottom:8px;">Now explain it in your own words</p>
+    <textarea id="explain-ch1" placeholder="In your own words: why can't you average a customer's t-shirt size?"></textarea>
+    <button class="lab-btn secondary" style="margin-top:10px;" onclick="toggleModel('model-ch1')">Compare with a model answer</button>
+    <div class="model-answer" id="model-ch1">
+      <span class="label">Model answer</span>
+      <p>T-shirt size has an order (S &lt; M &lt; L) but the "distance" between sizes isn't a fixed, meaningful number — there's no guarantee L − M equals M − S in any real unit. Averaging requires that equal numeric gaps mean the same thing everywhere on the scale, which ordinal data doesn't promise. So "the average size was 2.4" is a number with no real-world referent.</p>
+    </div>
+  </div>
+
+  <div class="quiz" id="quiz-ch1">
+    <h4>Did you get it?</h4>
+    <div class="quiz-q" data-correct="1" data-explain="Milliseconds have true, equal-sized gaps between values — 10ms really is 10ms more than 0ms, everywhere on the scale. Stars and education levels are ordered but lack that fixed gap.">
+      <p class="qtext">1. Which of these is numeric data, not ordinal?</p>
+      <div class="quiz-opts">
+        <button class="quiz-opt" data-idx="0">Movie rating: 1–5 stars</button>
+        <button class="quiz-opt" data-idx="1">Page load time in milliseconds</button>
+        <button class="quiz-opt" data-idx="2">Education level: high school / bachelor's / master's</button>
+      </div>
+      <div class="quiz-feedback"></div>
+    </div>
+    <div class="quiz-q" data-correct="2" data-explain="A Yes/No flag is just two labels with no order or distance between them — that's the definition of categorical data, even though it's often stored as 0/1.">
+      <p class="qtext">2. A "Yes/No: did the user click the button" column is:</p>
+      <div class="quiz-opts">
+        <button class="quiz-opt" data-idx="0">Numeric</button>
+        <button class="quiz-opt" data-idx="1">Ordinal</button>
+        <button class="quiz-opt" data-idx="2">Categorical (a special 2-category case)</button>
+      </div>
+      <div class="quiz-feedback"></div>
+    </div>
+  </div>
+
+  <div class="takeaway">
+    <span class="label">Key takeaway</span>
+    <p>Before computing anything, name the type of your column: categorical (labels), ordinal (ordered labels), or numeric (true distances). The type — not the fact it's stored as digits — decides which statistics are valid.</p>
+  </div>
+</section>
+
+<!-- ============ CHAPTER 2 — CENTER & SPREAD ============ -->
+<section class="chapter shell" id="ch2" data-chnum="02 / CENTER & SPREAD">
+  <span class="eyebrow reveal">Chapter 2</span>
+  <h2 class="reveal">Center &amp; Spread</h2>
+  <p class="dek reveal">"The average user session is 4.2 minutes" sounds like a fact. It's actually a compression — you took a thousand numbers and threw away everything except one. The question is what that one number hides, and how to choose a better one.</p>
+
+  <div class="misconception reveal">
+    <div class="think"><span class="label">What you think</span><p>The "average" (mean) is always the fair, neutral way to describe a typical value.</p></div>
+    <div class="truth"><span class="label">What's actually true</span><p>The mean is dragged hard by outliers. If 9 engineers earn ₹12L and one earns ₹2Cr, the "average salary" is wildly misleading — the <strong>median</strong> (the middle value) describes the typical engineer far better.</p></div>
+  </div>
+
+  <div class="analogy-row reveal">
+    <div class="analogy-card">
+      <span class="tag">⚖️</span>
+      <h4>The see-saw analogy</h4>
+      <p>The mean is the exact balancing point of a see-saw with each data point as a weight. One person sitting very far out (an outlier) drags the whole balance point toward them — even if everyone else is clustered near the middle.</p>
+    </div>
+    <div class="analogy-card">
+      <span class="tag">📏</span>
+      <h4>The rubber-band analogy</h4>
+      <p>Standard deviation is "how far the rubber band stretches on average" — it measures typical distance from the center. A tight cluster has a short stretch (low spread); scattered points stretch the band a long way (high spread).</p>
+    </div>
+  </div>
+
+  <div class="diagram-frame">
+    <svg viewBox="0 0 700 240" id="ch2-diagram" aria-label="Skew slider moving mean away from median">
+      <line x1="40" y1="200" x2="660" y2="200" stroke="#5C6B73" stroke-width="1.5"/>
+      <g id="ch2-dots"></g>
+      <line id="ch2-median-line" x1="350" y1="195" x2="350" y2="40" stroke="#3FA796" stroke-width="2" stroke-dasharray="4 3"/>
+      <text id="ch2-median-label" x="350" y="30" text-anchor="middle" fill="#3FA796" font-family="IBM Plex Mono" font-size="11">median</text>
+      <line id="ch2-mean-line" x1="350" y1="195" x2="350" y2="40" stroke="#D9A441" stroke-width="2" stroke-dasharray="4 3"/>
+      <text id="ch2-mean-label" x="350" y="55" text-anchor="middle" fill="#D9A441" font-family="IBM Plex Mono" font-size="11">mean</text>
+    </svg>
+  </div>
+  <p class="diagram-caption">Drag the slider below to add a high outlier and watch the mean chase it while the median stays put.</p>
+
+  <div class="interactive-block">
+    <span class="int-label">Slider · Morph the distribution</span>
+    <input type="range" id="ch2-outlier-slider" min="0" max="100" value="0">
+    <div class="slider-readout" id="ch2-readout">Outlier value: ₹12L (no outlier yet) — Mean: ₹12.4L · Median: ₹12.5L</div>
+  </div>
+
+  <details class="reveal-why">
+    <summary>Reveal the why — why is the median so stubborn?</summary>
+    <div class="why-body">
+      <p>The median only cares about <em>position</em> — "what's the middle value when sorted" — not magnitude. Whether the highest earner makes ₹50L or ₹50Cr, they're still just "the last one in line," so the median doesn't move. The mean cares about magnitude directly because it sums every value, so one huge number drags the total (and thus the average) upward.</p>
+    </div>
+  </details>
+
+  <details class="math-box">
+    <summary>📐 The Math — variance, std. deviation, and the n−1 correction</summary>
+    <div class="math-body">
+      <p>The mean is the balancing point you already know:</p>
+      <div class="formula-block">x̄ = (1/n) Σᵢ xᵢ</div>
+      <p><strong>Variance</strong> averages the squared distance of every point from that mean (squaring makes negative and positive distances both count, and penalizes large deviations more):</p>
+      <div class="formula-block">σ² = (1/n) Σᵢ (xᵢ − x̄)²</div>
+      <p><strong>Standard deviation</strong> is just the square root of variance, which brings the units back to the original scale (e.g. ₹, not ₹²):</p>
+      <div class="formula-block">σ = √σ²</div>
+      <p>One subtlety: when you only have a <em>sample</em> (not the full population) and want to estimate the population's variance, dividing by n slightly underestimates the true spread. The fix — <strong>Bessel's correction</strong> — divides by n−1 instead:</p>
+      <div class="formula-block">s² = (1/(n−1)) Σᵢ (xᵢ − x̄)² &nbsp;&nbsp;<span class="fterm">(sample variance)</span></div>
+      <div class="worked-example">
+        <span class="we-label">Worked example</span>
+        <p>Five response times (ms): 10, 12, 14, 16, 18.</p>
+        <ol>
+          <li>Mean: (10+12+14+16+18)/5 = 70/5 = <strong>14</strong></li>
+          <li>Squared deviations: (−4)²=16, (−2)²=4, 0²=0, 2²=4, 4²=16 → sum = 40</li>
+          <li>Sample variance: 40 / (5−1) = 40/4 = <strong>10</strong></li>
+        </ol>
+        <span class="we-result">Sample standard deviation s = √10 ≈ 3.16 ms</span>
+      </div>
+    </div>
+  </details>
+
+  <div class="sticking">
+    <span class="label">⚡ Common sticking point</span>
+    <p>People assume "spread" just means "the range" (max − min). Range is wrecked by a single extreme point, just like the mean is. Standard deviation is more robust because it looks at <em>every</em> point's typical distance from the center, not just the two most extreme ones — but it's still pulled (less violently) by outliers, which is why for skewed data people often report median + IQR (interquartile range) instead.</p>
+  </div>
+
+  <div class="explain-back">
+    <p style="font-weight:600; margin-bottom:8px;">Now explain it in your own words</p>
+    <textarea id="explain-ch2" placeholder="Why would a company prefer to report median salary instead of mean salary?"></textarea>
+    <button class="lab-btn secondary" style="margin-top:10px;" onclick="toggleModel('model-ch2')">Compare with a model answer</button>
+    <div class="model-answer" id="model-ch2">
+      <span class="label">Model answer</span>
+      <p>Median salary isn't distorted by a handful of very high earners (executives, founders), so it represents what a "typical" employee actually takes home. Mean salary gets pulled upward by those few high values, making the company look like it pays more generously than most employees actually experience.</p>
+    </div>
+  </div>
+
+  <div class="quiz" id="quiz-ch2">
+    <h4>Did you get it?</h4>
+    <div class="quiz-q" data-correct="0" data-explain="The median only cares about position in sorted order, so a few huge values can't drag it — they're still just 'the last few in line.' The mean sums every value, so extreme ones pull it directly.">
+      <p class="qtext">1. A dataset has a few extremely high values. Which measure of center is least affected?</p>
+      <div class="quiz-opts">
+        <button class="quiz-opt" data-idx="0">Median</button>
+        <button class="quiz-opt" data-idx="1">Mean</button>
+        <button class="quiz-opt" data-idx="2">Both are equally affected</button>
+      </div>
+      <div class="quiz-feedback"></div>
+    </div>
+    <div class="quiz-q" data-correct="1" data-explain="Standard deviation measures spread — specifically, the typical distance each point sits from the mean. The most frequent value is the mode; the exact middle value is the median.">
+      <p class="qtext">2. Standard deviation describes:</p>
+      <div class="quiz-opts">
+        <button class="quiz-opt" data-idx="0">The single most frequent value</button>
+        <button class="quiz-opt" data-idx="1">The typical distance of points from the mean</button>
+        <button class="quiz-opt" data-idx="2">The exact middle value when sorted</button>
+      </div>
+      <div class="quiz-feedback"></div>
+    </div>
+  </div>
+
+  <div class="takeaway">
+    <span class="label">Key takeaway</span>
+    <p>Mean, median, and mode all answer "what's typical?" — but they disagree under skew. Always pair a center number with a spread number (std. dev. or IQR); a center alone hides whether your data is tight or wild.</p>
+  </div>
+</section>
+
+<!-- ============ CHAPTER 3 — PROBABILITY BASICS ============ -->
+<section class="chapter shell" id="ch3" data-chnum="03 / PROBABILITY">
+  <span class="eyebrow reveal">Chapter 3</span>
+  <h2 class="reveal">Probability Basics</h2>
+  <p class="dek reveal">Probability is just a number between 0 and 1 that says "how often would this happen if we could rewind reality and replay it many times." Almost every mistake beginners make comes from forgetting to ask: probability of what, given what?</p>
+
+  <div class="misconception reveal">
+    <div class="think"><span class="label">What you think</span><p>If a coin has landed heads 4 times in a row, it's "due" for tails — the universe will balance it out.</p></div>
+    <div class="truth"><span class="label">What's actually true</span><p>The coin has no memory. Each flip is independent: the probability of tails on flip 5 is still exactly 50%, regardless of the last four outcomes. This is the <strong>gambler's fallacy</strong>, and it fools even careful engineers when they look at A/B test streaks.</p></div>
+  </div>
+
+  <div class="analogy-row reveal">
+    <div class="analogy-card">
+      <span class="tag">🎯</span>
+      <h4>The dartboard analogy</h4>
+      <p>Probability is the fraction of the dartboard's area a region covers. "P(bullseye) = 0.05" just means: if you threw a thousand random darts, about 50 would land in that tiny circle. It's a statement about long-run frequency, not about any single throw.</p>
+    </div>
+    <div class="analogy-card">
+      <span class="tag">🔍</span>
+      <h4>The "given" lens analogy</h4>
+      <p>Conditional probability — P(A | B) — is like looking at the dartboard through a window that only shows region B. You're not asking "what fraction of the whole board is A," you're asking "what fraction of <em>just this window</em> is A." Zooming into a subset changes the apparent odds.</p>
+    </div>
+  </div>
+
+  <div class="diagram-frame">
+    <svg viewBox="0 0 700 280" id="ch3-diagram" aria-label="Interactive Venn diagram, hover regions to see definitions">
+      <circle cx="280" cy="140" r="110" fill="rgba(63,167,150,0.18)" stroke="#3FA796" stroke-width="2" class="venn-region" data-info="P(A): probability an engineer knows Python — the whole left circle."/>
+      <circle cx="420" cy="140" r="110" fill="rgba(217,164,65,0.18)" stroke="#D9A441" stroke-width="2" class="venn-region" data-info="P(B): probability an engineer knows SQL — the whole right circle."/>
+      <text x="220" y="80" fill="#3FA796" font-family="IBM Plex Mono" font-size="13">A: knows Python</text>
+      <text x="430" y="80" fill="#D9A441" font-family="IBM Plex Mono" font-size="13">B: knows SQL</text>
+      <text x="350" y="145" text-anchor="middle" fill="#E8E4D8" font-family="IBM Plex Mono" font-size="12" class="venn-region" data-info="P(A ∩ B): knows BOTH — the overlap. This is the numerator of P(A|B)."> A ∩ B</text>
+      <text x="350" y="245" text-anchor="middle" fill="#B9B4A4" font-family="Inter" font-size="11">Hover a region — or P(A|B) below — to see what it means</text>
+    </svg>
+    <div id="venn-tooltip" style="min-height:36px; font-size:0.88rem; color:var(--teal); font-family:var(--mono); margin-top:6px;">Hover a region above…</div>
+  </div>
+  <p class="diagram-caption">P(A | B) = P(A ∩ B) / P(B) — "of the engineers who know SQL, what fraction also know Python?"</p>
+
+  <details class="reveal-why">
+    <summary>Reveal the why — why does conditioning change the probability?</summary>
+    <div class="why-body">
+      <p>Conditioning shrinks your universe. Instead of asking "what fraction of ALL engineers know Python," P(A|B) asks "of the smaller group who already know SQL, what fraction also know Python." If SQL-knowers are disproportionately backend engineers who also tend to know Python, P(A|B) will be higher than the plain P(A). The denominator changed, so the fraction changed — even though nothing about Python itself changed.</p>
+    </div>
+  </details>
+
+  <div class="interactive-block">
+    <span class="int-label">Fill in the blank · Probability rules</span>
+    <p style="margin-bottom:14px; font-size:0.92rem;">
+      If P(A) = 0.40 and P(B) = 0.30 and A, B are <strong>independent</strong>, then P(A and B) =
+      <input class="blank-input" id="ch3-blank1" type="text" inputmode="decimal" placeholder="?">.
+    </p>
+    <p style="margin-bottom:14px; font-size:0.92rem;">
+      A fair six-sided die is rolled once. P(rolling an even number) =
+      <input class="blank-input" id="ch3-blank2" type="text" inputmode="decimal" placeholder="?">.
+    </p>
+    <button class="lab-btn" onclick="checkCh3Blanks()">Check answers</button>
+    <div id="ch3-blank-feedback" class="quiz-feedback" style="margin-top:10px;"></div>
+  </div>
+
+  <details class="math-box">
+    <summary>📐 The Math — the addition rule and Bayes' theorem</summary>
+    <div class="math-body">
+      <p>For two events that <em>can</em> overlap, simply adding their probabilities double-counts the overlap, so you have to subtract it back out (the <strong>addition rule</strong>):</p>
+      <div class="formula-block">P(A ∪ B) = P(A) + P(B) − P(A ∩ B)</div>
+      <p>The conditional probability rule from this chapter can be rearranged into one of the most useful formulas in all of statistics — <strong>Bayes' theorem</strong> — which lets you flip a conditional probability around:</p>
+      <div class="formula-block">P(A | B) = [ P(B | A) × P(A) ] / P(B)</div>
+      <div class="worked-example">
+        <span class="we-label">Worked example — the classic test-accuracy trap</span>
+        <p>A disease affects 1% of a population. A test for it is 95% accurate (correctly flags 95% of sick people, and correctly clears 95% of healthy people). You test positive. What's the chance you're actually sick?</p>
+        <ol>
+          <li>P(Sick) = 0.01, P(Positive | Sick) = 0.95</li>
+          <li>P(Positive | Healthy) = 0.05 (the 5% false-positive rate)</li>
+          <li>P(Positive) = 0.95×0.01 + 0.05×0.99 = 0.0095 + 0.0495 = 0.059</li>
+          <li>P(Sick | Positive) = (0.95 × 0.01) / 0.059 = 0.0095 / 0.059</li>
+        </ol>
+        <span class="we-result">P(Sick | Positive) ≈ 16% — far lower than the test's "95% accurate" headline suggests, because the disease is rare</span>
+      </div>
+    </div>
+  </details>
+
+  <div class="sticking">
+    <span class="label">⚡ Common sticking point</span>
+    <p>"Independent" and "mutually exclusive" get confused constantly. Independent means knowing one event tells you nothing about the other (rolling a 6 on die A says nothing about die B). Mutually exclusive means the two events can never happen together (rolling a 6 <em>and</em> rolling a 3 on the <em>same</em> single die). Independent events usually <em>can</em> co-occur; mutually exclusive events by definition cannot.</p>
+  </div>
+
+  <div class="explain-back">
+    <p style="font-weight:600; margin-bottom:8px;">Now explain it in your own words</p>
+    <textarea id="explain-ch3" placeholder="Why doesn't a coin 'remember' that it landed heads four times in a row?"></textarea>
+    <button class="lab-btn secondary" style="margin-top:10px;" onclick="toggleModel('model-ch3')">Compare with a model answer</button>
+    <div class="model-answer" id="model-ch3">
+      <span class="label">Model answer</span>
+      <p>Each flip is a fresh, independent physical event — the coin's mass and the way it's flipped don't change because of past outcomes. The probability of heads is fixed by the physics of the flip itself, not by some abstract "fairness debt" the universe owes you. Over a very large number of flips the ratio approaches 50/50, but that's a property of the long run, not a force correcting the next flip.</p>
+    </div>
+  </div>
+
+  <div class="quiz" id="quiz-ch3">
+    <h4>Did you get it?</h4>
+    <div class="quiz-q" data-correct="2" data-explain="The die has no memory. Each roll is an independent physical event with the same fixed 1/6 probability for any face, regardless of what happened on previous rolls. This is the gambler's fallacy.">
+      <p class="qtext">1. You roll a die and it shows 6 three times in a row. The probability the next roll is a 6 is:</p>
+      <div class="quiz-opts">
+        <button class="quiz-opt" data-idx="0">Lower than 1/6, it's "due" for something else</button>
+        <button class="quiz-opt" data-idx="1">Higher than 1/6, sixes are "hot"</button>
+        <button class="quiz-opt" data-idx="2">Still exactly 1/6</button>
+      </div>
+      <div class="quiz-feedback"></div>
+    </div>
+    <div class="quiz-q" data-correct="1" data-explain="Conditioning shrinks the universe you're measuring against — P(A|B) only looks at the cases where B already happened, then asks what fraction of those also have A.">
+      <p class="qtext">2. P(A | B) is best read as:</p>
+      <div class="quiz-opts">
+        <button class="quiz-opt" data-idx="0">The probability of A and B happening at the same time, over everything</button>
+        <button class="quiz-opt" data-idx="1">The probability of A, restricted to only the cases where B is already true</button>
+        <button class="quiz-opt" data-idx="2">The probability of A causing B</button>
+      </div>
+      <div class="quiz-feedback"></div>
+    </div>
+  </div>
+
+  <div class="takeaway">
+    <span class="label">Key takeaway</span>
+    <p>Probability describes long-run frequency, not a "balancing force." Independent events don't influence each other; conditioning on an event shrinks your universe to just the cases where that event is true.</p>
+  </div>
+</section>
+
+<!-- ============ CHAPTER 8 — COMBINATORICS & THE BINOMIAL DISTRIBUTION ============ -->
+<section class="chapter shell" id="ch8" data-chnum="04 / COMBINATORICS">
+  <span class="eyebrow reveal">Chapter 4</span>
+  <h2 class="reveal">Combinatorics &amp; the Binomial Distribution</h2>
+  <p class="dek reveal">You run an experiment with a 10% chance of success on each try. Try it 5 times — what's the chance of at least one success? Your gut says "50%." Counting correctly says something quite different, and that gap is exactly what this chapter fixes.</p>
+
+  <div class="misconception reveal">
+    <div class="think"><span class="label">What you think</span><p>If each independent try has a 10% chance of success, then 5 tries gives a 5 × 10% = 50% chance of at least one success.</p></div>
+    <div class="truth"><span class="label">What's actually true</span><p>Probabilities of independent events don't add up like that — you'd double count the chance of getting two or more successes. The correct approach uses the complement: P(at least one) = 1 − P(zero successes) = 1 − (0.9)⁵ ≈ 41%, noticeably less than the naive 50%.</p></div>
+  </div>
+
+  <div class="analogy-row reveal">
+    <div class="analogy-card">
+      <span class="tag">🎟️</span>
+      <h4>The lottery-ticket analogy</h4>
+      <p>Buying 5 lottery tickets doesn't give you 5× the winning chance in a simple additive sense — it raises your odds of winning <em>at least once</em>, but some of that probability "overlaps" with the chance of winning on more than one ticket. The honest way to count is through the complement: 1 minus the chance you lose every single time.</p>
+    </div>
+    <div class="analogy-card">
+      <span class="tag">👥</span>
+      <h4>The team-roster analogy</h4>
+      <p>"How many different 3-person teams can I pick from 8 people?" doesn't care about the order you pick them in — Alex-then-Sam-then-Lee is the same team as Lee-then-Alex-then-Sam. That's a <strong>combination</strong> (written ⁸C₃), the building block behind the binomial formula, which counts how many different ways k successes can land among n tries.</p>
+    </div>
+  </div>
+
+  <div class="diagram-frame">
+    <svg viewBox="0 0 700 260" id="ch8-diagram" aria-label="Binomial distribution bar chart that updates with sliders">
+      <line x1="50" y1="220" x2="650" y2="220" stroke="#5C6B73" stroke-width="1.5"/>
+      <g id="ch8-bars"></g>
+      <text x="350" y="245" text-anchor="middle" fill="#B9B4A4" font-family="IBM Plex Mono" font-size="11" id="ch8-caption">Number of successes (k) out of n tries</text>
+    </svg>
+  </div>
+  <div class="interactive-block">
+    <span class="int-label">Slider · Morph the binomial distribution</span>
+    <div style="display:flex; gap:18px; flex-wrap:wrap;">
+      <div style="flex:1; min-width:180px;">
+        <label style="font-size:0.82rem; color:var(--parchment-dim);">Number of tries (n)</label>
+        <input type="range" id="ch8-n-slider" min="2" max="20" step="1" value="10">
+      </div>
+      <div style="flex:1; min-width:180px;">
+        <label style="font-size:0.82rem; color:var(--parchment-dim);">Success probability (p)</label>
+        <input type="range" id="ch8-p-slider" min="5" max="95" step="5" value="30">
+      </div>
+    </div>
+    <div class="slider-readout" id="ch8-readout">n = 10, p = 0.30 → expected successes ≈ 3.0</div>
+  </div>
+
+  <details class="reveal-why">
+    <summary>Reveal the why — why does the shape shift when you move p?</summary>
+    <div class="why-body">
+      <p>When p is small, low success-counts are far more likely than high ones, so the bars pile up on the left (right-skewed). As p approaches 0.5, the distribution becomes symmetric — equally easy to land above or below the middle. Push p above 0.5 and the skew flips to the left. The "expected" number of successes is always n × p, which is why the peak of the bars slides along with that slider.</p>
+    </div>
+  </details>
+
+  <details class="math-box">
+    <summary>📐 The Math — factorials, combinations, and the binomial formula</summary>
+    <div class="math-body">
+      <p>A factorial counts how many ways to arrange n distinct items in order:</p>
+      <div class="formula-block">n! = n × (n−1) × (n−2) × … × 2 × 1 &nbsp;&nbsp;<span class="fterm">(0! = 1, by convention)</span></div>
+      <p>A combination — "n choose k" — counts how many ways to pick k items from n when order doesn't matter:</p>
+      <div class="formula-block">ⁿCₖ = n! / [ k! × (n−k)! ]</div>
+      <p>The full binomial probability formula combines that count with how likely any one specific arrangement is:</p>
+      <div class="formula-block">P(k successes) = ⁿCₖ × pᵏ × (1−p)ⁿ⁻ᵏ</div>
+      <p>The mean and variance of a binomial distribution have clean closed forms — no simulation needed:</p>
+      <div class="formula-block">E[X] = np &nbsp;&nbsp;&nbsp; Var(X) = np(1−p)</div>
+      <div class="worked-example">
+        <span class="we-label">Worked example</span>
+        <p>A feature flag is shown to 4 users, each with a 25% (p=0.25) chance of clicking it. What's P(exactly 2 clicks)?</p>
+        <ol>
+          <li>⁴C₂ = 4! / (2!×2!) = 24 / (2×2) = 6 ways to choose which 2 of the 4 click</li>
+          <li>p² = 0.25² = 0.0625; (1−p)² = 0.75² = 0.5625</li>
+          <li>P(2) = 6 × 0.0625 × 0.5625 = 6 × 0.03516</li>
+        </ol>
+        <span class="we-result">P(exactly 2 clicks) ≈ 0.211, or about 21.1%</span>
+      </div>
+    </div>
+  </details>
+
+  <div class="sticking">
+    <span class="label">⚡ Common sticking point</span>
+    <p>People confuse "n choose k" (how many ways k successes can be arranged among n tries) with the full binomial probability (how likely that count actually is). The combination count is just one ingredient — you still have to multiply by p^k × (1−p)^(n−k) to account for how likely any one specific arrangement of successes and failures actually is. Counting arrangements and weighing their likelihood are two separate steps that both matter.</p>
+  </div>
+
+  <div class="explain-back">
+    <p style="font-weight:600; margin-bottom:8px;">Now explain it in your own words</p>
+    <textarea id="explain-ch8" placeholder="Why is P(at least one success in 5 tries) not simply 5 × p?"></textarea>
+    <button class="lab-btn secondary" style="margin-top:10px;" onclick="toggleModel('model-ch8')">Compare with a model answer</button>
+    <div class="model-answer" id="model-ch8">
+      <span class="label">Model answer</span>
+      <p>Multiplying probability by the number of tries double-counts the cases where more than one try succeeds. The clean way to compute "at least one success" is through the complement rule: figure out the probability that every single try fails, (1−p)ⁿ, then subtract that from 1. This correctly accounts for all the ways success could happen without any double-counting.</p>
+    </div>
+  </div>
+
+  <div class="quiz" id="quiz-ch8">
+    <h4>Did you get it?</h4>
+    <div class="quiz-q" data-correct="1" data-explain="The complement rule avoids double-counting: 1 − (1−p)ⁿ correctly captures 'at least one success' across any number of tries.">
+      <p class="qtext">1. The correct way to compute P(at least one success in n independent tries) is:</p>
+      <div class="quiz-opts">
+        <button class="quiz-opt" data-idx="0">n × p</button>
+        <button class="quiz-opt" data-idx="1">1 − (1 − p)ⁿ</button>
+        <button class="quiz-opt" data-idx="2">p ÷ n</button>
+      </div>
+      <div class="quiz-feedback"></div>
+    </div>
+    <div class="quiz-q" data-correct="0" data-explain="As p moves toward 0.5, low and high success counts become equally likely, so the bars even out into a symmetric shape.">
+      <p class="qtext">2. As p approaches 0.5 (with n fixed), the binomial distribution's shape becomes:</p>
+      <div class="quiz-opts">
+        <button class="quiz-opt" data-idx="0">More symmetric</button>
+        <button class="quiz-opt" data-idx="1">More skewed</button>
+        <button class="quiz-opt" data-idx="2">Unchanged</button>
+      </div>
+      <div class="quiz-feedback"></div>
+    </div>
+  </div>
+
+  <div class="takeaway">
+    <span class="label">Key takeaway</span>
+    <p>The binomial distribution describes the count of successes across n independent yes/no trials. Use the complement rule for "at least one" questions, and remember the expected count is always n × p — the peak the bars naturally settle around.</p>
+  </div>
+</section>
+
+<!-- ============ CHAPTER 4 — THE NORMAL DISTRIBUTION ============ -->
+<section class="chapter shell" id="ch4" data-chnum="05 / NORMAL CURVE">
+  <span class="eyebrow reveal">Chapter 5</span>
+  <h2 class="reveal">The Normal Curve &amp; Z-scores</h2>
+  <p class="dek reveal">Heights, measurement errors, IQ scores, response-time noise — wildly different things all settle into the same bell shape. That's not a coincidence; it's what happens whenever a value is the sum of many small, independent nudges.</p>
+
+  <div class="misconception reveal">
+    <div class="think"><span class="label">What you think</span><p>"Normal distribution" means the data is somehow correct or expected — values outside the bell are abnormal or wrong.</p></div>
+    <div class="truth"><span class="label">What's actually true</span><p>"Normal" is a historical name for a specific symmetric bell shape, not a moral judgment. Plenty of perfectly valid real-world data (income, file sizes, time-to-failure) is <em>not</em> normal at all — it's skewed, and that's also completely normal.</p></div>
+  </div>
+
+  <div class="analogy-row reveal">
+    <div class="analogy-card">
+      <span class="tag">🎲</span>
+      <h4>The Galton board analogy</h4>
+      <p>Drop a ball through a triangle of pegs — at each peg it bounces left or right by pure chance. Drop thousands of balls and the pile at the bottom forms a bell curve, automatically. The Central Limit idea, in physical form: many small independent nudges sum to a bell.</p>
+    </div>
+    <div class="analogy-card">
+      <span class="tag">📐</span>
+      <h4>The z-score ruler analogy</h4>
+      <p>A z-score re-measures a value in units of "how many standard deviations from the mean," like converting inches and centimeters onto the same ruler. A z-score of +2 means "two typical-spreads above average" — comparable across totally different scales (test scores vs. salaries vs. load times).</p>
+    </div>
+  </div>
+
+  <div class="diagram-frame">
+    <svg viewBox="0 0 700 280" id="ch4-diagram" aria-label="Bell curve with shaded area between draggable z-score bounds">
+      <path id="ch4-curve" d="M 40 230 C 140 230, 200 40, 350 40 C 500 40, 560 230, 660 230" fill="none" stroke="#E8E4D8" stroke-width="2"/>
+      <path id="ch4-shade" fill="#3FA796" opacity="0.45"/>
+      <line x1="40" y1="230" x2="660" y2="230" stroke="#5C6B73" stroke-width="1.5"/>
+      <g id="ch4-ticks"></g>
+      <text x="350" y="255" text-anchor="middle" fill="#B9B4A4" font-family="IBM Plex Mono" font-size="11">μ (mean), one tick = 1 standard deviation</text>
+    </svg>
+  </div>
+  <p class="diagram-caption">Build-it-yourself: drag the two handles to set a z-score range and watch the percentage of data inside update live.</p>
+
+  <div class="interactive-block">
+    <span class="int-label">Build-it-yourself · Shade the area</span>
+    <div style="display:flex; gap:18px; flex-wrap:wrap;">
+      <div style="flex:1; min-width:180px;">
+        <label style="font-size:0.82rem; color:var(--parchment-dim);">Lower bound (z)</label>
+        <input type="range" id="ch4-z-low" min="-3" max="3" step="0.1" value="-1">
+      </div>
+      <div style="flex:1; min-width:180px;">
+        <label style="font-size:0.82rem; color:var(--parchment-dim);">Upper bound (z)</label>
+        <input type="range" id="ch4-z-high" min="-3" max="3" step="0.1" value="1">
+      </div>
+    </div>
+    <div class="slider-readout" id="ch4-readout">z from −1.0 to 1.0 → ~68% of all values fall in this range</div>
+  </div>
+
+  <details class="reveal-why">
+    <summary>Reveal the why — why is ±1σ always ~68%?</summary>
+    <div class="why-body">
+      <p>The shape of the normal curve is fixed by a single formula (it only depends on the mean and standard deviation), so the proportion of area between any two z-scores is always the same, no matter what the underlying units are — test scores, milliseconds, centimeters. ±1σ ≈ 68%, ±2σ ≈ 95%, ±3σ ≈ 99.7% are just fixed facts about that one curve shape, memorized as the "68-95-99.7 rule."</p>
+    </div>
+  </details>
+
+  <details class="math-box">
+    <summary>📐 The Math — the normal PDF and standardization</summary>
+    <div class="math-body">
+      <p>The normal curve's exact height at any point x is given by its probability density function — note it only depends on two numbers, the mean μ and standard deviation σ:</p>
+      <div class="formula-block">f(x) = [ 1 / (σ√(2π)) ] × e^[ −(x−μ)² / (2σ²) ]</div>
+      <p>You almost never compute this by hand — instead you <strong>standardize</strong> a value into a z-score, then look up (or compute) the area under a single universal curve:</p>
+      <div class="formula-block">z = (x − μ) / σ</div>
+      <p>To go back the other way — find the raw value at a given z-score — rearrange the formula:</p>
+      <div class="formula-block">x = μ + zσ</div>
+      <div class="worked-example">
+        <span class="we-label">Worked example</span>
+        <p>API response times are normally distributed with μ = 200ms and σ = 30ms. What z-score does a 260ms response have, and roughly what percentile is that?</p>
+        <ol>
+          <li>z = (260 − 200) / 30 = 60/30 = <strong>2.0</strong></li>
+          <li>From the 68-95-99.7 rule, z = 2 sits at the upper edge of the ±2σ band (≈95% of data within it)</li>
+          <li>That leaves about 5% outside ±2σ, split evenly across both tails → ~2.5% above z=2</li>
+        </ol>
+        <span class="we-result">A 260ms response is around the 97.5th percentile — unusually slow</span>
+      </div>
+    </div>
+  </details>
+
+  <div class="sticking">
+    <span class="label">⚡ Common sticking point</span>
+    <p>People treat the 68-95-99.7 rule as universal — but it only applies if the data is actually approximately normal. Apply it to a heavily skewed distribution (like household income or website session length) and the percentages are simply wrong. Always sanity-check the shape of your data (a histogram takes ten seconds) before reaching for z-score rules.</p>
+  </div>
+
+  <div class="explain-back">
+    <p style="font-weight:600; margin-bottom:8px;">Now explain it in your own words</p>
+    <textarea id="explain-ch4" placeholder="What does a z-score of -2 tell you about a value, in plain language?"></textarea>
+    <button class="lab-btn secondary" style="margin-top:10px;" onclick="toggleModel('model-ch4')">Compare with a model answer</button>
+    <div class="model-answer" id="model-ch4">
+      <span class="label">Model answer</span>
+      <p>A z-score of −2 means the value sits two standard deviations below the mean — it's notably lower than typical, in the bottom ~2.5% of the distribution if the data is roughly normal. It converts a raw number into "how unusual is this," using the data's own natural unit of spread instead of an arbitrary scale.</p>
+    </div>
+  </div>
+
+  <div class="quiz" id="quiz-ch4">
+    <h4>Did you get it?</h4>
+    <div class="quiz-q" data-correct="1" data-explain="This is the '95' in the 68-95-99.7 rule — about 95% of normally distributed data falls within 2 standard deviations of the mean.">
+      <p class="qtext">1. About what percentage of normally-distributed data falls within ±2 standard deviations of the mean?</p>
+      <div class="quiz-opts">
+        <button class="quiz-opt" data-idx="0">68%</button>
+        <button class="quiz-opt" data-idx="1">95%</button>
+        <button class="quiz-opt" data-idx="2">50%</button>
+      </div>
+      <div class="quiz-feedback"></div>
+    </div>
+    <div class="quiz-q" data-correct="0" data-explain="The 68-95-99.7 percentages are facts about the specific symmetric normal curve shape. Apply them to skewed data and the real percentages will be quite different.">
+      <p class="qtext">2. Applying the 68-95-99.7 rule to a strongly right-skewed dataset (like income) will:</p>
+      <div class="quiz-opts">
+        <button class="quiz-opt" data-idx="0">Give misleading percentages, because the rule assumes a normal shape</button>
+        <button class="quiz-opt" data-idx="1">Still work fine, the rule applies to all distributions</button>
+        <button class="quiz-opt" data-idx="2">Only fail if the sample size is small</button>
+      </div>
+      <div class="quiz-feedback"></div>
+    </div>
+  </div>
+
+  <div class="takeaway">
+    <span class="label">Key takeaway</span>
+    <p>The normal curve isn't a value judgment — it's one specific symmetric shape that emerges from summing many small independent effects. Z-scores put any value on a universal "how-many-spreads-from-typical" ruler, but the 68-95-99.7 shortcuts only apply when the underlying shape is actually close to normal.</p>
+  </div>
+</section>
+
+<!-- ============ CHAPTER 5 — SAMPLING & CLT ============ -->
+<section class="chapter shell" id="ch5" data-chnum="06 / SAMPLING & CLT">
+  <span class="eyebrow reveal">Chapter 6</span>
+  <h2 class="reveal">Sampling &amp; the Central Limit Theorem</h2>
+  <p class="dek reveal">You can't survey every user, log every request, or measure every product off the line. You measure a sample and hope it tells you about the whole. The Central Limit Theorem is the reason that hope is justified — even when the underlying data is a complete mess.</p>
+
+  <div class="misconception reveal">
+    <div class="think"><span class="label">What you think</span><p>For sample averages to behave predictably (normally), the original population data has to already be normally distributed.</p></div>
+    <div class="truth"><span class="label">What's actually true</span><p>The Central Limit Theorem works even when the population is wildly skewed (like response times, which pile up near zero with a long tail). Take many samples, average each one, and <em>those averages</em> form a bell curve — regardless of the original shape, as long as the sample size is reasonably large.</p></div>
+  </div>
+
+  <div class="analogy-row reveal">
+    <div class="analogy-card">
+      <span class="tag">🍪</span>
+      <h4>The cookie-jar analogy</h4>
+      <p>One cookie from the jar might be huge or tiny — wildly variable. But grab a handful of 30 cookies and weigh the <em>average</em> weight of the handful — do that over and over, and those handful-averages cluster tightly around the jar's true average weight, far more predictably than any single cookie.</p>
+    </div>
+    <div class="analogy-card">
+      <span class="tag">🌊</span>
+      <h4>The ripple-averaging analogy</h4>
+      <p>A single wave height is chaotic. Average wave height over a 10-minute window is far steadier — random ups and downs partially cancel out. Larger samples average out more noise, which is why bigger samples give tighter, more trustworthy estimates.</p>
+    </div>
+  </div>
+
+  <div class="diagram-frame">
+    <svg viewBox="0 0 700 260" id="ch5-diagram" aria-label="Step by step CLT simulation">
+      <text x="350" y="24" text-anchor="middle" fill="#B9B4A4" font-family="IBM Plex Mono" font-size="11" id="ch5-step-label">Step 0 — A skewed population of response times</text>
+      <g id="ch5-population"></g>
+      <g id="ch5-samplemeans"></g>
+      <line x1="40" y1="230" x2="660" y2="230" stroke="#5C6B73" stroke-width="1.5"/>
+    </svg>
+  </div>
+  <div class="interactive-block">
+    <span class="int-label">Step-by-step walkthrough · Watch the CLT happen</span>
+    <p id="ch5-narration" style="font-size:0.92rem; color:var(--parchment-dim); margin-bottom:14px;">We start with a population of response times that's heavily right-skewed — most requests are fast, a few are very slow.</p>
+    <button class="lab-btn" id="ch5-next-btn" onclick="ch5NextStep()">Next step →</button>
+    <button class="lab-btn secondary" onclick="ch5Reset()">↺ Restart</button>
+  </div>
+
+  <details class="reveal-why">
+    <summary>Reveal the why — why does averaging "fix" the skew?</summary>
+    <div class="why-body">
+      <p>A single slow outlier can dominate one sample's average, but across many different samples, sometimes the outlier lands in the sample and sometimes it doesn't — and the extreme highs get diluted by the many ordinary values sitting alongside them in each sample. Average enough samples, and the sample-to-sample variation in "got an outlier or didn't" smooths into a symmetric bell, even though no single original measurement was ever symmetric.</p>
+    </div>
+  </details>
+
+  <details class="math-box">
+    <summary>📐 The Math — the formal CLT statement and standard error</summary>
+    <div class="math-body">
+      <p>Formally, the Central Limit Theorem says: for a population with any shape, mean μ, and standard deviation σ, the distribution of sample means (sample size n) approaches a normal distribution as n grows:</p>
+      <div class="formula-block">X̄ ~ approximately Normal( μ, σ/√n ) &nbsp;&nbsp;<span class="fterm">for large n</span></div>
+      <p>That σ/√n term is the <strong>standard error</strong> — the standard deviation of the sample mean itself (not of individual data points):</p>
+      <div class="formula-block">SE = σ / √n</div>
+      <p>This single formula explains why "collect more data" reduces noise: SE shrinks as n grows, but only at the rate of √n — quadrupling your sample only halves your error.</p>
+      <div class="worked-example">
+        <span class="we-label">Worked example</span>
+        <p>Response times have population std. dev. σ = 40ms. Compare the standard error of the sample mean at two sample sizes.</p>
+        <ol>
+          <li>n = 25: SE = 40/√25 = 40/5 = <strong>8ms</strong></li>
+          <li>n = 400: SE = 40/√400 = 40/20 = <strong>2ms</strong></li>
+        </ol>
+        <span class="we-result">A 16× larger sample (25 → 400) only shrinks the error by 4× (8ms → 2ms) — that's the √n relationship in action</span>
+      </div>
+    </div>
+  </details>
+
+  <div class="sticking">
+    <span class="label">⚡ Common sticking point</span>
+    <p>People confuse "the CLT makes individual data points normal" with the actual claim: it's the distribution of <em>sample means</em> (or sums) that becomes approximately normal, not the raw data itself. Your raw response-time logs stay skewed forever — it's only when you repeatedly compute averages of samples that the bell shape appears.</p>
+  </div>
+
+  <div class="explain-back">
+    <p style="font-weight:600; margin-bottom:8px;">Now explain it in your own words</p>
+    <textarea id="explain-ch5" placeholder="Why can a sample average be trustworthy even if the underlying data is messy and skewed?"></textarea>
+    <button class="lab-btn secondary" style="margin-top:10px;" onclick="toggleModel('model-ch5')">Compare with a model answer</button>
+    <div class="model-answer" id="model-ch5">
+      <span class="label">Model answer</span>
+      <p>The Central Limit Theorem guarantees that, regardless of the shape of the original data, the distribution of sample averages (across many repeated samples) becomes approximately normal as the sample size grows. That predictable bell shape is what lets us build confidence intervals and run hypothesis tests on the average, even when individual measurements are noisy and skewed.</p>
+    </div>
+  </div>
+
+  <div class="quiz" id="quiz-ch5">
+    <h4>Did you get it?</h4>
+    <div class="quiz-q" data-correct="1" data-explain="This is the entire power of the CLT — it works for any population shape (skewed, bimodal, anything), as long as the sample size is reasonably large.">
+      <p class="qtext">1. The Central Limit Theorem says that as sample size grows, the distribution of sample means becomes approximately normal:</p>
+      <div class="quiz-opts">
+        <button class="quiz-opt" data-idx="0">Only if the original population is already normal</button>
+        <button class="quiz-opt" data-idx="1">Regardless of the shape of the original population</button>
+        <button class="quiz-opt" data-idx="2">Only for categorical data</button>
+      </div>
+      <div class="quiz-feedback"></div>
+    </div>
+    <div class="quiz-q" data-correct="0" data-explain="Larger samples average out more of the random noise, so sample means cluster more tightly around the true population mean — this is why bigger samples give more precise estimates.">
+      <p class="qtext">2. Increasing your sample size mainly does what to the spread of sample means?</p>
+      <div class="quiz-opts">
+        <button class="quiz-opt" data-idx="0">Shrinks it — bigger samples give more precise, less variable estimates</button>
+        <button class="quiz-opt" data-idx="1">Has no effect on it at all</button>
+        <button class="quiz-opt" data-idx="2">Always doubles it</button>
+      </div>
+      <div class="quiz-feedback"></div>
+    </div>
+  </div>
+
+  <div class="takeaway">
+    <span class="label">Key takeaway</span>
+    <p>The raw population can be any shape. The distribution of <em>sample means</em>, taken across many repeated samples, approaches a normal bell as sample size grows — this is the engine underneath nearly every confidence interval and hypothesis test you'll ever run.</p>
+  </div>
+</section>
+
+<!-- ============ CHAPTER 6 — HYPOTHESIS TESTING ============ -->
+<section class="chapter shell" id="ch6" data-chnum="07 / HYPOTHESIS TESTING">
+  <span class="eyebrow reveal">Chapter 7</span>
+  <h2 class="reveal">Hypothesis Testing &amp; p-values</h2>
+  <p class="dek reveal">Your new ranking model scores higher on the test set. Is that a real improvement, or did it just get lucky on this particular slice of data? Hypothesis testing is the disciplined way to ask "how surprising would this result be if nothing had actually changed?"</p>
+
+  <div class="misconception reveal">
+    <div class="think"><span class="label">What you think</span><p>A p-value of 0.03 means there's only a 3% chance the new model is genuinely no better than the old one — a 97% chance my model really did improve.</p></div>
+    <div class="truth"><span class="label">What's actually true</span><p>A p-value of 0.03 means: <em>if</em> the new model were truly no better (the null hypothesis is true), there'd be a 3% chance of seeing a difference this large or larger purely by random luck. It says nothing directly about the probability that the null hypothesis is true — that's a completely different, much harder question.</p></div>
+  </div>
+
+  <div class="analogy-row reveal">
+    <div class="analogy-card">
+      <span class="tag">⚖️</span>
+      <h4>The courtroom analogy</h4>
+      <p>The null hypothesis is "innocent until proven guilty" — assume no effect exists. You don't try to prove innocence; you try to gather evidence so strong that "innocent" becomes hard to believe. A low p-value is like overwhelming evidence — it makes the "nothing changed" story implausible, not literally impossible.</p>
+    </div>
+    <div class="analogy-card">
+      <span class="tag">🚨</span>
+      <h4>The smoke-alarm analogy</h4>
+      <p>A significance threshold (α = 0.05) is like setting a smoke alarm's sensitivity. Set it too sensitive and it false-alarms on burnt toast (false positive — claiming an effect that isn't real). Set it too relaxed and it misses an actual fire (false negative — missing a real effect). There's no "perfectly safe" setting, only a trade-off.</p>
+    </div>
+  </div>
+
+  <div class="diagram-frame">
+    <svg viewBox="0 0 700 240" id="ch6-diagram" aria-label="Null distribution with observed result and shaded p-value tail">
+      <path d="M 60 200 C 160 200, 220 30, 350 30 C 480 30, 540 200, 640 200" fill="none" stroke="#E8E4D8" stroke-width="2"/>
+      <path id="ch6-tail" d="M 480 200 C 500 170, 520 60, 545 35 L 640 200 Z" fill="#E2725B" opacity="0.5"/>
+      <line x1="60" y1="200" x2="640" y2="200" stroke="#5C6B73" stroke-width="1.5"/>
+      <line x1="350" y1="200" x2="350" y2="22" stroke="#5C6B73" stroke-width="1" stroke-dasharray="3 3"/>
+      <text x="350" y="218" text-anchor="middle" fill="#B9B4A4" font-family="IBM Plex Mono" font-size="10">"no real difference" (null)</text>
+      <line id="ch6-observed" x1="545" y1="200" x2="545" y2="35" stroke="#D9A441" stroke-width="2.5"/>
+      <text x="560" y="55" fill="#D9A441" font-family="IBM Plex Mono" font-size="11">your observed result</text>
+      <text x="592" y="180" fill="#E2725B" font-family="IBM Plex Mono" font-size="11">p-value (shaded)</text>
+    </svg>
+  </div>
+  <p class="diagram-caption">The p-value is the shaded area — the chance of a result this extreme, assuming the null hypothesis is exactly true.</p>
+
+  <div class="interactive-block">
+    <span class="int-label">Sortable sequencer · Order the steps of a hypothesis test</span>
+    <p style="font-size:0.9rem; color:var(--parchment-dim); margin-bottom:12px;">Drag to reorder (or use the ▲▼ buttons), then check.</p>
+    <ul class="sequence-list" id="ch6-sequence">
+      <li draggable="true" data-correct-pos="2"><span class="handle">⠿</span><span class="seq-text">Collect data and compute the test statistic (e.g. the difference in conversion rates)</span><span class="seq-controls"><button type="button" class="seq-btn" data-dir="up" aria-label="Move up">▲</button><button type="button" class="seq-btn" data-dir="down" aria-label="Move down">▼</button></span></li>
+      <li draggable="true" data-correct-pos="0"><span class="handle">⠿</span><span class="seq-text">State the null hypothesis ("there is no real difference") and alternative hypothesis</span><span class="seq-controls"><button type="button" class="seq-btn" data-dir="up" aria-label="Move up">▲</button><button type="button" class="seq-btn" data-dir="down" aria-label="Move down">▼</button></span></li>
+      <li draggable="true" data-correct-pos="3"><span class="handle">⠿</span><span class="seq-text">Calculate the p-value: how extreme is this result if the null were true?</span><span class="seq-controls"><button type="button" class="seq-btn" data-dir="up" aria-label="Move up">▲</button><button type="button" class="seq-btn" data-dir="down" aria-label="Move down">▼</button></span></li>
+      <li draggable="true" data-correct-pos="1"><span class="handle">⠿</span><span class="seq-text">Choose a significance threshold α (commonly 0.05) before looking at the data</span><span class="seq-controls"><button type="button" class="seq-btn" data-dir="up" aria-label="Move up">▲</button><button type="button" class="seq-btn" data-dir="down" aria-label="Move down">▼</button></span></li>
+      <li draggable="true" data-correct-pos="4"><span class="handle">⠿</span><span class="seq-text">Compare p-value to α and decide whether to reject the null hypothesis</span><span class="seq-controls"><button type="button" class="seq-btn" data-dir="up" aria-label="Move up">▲</button><button type="button" class="seq-btn" data-dir="down" aria-label="Move down">▼</button></span></li>
+    </ul>
+    <button class="lab-btn" onclick="checkCh6Sequence()">Check order</button>
+    <div id="ch6-seq-feedback" class="quiz-feedback" style="margin-top:10px;"></div>
+  </div>
+
+  <details class="math-box">
+    <summary>📐 The Math — the test statistic, step by step</summary>
+    <div class="math-body">
+      <p>For comparing a sample mean against a known or hypothesized value (with known population σ), the z-test statistic measures how many standard errors apart your observation is from the null hypothesis's claim:</p>
+      <div class="formula-block">z = (x̄ − μ₀) / (σ/√n) &nbsp;&nbsp;<span class="fterm">= (x̄ − μ₀) / SE</span></div>
+      <p>For comparing two independent sample proportions (e.g. A/B test conversion rates), the formula extends naturally using a pooled standard error:</p>
+      <div class="formula-block">z = (p̂₁ − p̂₂) / √[ p̂(1−p̂)(1/n₁ + 1/n₂) ]</div>
+      <p>Once you have z, the p-value comes from the area in the tail(s) of the standard normal curve beyond that z — exactly the shaded region from Chapter 5's bell diagram.</p>
+      <div class="worked-example">
+        <span class="we-label">Worked example — A/B test on conversion rate</span>
+        <p>Control: 50/1000 converted (5.0%). Variant: 70/1000 converted (7.0%). Pooled rate p̂ = 120/2000 = 0.06.</p>
+        <ol>
+          <li>SE = √[ 0.06×0.94×(1/1000 + 1/1000) ] = √[0.0564 × 0.002] = √0.0001128 ≈ 0.01062</li>
+          <li>z = (0.07 − 0.05) / 0.01062 = 0.02 / 0.01062 ≈ <strong>1.88</strong></li>
+          <li>Two-tailed p-value for z ≈ 1.88 is about 0.06</li>
+        </ol>
+        <span class="we-result">p ≈ 0.06 — above the common α = 0.05 threshold, so this particular result falls just short of "statistically significant" at that level</span>
+      </div>
+    </div>
+  </details>
+
+  <div class="sticking">
+    <span class="label">⚡ Common sticking point</span>
+    <p>"Not statistically significant" gets misread as "proven there's no effect." It actually just means the evidence wasn't strong enough to confidently rule out "no effect" — which can happen because there's truly no effect, <em>or</em> because your sample was too small to detect a real but modest one. Absence of significance is not evidence of absence; it's often evidence you need more data.</p>
+  </div>
+
+  <div class="explain-back">
+    <p style="font-weight:600; margin-bottom:8px;">Now explain it in your own words</p>
+    <textarea id="explain-ch6" placeholder="In plain language, what does a p-value of 0.02 actually tell you?"></textarea>
+    <button class="lab-btn secondary" style="margin-top:10px;" onclick="toggleModel('model-ch6')">Compare with a model answer</button>
+    <div class="model-answer" id="model-ch6">
+      <span class="label">Model answer</span>
+      <p>A p-value of 0.02 means: assuming there genuinely is no real effect (the null hypothesis is true), there's only a 2% chance of seeing a difference as large as the one observed, purely from random sampling noise. It's a statement about how surprising your data would be under "nothing changed" — not a direct statement about the probability that something really did change.</p>
+    </div>
+  </div>
+
+  <div class="quiz" id="quiz-ch6">
+    <h4>Did you get it?</h4>
+    <div class="quiz-q" data-correct="1" data-explain="A p-value is conditioned on the null hypothesis being true — it tells you how surprising your data would be in that scenario, not the probability that your hypothesis is correct.">
+      <p class="qtext">1. A p-value of 0.04 means:</p>
+      <div class="quiz-opts">
+        <button class="quiz-opt" data-idx="0">There's a 96% chance your hypothesis is correct</button>
+        <button class="quiz-opt" data-idx="1">If the null hypothesis were true, a result this extreme would occur about 4% of the time by chance</button>
+        <button class="quiz-opt" data-idx="2">Your effect size is 0.04</button>
+      </div>
+      <div class="quiz-feedback"></div>
+    </div>
+    <div class="quiz-q" data-correct="2" data-explain="Failing to reach significance just means the evidence was inconclusive at your chosen threshold — it could be a truly null effect, or simply too small a sample to detect a real one.">
+      <p class="qtext">2. A test comes back "not statistically significant." The most accurate conclusion is:</p>
+      <div class="quiz-opts">
+        <button class="quiz-opt" data-idx="0">There is definitely no effect</button>
+        <button class="quiz-opt" data-idx="1">The null hypothesis has been proven true</button>
+        <button class="quiz-opt" data-idx="2">The evidence wasn't strong enough to rule out "no effect" — more data might change this</button>
+      </div>
+      <div class="quiz-feedback"></div>
+    </div>
+  </div>
+
+  <div class="takeaway">
+    <span class="label">Key takeaway</span>
+    <p>A p-value measures how surprising your data is under "nothing changed," not the probability that something changed. Set your significance threshold before seeing the data, and remember: failing to find significance isn't proof of no effect.</p>
+  </div>
+</section>
+
+<!-- ============ CHAPTER 9 — EFFECT SIZE & STATISTICAL POWER ============ -->
+<section class="chapter shell" id="ch9" data-chnum="08 / EFFECT SIZE & POWER">
+  <span class="eyebrow reveal">Chapter 8</span>
+  <h2 class="reveal">Effect Size &amp; Statistical Power</h2>
+  <p class="dek reveal">A p-value tells you whether you should believe an effect exists. It tells you nothing about whether that effect is big enough to care about, or whether your test was even capable of detecting it if it did exist. Two separate, equally important questions.</p>
+
+  <div class="misconception reveal">
+    <div class="think"><span class="label">What you think</span><p>"p &lt; 0.001" means the effect must be large and important — the smaller the p-value, the bigger the real-world impact.</p></div>
+    <div class="truth"><span class="label">What's actually true</span><p>With a large enough sample, even a trivially tiny, practically meaningless difference can produce an extremely small p-value. P-value reflects confidence that an effect isn't exactly zero; <strong>effect size</strong> (like Cohen's d, or simply "the difference in conversion rate") is the separate number that tells you whether that effect actually matters.</p></div>
+  </div>
+
+  <div class="analogy-row reveal">
+    <div class="analogy-card">
+      <span class="tag">🔬</span>
+      <h4>The magnifying-glass analogy</h4>
+      <p>Statistical significance with a huge sample is like an extremely powerful microscope — zoom in far enough and you'll spot a speck of dust on a otherwise spotless lens. Finding the speck (a "significant" result) doesn't mean the speck is ruining your photos. Effect size asks "how big is the speck," not just "can we detect it."</p>
+    </div>
+    <div class="analogy-card">
+      <span class="tag">🎧</span>
+      <h4>The hearing-test analogy</h4>
+      <p>Statistical power is like the sensitivity of a hearing test. A high-power test (often: a bigger sample) can pick up a faint true signal; a low-power test might miss it entirely and wrongly conclude "no effect," even though a real one was there all along — like a hearing test too crude to detect a soft tone that's genuinely audible to a better instrument.</p>
+    </div>
+  </div>
+
+  <div class="diagram-frame">
+    <svg viewBox="0 0 700 260" id="ch9-diagram" aria-label="Overlapping null and alternative distributions showing statistical power region">
+      <path id="ch9-null-curve" d="M 60 220 C 140 220, 180 60, 260 60 C 340 60, 380 220, 460 220" fill="none" stroke="#5C6B73" stroke-width="2"/>
+      <path id="ch9-alt-curve" fill="none" stroke="#3FA796" stroke-width="2"/>
+      <path id="ch9-power-shade" fill="#D9A441" opacity="0.45"/>
+      <line x1="60" y1="220" x2="660" y2="220" stroke="#5C6B73" stroke-width="1.5"/>
+      <line id="ch9-threshold" x1="350" y1="220" x2="350" y2="40" stroke="#E2725B" stroke-width="2" stroke-dasharray="4 3"/>
+      <text x="350" y="235" text-anchor="middle" fill="#E2725B" font-family="IBM Plex Mono" font-size="10">significance threshold</text>
+      <text x="170" y="50" text-anchor="middle" fill="#B9B4A4" font-family="IBM Plex Mono" font-size="10">null (no real effect)</text>
+      <text id="ch9-alt-label" x="500" y="50" text-anchor="middle" fill="#3FA796" font-family="IBM Plex Mono" font-size="10">true effect</text>
+    </svg>
+  </div>
+  <div class="interactive-block">
+    <span class="int-label">Slider · Morph the effect size and watch power change</span>
+    <input type="range" id="ch9-effect-slider" min="0" max="100" value="40">
+    <div class="slider-readout" id="ch9-readout">Effect size: medium — estimated power ≈ 60% (the gold region)</div>
+  </div>
+
+  <details class="reveal-why">
+    <summary>Reveal the why — why does a bigger effect mean more power?</summary>
+    <div class="why-body">
+      <p>Power is the probability of correctly detecting a real effect when it truly exists — visually, it's the portion of the "true effect" curve that lands past your significance threshold. As the true effect grows, its whole curve shifts further from the null, so more of it clears the threshold automatically. The same logic applies to sample size: a larger sample shrinks the spread of both curves, separating them more cleanly and increasing the overlap that clears the line.</p>
+    </div>
+  </details>
+
+  <details class="math-box">
+    <summary>📐 The Math — Cohen's d and what determines power</summary>
+    <div class="math-body">
+      <p>Cohen's d standardizes a difference between two means into units of "how many standard deviations apart," making it comparable across totally different metrics:</p>
+      <div class="formula-block">d = (x̄₁ − x̄₂) / σ_pooled</div>
+      <p>Conventionally: d ≈ 0.2 is a small effect, d ≈ 0.5 medium, d ≈ 0.8 large — though what counts as "practically important" always depends on context.</p>
+      <p>Power isn't free-floating — it's determined by four interlocking knobs, and you can solve for any one if you fix the other three:</p>
+      <div class="formula-block">Power ↑ as: effect size (d) ↑, sample size (n) ↑, significance level (α) ↑, or noise (σ) ↓</div>
+      <div class="worked-example">
+        <span class="we-label">Worked example</span>
+        <p>Two model variants score 82% and 85% accuracy on a benchmark, with a pooled standard deviation of 6 percentage points across repeated runs.</p>
+        <ol>
+          <li>d = (85 − 82) / 6 = 3/6 = <strong>0.5</strong></li>
+        </ol>
+        <span class="we-result">d = 0.5 is a "medium" effect — worth investigating further, but you'd want a reasonably large sample of runs to reliably detect it, since medium effects need more power than large ones to clear a significance threshold</span>
+      </div>
+    </div>
+  </details>
+
+  <div class="sticking">
+    <span class="label">⚡ Common sticking point</span>
+    <p>"We didn't find a significant result, so there's no effect" is one of the most common statistical mistakes — and it's often actually a power problem. An underpowered study (too few samples, or too small an expected effect) can easily fail to detect a real, meaningful effect. Before trusting a null result, ask: did this test have enough power to find the effect if it existed?</p>
+  </div>
+
+  <div class="explain-back">
+    <p style="font-weight:600; margin-bottom:8px;">Now explain it in your own words</p>
+    <textarea id="explain-ch9" placeholder="Why can a result be 'statistically significant' but practically unimportant?"></textarea>
+    <button class="lab-btn secondary" style="margin-top:10px;" onclick="toggleModel('model-ch9')">Compare with a model answer</button>
+    <div class="model-answer" id="model-ch9">
+      <span class="label">Model answer</span>
+      <p>Statistical significance only tells you the observed effect is unlikely to be pure noise — it says nothing about the size of that effect. With a very large sample, even a tiny, real but practically irrelevant difference can produce a very small p-value. Effect size is the separate measurement that tells you whether the difference is actually large enough to matter in practice.</p>
+    </div>
+  </div>
+
+  <div class="quiz" id="quiz-ch9">
+    <h4>Did you get it?</h4>
+    <div class="quiz-q" data-correct="0" data-explain="A p-value reflects confidence that an effect isn't zero; it says nothing about how large that effect is. Effect size is the separate, dedicated measurement for magnitude.">
+      <p class="qtext">1. A study with 2 million users finds p &lt; 0.0001 for a 0.01% improvement in click rate. The most accurate read is:</p>
+      <div class="quiz-opts">
+        <button class="quiz-opt" data-idx="0">The effect is very likely real but may be far too small to matter practically</button>
+        <button class="quiz-opt" data-idx="1">The effect must be huge because the p-value is so small</button>
+        <button class="quiz-opt" data-idx="2">The result is invalid because the sample is too large</button>
+      </div>
+      <div class="quiz-feedback"></div>
+    </div>
+    <div class="quiz-q" data-correct="2" data-explain="Low power means a real effect can easily slip past detection — a 'no significant difference' result from an underpowered test is inconclusive, not proof of no effect.">
+      <p class="qtext">2. A test has low statistical power. A "not significant" result from it should be interpreted as:</p>
+      <div class="quiz-opts">
+        <button class="quiz-opt" data-idx="0">Strong proof there's no real effect</button>
+        <button class="quiz-opt" data-idx="1">Proof the effect size is exactly zero</button>
+        <button class="quiz-opt" data-idx="2">Inconclusive — the test may simply have been unable to detect a real effect</button>
+      </div>
+      <div class="quiz-feedback"></div>
+    </div>
+  </div>
+
+  <div class="takeaway">
+    <span class="label">Key takeaway</span>
+    <p>Significance and importance are different questions. Always report effect size alongside a p-value, and before trusting a "no effect" result, check whether the test had enough power to detect a real effect in the first place.</p>
+  </div>
+</section>
+
+<!-- ============ CHAPTER 7 — CONFIDENCE INTERVALS & CORRELATION ============ -->
+<section class="chapter shell" id="ch7" data-chnum="09 / ESTIMATION & CORRELATION">
+  <span class="eyebrow reveal">Chapter 9</span>
+  <h2 class="reveal">Confidence Intervals &amp; Correlation</h2>
+  <p class="dek reveal">The expert move in statistics isn't getting a single number — it's reporting a range that's honest about your uncertainty, and knowing the difference between "these two things move together" and "one of them causes the other."</p>
+
+  <div class="misconception reveal">
+    <div class="think"><span class="label">What you think</span><p>A "95% confidence interval" means there's a 95% probability the true value lies inside this specific interval I calculated.</p></div>
+    <div class="truth"><span class="label">What's actually true</span><p>The 95% refers to the <em>procedure</em>: if you repeated the sampling process many times and built an interval each time, about 95% of those intervals would contain the true value. Any <em>one</em> interval either contains the true value or it doesn't — the 95% describes the method's long-run reliability, not this single interval's odds.</p></div>
+  </div>
+
+  <div class="analogy-row reveal">
+    <div class="analogy-card">
+      <span class="tag">🎣</span>
+      <h4>The fishing-net analogy</h4>
+      <p>A confidence interval is a net, not a pin. A 95%-reliable net design will successfully catch the true fish in about 95 out of 100 casts — but you only get to make one cast in real life, and you never get to see if that particular cast caught the fish or missed.</p>
+    </div>
+    <div class="analogy-card">
+      <span class="tag">☂️</span>
+      <h4>The umbrella-sales analogy</h4>
+      <p>Umbrella sales and rain both rise together — they're correlated. But umbrellas don't cause rain, and rain doesn't directly cause umbrella manufacturing. A hidden third factor (rainy season) drives both. Correlation tells you two things move together; it never tells you which, if either, is the cause.</p>
+    </div>
+  </div>
+
+  <div class="diagram-frame">
+    <svg viewBox="0 0 700 280" id="ch7-diagram" aria-label="Scatter plot that morphs as correlation slider changes">
+      <line x1="60" y1="240" x2="640" y2="240" stroke="#5C6B73" stroke-width="1.5"/>
+      <line x1="60" y1="240" x2="60" y2="30" stroke="#5C6B73" stroke-width="1.5"/>
+      <g id="ch7-scatter"></g>
+      <text x="350" y="265" text-anchor="middle" fill="#B9B4A4" font-family="IBM Plex Mono" font-size="11" id="ch7-corr-label">r = 0.00 — no linear relationship</text>
+    </svg>
+  </div>
+  <div class="interactive-block">
+    <span class="int-label">Live playground · Drag the correlation slider</span>
+    <input type="range" id="ch7-r-slider" min="-100" max="100" value="0">
+    <div class="slider-readout" id="ch7-r-readout">r = 0.00</div>
+  </div>
+
+  <details class="reveal-why">
+    <summary>Reveal the why — why doesn't correlation imply causation?</summary>
+    <div class="why-body">
+      <p>Two variables can move together for at least three reasons: A causes B, B causes A, or a hidden third variable C causes both A and B (a "confounder"). A correlation coefficient r can't distinguish between these — it only measures how tightly two variables move together in a straight-line sense. Distinguishing cause from coincidence requires either controlled experiments (randomized A/B tests) or careful causal reasoning about confounders, not just a bigger r value.</p>
+    </div>
+  </details>
+
+  <div class="interactive-block">
+    <span class="int-label">Comparison toggle · Before / After understanding</span>
+    <div style="display:flex; gap:10px; margin-bottom:14px;">
+      <button class="lab-btn secondary" id="ch7-before-btn" onclick="ch7ShowState('before')">Before</button>
+      <button class="lab-btn" id="ch7-after-btn" onclick="ch7ShowState('after')">After</button>
+    </div>
+    <div id="ch7-before-text" style="display:none; font-size:0.92rem; color:var(--coral);">"Ice cream sales and drowning deaths are correlated — so ice cream must be dangerous, or drownings make people crave ice cream."</div>
+    <div id="ch7-after-text" style="font-size:0.92rem; color:var(--teal);">"Both rise in summer because of a confounder — hot weather drives more swimming (more drowning risk) and more ice cream purchases. Neither directly causes the other."</div>
+  </div>
+
+  <details class="math-box">
+    <summary>📐 The Math — confidence intervals and Pearson's r</summary>
+    <div class="math-body">
+      <p>A confidence interval is just a point estimate plus-or-minus a margin of error built from the standard error and a critical value:</p>
+      <div class="formula-block">CI = x̄ ± (critical value) × SE &nbsp;&nbsp;<span class="fterm">e.g. x̄ ± 1.96 × (σ/√n) for 95% with known σ</span></div>
+      <p>When σ is unknown (the usual real-world case) and the sample is small, you use the t-distribution instead of the normal — it has slightly fatter tails to account for the extra uncertainty of also estimating σ from the sample:</p>
+      <div class="formula-block">CI = x̄ ± t* × (s/√n) &nbsp;&nbsp;<span class="fterm">t* depends on confidence level and degrees of freedom (n−1)</span></div>
+      <p>Pearson's correlation coefficient r measures the strength of a straight-line relationship between two variables:</p>
+      <div class="formula-block">r = Σ[(xᵢ−x̄)(yᵢ−ȳ)] / √[ Σ(xᵢ−x̄)² × Σ(yᵢ−ȳ)² ]</div>
+      <p>Squaring r gives R² — the proportion of variance in one variable "explained" by its linear relationship with the other.</p>
+      <div class="worked-example">
+        <span class="we-label">Worked example</span>
+        <p>A sample of n = 16 page-load measurements has mean x̄ = 220ms and sample std. dev. s = 24ms. For a 95% CI, t* ≈ 2.13 (for 15 degrees of freedom).</p>
+        <ol>
+          <li>SE = s/√n = 24/√16 = 24/4 = 6ms</li>
+          <li>Margin = t* × SE = 2.13 × 6 ≈ 12.8ms</li>
+        </ol>
+        <span class="we-result">95% CI ≈ [207.2ms, 232.8ms] — the method that builds intervals this way captures the true mean about 95% of the time it's used</span>
+      </div>
+    </div>
+  </details>
+
+  <div class="sticking">
+    <span class="label">⚡ Common sticking point</span>
+    <p>Engineers often report "the average load time improved" without a confidence interval and treat it as settled fact, forgetting that the average itself is a noisy estimate from one sample of traffic. Always ask: how wide is the interval around this number? A tiny improvement with a wide, overlapping interval might just be noise; the interval is what tells you whether the result is solid or shaky.</p>
+  </div>
+
+  <div class="explain-back">
+    <p style="font-weight:600; margin-bottom:8px;">Now explain it in your own words</p>
+    <textarea id="explain-ch7" placeholder="Why is 'r = 0.9' not enough evidence to claim that A causes B?"></textarea>
+    <button class="lab-btn secondary" style="margin-top:10px;" onclick="toggleModel('model-ch7')">Compare with a model answer</button>
+    <div class="model-answer" id="model-ch7">
+      <span class="label">Model answer</span>
+      <p>A correlation of 0.9 only tells you A and B move together tightly in a straight-line pattern. It doesn't reveal the mechanism — A could cause B, B could cause A, or a hidden third factor could be driving both. Establishing causation usually requires a controlled experiment or strong reasoning that rules out confounders and reverse causation, not just a high correlation number.</p>
+    </div>
+  </div>
+
+  <div class="quiz" id="quiz-ch7">
+    <h4>Did you get it?</h4>
+    <div class="quiz-q" data-correct="2" data-explain="The 95% describes the long-run success rate of the interval-building method across many repeated samples — not a probability statement about this one fixed interval.">
+      <p class="qtext">1. A 95% confidence interval for average load time is [180ms, 210ms]. The best interpretation is:</p>
+      <div class="quiz-opts">
+        <button class="quiz-opt" data-idx="0">There's a 95% chance the true average is between 180 and 210ms for this specific interval</button>
+        <button class="quiz-opt" data-idx="1">95% of all requests load between 180 and 210ms</button>
+        <button class="quiz-opt" data-idx="2">If we repeated this sampling process many times, about 95% of such intervals would contain the true average</button>
+      </div>
+      <div class="quiz-feedback"></div>
+    </div>
+    <div class="quiz-q" data-correct="1" data-explain="Correlation only measures how tightly two variables move together. A causal claim requires ruling out reverse causation and hidden confounders — usually through controlled experiments.">
+      <p class="qtext">2. Two metrics are strongly correlated. This tells you:</p>
+      <div class="quiz-opts">
+        <button class="quiz-opt" data-idx="0">One definitely causes the other</button>
+        <button class="quiz-opt" data-idx="1">They move together — the cause, if any, still needs separate investigation</button>
+        <button class="quiz-opt" data-idx="2">They are measuring the exact same thing</button>
+      </div>
+      <div class="quiz-feedback"></div>
+    </div>
+  </div>
+
+  <div class="takeaway">
+    <span class="label">Key takeaway</span>
+    <p>A confidence interval is a statement about the reliability of a method, not a probability about one specific range. Correlation measures how tightly two variables move together — it never, by itself, tells you which one (if either) is the cause.</p>
+  </div>
+</section>
+
+<!-- ============ FINAL SECTION — SYNTHESIS ============ -->
+<section class="synthesis shell" id="synthesis">
+  <span class="eyebrow reveal">Final Section</span>
+  <h2 class="reveal">The Expert Synthesis</h2>
+  <p class="dek reveal">Every chapter you just walked through is one gear in the same machine. Here's how they actually connect.</p>
+
+  <div class="diagram-frame reveal">
+    <svg viewBox="0 0 700 400" id="synthesis-diagram" aria-label="Unified mental model connecting all nine concepts">
+      <g id="synthesis-nodes" font-family="IBM Plex Mono" font-size="10.5">
+        <circle cx="350" cy="200" r="42" fill="#16223C" stroke="#D9A441" stroke-width="2"/>
+        <text x="350" y="196" text-anchor="middle" fill="#D9A441">Your</text>
+        <text x="350" y="212" text-anchor="middle" fill="#D9A441">Data</text>
+
+        <circle cx="350" cy="50" r="33" fill="#101A2E" stroke="#3FA796" stroke-width="1.5" class="syn-node" data-link="ch1"/>
+        <text x="350" y="54" text-anchor="middle" fill="#E8E4D8">01 Type</text>
+
+        <circle cx="446" cy="85" r="33" fill="#101A2E" stroke="#3FA796" stroke-width="1.5" class="syn-node" data-link="ch2"/>
+        <text x="446" y="89" text-anchor="middle" fill="#E8E4D8">02 Center</text>
+
+        <circle cx="498" cy="174" r="33" fill="#101A2E" stroke="#3FA796" stroke-width="1.5" class="syn-node" data-link="ch3"/>
+        <text x="498" y="178" text-anchor="middle" fill="#E8E4D8">03 Prob.</text>
+
+        <circle cx="480" cy="275" r="33" fill="#101A2E" stroke="#3FA796" stroke-width="1.5" class="syn-node" data-link="ch8"/>
+        <text x="480" y="279" text-anchor="middle" fill="#E8E4D8">04 Binom.</text>
+
+        <circle cx="401" cy="341" r="33" fill="#101A2E" stroke="#3FA796" stroke-width="1.5" class="syn-node" data-link="ch4"/>
+        <text x="401" y="345" text-anchor="middle" fill="#E8E4D8">05 Normal</text>
+
+        <circle cx="299" cy="341" r="33" fill="#101A2E" stroke="#3FA796" stroke-width="1.5" class="syn-node" data-link="ch5"/>
+        <text x="299" y="345" text-anchor="middle" fill="#E8E4D8">06 CLT</text>
+
+        <circle cx="220" cy="275" r="33" fill="#101A2E" stroke="#3FA796" stroke-width="1.5" class="syn-node" data-link="ch6"/>
+        <text x="220" y="279" text-anchor="middle" fill="#E8E4D8">07 Testing</text>
+
+        <circle cx="202" cy="174" r="33" fill="#101A2E" stroke="#3FA796" stroke-width="1.5" class="syn-node" data-link="ch9"/>
+        <text x="202" y="178" text-anchor="middle" fill="#E8E4D8">08 Power</text>
+
+        <circle cx="254" cy="85" r="33" fill="#101A2E" stroke="#3FA796" stroke-width="1.5" class="syn-node" data-link="ch7"/>
+        <text x="254" y="89" text-anchor="middle" fill="#E8E4D8">09 Estim.</text>
+      </g>
+      <g id="synthesis-lines" stroke="#5C6B73" stroke-width="1.2">
+        <line x1="350" y1="200" x2="350" y2="50" opacity="0"/>
+        <line x1="350" y1="200" x2="446" y2="85" opacity="0"/>
+        <line x1="350" y1="200" x2="498" y2="174" opacity="0"/>
+        <line x1="350" y1="200" x2="480" y2="275" opacity="0"/>
+        <line x1="350" y1="200" x2="401" y2="341" opacity="0"/>
+        <line x1="350" y1="200" x2="299" y2="341" opacity="0"/>
+        <line x1="350" y1="200" x2="220" y2="275" opacity="0"/>
+        <line x1="350" y1="200" x2="202" y2="174" opacity="0"/>
+        <line x1="350" y1="200" x2="254" y2="85" opacity="0"/>
+      </g>
+    </svg>
+  </div>
+  <p class="diagram-caption">Hover a node — every gear feeds the next: type → center/spread → probability → counting outcomes → normal curve → sampling → testing → power → honest estimation.</p>
+  <div id="synthesis-info" style="min-height:50px; font-size:0.9rem; color:var(--teal); font-family:var(--mono); margin-top:10px;">Hover a node above to see how it connects to the others.</div>
+
+  <div class="reveal" style="margin-top:50px;">
+    <button class="lab-btn" onclick="toggleCheatSheet()">📋 Reveal printable cheat sheet</button>
+    <div class="cheat-sheet" id="cheat-sheet">
+      <div class="cheat-grid">
+        <div class="cheat-item"><h5>Mean</h5><span class="formula">x̄ = Σx / n</span><p>Sum of all values divided by count — sensitive to outliers.</p></div>
+        <div class="cheat-item"><h5>Standard Deviation</h5><span class="formula">σ = √(Σ(x−x̄)² / n)</span><p>Typical distance of points from the mean.</p></div>
+        <div class="cheat-item"><h5>Z-score</h5><span class="formula">z = (x − μ) / σ</span><p>How many standard deviations a value sits from the mean.</p></div>
+        <div class="cheat-item"><h5>Conditional Probability</h5><span class="formula">P(A|B) = P(A∩B) / P(B)</span><p>Probability of A, restricted to cases where B is true.</p></div>
+        <div class="cheat-item"><h5>Binomial Probability</h5><span class="formula">P(k) = ⁿCₖ pᵏ(1−p)ⁿ⁻ᵏ</span><p>Probability of exactly k successes in n independent trials.</p></div>
+        <div class="cheat-item"><h5>At Least One Success</h5><span class="formula">1 − (1−p)ⁿ</span><p>Complement rule — avoids double-counting multiple successes.</p></div>
+        <div class="cheat-item"><h5>68-95-99.7 Rule</h5><span class="formula">±1σ, ±2σ, ±3σ</span><p>Approximate % of normal data within 1, 2, 3 std. devs — only for roughly-normal data.</p></div>
+        <div class="cheat-item"><h5>p-value</h5><span class="formula">P(data this extreme | H₀ true)</span><p>How surprising your result is, assuming nothing real changed.</p></div>
+        <div class="cheat-item"><h5>Effect Size (Cohen's d)</h5><span class="formula">d = (x̄₁ − x̄₂) / σ_pooled</span><p>Magnitude of a difference, independent of sample size.</p></div>
+        <div class="cheat-item"><h5>Statistical Power</h5><span class="formula">Power = 1 − β</span><p>Probability of correctly detecting a real effect when it exists.</p></div>
+        <div class="cheat-item"><h5>95% Confidence Interval</h5><span class="formula">x̄ ± 1.96 × (σ/√n)</span><p>A range built by a method that captures the truth ~95% of the time it's used.</p></div>
+        <div class="cheat-item"><h5>Correlation</h5><span class="formula">−1 ≤ r ≤ 1</span><p>Strength of a straight-line relationship; never implies causation alone.</p></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="reveal" style="margin-top:60px;">
+    <h3 style="font-size:1.3rem;">What to learn next</h3>
+    <div class="next-grid">
+      <div class="next-card"><h5>Regression in depth</h5><p>How to fit a line and quantify how much of the variation it actually explains.</p><a href="https://www.khanacademy.org/math/statistics-probability" target="_blank" rel="noopener">Khan Academy: Stats &amp; Probability →</a></div>
+      <div class="next-card"><h5>A/B testing in practice</h5><p>Power analysis, minimum sample sizes, and sequential testing pitfalls.</p><a href="https://www.coursera.org/" target="_blank" rel="noopener">Coursera: Experimentation courses →</a></div>
+      <div class="next-card"><h5>Bayesian statistics</h5><p>An entirely different lens: updating beliefs with evidence instead of p-values.</p><a href="https://www.bayesrulesbook.com/" target="_blank" rel="noopener">Bayes Rules! (free book) →</a></div>
+    </div>
+  </div>
+
+  <div class="reveal" style="margin-top:60px;">
+    <button class="lab-btn" onclick="generateCertificate()">🏅 Generate my calibration certificate</button>
+    <div class="certificate" id="certificate">
+      <div class="cert-eyebrow">Instrument Lab — Calibration Certificate</div>
+      <h3>Statistics, Calibrated</h3>
+      <p style="color:var(--parchment-dim); font-size:0.9rem;">This instrument has been tuned across all nine chapters: Data Types, Center &amp; Spread, Probability, Combinatorics &amp; the Binomial Distribution, the Normal Curve, Sampling &amp; CLT, Hypothesis Testing, Effect Size &amp; Power, and Confidence Intervals &amp; Correlation.</p>
+      <div class="cert-name" id="cert-name">Vishwa</div>
+      <div class="cert-date" id="cert-date"></div>
+      <p style="font-size:0.8rem; color:var(--parchment-dim); margin-top:14px;">Screenshot this to keep your calibration on record.</p>
+    </div>
+  </div>
+</section>
+
+<footer class="site-end">
+  Built with the Feynman method — simple first, complex second. Replay any diagram, retake any quiz, and revisit any chapter whenever you like.
+</footer>
+
+<script>
+(function(){
+'use strict';
+
+/* ---------- Progress bar & scroll reveal ---------- */
+function onScroll(){
+  const h = document.documentElement;
+  const scrolled = h.scrollTop;
+  const max = h.scrollHeight - h.clientHeight;
+  document.getElementById('progress-fill').style.width = (max>0 ? (scrolled/max*100) : 0) + '%';
+}
+window.addEventListener('scroll', onScroll, {passive:true});
+onScroll();
+
+const io = new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } });
+},{threshold:0.15});
+document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+
+/* ---------- Chapter pips + progress tracking (localStorage) ---------- */
+const chapters = [
+  {id:'ch1', label:'Data'}, {id:'ch2', label:'Center'}, {id:'ch3', label:'Probability'},
+  {id:'ch8', label:'Binomial'}, {id:'ch4', label:'Normal'}, {id:'ch5', label:'CLT'},
+  {id:'ch6', label:'Testing'}, {id:'ch9', label:'Power'}, {id:'ch7', label:'Estimation'}
+];
+let progress = {};
+try{ progress = JSON.parse(localStorage.getItem('statsLabProgress')||'{}'); }catch(e){ progress = {}; }
+
+function saveProgress(){
+  try{ localStorage.setItem('statsLabProgress', JSON.stringify(progress)); }catch(e){}
+  renderPips();
+}
+function markDone(chId){ progress[chId] = true; saveProgress(); }
+
+function renderPips(){
+  const wrap = document.getElementById('chapter-pips');
+  wrap.innerHTML = '';
+  chapters.forEach(ch=>{
+    const pip = document.createElement('div');
+    pip.className = 'pip';
+    pip.setAttribute('data-done', progress[ch.id] ? 'true' : 'false');
+    pip.tabIndex = 0;
+    pip.innerHTML = `<span class="pip-label">${ch.label}</span>`;
+    pip.addEventListener('click', ()=>{ document.getElementById(ch.id).scrollIntoView({behavior:'smooth'}); });
+    pip.addEventListener('keydown', (e)=>{ if(e.key==='Enter'||e.key===' '){ document.getElementById(ch.id).scrollIntoView({behavior:'smooth'}); } });
+    wrap.appendChild(pip);
+  });
+}
+renderPips();
+
+/* mark a chapter "done" once its quiz is fully completed */
+function checkChapterComplete(chId){
+  const quizzes = document.querySelectorAll('#quiz-'+chId+' .quiz-q');
+  let allAnswered = true;
+  quizzes.forEach(q=>{ if(!q.classList.contains('answered')) allAnswered = false; });
+  if(allAnswered && quizzes.length>0) markDone(chId);
+}
+
+/* ---------- Generic quiz engine ---------- */
+document.querySelectorAll('.quiz-q').forEach(q=>{
+  const correctIdx = parseInt(q.getAttribute('data-correct'),10);
+  const explain = q.getAttribute('data-explain') || '';
+  const opts = q.querySelectorAll('.quiz-opt');
+  const fb = q.querySelector('.quiz-feedback');
+  opts.forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      if(q.classList.contains('answered')) return;
+      const idx = parseInt(btn.getAttribute('data-idx'),10);
+      opts.forEach(o=>o.disabled = true);
+      if(idx === correctIdx){
+        btn.classList.add('selected-correct');
+        fb.textContent = '✓ Correct — ' + explain;
+        fb.className = 'quiz-feedback show correct';
+        burstParticles(btn);
+      } else {
+        btn.classList.add('selected-incorrect');
+        opts[correctIdx].classList.add('selected-correct');
+        fb.textContent = '✗ Not quite — ' + explain;
+        fb.className = 'quiz-feedback show incorrect';
+      }
+      q.classList.add('answered');
+      const section = q.closest('section.chapter');
+      if(section) checkChapterComplete(section.id);
+    });
+  });
+});
+
+function burstParticles(anchor){
+  if(window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const rect = anchor.getBoundingClientRect();
+  const container = document.createElement('div');
+  container.style.position='fixed'; container.style.left='0'; container.style.top='0';
+  container.style.pointerEvents='none'; container.style.zIndex='2000';
+  document.body.appendChild(container);
+  for(let i=0;i<10;i++){
+    const p = document.createElement('div');
+    p.className='particle';
+    const angle = Math.random()*Math.PI*2;
+    const dist = 30+Math.random()*40;
+    p.style.setProperty('--tx', (Math.cos(angle)*dist)+'px');
+    p.style.setProperty('--ty', (Math.sin(angle)*dist)+'px');
+    p.style.left = (rect.left+rect.width/2)+'px';
+    p.style.top = (rect.top+rect.height/2)+'px';
+    container.appendChild(p);
+  }
+  setTimeout(()=>container.remove(), 800);
+}
+
+/* ---------- Explain-back model answer toggle ---------- */
+window.toggleModel = function(id){
+  document.getElementById(id).classList.toggle('show');
+};
+
+/* ---------- Hero dial animation ---------- */
+function animateHeroDial(){
+  const needle = document.getElementById('dial-needle');
+  const fill = document.getElementById('bell-fill');
+  if(window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+    needle.style.transform = 'rotate(0deg)'; fill.style.opacity = 0.6; return;
+  }
+  let t = 0;
+  needle.style.transition = 'transform 1.6s cubic-bezier(.34,1.4,.64,1)';
+  fill.style.transition = 'opacity 1.2s ease';
+  setTimeout(()=>{ needle.style.transform = 'rotate(0deg)'; fill.style.opacity = 0.6; }, 200);
+}
+animateHeroDial();
+
+/* ---------- Chapter 1: drag-match data types ---------- */
+(function(){
+  const items = document.querySelectorAll('#ch1 .drag-item');
+  const zones = document.querySelectorAll('#ch1 .drop-zone');
+  const totalItems = items.length;
+  let placedCount = 0;
+  let dragged = null;
+  let selected = null;
+
+  function placeItem(item, zone){
+    if(!item || item.classList.contains('placed')) return;
+    const fb = document.getElementById('ch1-match-feedback');
+    const correct = item.getAttribute('data-answer') === zone.getAttribute('data-type');
+    if(correct){
+      zone.classList.add('correct');
+      const chip = document.createElement('div');
+      chip.className = 'zone-chip';
+      chip.textContent = item.textContent;
+      zone.querySelector('.zone-items').appendChild(chip);
+      item.classList.add('placed');
+      item.setAttribute('draggable','false');
+      item.tabIndex = -1;
+      placedCount++;
+      fb.textContent = placedCount >= totalItems
+        ? '✓ All matched! Every example is sorted into its correct data type.'
+        : `✓ Correct match! (${placedCount}/${totalItems} placed)`;
+      fb.className = 'quiz-feedback show correct';
+    } else {
+      zone.classList.add('incorrect');
+      fb.textContent = '✗ Not quite that bucket — try again.';
+      fb.className = 'quiz-feedback show incorrect';
+      setTimeout(()=>zone.classList.remove('incorrect'), 700);
+    }
+  }
+
+  items.forEach(it=>{
+    it.addEventListener('dragstart', ()=>{ dragged = it; setTimeout(()=>it.style.opacity='0.3',0); });
+    it.addEventListener('dragend', ()=>{ it.style.opacity='1'; });
+    it.addEventListener('click', ()=>{
+      if(it.classList.contains('placed')) return;
+      if(selected) selected.style.outline = '';
+      selected = it;
+      it.style.outline = '2px solid var(--amber)';
+    });
+    it.addEventListener('keydown', e=>{
+      if((e.key==='Enter'||e.key===' ') && !it.classList.contains('placed')){
+        e.preventDefault();
+        if(selected) selected.style.outline = '';
+        selected = it;
+        it.style.outline = '2px solid var(--amber)';
+      }
+    });
+  });
+  zones.forEach(z=>{
+    z.addEventListener('dragover', e=>{ e.preventDefault(); z.classList.add('over'); });
+    z.addEventListener('dragleave', ()=> z.classList.remove('over'));
+    z.addEventListener('drop', e=>{
+      e.preventDefault(); z.classList.remove('over');
+      placeItem(dragged, z);
+      dragged = null;
+    });
+    z.addEventListener('click', ()=>{
+      if(selected){ placeItem(selected, z); selected.style.outline=''; selected = null; }
+    });
+    z.addEventListener('keydown', e=>{
+      if((e.key==='Enter'||e.key===' ') && selected){
+        e.preventDefault();
+        placeItem(selected, z); selected.style.outline=''; selected = null;
+      }
+    });
+  });
+})();
+
+window.playCh1Diagram = function(){
+  const branches = document.querySelectorAll('#ch1-diagram .branch');
+  branches.forEach((b,i)=>{
+    const line = b.querySelector('line');
+    const circle = b.querySelector('circle');
+    const texts = b.querySelectorAll('text');
+    line.style.transition='none'; line.setAttribute('stroke-dashoffset','220');
+    circle.style.transition='none'; circle.setAttribute('opacity','0');
+    texts.forEach(t=>{ t.style.transition='none'; t.setAttribute('opacity','0'); });
+    void b.offsetWidth;
+    setTimeout(()=>{
+      line.style.transition='stroke-dashoffset 700ms ease';
+      line.setAttribute('stroke-dashoffset','0');
+      circle.style.transition='opacity 300ms ease';
+      circle.setAttribute('opacity','1');
+      texts.forEach(t=>{ t.style.transition='opacity 400ms ease'; t.setAttribute('opacity','1'); });
+    }, 150 + i*250);
+  });
+};
+playCh1Diagram();
+
+/* ---------- Chapter 2: skew slider ---------- */
+(function(){
+  const slider = document.getElementById('ch2-outlier-slider');
+  const readout = document.getElementById('ch2-readout');
+  const dotsG = document.getElementById('ch2-dots');
+  const meanLine = document.getElementById('ch2-mean-line');
+  const meanLabel = document.getElementById('ch2-mean-label');
+  const medianLine = document.getElementById('ch2-median-line');
+  const medianLabel = document.getElementById('ch2-median-label');
+
+  const baseSalaries = [11.8,12.0,12.1,12.3,12.4,12.5,12.6,12.7,12.9];
+
+  function render(){
+    const t = parseInt(slider.value,10)/100;
+    const outlierVal = 12.9 + t*87.1; // up to ~100L
+    const all = baseSalaries.concat([outlierVal]);
+    const mean = all.reduce((a,b)=>a+b,0)/all.length;
+    const sorted = all.slice().sort((a,b)=>a-b);
+    const median = sorted[Math.floor(sorted.length/2)];
+
+    dotsG.innerHTML = '';
+    const minV = 11, maxV = 100;
+    function xFor(v){ return 40 + (Math.min(v,maxV)-minV)/(maxV-minV) * 580; }
+    all.forEach((v,i)=>{
+      const isOutlier = (i===all.length-1) && t>0.02;
+      const c = document.createElementNS('http://www.w3.org/2000/svg','circle');
+      c.setAttribute('cx', xFor(v)); c.setAttribute('cy', 200);
+      c.setAttribute('r', isOutlier? 7:5);
+      c.setAttribute('fill', isOutlier? '#E2725B' : '#5C6B73');
+      dotsG.appendChild(c);
+    });
+    const mx = xFor(mean), medx = xFor(median);
+    meanLine.setAttribute('x1', mx); meanLine.setAttribute('x2', mx);
+    meanLabel.setAttribute('x', mx);
+    medianLine.setAttribute('x1', medx); medianLine.setAttribute('x2', medx);
+    medianLabel.setAttribute('x', medx);
+
+    readout.textContent = t<0.02
+      ? `Outlier value: ₹12.9L (none yet) — Mean: ₹${mean.toFixed(1)}L · Median: ₹${median.toFixed(1)}L`
+      : `Outlier value: ₹${outlierVal.toFixed(1)}L — Mean: ₹${mean.toFixed(1)}L (chasing the outlier) · Median: ₹${median.toFixed(1)}L (barely moves)`;
+  }
+  slider.addEventListener('input', render);
+  render();
+})();
+
+/* ---------- Chapter 3: Venn hover + fill in blank ---------- */
+(function(){
+  const regions = document.querySelectorAll('#ch3-diagram .venn-region');
+  const tip = document.getElementById('venn-tooltip');
+  regions.forEach(r=>{
+    r.addEventListener('mouseenter', ()=>{ tip.textContent = r.getAttribute('data-info'); });
+    r.addEventListener('mouseleave', ()=>{ tip.textContent = 'Hover a region above…'; });
+  });
+})();
+
+window.checkCh3Blanks = function(){
+  const b1 = document.getElementById('ch3-blank1');
+  const b2 = document.getElementById('ch3-blank2');
+  const fb = document.getElementById('ch3-blank-feedback');
+  const v1 = parseFloat(b1.value), v2 = parseFloat(b2.value);
+  const ok1 = Math.abs(v1 - 0.12) < 0.01;
+  const ok2 = Math.abs(v2 - 0.5) < 0.02 || Math.abs(v2 - 0.50) < 0.02 || Math.abs(v2-1/2)<0.02;
+  b1.className = 'blank-input ' + (ok1?'correct':'incorrect');
+  b2.className = 'blank-input ' + (ok2?'correct':'incorrect');
+  if(ok1 && ok2){
+    fb.textContent = '✓ Both correct — independent events multiply: 0.4 × 0.3 = 0.12. A die has 3 even faces out of 6 = 0.5.';
+    fb.className = 'quiz-feedback show correct';
+  } else {
+    fb.textContent = '✗ Check again — independent events: P(A)×P(B). Even faces on a die: 2,4,6 out of 6 total.';
+    fb.className = 'quiz-feedback show incorrect';
+  }
+};
+
+/* ---------- Chapter 8: binomial distribution bars ---------- */
+(function(){
+  const nSlider = document.getElementById('ch8-n-slider');
+  const pSlider = document.getElementById('ch8-p-slider');
+  const readout = document.getElementById('ch8-readout');
+  const barsG = document.getElementById('ch8-bars');
+  const caption = document.getElementById('ch8-caption');
+
+  function choose(n,k){
+    if(k<0||k>n) return 0;
+    let res = 1;
+    for(let i=0;i<k;i++){ res = res*(n-i)/(i+1); }
+    return res;
+  }
+  function binomProb(n,k,p){ return choose(n,k)*Math.pow(p,k)*Math.pow(1-p,n-k); }
+
+  function render(){
+    const n = parseInt(nSlider.value,10);
+    const p = parseInt(pSlider.value,10)/100;
+    barsG.innerHTML = '';
+    const probs = [];
+    for(let k=0;k<=n;k++){ probs.push(binomProb(n,k,p)); }
+    const maxP = Math.max(...probs);
+    const chartW = 580, chartLeft = 60;
+    const barW = chartW/(n+1) - 3;
+    probs.forEach((pr,k)=>{
+      const h = (pr/maxP)*170;
+      const x = chartLeft + k*(chartW/(n+1));
+      const rect = document.createElementNS('http://www.w3.org/2000/svg','rect');
+      rect.setAttribute('x', x); rect.setAttribute('width', Math.max(barW,2));
+      rect.setAttribute('y', 220); rect.setAttribute('height', 0);
+      rect.setAttribute('fill', '#3FA796'); rect.setAttribute('opacity','0.85');
+      barsG.appendChild(rect);
+      requestAnimationFrame(()=>{
+        rect.style.transition = 'height 350ms ease, y 350ms ease';
+        rect.setAttribute('y', 220-h); rect.setAttribute('height', h);
+      });
+    });
+    const expected = (n*p).toFixed(1);
+    readout.textContent = `n = ${n}, p = ${p.toFixed(2)} → expected successes ≈ ${expected}`;
+    caption.textContent = `Number of successes (k) out of ${n} tries`;
+  }
+  nSlider.addEventListener('input', render);
+  pSlider.addEventListener('input', render);
+  render();
+})();
+
+/* ---------- Chapter 4: z-score area slider ---------- */
+(function(){
+  const lowS = document.getElementById('ch4-z-low');
+  const highS = document.getElementById('ch4-z-high');
+  const readout = document.getElementById('ch4-readout');
+  const shade = document.getElementById('ch4-shade');
+  const ticksG = document.getElementById('ch4-ticks');
+
+  // standard normal CDF approximation
+  function erf(x){
+    const sign = x<0?-1:1; x=Math.abs(x);
+    const a1=0.254829592,a2=-0.284496736,a3=1.421413741,a4=-1.453152027,a5=1.061405429,p=0.3275911;
+    const t=1/(1+p*x);
+    const y=1-(((((a5*t+a4)*t)+a3)*t+a2)*t+a1)*t*Math.exp(-x*x);
+    return sign*y;
+  }
+  function cdf(z){ return 0.5*(1+erf(z/Math.sqrt(2))); }
+
+  // curve x-mapping: z=-3 -> x=40 ; z=3 -> x=660 ; matches bell path roughly
+  function xForZ(z){ return 350 + z*103.3; }
+  function yForZ(z){
+    // approximate bell height using gaussian pdf shape scaled to svg
+    const peak = 230, top=40;
+    const g = Math.exp(-(z*z)/2);
+    return peak - g*(peak-top);
+  }
+
+  for(let z=-3; z<=3; z++){
+    const x = xForZ(z);
+    const tick = document.createElementNS('http://www.w3.org/2000/svg','line');
+    tick.setAttribute('x1',x); tick.setAttribute('x2',x);
+    tick.setAttribute('y1',225); tick.setAttribute('y2',235);
+    tick.setAttribute('stroke','#5C6B73'); tick.setAttribute('stroke-width','1');
+    ticksG.appendChild(tick);
+  }
+
+  function render(){
+    let lo = parseFloat(lowS.value), hi = parseFloat(highS.value);
+    if(lo>hi){ const tmp=lo; lo=hi; hi=tmp; }
+    const pct = (cdf(hi)-cdf(lo))*100;
+    let d = `M ${xForZ(lo)} 230 `;
+    for(let z=lo; z<=hi; z+=0.1){
+      d += `L ${xForZ(z)} ${yForZ(z)} `;
+    }
+    d += `L ${xForZ(hi)} 230 Z`;
+    shade.setAttribute('d', d);
+    readout.textContent = `z from ${lo.toFixed(1)} to ${hi.toFixed(1)} → ~${pct.toFixed(0)}% of all values fall in this range`;
+  }
+  lowS.addEventListener('input', render);
+  highS.addEventListener('input', render);
+  render();
+})();
+
+/* ---------- Chapter 5: step-by-step CLT walkthrough ---------- */
+(function(){
+  let step = 0;
+  const label = document.getElementById('ch5-step-label');
+  const narration = document.getElementById('ch5-narration');
+  const popG = document.getElementById('ch5-population');
+  const meansG = document.getElementById('ch5-samplemeans');
+  const btn = document.getElementById('ch5-next-btn');
+
+  const steps = [
+    {
+      label: 'Step 0 — A skewed population of response times',
+      narr: "We start with a population of response times that's heavily right-skewed — most requests are fast, a few are very slow."
+    },
+    {
+      label: 'Step 1 — Draw a random sample of 30 requests',
+      narr: 'We randomly pick 30 requests from that messy population. This single sample still looks skewed, just like the population.'
+    },
+    {
+      label: 'Step 2 — Compute that sample\'s average',
+      narr: 'We collapse the 30 values into one number: their average. We mark this average with a dot below.'
+    },
+    {
+      label: 'Step 3 — Repeat many times, plot all the averages',
+      narr: 'Now imagine doing that 200 more times — drawing a fresh sample of 30, averaging it, plotting the dot. Watch what shape those dots make.'
+    },
+    {
+      label: 'Step 4 — The sample means form a bell',
+      narr: 'Even though the original data was skewed, the distribution of sample AVERAGES is approximately normal. That is the Central Limit Theorem, made visible.'
+    }
+  ];
+
+  function genSkewed(n){
+    const arr = [];
+    for(let i=0;i<n;i++){
+      arr.push(Math.pow(Math.random(),3)*200 + 20); // skewed toward low values
+    }
+    return arr;
+  }
+
+  function drawPopulation(){
+    popG.innerHTML='';
+    const data = genSkewed(60);
+    data.forEach((v,i)=>{
+      const x = 50 + (i%30)*20;
+      const y = 220 - Math.min(v,200)*0.7;
+      const c = document.createElementNS('http://www.w3.org/2000/svg','circle');
+      c.setAttribute('cx',x); c.setAttribute('cy', i<30? 215 : y);
+      c.setAttribute('r', 3.5);
+      c.setAttribute('fill', '#3FA796'); c.setAttribute('opacity', i<30?1:0.5);
+      popG.appendChild(c);
+    });
+  }
+
+  let sampleMeansHistory = [];
+  function drawSampleDot(){
+    const sample = genSkewed(30);
+    const mean = sample.reduce((a,b)=>a+b,0)/sample.length;
+    sampleMeansHistory.push(mean);
+    return mean;
+  }
+
+  function drawHistogramOfMeans(){
+    meansG.innerHTML='';
+    // generate plenty of sample means
+    sampleMeansHistory = [];
+    for(let i=0;i<200;i++){
+      const sample = genSkewed(30);
+      const mean = sample.reduce((a,b)=>a+b,0)/sample.length;
+      sampleMeansHistory.push(mean);
+    }
+    const minM = Math.min(...sampleMeansHistory), maxM = Math.max(...sampleMeansHistory);
+    const bins = 16;
+    const counts = new Array(bins).fill(0);
+    sampleMeansHistory.forEach(m=>{
+      let idx = Math.floor((m-minM)/(maxM-minM+0.001)*bins);
+      if(idx>=bins) idx=bins-1;
+      counts[idx]++;
+    });
+    const maxCount = Math.max(...counts);
+    counts.forEach((c,i)=>{
+      const barW = 580/bins - 2;
+      const x = 50 + i*(580/bins);
+      const h = (c/maxCount)*170;
+      const rect = document.createElementNS('http://www.w3.org/2000/svg','rect');
+      rect.setAttribute('x',x); rect.setAttribute('width', barW);
+      rect.setAttribute('y', 230-h); rect.setAttribute('height', 0);
+      rect.setAttribute('fill', '#D9A441'); rect.setAttribute('opacity','0.85');
+      meansG.appendChild(rect);
+      setTimeout(()=>{
+        rect.style.transition = 'height 600ms ease, y 600ms ease';
+        rect.setAttribute('y', 230-h); rect.setAttribute('height', h);
+      }, i*25);
+    });
+  }
+
+  window.ch5NextStep = function(){
+    step = Math.min(step+1, steps.length-1);
+    label.textContent = steps[step].label;
+    narration.textContent = steps[step].narr;
+    if(step===0){ drawPopulation(); meansG.innerHTML=''; }
+    if(step===1){ drawPopulation(); }
+    if(step===2){
+      const m = drawSampleDot();
+      const x = 50 + (m/200)*580*0.0+ 350; // place near center-ish for visual
+      const dot = document.createElementNS('http://www.w3.org/2000/svg','circle');
+      dot.setAttribute('cx', Math.min(630, 50 + m*2.2)); dot.setAttribute('cy', 60);
+      dot.setAttribute('r', 6); dot.setAttribute('fill','#D9A441');
+      meansG.appendChild(dot);
+    }
+    if(step===3){
+      meansG.innerHTML='';
+      for(let i=0;i<40;i++){
+        const sample = genSkewed(30);
+        const m = sample.reduce((a,b)=>a+b,0)/sample.length;
+        const dot = document.createElementNS('http://www.w3.org/2000/svg','circle');
+        dot.setAttribute('cx', Math.min(630, Math.max(50, 50+m*2.2)));
+        dot.setAttribute('cy', 50 + Math.random()*20);
+        dot.setAttribute('r', 3); dot.setAttribute('fill','#D9A441'); dot.setAttribute('opacity','0.7');
+        meansG.appendChild(dot);
+      }
+    }
+    if(step===4){
+      drawHistogramOfMeans();
+    }
+    if(step===steps.length-1){
+      btn.disabled = true; btn.style.opacity = '0.5';
+      const section = document.getElementById('ch5');
+      checkChapterComplete('ch5');
+    }
+  };
+  window.ch5Reset = function(){
+    step=0; btn.disabled=false; btn.style.opacity='1';
+    label.textContent = steps[0].label; narration.textContent = steps[0].narr;
+    drawPopulation(); meansG.innerHTML='';
+  };
+  drawPopulation();
+})();
+
+/* ---------- Chapter 6: sortable sequencer ---------- */
+(function(){
+  const list = document.getElementById('ch6-sequence');
+  let draggingItem = null;
+  list.querySelectorAll('li').forEach(li=>{
+    li.addEventListener('dragstart', ()=>{ draggingItem = li; li.classList.add('dragging'); });
+    li.addEventListener('dragend', ()=>{ li.classList.remove('dragging'); });
+  });
+  list.addEventListener('dragover', e=>{
+    e.preventDefault();
+    const afterEl = getDragAfterElement(list, e.clientY);
+    if(!draggingItem) return;
+    if(afterEl == null){ list.appendChild(draggingItem); }
+    else{ list.insertBefore(draggingItem, afterEl); }
+  });
+  function getDragAfterElement(container, y){
+    const els = [...container.querySelectorAll('li:not(.dragging)')];
+    return els.reduce((closest, child)=>{
+      const box = child.getBoundingClientRect();
+      const offset = y - box.top - box.height/2;
+      if(offset < 0 && offset > closest.offset){ return {offset:offset, element:child}; }
+      else { return closest; }
+    }, {offset: -Infinity}).element;
+  }
+  list.querySelectorAll('.seq-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const li = btn.closest('li');
+      if(btn.getAttribute('data-dir')==='up'){
+        const prev = li.previousElementSibling;
+        if(prev) list.insertBefore(li, prev);
+      } else {
+        const next = li.nextElementSibling;
+        if(next) list.insertBefore(next, li);
+      }
+    });
+  });
+})();
+
+window.checkCh6Sequence = function(){
+  const items = document.querySelectorAll('#ch6-sequence li');
+  let correct = true;
+  items.forEach((li,i)=>{
+    if(parseInt(li.getAttribute('data-correct-pos'),10) !== i) correct = false;
+  });
+  const fb = document.getElementById('ch6-seq-feedback');
+  if(correct){
+    fb.textContent = '✓ Perfect order! State hypotheses → set α → collect data → compute p-value → decide.';
+    fb.className = 'quiz-feedback show correct';
+    checkChapterComplete('ch6');
+  } else {
+    fb.textContent = '✗ Not quite the right order yet — keep dragging and try again.';
+    fb.className = 'quiz-feedback show incorrect';
+  }
+};
+
+/* ---------- Chapter 9: effect size & power curves ---------- */
+(function(){
+  const slider = document.getElementById('ch9-effect-slider');
+  const readout = document.getElementById('ch9-readout');
+  const altCurve = document.getElementById('ch9-alt-curve');
+  const powerShade = document.getElementById('ch9-power-shade');
+  const altLabel = document.getElementById('ch9-alt-label');
+
+  // null curve centered at x=260 (matches static path), threshold at x=350
+  const nullCenter = 260, threshold = 350;
+  function gaussPathY(x, center, spread){
+    const z = (x-center)/spread;
+    const peak = 220, top = 60;
+    const g = Math.exp(-(z*z)/2);
+    return peak - g*(peak-top);
+  }
+  function buildPath(center, spread, xStart, xEnd){
+    let d = `M ${xStart} 220 `;
+    for(let x=xStart; x<=xEnd; x+=4){
+      d += `L ${x} ${gaussPathY(x, center, spread)} `;
+    }
+    d += `L ${xEnd} 220 Z`;
+    return d;
+  }
+  function buildOutline(center, spread, xStart, xEnd){
+    let d = `M ${xStart} 220 `;
+    for(let x=xStart; x<=xEnd; x+=4){
+      d += `L ${x} ${gaussPathY(x, center, spread)} `;
+    }
+    d += `L ${xEnd} 220`;
+    return d;
+  }
+  function render(){
+    const t = parseInt(slider.value,10)/100;
+    const altCenter = nullCenter + 60 + t*340; // shift right as effect grows
+    const spread = 50;
+    altCurve.setAttribute('d', buildOutline(altCenter, spread, 60, 660));
+    const shadeStart = Math.max(threshold, 60);
+    powerShade.setAttribute('d', buildPath(altCenter, spread, shadeStart, 660));
+    altLabel.setAttribute('x', Math.min(640, altCenter));
+
+    // approximate power as area of alt curve to the right of threshold
+    function erf(x){
+      const sign = x<0?-1:1; x=Math.abs(x);
+      const a1=0.254829592,a2=-0.284496736,a3=1.421413741,a4=-1.453152027,a5=1.061405429,p=0.3275911;
+      const tt=1/(1+p*x);
+      const y=1-(((((a5*tt+a4)*tt)+a3)*tt+a2)*tt+a1)*tt*Math.exp(-x*x);
+      return sign*y;
+    }
+    function cdf(z){ return 0.5*(1+erf(z/Math.sqrt(2))); }
+    const zThresh = (threshold - altCenter)/spread;
+    const power = (1-cdf(zThresh))*100;
+
+    let sizeLabel = 'small';
+    if(t>0.66) sizeLabel='large'; else if(t>0.33) sizeLabel='medium';
+    readout.textContent = `Effect size: ${sizeLabel} — estimated power ≈ ${power.toFixed(0)}% (the gold region)`;
+  }
+  slider.addEventListener('input', render);
+  render();
+})();
+
+/* ---------- Chapter 7: correlation scatter + before/after ---------- */
+(function(){
+  const slider = document.getElementById('ch7-r-slider');
+  const readout = document.getElementById('ch7-r-readout');
+  const label = document.getElementById('ch7-corr-label');
+  const scatterG = document.getElementById('ch7-scatter');
+
+  function gaussianRand(){
+    let u=0,v=0;
+    while(u===0) u=Math.random();
+    while(v===0) v=Math.random();
+    return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);
+  }
+
+  function render(){
+    const r = parseInt(slider.value,10)/100;
+    scatterG.innerHTML = '';
+    const n = 60;
+    for(let i=0;i<n;i++){
+      const x0 = gaussianRand();
+      const y0 = r*x0 + Math.sqrt(Math.max(0,1-r*r))*gaussianRand();
+      const px = 350 + x0*90;
+      const py = 135 - y0*70;
+      const c = document.createElementNS('http://www.w3.org/2000/svg','circle');
+      c.setAttribute('cx', Math.max(65,Math.min(635,px)));
+      c.setAttribute('cy', Math.max(35,Math.min(235,py)));
+      c.setAttribute('r', 4);
+      c.setAttribute('fill', Math.abs(r)>0.6 ? '#D9A441' : '#3FA796');
+      c.setAttribute('opacity','0.8');
+      scatterG.appendChild(c);
+    }
+    let desc = 'no linear relationship';
+    if(r>0.7) desc='strong positive relationship';
+    else if(r>0.3) desc='moderate positive relationship';
+    else if(r<-0.7) desc='strong negative relationship';
+    else if(r<-0.3) desc='moderate negative relationship';
+    label.textContent = `r = ${r.toFixed(2)} — ${desc}`;
+    readout.textContent = `r = ${r.toFixed(2)}`;
+  }
+  slider.addEventListener('input', render);
+  render();
+})();
+
+window.ch7ShowState = function(state){
+  document.getElementById('ch7-before-text').style.display = state==='before' ? 'block':'none';
+  document.getElementById('ch7-after-text').style.display = state==='after' ? 'block':'none';
+  document.getElementById('ch7-before-btn').className = 'lab-btn ' + (state==='before' ? '' : 'secondary');
+  document.getElementById('ch7-after-btn').className = 'lab-btn ' + (state==='after' ? '' : 'secondary');
+};
+
+/* ---------- Synthesis diagram hover + line draw-in ---------- */
+(function(){
+  const nodes = document.querySelectorAll('.syn-node');
+  const info = document.getElementById('synthesis-info');
+  const lines = document.querySelectorAll('#synthesis-lines line');
+  const infoText = {
+    ch1: 'Data Type decides which summary statistics (Ch.2) are even valid to compute.',
+    ch2: 'Center & Spread describe a sample\'s shape — the raw material probability (Ch.3) reasons about.',
+    ch3: 'Probability rules let us describe how likely any value or range of values is.',
+    ch8: 'Combinatorics & the Binomial Distribution count outcomes correctly across repeated yes/no trials.',
+    ch4: 'The Normal Curve is the specific shape probability takes when many small effects sum together.',
+    ch5: 'Sampling & CLT explain why averages of samples settle into that normal shape, even from messy data.',
+    ch6: 'Hypothesis Testing uses that predictable sampling behavior to judge whether an observed difference is real.',
+    ch9: 'Effect Size & Power ask whether that difference is big enough to matter, and whether the test could even detect it.',
+    ch7: 'Estimation (confidence intervals) reports a range instead of a single number — full circle back to honest data.'
+  };
+  let lineTimer = null;
+  function revealLines(){
+    lines.forEach((l,i)=>{
+      setTimeout(()=>{ l.style.transition='opacity 400ms ease'; l.setAttribute('opacity','0.5'); }, i*120);
+    });
+  }
+  const synthObserver = new IntersectionObserver((entries)=>{
+    entries.forEach(e=>{ if(e.isIntersecting){ revealLines(); synthObserver.disconnect(); } });
+  },{threshold:0.3});
+  synthObserver.observe(document.getElementById('synthesis-diagram'));
+
+  nodes.forEach(n=>{
+    n.addEventListener('mouseenter', ()=>{
+      const link = n.getAttribute('data-link');
+      info.textContent = infoText[link] || '';
+      n.setAttribute('stroke-width','3');
+    });
+    n.addEventListener('mouseleave', ()=>{ n.setAttribute('stroke-width','1.5'); });
+  });
+})();
+
+/* ---------- Cheat sheet + certificate ---------- */
+window.toggleCheatSheet = function(){
+  document.getElementById('cheat-sheet').classList.toggle('show');
+};
+window.generateCertificate = function(){
+  const cert = document.getElementById('certificate');
+  cert.classList.add('show');
+  document.getElementById('cert-date').textContent = 'Calibrated on ' + new Date().toLocaleDateString('en-US', {year:'numeric', month:'long', day:'numeric'});
+  cert.scrollIntoView({behavior:'smooth', block:'center'});
+};
+
+})();
+</script>
+</body>
+</html>

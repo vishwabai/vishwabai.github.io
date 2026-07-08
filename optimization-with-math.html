@@ -1,0 +1,2309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Art of Finding the Best — Optimization with Math</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400..700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+:root{
+  --bg:#0A0E14;
+  --bg-panel:#10151E;
+  --bg-panel-2:#161C28;
+  --line:#262E3D;
+  --text:#E9E6DE;
+  --text-dim:#8B93A1;
+  --summit:#F2A93B;   /* peaks / maxima */
+  --valley:#2BD9C2;   /* minima / the goal */
+  --path:#9C8FFF;     /* gradient / direction */
+  --fence:#FF6B81;    /* constraints */
+  --signal:#C3FF6B;   /* correct / success */
+  --error:#FF6B6B;    /* wrong answers */
+  --shadow: 0 20px 60px rgba(0,0,0,0.45);
+  --radius: 14px;
+}
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  font-family:'Inter',system-ui,sans-serif;
+  line-height:1.65;
+  -webkit-font-smoothing:antialiased;
+}
+body::before{
+  content:"";
+  position:fixed; inset:0; z-index:-1;
+  background-image:
+    radial-gradient(circle at 15% 8%, rgba(156,143,255,0.07), transparent 40%),
+    radial-gradient(circle at 85% 15%, rgba(43,217,194,0.06), transparent 45%),
+    repeating-linear-gradient(0deg, rgba(255,255,255,0.02) 0px, transparent 1px, transparent 42px);
+}
+h1,h2,h3,h4{font-family:'Fraunces',serif; font-weight:600; line-height:1.15; margin:0 0 .5em;}
+h2{font-size:clamp(1.7rem,3.2vw,2.5rem);}
+h3{font-size:clamp(1.25rem,2.2vw,1.6rem);}
+p{margin:0 0 1em; color:var(--text);}
+.dim{color:var(--text-dim);}
+.mono{font-family:'JetBrains Mono',monospace;}
+a{color:var(--valley);}
+.wrap{max-width:880px; margin:0 auto; padding:0 24px;}
+.eyebrow{
+  font-family:'JetBrains Mono',monospace; text-transform:uppercase; letter-spacing:.14em;
+  font-size:.72rem; color:var(--text-dim); margin-bottom:.8em; display:flex; align-items:center; gap:.6em;
+}
+.eyebrow .num{color:var(--valley); font-weight:600;}
+
+/* ---------- progress bar ---------- */
+#progressBar{
+  position:fixed; top:0; left:0; height:3px; width:0%; z-index:1000;
+  background:linear-gradient(90deg,var(--path),var(--valley));
+  transition:width .1s linear;
+}
+#chapterNav{
+  position:fixed; right:14px; top:50%; transform:translateY(-50%); z-index:900;
+  display:flex; flex-direction:column; gap:10px;
+}
+#chapterNav a{
+  width:9px; height:9px; border-radius:50%; background:var(--line); display:block;
+  position:relative; transition:background .2s, transform .2s;
+}
+#chapterNav a.active{ background:var(--valley); transform:scale(1.4);}
+#chapterNav a span{
+  position:absolute; right:18px; top:50%; transform:translateY(-50%);
+  white-space:nowrap; font-family:'JetBrains Mono',monospace; font-size:.7rem;
+  color:var(--text-dim); opacity:0; transition:opacity .15s; pointer-events:none;
+}
+#chapterNav a:hover span{opacity:1;}
+@media (max-width: 720px){ #chapterNav{display:none;} }
+
+/* ---------- reveal on scroll ---------- */
+.reveal{opacity:0; transform:translateY(18px); transition:opacity .6s ease, transform .6s ease;}
+.reveal.in{opacity:1; transform:translateY(0);}
+@media (prefers-reduced-motion: reduce){
+  .reveal{opacity:1; transform:none; transition:none;}
+  *{animation-duration:0.001ms !important; animation-iteration-count:1 !important;}
+}
+
+/* ---------- sections / chapters ---------- */
+section.chapter{
+  padding:90px 0 70px; border-top:1px solid var(--line); position:relative;
+}
+section.chapter[data-accent="summit"] h2{color:var(--summit);}
+section.chapter[data-accent="valley"] h2{color:var(--valley);}
+section.chapter[data-accent="path"] h2{color:var(--path);}
+section.chapter[data-accent="fence"] h2{color:var(--fence);}
+.chapter-badge{
+  display:inline-flex; align-items:center; gap:8px; font-family:'JetBrains Mono',monospace;
+  font-size:.72rem; padding:5px 12px; border-radius:30px; border:1px solid var(--line);
+  color:var(--text-dim); margin-bottom:18px;
+}
+
+/* ---------- callout boxes ---------- */
+.callout{
+  border-radius:var(--radius); padding:22px 24px; margin:26px 0; border:1px solid var(--line);
+  background:var(--bg-panel);
+}
+.misconception{
+  display:grid; grid-template-columns:1fr 1fr; gap:18px; padding:0; overflow:hidden;
+  border:1px solid var(--line); border-radius:var(--radius); margin:26px 0;
+}
+.misconception > div{padding:20px 22px;}
+.misconception .think{background:rgba(255,107,107,0.07); border-right:1px solid var(--line);}
+.misconception .real{background:rgba(43,217,194,0.07);}
+.misconception h4{font-family:'JetBrains Mono',monospace; font-size:.72rem; text-transform:uppercase; letter-spacing:.08em; margin-bottom:.6em;}
+.misconception .think h4{color:var(--error);}
+.misconception .real h4{color:var(--valley);}
+@media (max-width:640px){ .misconception{grid-template-columns:1fr;} .misconception .think{border-right:none; border-bottom:1px solid var(--line);} }
+
+.sticking{
+  border-left:3px solid var(--summit); background:rgba(242,169,59,0.06);
+  border-radius:0 var(--radius) var(--radius) 0; padding:18px 22px; margin:26px 0;
+}
+.sticking h4{color:var(--summit); font-size:.95rem; margin-bottom:.4em;}
+
+.analogy-card{
+  display:grid; grid-template-columns:auto 1fr; gap:16px; align-items:flex-start;
+  background:var(--bg-panel-2); border:1px solid var(--line); border-radius:var(--radius);
+  padding:20px 22px; margin:26px 0;
+}
+.analogy-card .icon{font-size:2rem; line-height:1;}
+.analogy-card h4{font-size:.95rem; color:var(--path); margin-bottom:.3em;}
+
+.takeaway{
+  border:1px dashed var(--valley); border-radius:var(--radius); padding:18px 22px; margin:30px 0;
+  background:rgba(43,217,194,0.05);
+}
+.takeaway h4{color:var(--valley); font-size:.85rem; text-transform:uppercase; letter-spacing:.08em; font-family:'JetBrains Mono',monospace;}
+
+.worked{
+  border:1px solid var(--summit); border-radius:var(--radius); padding:20px 22px; margin:26px 0;
+  background:rgba(242,169,59,0.05);
+}
+.worked h4{color:var(--summit); font-size:.85rem; text-transform:uppercase; letter-spacing:.08em; font-family:'JetBrains Mono',monospace; margin-bottom:.6em;}
+.worked ol{margin:.4em 0 0; padding-left:1.3em;}
+.worked li{margin-bottom:.5em;}
+
+/* ---------- media ---------- */
+.media-row{display:grid; grid-template-columns:1fr 1fr; gap:16px; margin:26px 0;}
+@media (max-width:640px){.media-row{grid-template-columns:1fr;}}
+.media-card{border-radius:var(--radius); overflow:hidden; border:1px solid var(--line); background:var(--bg-panel);}
+.media-card img{display:block; width:100%; height:200px; object-fit:cover;}
+.media-card figcaption{padding:10px 14px; font-size:.78rem; color:var(--text-dim); font-family:'JetBrains Mono',monospace;}
+.loop-gif{
+  height:200px; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden;
+  background:radial-gradient(circle at 50% 110%, rgba(156,143,255,0.18), transparent 60%);
+}
+
+/* ---------- diagram frame ---------- */
+.diagram-frame{
+  border:1px solid var(--line); border-radius:var(--radius); background:var(--bg-panel);
+  padding:18px; margin:26px 0;
+}
+.diagram-frame svg{width:100%; height:auto; display:block;}
+.diagram-caption{text-align:center; font-size:.78rem; color:var(--text-dim); margin-top:10px; font-family:'JetBrains Mono',monospace;}
+.replay-btn{
+  display:inline-flex; align-items:center; gap:6px; margin-top:10px; font-size:.78rem;
+  background:none; border:1px solid var(--line); color:var(--text-dim); padding:6px 12px;
+  border-radius:30px; cursor:pointer; font-family:'JetBrains Mono',monospace;
+}
+.replay-btn:hover{border-color:var(--path); color:var(--path);}
+
+/* ---------- buttons / controls ---------- */
+button{font-family:inherit;}
+.btn{
+  background:var(--path); color:#0A0E14; border:none; padding:10px 20px; border-radius:30px;
+  font-weight:600; cursor:pointer; font-size:.9rem; transition:transform .15s, box-shadow .15s;
+}
+.btn:hover{transform:translateY(-1px); box-shadow:0 8px 20px rgba(156,143,255,0.3);}
+.btn.ghost{background:none; border:1px solid var(--line); color:var(--text);}
+.btn:focus-visible, a:focus-visible, [tabindex]:focus-visible, input:focus-visible, textarea:focus-visible{
+  outline:2px solid var(--valley); outline-offset:2px;
+}
+.slider-row{display:flex; align-items:center; gap:14px; margin:14px 0; flex-wrap:wrap;}
+input[type=range]{flex:1; min-width:160px; accent-color:var(--path);}
+.readout{font-family:'JetBrains Mono',monospace; font-size:.85rem; background:var(--bg-panel-2); padding:6px 12px; border-radius:8px; border:1px solid var(--line); min-width:120px; text-align:center;}
+
+/* ---------- interactive blocks ---------- */
+.interactive-block{
+  border:1px solid var(--path); border-radius:var(--radius); padding:24px; margin:30px 0;
+  background:linear-gradient(180deg, rgba(156,143,255,0.06), transparent);
+}
+.interactive-block .tag{
+  font-family:'JetBrains Mono',monospace; font-size:.7rem; text-transform:uppercase; letter-spacing:.08em;
+  color:var(--path); margin-bottom:10px; display:block;
+}
+
+/* matching exercise */
+.match-grid{display:grid; grid-template-columns:1fr 1fr; gap:30px; margin-top:18px;}
+@media (max-width:640px){.match-grid{grid-template-columns:1fr;}}
+.match-col h5{font-size:.75rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:.08em; font-family:'JetBrains Mono',monospace; margin-bottom:10px;}
+.match-item{
+  display:block; width:100%; text-align:left; padding:10px 14px; margin-bottom:8px;
+  background:var(--bg-panel-2); border:1px solid var(--line); border-radius:10px; color:var(--text);
+  cursor:pointer; font-size:.9rem;
+}
+.match-item.selected{border-color:var(--path); box-shadow:0 0 0 1px var(--path);}
+.match-item.correct{border-color:var(--signal); background:rgba(195,255,107,0.08);}
+.match-item.wrong{border-color:var(--error); background:rgba(255,107,107,0.08);}
+
+/* quiz */
+.quiz-q{margin:18px 0 26px;}
+.quiz-q p.question{font-weight:600; margin-bottom:10px;}
+.quiz-opt{
+  display:block; width:100%; text-align:left; padding:10px 14px; margin-bottom:8px;
+  background:var(--bg-panel-2); border:1px solid var(--line); border-radius:10px; color:var(--text);
+  cursor:pointer; font-size:.9rem;
+}
+.quiz-opt:hover{border-color:var(--path);}
+.quiz-opt.correct{border-color:var(--signal); background:rgba(195,255,107,0.1);}
+.quiz-opt.wrong{border-color:var(--error); background:rgba(255,107,107,0.1);}
+.quiz-feedback{font-size:.85rem; padding:10px 14px; border-radius:8px; margin-top:6px; display:none;}
+.quiz-feedback.show{display:block;}
+.quiz-feedback.ok{background:rgba(195,255,107,0.1); color:var(--signal);}
+.quiz-feedback.no{background:rgba(255,107,107,0.1); color:var(--error);}
+
+/* explain back */
+.explain-back textarea{
+  width:100%; min-height:90px; background:var(--bg-panel-2); border:1px solid var(--line);
+  border-radius:10px; color:var(--text); padding:12px 14px; font-family:'Inter',sans-serif; font-size:.92rem; resize:vertical;
+}
+.model-answer{
+  margin-top:14px; padding:14px 16px; border-radius:10px; background:rgba(156,143,255,0.07);
+  border:1px solid var(--line); display:none; font-size:.9rem;
+}
+.model-answer.show{display:block;}
+
+/* details / reveal-the-why */
+details{margin:16px 0; border:1px solid var(--line); border-radius:10px; padding:4px 16px; background:var(--bg-panel);}
+details summary{cursor:pointer; padding:10px 0; font-weight:600; font-size:.9rem; color:var(--path);}
+details[open] summary{color:var(--valley);}
+details p{margin-top:0;}
+
+/* flashcards */
+.flash-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px; margin:20px 0;}
+.flashcard{
+  perspective:800px; height:130px; cursor:pointer;
+}
+.flashcard-inner{position:relative; width:100%; height:100%; transition:transform .5s; transform-style:preserve-3d;}
+.flashcard.flipped .flashcard-inner{transform:rotateY(180deg);}
+.flash-face{
+  position:absolute; inset:0; backface-visibility:hidden; border-radius:12px; border:1px solid var(--line);
+  display:flex; align-items:center; justify-content:center; text-align:center; padding:12px; font-size:.9rem;
+  background:var(--bg-panel-2);
+}
+.flash-face.back{transform:rotateY(180deg); background:rgba(43,217,194,0.08); font-size:.8rem; color:var(--text-dim);}
+
+/* sortable */
+.sortable-list{list-style:none; margin:16px 0; padding:0; display:flex; flex-direction:column; gap:8px;}
+.sortable-list li{
+  display:flex; justify-content:space-between; align-items:center; background:var(--bg-panel-2);
+  border:1px solid var(--line); border-radius:10px; padding:10px 14px; font-size:.88rem;
+}
+.sortable-list li .move-btns{display:flex; gap:4px;}
+.sortable-list li button{background:none; border:1px solid var(--line); color:var(--text-dim); border-radius:6px; width:26px; height:26px; cursor:pointer;}
+.sortable-list li button:hover{color:var(--path); border-color:var(--path);}
+.sortable-list.correct li{border-color:var(--signal);}
+
+footer{padding:60px 0 100px; text-align:center; color:var(--text-dim); font-size:.85rem;}
+
+/* hero */
+#hero{padding-top:120px; text-align:left;}
+.hero-title{font-size:clamp(2.2rem,5.4vw,3.6rem); margin-bottom:.4em;}
+.hero-sub{font-size:1.15rem; color:var(--text-dim); max-width:640px;}
+.badge-row{display:flex; gap:12px; flex-wrap:wrap; margin:26px 0;}
+.badge{
+  font-family:'JetBrains Mono',monospace; font-size:.78rem; padding:8px 16px; border-radius:30px;
+  border:1px solid var(--line); display:flex; align-items:center; gap:8px;
+}
+.roadmap-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:14px; margin-top:30px;}
+.roadmap-card{
+  border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px; background:var(--bg-panel);
+  text-decoration:none; color:var(--text); display:block; transition:transform .15s, border-color .15s;
+}
+.roadmap-card:hover{transform:translateY(-3px); border-color:var(--path);}
+.roadmap-card .n{font-family:'JetBrains Mono',monospace; color:var(--text-dim); font-size:.75rem;}
+.roadmap-card h5{margin:.3em 0; font-family:'Fraunces',serif; font-size:1.05rem;}
+.roadmap-card p{font-size:.82rem; color:var(--text-dim); margin:0;}
+
+/* misc */
+.center{text-align:center;}
+.small{font-size:.85rem;}
+.math-block{
+  background:var(--bg-panel-2); border:1px solid var(--line); border-radius:10px;
+  padding:16px 20px; margin:18px 0; overflow-x:auto; text-align:center;
+}
+.math-block.left{text-align:left;}
+.katex{font-size:1.05em;}
+.math-row{display:flex; gap:18px; flex-wrap:wrap; align-items:center; margin:18px 0;}
+.math-row .math-block{flex:1; min-width:220px; margin:0;}
+</style>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+</head>
+<body>
+<div id="progressBar"></div>
+<nav id="chapterNav" aria-label="Chapter navigation"></nav>
+
+<main class="wrap">
+<section id="hero" class="chapter reveal" data-chapter="0" data-title="The Big Picture">
+  <div class="eyebrow"><span class="num">CH 00</span> THE BIG PICTURE</div>
+  <h1 class="hero-title">The Art of Finding<br>the <span style="color:var(--valley)">Best</span> Answer</h1>
+  <p class="hero-sub">Optimization is the math of climbing down a landscape you can't fully see, using only what the ground feels like under your feet. That's it. Everything else in this course is detail.</p>
+
+  <div class="badge-row">
+    <span class="badge">⏱️ ~95 min to mastery</span>
+    <span class="badge">📐 10 chapters</span>
+    <span class="badge">🧠 No calculus background required</span>
+  </div>
+
+  <div class="diagram-frame">
+    <svg id="heroLandscape" viewBox="0 0 800 320" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="An animated topographic landscape with a marked lowest valley">
+      <defs>
+        <linearGradient id="landGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#1A2233"/>
+          <stop offset="100%" stop-color="#0A0E14"/>
+        </linearGradient>
+      </defs>
+      <rect width="800" height="320" fill="url(#landGrad)"/>
+      <path id="heroContour1" d="M0,220 C100,180 180,260 280,230 C380,200 420,120 520,140 C620,160 680,210 800,190" fill="none" stroke="var(--line)" stroke-width="1.5"/>
+      <path id="heroContour2" d="M0,250 C100,210 180,290 280,260 C380,230 420,150 520,170 C620,190 680,240 800,220" fill="none" stroke="var(--line)" stroke-width="1.5"/>
+      <path id="heroTerrain" d="M0,260 C100,220 180,300 280,270 C380,240 420,90 520,110 C620,130 680,250 800,200 L800,320 L0,320 Z" fill="rgba(156,143,255,0.07)" stroke="var(--path)" stroke-width="2"/>
+      <circle cx="280" cy="270" r="7" fill="var(--valley)"/>
+      <text x="280" y="296" text-anchor="middle" class="mono" fill="var(--valley)" font-size="12">the goal: lowest point</text>
+      <circle id="heroBall" cx="60" cy="232" r="9" fill="var(--summit)"/>
+      <text x="60" y="216" text-anchor="middle" class="mono" fill="var(--summit)" font-size="12">θ (you)</text>
+    </svg>
+  </div>
+  <p class="diagram-caption">Animation: a point (θ) rolls from a random start to the lowest valley in the landscape — this is optimization in one picture. <button class="replay-btn" onclick="playHeroAnim()">↻ Replay</button></p>
+
+  <div class="analogy-card">
+    <div class="icon">🥾</div>
+    <div>
+      <h4>The one-sentence version</h4>
+      <p>Imagine you're dropped on a hill in thick fog and told "find the lowest point." You can't see the map — but you <em>can</em> feel which way the ground tilts under your boots. Optimization is the rulebook for using that local "tilt" information to find the best spot, step by step, even when you can't see the whole landscape at once.</p>
+    </div>
+  </div>
+
+  <h3>A problem you actually care about</h3>
+  <p>Every time your maps app finds the fastest route, your music app tunes a recommendation, or an AI model "learns" from examples, the same machine is running underneath: define a score for "how good is this answer," then use the local slope of that score to walk toward something better. Training a large language model is, mechanically, millions of tiny downhill steps on an enormous landscape of numbers — the exact same idea you're about to learn on a single hill.</p>
+
+  <h3>Your route through this course</h3>
+  <div class="roadmap-grid" id="roadmapGrid">
+    <a class="roadmap-card" href="#ch1"><div class="n">01</div><h5>Better vs. Best</h5><p>Defining what "good" even means with a score.</p></a>
+    <a class="roadmap-card" href="#ch2"><div class="n">02</div><h5>Slope: the Compass</h5><p>How a single number tells you which way to step.</p></a>
+    <a class="roadmap-card" href="#ch3"><div class="n">03</div><h5>The Gradient</h5><p>Slope, but for landscapes with more than one direction.</p></a>
+    <a class="roadmap-card" href="#ch4"><div class="n">04</div><h5>Valleys &amp; False Valleys</h5><p>Why "stuck" doesn't always mean "done."</p></a>
+    <a class="roadmap-card" href="#ch5"><div class="n">05</div><h5>Playing by the Rules</h5><p>Optimizing when you're tied to a constraint.</p></a>
+    <a class="roadmap-card" href="#ch6"><div class="n">06</div><h5>Smarter Steps</h5><p>Step size, overshoot, and momentum.</p></a>
+    <a class="roadmap-card" href="#ch7"><div class="n">07</div><h5>Curvature</h5><p>Newton's method: stepping using the shape of the bend.</p></a>
+    <a class="roadmap-card" href="#ch8"><div class="n">08</div><h5>Noisy Steps</h5><p>Stochastic gradient descent for huge datasets.</p></a>
+    <a class="roadmap-card" href="#ch9"><div class="n">09</div><h5>Expert Synthesis</h5><p>From one hill to training real AI models.</p></a>
+  </div>
+</section>
+<section id="ch1" class="chapter reveal" data-chapter="1" data-accent="valley" data-title="Better vs. Best">
+  <div class="eyebrow"><span class="num">CH 01</span> THE FIRST IDEA</div>
+  <span class="chapter-badge">⏱️ 8 min</span>
+  <h2>Better vs. Best</h2>
+  <p>Before you can find the "best" anything, you need a single number that tells you how good a candidate answer is. Without that number, "optimize" is meaningless — there's nothing to compare.</p>
+
+  <div class="math-block">
+    $$ \theta^* = \arg\min_{\theta} \; f(\theta) $$
+  </div>
+  <p class="small dim center" style="margin-top:-10px;">Read this as: "$\theta^*$ (the best answer) is whichever $\theta$ makes the objective function $f(\theta)$ as small as possible." For our omelette, $\theta$ is the cooking time and $f(\theta)$ is "badness" (negative yumminess).</p>
+
+  <div class="misconception">
+    <div class="think">
+      <h4>What you think</h4>
+      <p>Optimization means trying different answers until one "feels right," like guessing a password.</p>
+    </div>
+    <div class="real">
+      <h4>What's actually true</h4>
+      <p>Optimization means defining a score (called the <strong>objective function</strong>) for every possible answer, then using the <em>shape</em> of that score — not guesswork — to systematically walk toward a better one.</p>
+    </div>
+  </div>
+
+  <div class="analogy-card">
+    <div class="icon">⛳</div>
+    <div>
+      <h4>Feynman analogy #1 — golf score</h4>
+      <p>In golf, lower is better — your score is a number you want to <em>minimize</em>. In the high jump, higher is better — you want to <em>maximize</em>. Both sports have exactly one thing in common: a single number that tells you, instantly, whether one attempt beat another. That number is the objective function. Optimization never argues about "good" in the abstract — it always reduces the question to "is this number better than that number?"</p>
+    </div>
+  </div>
+
+  <div class="analogy-card">
+    <div class="icon">🍳</div>
+    <div>
+      <h4>Feynman analogy #2 — the omelette</h4>
+      <p>Say you're optimizing "how long to cook an omelette." Too little time: runny. Too much time: rubbery. There's a sweet spot in the middle. Plot "yumminess" against "cooking time" and you get a hill, not a straight line — yumminess goes up, peaks, then comes back down. That hill shape <em>is</em> the objective function for this problem, and the peak is what you're hunting for.</p>
+    </div>
+  </div>
+
+  <div class="diagram-frame">
+    <svg viewBox="0 0 700 220" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A curve showing omelette yumminess rising then falling as cooking time increases, peaking at the ideal time">
+      <rect width="700" height="220" fill="transparent"/>
+      <line x1="50" y1="190" x2="660" y2="190" stroke="var(--line)" stroke-width="1.5"/>
+      <line x1="50" y1="190" x2="50" y2="20" stroke="var(--line)" stroke-width="1.5"/>
+      <text x="660" y="208" fill="var(--text-dim)" font-size="11" text-anchor="end" class="mono">cooking time →</text>
+      <text x="30" y="20" fill="var(--text-dim)" font-size="11" text-anchor="end" class="mono">yumminess</text>
+      <path d="M60,180 C160,60 260,30 350,30 C440,30 540,60 640,180" fill="none" stroke="var(--summit)" stroke-width="3"/>
+      <circle cx="350" cy="30" r="7" fill="var(--valley)"/>
+      <text x="350" y="14" text-anchor="middle" fill="var(--valley)" font-size="11" class="mono">the optimum</text>
+    </svg>
+    <p class="diagram-caption">The objective function for "omelette yumminess" — a hill with one best point.</p>
+  </div>
+
+  <div class="media-row">
+    <figure class="media-card">
+      <img src="https://picsum.photos/seed/golfscore/800/400" alt="A golf scorecard and ball on a green, representing a single score used to judge an attempt" loading="lazy">
+      <figcaption>A score is just a number you agree to chase up or down.</figcaption>
+    </figure>
+    <figure class="media-card loop-gif">
+      <svg viewBox="0 0 200 200" width="140" height="140">
+        <circle cx="100" cy="100" r="60" fill="none" stroke="var(--summit)" stroke-width="4" stroke-dasharray="10 8">
+          <animateTransform attributeName="transform" type="rotate" from="0 100 100" to="360 100 100" dur="3s" repeatCount="indefinite"/>
+        </circle>
+        <text x="100" y="106" text-anchor="middle" fill="var(--text)" font-size="22" class="mono">f(x)</text>
+      </svg>
+    </figure>
+  </div>
+
+  <div class="sticking">
+    <h4>⚡ Common Sticking Point</h4>
+    <p>People often confuse "the objective function" with "the answer." It's neither — it's the <em>ruler</em> you use to measure answers. The omelette's cooking time is the answer you're searching for; "yumminess" is the ruler. Mixing these up is the single most common reason beginners get lost in every chapter that follows, so it's worth re-reading this paragraph twice.</p>
+  </div>
+
+  <div class="interactive-block" id="match1">
+    <span class="tag">Interactive · Match the term</span>
+    <h3 style="margin-top:0">Match each term to its meaning</h3>
+    <p class="small dim">Click a term on the left, then click the meaning you think pairs with it.</p>
+    <div class="match-grid">
+      <div class="match-col">
+        <h5>Term</h5>
+        <button class="match-item" data-pair="obj">Objective function</button>
+        <button class="match-item" data-pair="min">Minimum</button>
+        <button class="match-item" data-pair="max">Maximum</button>
+        <button class="match-item" data-pair="param">Parameter</button>
+      </div>
+      <div class="match-col">
+        <h5>Meaning</h5>
+        <button class="match-item" data-pair="param">The input you're allowed to adjust (e.g. cooking time)</button>
+        <button class="match-item" data-pair="obj">The single score used to compare candidate answers</button>
+        <button class="match-item" data-pair="max">The highest score a function reaches in a region</button>
+        <button class="match-item" data-pair="min">The lowest score a function reaches in a region</button>
+      </div>
+    </div>
+    <p class="small dim" id="match1status" style="margin-top:10px;">0 of 4 matched.</p>
+  </div>
+
+  <details>
+    <summary>Reveal the why: why does the goal switch between "minimize" and "maximize"?</summary>
+    <p>It's purely a labeling choice — and you can always flip one into the other. Maximizing "yumminess" is identical to minimizing "negative yumminess." That's why almost every optimization textbook only ever talks about <em>minimizing</em>: any maximization problem can be rewritten as a minimization problem just by flipping the sign of the score.</p>
+  </details>
+
+  <div class="interactive-block explain-back">
+    <span class="tag">Teach it back</span>
+    <h3 style="margin-top:0">In your own words: what is an objective function, and why do you need one before you can optimize anything?</h3>
+    <textarea id="explain1" placeholder="Type your explanation here..."></textarea>
+    <div class="slider-row">
+      <button class="btn ghost" onclick="revealModel('model1')">Compare with a model answer</button>
+    </div>
+    <div class="model-answer" id="model1">
+      An objective function is the single number that turns "which answer is better?" into a comparison of two numbers. You need it first because optimization has no other way to judge progress — every later technique (slopes, gradients, constraints) is just a smarter way of moving across the score this function defines.
+    </div>
+  </div>
+
+  <div class="interactive-block quiz-block" data-quiz="q1">
+    <span class="tag">Did you get it?</span>
+    <div class="quiz-q" data-correct="1">
+      <p class="question">1. You're optimizing delivery-truck routes to minimize total fuel cost. What is the objective function here?</p>
+      <button class="quiz-opt" data-i="0">The map of the city</button>
+      <button class="quiz-opt" data-i="1">The total fuel cost of a given route</button>
+      <button class="quiz-opt" data-i="2">The truck's GPS coordinates</button>
+      <div class="quiz-feedback"></div>
+    </div>
+    <div class="quiz-q" data-correct="2">
+      <p class="question">2. If higher is better, what do we usually do to use the standard "minimize" toolbox?</p>
+      <button class="quiz-opt" data-i="0">Nothing, the toolbox only works for maximizing</button>
+      <button class="quiz-opt" data-i="1">Square the score</button>
+      <button class="quiz-opt" data-i="2">Minimize the negative of the score</button>
+      <div class="quiz-feedback"></div>
+    </div>
+  </div>
+
+  <div class="worked">
+    <h4>Worked example — finding the omelette optimum exactly</h4>
+    <p>Suppose careful measurement gives the badness function $f(t) = (t-4)^2 + 1$, where $t$ is cooking time in minutes. To find $t^*$:</p>
+    <ol>
+      <li>Differentiate: $f'(t) = 2(t-4)$.</li>
+      <li>Set the derivative to zero (flat ground — the candidate optimum): $2(t-4)=0 \Rightarrow t=4$.</li>
+      <li>Check it's a minimum, not a maximum: $f''(t) = 2 > 0$ everywhere, so the curve is convex (bowl-shaped) and $t=4$ is guaranteed to be the global minimum.</li>
+      <li>Confirm: $f(4) = 0 + 1 = 1$, the lowest possible badness.</li>
+    </ol>
+    <p class="small dim" style="margin-top:.6em;">Four minutes, badness score of 1 — no guessing required, just the three-step recipe: differentiate, set to zero, check the second derivative's sign.</p>
+  </div>
+
+  <div class="takeaway">
+    <h4>Key takeaway</h4>
+    <p>Every optimization problem starts with one decision: what single number am I trying to push up or down? Everything else in this course is just smarter and smarter ways of moving along that number's shape.</p>
+  </div>
+</section>
+<section id="ch2" class="chapter reveal" data-chapter="2" data-accent="path" data-title="Slope: the Compass">
+  <div class="eyebrow"><span class="num">CH 02</span> ONE NEW IDEA</div>
+  <span class="chapter-badge">⏱️ 10 min</span>
+  <h2>Slope: the Compass of Change</h2>
+  <p>Now that you have a score to chase, you need a way to know which direction improves it without checking every possible answer. That's the job of the <strong>slope</strong>.</p>
+
+  <div class="math-block">
+    $$ f'(x) = \lim_{h \to 0} \frac{f(x+h) - f(x)}{h} $$
+  </div>
+  <p class="small dim center" style="margin-top:-10px;">In plain words: take a tiny step $h$ forward, see how much the height $f(x)$ changed, divide by the size of the step, then imagine shrinking that step to nothing. What's left is the slope at exactly that point.</p>
+
+  <div class="misconception">
+    <div class="think">
+      <h4>What you think</h4>
+      <p>"Derivative" is some scary symbol-pushing thing — or worse, it's confused with the area under a curve.</p>
+    </div>
+    <div class="real">
+      <h4>What's actually true</h4>
+      <p>A derivative is just the steepness of the ground right where you're standing — a single number that says "tilting up" (positive), "tilting down" (negative), or "flat" (zero). Nothing more mystical than that.</p>
+    </div>
+  </div>
+
+  <div class="analogy-card">
+    <div class="icon">🦶</div>
+    <div>
+      <h4>Feynman analogy #1 — blindfolded on a hill</h4>
+      <p>Close your eyes on a grassy slope. You don't need a map to know which way is "downhill from here" — your feet feel the tilt. The derivative is that feeling, written as a number: how much the height changes for a tiny step forward.</p>
+    </div>
+  </div>
+
+  <div class="analogy-card">
+    <div class="icon">🚗</div>
+    <div>
+      <h4>Feynman analogy #2 — the speedometer</h4>
+      <p>Your car's odometer tells you total distance (like the function's value). Your speedometer tells you how fast that distance is changing <em>right now</em> (like the derivative). You never need to know the whole trip to read the speedometer — just this instant. That's exactly what a derivative measures about any curve: not the trip, just this instant's rate of change.</p>
+    </div>
+  </div>
+
+  <div class="interactive-block" id="slopeLab">
+    <span class="tag">Interactive · Slider morphs the diagram</span>
+    <h3 style="margin-top:0">Drag the point and watch the slope line follow</h3>
+    <div class="diagram-frame">
+      <svg id="slopeSvg" viewBox="0 0 700 260" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A curve with a movable point and its tangent line showing the local slope">
+        <line x1="40" y1="230" x2="660" y2="230" stroke="var(--line)" stroke-width="1"/>
+        <path id="slopeCurve" fill="none" stroke="var(--path)" stroke-width="3"/>
+        <line id="tangentLine" stroke="var(--summit)" stroke-width="2.5" stroke-dasharray="0"/>
+        <circle id="slopeDot" r="8" fill="var(--valley)"/>
+      </svg>
+    </div>
+    <div class="slider-row">
+      <label for="slopeX" class="mono small dim">x position</label>
+      <input type="range" id="slopeX" min="0" max="100" value="20">
+      <span class="readout" id="slopeReadout">slope ≈ 0.00</span>
+    </div>
+    <p class="small dim">The curve is f(x) = (x − 50)² / 200 + 1. As you slide, the dashed amber line is the <em>tangent</em> — the straight-line approximation of the curve right at that point. Its steepness is the derivative's value.</p>
+  </div>
+
+  <div class="math-row">
+    <div class="math-block left">
+      $$ f(x) = \frac{(x-50)^2}{200} + 1 $$
+    </div>
+    <div class="math-block left">
+      $$ f'(x) = \frac{x-50}{100} $$
+    </div>
+  </div>
+  <p class="small dim">Using the power rule, $\frac{d}{dx}(x-50)^2 = 2(x-50)$, and dividing by 200 gives $f'(x)=\frac{2(x-50)}{200}=\frac{x-50}{100}$. Plug in any x from the slider above and you'll get exactly the slope shown in the readout.</p>
+
+  <div class="media-row">
+    <figure class="media-card">
+      <img src="https://picsum.photos/seed/speedometer/800/400" alt="Close-up of a car speedometer needle, representing an instantaneous rate of change" loading="lazy">
+      <figcaption>A speedometer is a derivative you can read at a glance.</figcaption>
+    </figure>
+    <figure class="media-card loop-gif">
+      <svg viewBox="0 0 200 200" width="160" height="120">
+        <polyline id="miniSlopeLine" points="20,150 180,30" stroke="var(--summit)" stroke-width="4" fill="none"/>
+        <path d="M10,170 Q100,10 190,170" stroke="var(--path)" stroke-width="3" fill="none">
+          <animate attributeName="d" values="M10,170 Q100,10 190,170;M10,160 Q100,40 190,160;M10,170 Q100,10 190,170" dur="2.4s" repeatCount="indefinite"/>
+        </path>
+      </svg>
+    </figure>
+  </div>
+
+  <div class="sticking">
+    <h4>⚡ Common Sticking Point</h4>
+    <p>The phrase "rate of change" trips people up because it sounds like it needs two points in time. It doesn't — a derivative is defined at a <em>single instant</em>, by imagining a step so tiny it's basically zero. Don't picture "before and after"; picture "right here, right now, leaning."</p>
+  </div>
+
+  <details>
+    <summary>Reveal the why: why does a slope of zero matter so much?</summary>
+    <p>A slope of zero means the ground is flat right where you're standing — you're not currently tilted up or down. That's exactly the signature of a hilltop, a valley floor, or a flat plateau. Every optimization algorithm in this course is, underneath, searching for the spot where the slope hits zero.</p>
+  </details>
+
+  <div class="interactive-block explain-back">
+    <span class="tag">Teach it back</span>
+    <h3 style="margin-top:0">In your own words: what does a derivative actually tell you, and why is "slope of zero" significant?</h3>
+    <textarea id="explain2" placeholder="Type your explanation here..."></textarea>
+    <div class="slider-row"><button class="btn ghost" onclick="revealModel('model2')">Compare with a model answer</button></div>
+    <div class="model-answer" id="model2">
+      A derivative tells you the steepness of a curve at one exact point — whether you're tilted up, down, or flat, and by how much. A slope of zero is significant because it marks the only places a smooth curve can have a peak, a valley, or a flat plateau — which is exactly what optimization is hunting for.
+    </div>
+  </div>
+
+  <div class="interactive-block quiz-block" data-quiz="q2">
+    <span class="tag">Did you get it?</span>
+    <div class="quiz-q" data-correct="2">
+      <p class="question">1. The slope at a point is −3. What does that tell you?</p>
+      <button class="quiz-opt" data-i="0">The function's value is −3</button>
+      <button class="quiz-opt" data-i="1">The function is increasing steeply</button>
+      <button class="quiz-opt" data-i="2">The function is decreasing as x increases at that point</button>
+      <div class="quiz-feedback"></div>
+    </div>
+    <div class="quiz-q" data-correct="1">
+      <p class="question">2. Which of these is the best everyday analogy for a derivative?</p>
+      <button class="quiz-opt" data-i="0">An odometer's total mileage</button>
+      <button class="quiz-opt" data-i="1">A speedometer's instantaneous reading</button>
+      <button class="quiz-opt" data-i="2">A fuel tank's total capacity</button>
+      <div class="quiz-feedback"></div>
+    </div>
+  </div>
+
+  <div class="worked">
+    <h4>Worked example — the limit definition, by hand</h4>
+    <p>Let's derive $f'(x)$ for $f(x) = x^2$ directly from the limit definition, with no shortcuts:</p>
+    <ol>
+      <li>Write out the difference quotient: $\dfrac{f(x+h)-f(x)}{h} = \dfrac{(x+h)^2 - x^2}{h}$.</li>
+      <li>Expand $(x+h)^2 = x^2 + 2xh + h^2$, so the numerator becomes $2xh + h^2$.</li>
+      <li>Divide by $h$: $\dfrac{2xh+h^2}{h} = 2x + h$.</li>
+      <li>Let $h \to 0$: only $2x$ survives, so $f'(x) = 2x$.</li>
+    </ol>
+    <p class="small dim" style="margin-top:.6em;">This is exactly where the "power rule" you may have memorized — bring the exponent down, subtract one from it — actually comes from: $\frac{d}{dx}x^2 = 2x^{2-1} = 2x$, not a magic rule but a shortcut for this limit.</p>
+  </div>
+
+  <div class="takeaway">
+    <h4>Key takeaway</h4>
+    <p>The derivative is a local compass: a single number, recalculated at every point, that tells you whether stepping forward makes things better or worse — and zero is the universal signal for "you might be at a special point."</p>
+  </div>
+</section>
+<section id="ch3" class="chapter reveal" data-chapter="3" data-accent="path" data-title="The Gradient">
+  <div class="eyebrow"><span class="num">CH 03</span> INTERMEDIATE</div>
+  <span class="chapter-badge">⏱️ 12 min</span>
+  <h2>The Gradient: Slope in Many Directions</h2>
+  <p>A road only has one direction to walk: forward or back. A hillside has infinitely many. The <strong>gradient</strong> is what "slope" becomes when you're not stuck on a line.</p>
+
+  <div class="math-block">
+    $$ \nabla f(\theta) = \left[ \frac{\partial f}{\partial \theta_1}, \frac{\partial f}{\partial \theta_2}, \dots, \frac{\partial f}{\partial \theta_n} \right] $$
+  </div>
+  <p class="small dim center" style="margin-top:-10px;">The gradient $\nabla f$ is just a list of ordinary derivatives, one per direction — each $\frac{\partial f}{\partial \theta_i}$ asks "how steep is it if I only wiggle $\theta_i$ and freeze everything else?" Stack the answers into one vector and you get an arrow pointing uphill.</p>
+
+  <div class="misconception">
+    <div class="think">
+      <h4>What you think</h4>
+      <p>"Gradient descent" is some exotic AI-only trick, totally different from the slope you just learned.</p>
+    </div>
+    <div class="real">
+      <h4>What's actually true</h4>
+      <p>The gradient is exactly the same idea as the derivative — "which way is steepest" — just measured in every direction at once and combined into one arrow. Walking the opposite way that arrow points is the entire idea behind gradient descent.</p>
+    </div>
+  </div>
+
+  <div class="analogy-card">
+    <div class="icon">🧭</div>
+    <div>
+      <h4>Feynman analogy #1 — the hiker with two feet</h4>
+      <p>On a 2D hillside (not a road), one foot can feel "steeper this way," the other foot "steeper that way." Combine both feelings into a single arrow pointing in the steepest uphill direction — that arrow is the gradient. Walk exactly opposite to it, and you're guaranteed to be heading downhill as fast as locally possible.</p>
+    </div>
+  </div>
+
+  <div class="analogy-card">
+    <div class="icon">💧</div>
+    <div>
+      <h4>Feynman analogy #2 — water finding its way</h4>
+      <p>Pour water on a hillside. It doesn't consult a map; at every point it simply flows in the steepest downhill direction available right there. Gradient descent is water, simulated with arithmetic.</p>
+    </div>
+  </div>
+
+  <div class="interactive-block" id="gdLab1">
+    <span class="tag">Interactive · Live playground</span>
+    <h3 style="margin-top:0">Gradient descent simulator</h3>
+    <p class="small dim">Pick a starting point and a step size (learning rate), then press Step or Run. Watch θ roll toward the bottom using nothing but the local slope at each point.</p>
+    <div class="diagram-frame">
+      <svg id="gdSvg" viewBox="0 0 700 280" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Gradient descent simulation: a ball rolling down a curve toward its minimum">
+        <line x1="30" y1="250" x2="670" y2="250" stroke="var(--line)" stroke-width="1"/>
+        <path id="gdCurve" fill="none" stroke="var(--path)" stroke-width="3"/>
+        <circle id="gdMinMarker" r="5" fill="var(--valley)"/>
+        <line id="gdArrow" stroke="var(--summit)" stroke-width="2" marker-end="url(#arrowhead)"/>
+        <defs>
+          <marker id="arrowhead" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+            <path d="M0,0 L8,4 L0,8 Z" fill="var(--summit)"/>
+          </marker>
+        </defs>
+        <circle id="gdBall" r="9" fill="var(--summit)"/>
+        <path id="gdTrail" fill="none" stroke="var(--summit)" stroke-width="1.5" stroke-dasharray="3 3" opacity="0.5"/>
+      </svg>
+    </div>
+    <div class="slider-row">
+      <label class="mono small dim" for="gdStart">start x</label>
+      <input type="range" id="gdStart" min="0" max="100" value="8">
+      <label class="mono small dim" for="gdRate">learning rate</label>
+      <input type="range" id="gdRate" min="1" max="40" value="12">
+      <span class="readout" id="gdReadout">step 0</span>
+    </div>
+    <div class="slider-row">
+      <button class="btn" onclick="gdStep()">Step ▸</button>
+      <button class="btn" onclick="gdRun()">Run ▸▸</button>
+      <button class="btn ghost" onclick="gdReset()">↻ Reset</button>
+    </div>
+  </div>
+
+  <div class="math-block">
+    $$ \theta_{\,t+1} = \theta_t \;-\; \alpha \, \nabla f(\theta_t) $$
+  </div>
+  <p class="small dim center" style="margin-top:-10px;">The entire gradient descent algorithm in one line: take your current position $\theta_t$, subtract the gradient (scaled by a learning rate $\alpha$), and that's your next position $\theta_{t+1}$. Press "Step" above and watch this exact formula run, one step at a time.</p>
+
+  <div class="media-row">
+    <figure class="media-card">
+      <img src="https://picsum.photos/seed/contourmap/800/400" alt="A topographic contour map showing hills and valleys from above" loading="lazy">
+      <figcaption>Contour lines are how you'd draw a gradient field from above.</figcaption>
+    </figure>
+    <figure class="media-card loop-gif">
+      <svg viewBox="0 0 200 160" width="160" height="120">
+        <g>
+          <circle cx="100" cy="80" r="6" fill="var(--summit)">
+            <animateMotion dur="2.6s" repeatCount="indefinite" path="M0,-40 C 40,-40 40,40 0,40 C -40,40 -40,-40 0,-40"/>
+          </circle>
+          <ellipse cx="100" cy="80" rx="40" ry="40" fill="none" stroke="var(--line)" stroke-width="1.5"/>
+          <ellipse cx="100" cy="80" rx="25" ry="25" fill="none" stroke="var(--line)" stroke-width="1.5"/>
+        </g>
+      </svg>
+    </figure>
+  </div>
+
+  <div class="sticking">
+    <h4>⚡ Common Sticking Point</h4>
+    <p>The minus sign in "θ_new = θ_old − rate × gradient" confuses almost everyone the first time. The gradient points <em>uphill</em> (steepest increase) by definition — so to go downhill, you must walk in the <em>opposite</em> direction, which is why the formula subtracts it. Forgetting that minus sign is the single most common bug in real gradient descent code.</p>
+  </div>
+
+  <details>
+    <summary>Reveal the why: what happens if you pick a learning rate that's too big?</summary>
+    <p>You'll see in the simulator above — too large a step and θ leaps clean over the valley to the opposite slope, sometimes landing higher than it started. Chapter 6 dedicates itself entirely to this exact problem.</p>
+  </details>
+
+  <div class="interactive-block explain-back">
+    <span class="tag">Teach it back</span>
+    <h3 style="margin-top:0">In your own words: how does gradient descent decide which way to move, and why is there a minus sign?</h3>
+    <textarea id="explain3" placeholder="Type your explanation here..."></textarea>
+    <div class="slider-row"><button class="btn ghost" onclick="revealModel('model3')">Compare with a model answer</button></div>
+    <div class="model-answer" id="model3">
+      At every point, gradient descent computes the gradient — the direction of steepest increase. Since the goal is usually to minimize, it moves in exactly the opposite direction, scaled by the learning rate. The minus sign is what flips "steepest uphill" into "steepest downhill."
+    </div>
+  </div>
+
+  <div class="interactive-block quiz-block" data-quiz="q3">
+    <span class="tag">Did you get it?</span>
+    <div class="quiz-q" data-correct="1">
+      <p class="question">1. The gradient at a point is a vector pointing toward (3, 4). To minimize, which direction should you step?</p>
+      <button class="quiz-opt" data-i="0">Toward (3, 4)</button>
+      <button class="quiz-opt" data-i="1">Toward (−3, −4)</button>
+      <button class="quiz-opt" data-i="2">It doesn't matter, any direction works</button>
+      <div class="quiz-feedback"></div>
+    </div>
+    <div class="quiz-q" data-correct="0">
+      <p class="question">2. What's the most accurate description of a gradient?</p>
+      <button class="quiz-opt" data-i="0">The slope, measured in every direction and combined into one steepest-direction arrow</button>
+      <button class="quiz-opt" data-i="1">The total distance traveled so far</button>
+      <button class="quiz-opt" data-i="2">A random direction used to escape bad answers</button>
+      <div class="quiz-feedback"></div>
+    </div>
+  </div>
+
+  <div class="worked">
+    <h4>Worked example — one gradient descent step in two dimensions</h4>
+    <p>Let $f(x,y) = x^2 + 2y^2$ and start at $\theta_0 = (3, 2)$ with learning rate $\alpha = 0.1$.</p>
+    <ol>
+      <li>Compute each partial derivative: $\frac{\partial f}{\partial x} = 2x$, $\frac{\partial f}{\partial y} = 4y$.</li>
+      <li>Evaluate at $\theta_0$: $\nabla f(3,2) = (2 \cdot 3,\; 4 \cdot 2) = (6, 8)$.</li>
+      <li>Apply the update rule: $\theta_1 = \theta_0 - \alpha \nabla f(\theta_0) = (3,2) - 0.1\,(6,8) = (3-0.6,\; 2-0.8) = (2.4,\; 1.2)$.</li>
+      <li>Check progress: $f(3,2) = 9+8=17$ and $f(2.4,1.2)=5.76+2.88=8.64$ — the score roughly halved in one step.</li>
+    </ol>
+    <p class="small dim" style="margin-top:.6em;">Notice the $y$-direction moved further (0.8) than the $x$-direction (0.6) — because the bowl is steeper along $y$ (coefficient 2 vs. 1), the gradient is naturally larger there, and a single learning rate automatically scales the step accordingly in each direction.</p>
+  </div>
+
+  <div class="takeaway">
+    <h4>Key takeaway</h4>
+    <p>The gradient generalizes "slope" to many directions at once and points uphill. Gradient descent is simply: find that arrow, walk the opposite way, repeat.</p>
+  </div>
+</section>
+<section id="ch4" class="chapter reveal" data-chapter="4" data-accent="summit" data-title="Valleys & False Valleys">
+  <div class="eyebrow"><span class="num">CH 04</span> INTERMEDIATE</div>
+  <span class="chapter-badge">⏱️ 11 min</span>
+  <h2>Valleys &amp; False Valleys</h2>
+  <p>Following the slope downhill always works locally. The uncomfortable truth is that "downhill from here" doesn't always lead to the lowest point that exists.</p>
+
+  <div class="math-block">
+    $$ f(\lambda x + (1-\lambda) y) \;\le\; \lambda f(x) + (1-\lambda) f(y), \quad \forall \lambda \in [0,1] $$
+  </div>
+  <p class="small dim center" style="margin-top:-10px;">This is the formal definition of a convex function: draw a straight line between any two points $x$ and $y$ on the curve, and the curve itself always lies on or below that line. A single round bowl always passes this test; an egg carton never does.</p>
+
+  <div class="misconception">
+    <div class="think">
+      <h4>What you think</h4>
+      <p>If gradient descent stops moving, it must have found the best possible answer.</p>
+    </div>
+    <div class="real">
+      <h4>What's actually true</h4>
+      <p>Gradient descent stops when the local slope is zero — but a bumpy landscape can have many flat-bottomed dips. It might have found <em>a</em> minimum, a "local" one, while a deeper "global" minimum sits untouched elsewhere on the map.</p>
+    </div>
+  </div>
+
+  <div class="analogy-card">
+    <div class="icon">🥣</div>
+    <div>
+      <h4>Feynman analogy #1 — marble in a bowl vs. an egg carton</h4>
+      <p>Drop a marble in a single round bowl: no matter where it starts, it always settles at the true bottom. That shape is called <strong>convex</strong>. Now drop the same marble into an egg carton: it settles into whichever dip it happened to land near — even if a deeper dip exists three slots over. Most real-world landscapes are egg cartons, not bowls.</p>
+    </div>
+  </div>
+
+  <div class="analogy-card">
+    <div class="icon">🏔️</div>
+    <div>
+      <h4>Feynman analogy #2 — fog on a mountain range</h4>
+      <p>In thick fog you can absolutely find the bottom of <em>a</em> valley using nothing but your feet. But you have no way of knowing, from inside that fog, whether a deeper valley exists two ridges over. That uncertainty isn't a bug in your method — it's a fundamental limit of only ever being able to see the ground right around you.</p>
+    </div>
+  </div>
+
+  <div class="interactive-block" id="convexLab">
+    <span class="tag">Interactive · Step-by-step walkthrough</span>
+    <h3 style="margin-top:0">Watch four starting points settle on a bumpy landscape</h3>
+    <div class="diagram-frame">
+      <svg id="convexSvg" viewBox="0 0 700 260" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A bumpy landscape with four marbles dropped at different starting points settling into different valleys">
+        <line x1="20" y1="230" x2="680" y2="230" stroke="var(--line)" stroke-width="1"/>
+        <path id="convexCurve" fill="none" stroke="var(--path)" stroke-width="3"/>
+        <g id="convexBalls"></g>
+      </svg>
+    </div>
+    <div class="slider-row">
+      <button class="btn" id="convexNextBtn" onclick="convexNext()">Next Step ▸</button>
+      <button class="btn ghost" onclick="convexReset()">↻ Reset</button>
+      <span class="readout" id="convexReadout">step 0 of 6</span>
+    </div>
+    <p class="small dim" id="convexCommentary">Four marbles are dropped at different starting points. Press "Next Step" to watch them roll downhill, one step at a time.</p>
+  </div>
+
+  <div class="media-row">
+    <figure class="media-card">
+      <img src="https://picsum.photos/seed/fogmountain/800/400" alt="A foggy mountain ridge where only the nearby terrain is visible" loading="lazy">
+      <figcaption>Fog limits what your local slope can tell you about the whole map.</figcaption>
+    </figure>
+    <figure class="media-card loop-gif">
+      <svg viewBox="0 0 200 140" width="160" height="110">
+        <path d="M0,100 Q30,40 60,100 Q90,20 120,100 Q150,60 200,100" fill="none" stroke="var(--path)" stroke-width="3"/>
+        <circle r="6" fill="var(--summit)">
+          <animateMotion dur="2.2s" repeatCount="indefinite" keyTimes="0;0.5;1" path="M5,55 Q15,95 30,98" calcMode="spline" keySplines="0.4 0 0.6 1; 0.4 0 0.6 1"/>
+        </circle>
+      </svg>
+    </figure>
+  </div>
+
+  <div class="sticking">
+    <h4>⚡ Common Sticking Point</h4>
+    <p>People assume convexity is rare and exotic. In practice many small, well-posed problems (like the omelette example) <em>are</em> convex bowls — it's specifically high-dimensional, real-world problems (like training a large model) where bumpy "egg carton" landscapes become the norm, which is exactly why later chapters introduce extra tricks to cope with that.</p>
+  </div>
+
+  <details>
+    <summary>Reveal the why: if local minima are a risk, why does gradient descent still work so well in practice?</summary>
+    <p>Two reasons: first, many practical landscapes are "mostly bowl-shaped" near a good answer even if not perfectly convex everywhere. Second, running the search from several different starting points (like the four marbles above) and keeping the best result found is a simple, surprisingly effective hedge against getting unlucky.</p>
+  </details>
+
+  <div class="interactive-block explain-back">
+    <span class="tag">Teach it back</span>
+    <h3 style="margin-top:0">In your own words: what's the difference between a local minimum and a global minimum, and why can't gradient descent always tell which one it found?</h3>
+    <textarea id="explain4" placeholder="Type your explanation here..."></textarea>
+    <div class="slider-row"><button class="btn ghost" onclick="revealModel('model4')">Compare with a model answer</button></div>
+    <div class="model-answer" id="model4">
+      A local minimum is just the bottom of whichever dip you're in; a global minimum is the deepest dip on the entire landscape. Gradient descent only ever feels the slope right around its current position, so once it lands somewhere with zero local slope, it has no way to "see" whether a deeper dip exists elsewhere — it can only report that it's stuck, not that it's optimal.
+    </div>
+  </div>
+
+  <div class="interactive-block quiz-block" data-quiz="q4">
+    <span class="tag">Did you get it?</span>
+    <div class="quiz-q" data-correct="1">
+      <p class="question">1. A landscape shaped like a single round bowl is called:</p>
+      <button class="quiz-opt" data-i="0">Bumpy</button>
+      <button class="quiz-opt" data-i="1">Convex</button>
+      <button class="quiz-opt" data-i="2">Tangent</button>
+      <div class="quiz-feedback"></div>
+    </div>
+    <div class="quiz-q" data-correct="2">
+      <p class="question">2. Why might you run gradient descent from several different starting points?</p>
+      <button class="quiz-opt" data-i="0">To make the algorithm run faster</button>
+      <button class="quiz-opt" data-i="1">Because the objective function changes each time</button>
+      <button class="quiz-opt" data-i="2">To reduce the risk of settling for a shallow local minimum instead of the global one</button>
+      <div class="quiz-feedback"></div>
+    </div>
+  </div>
+
+  <div class="worked">
+    <h4>Worked example — testing convexity with the second derivative</h4>
+    <p>Is $f(x) = x^4 - 4x^2$ convex? Let's check, and find its critical points along the way.</p>
+    <ol>
+      <li>First derivative: $f'(x) = 4x^3 - 8x$. Setting it to zero: $4x(x^2-2)=0$, giving three candidates — $x = 0,\ \sqrt{2},\ -\sqrt{2}$.</li>
+      <li>Second derivative: $f''(x) = 12x^2 - 8$.</li>
+      <li>Test each candidate's sign of $f''$: at $x=0$, $f''(0) = -8 < 0$ (a local <em>maximum</em> — a hilltop). At $x=\pm\sqrt{2}$, $f''(\sqrt2) = 12(2)-8 = 16 > 0$ (local minima).</li>
+      <li>Since $f''$ changes sign (negative near 0, positive further out), $f$ is <strong>not</strong> convex everywhere — it's exactly the "egg carton" shape from this chapter's analogy, with two separate valleys at $x=\pm\sqrt2$, both giving $f(\pm\sqrt2) = 4-8=-4$, tied for the global minimum.</li>
+    </ol>
+    <p class="small dim" style="margin-top:.6em;">This is precisely why gradient descent starting near $x=0.1$ would slide toward $x=\sqrt2$, while starting near $x=-0.1$ would slide toward $x=-\sqrt2$ — two different starting points, two different (but equally good) local minima.</p>
+  </div>
+
+  <div class="takeaway">
+    <h4>Key takeaway</h4>
+    <p>"Stopped moving" means "local slope is zero," not "found the best answer in the universe." Convex (bowl-shaped) problems guarantee the two are the same; bumpy real-world problems don't.</p>
+  </div>
+</section>
+<section id="ch5" class="chapter reveal" data-chapter="5" data-accent="fence" data-title="Playing by the Rules">
+  <div class="eyebrow"><span class="num">CH 05</span> ADVANCED</div>
+  <span class="chapter-badge">⏱️ 13 min</span>
+  <h2>Playing by the Rules: Constraints</h2>
+  <p>So far, θ has been free to roam anywhere. Real problems usually come with rules: a budget you can't exceed, a speed limit, a fixed amount of material. Optimizing <em>within</em> a boundary needs one more idea.</p>
+
+  <div class="math-block">
+    $$ \mathcal{L}(\theta, \lambda) = f(\theta) + \lambda \, g(\theta) $$
+    $$ \nabla f(\theta) = -\lambda \, \nabla g(\theta) $$
+  </div>
+  <p class="small dim center" style="margin-top:-10px;">$g(\theta)=0$ is the rule you must obey (the leash). The Lagrangian $\mathcal{L}$ glues the objective and the constraint together with a multiplier $\lambda$; setting its gradient to zero forces the second equation — the objective's gradient and the constraint's gradient must point in exactly opposite directions. That's the balance you felt in the sandbox below.</p>
+
+  <div class="misconception">
+    <div class="think">
+      <h4>What you think</h4>
+      <p>If you're restricted to a boundary, just check its corners — the best answer is always at a corner, like in a simple budget problem.</p>
+    </div>
+    <div class="real">
+      <h4>What's actually true</h4>
+      <p>That's only true when the boundary is made of straight edges. When the boundary is curved (a circle, a smooth limit), the best point is usually found in the curve's interior edge — at the exact spot where your "want to go this way" direction lines up with the boundary's own "this way is allowed" direction.</p>
+    </div>
+  </div>
+
+  <div class="analogy-card">
+    <div class="icon">🐕</div>
+    <div>
+      <h4>Feynman analogy #1 — walking a dog on a leash</h4>
+      <p>You want to reach a treat sitting just out of reach, but your dog's leash is a fixed length, tied to a post. You can't walk straight to the treat — you're stuck on a circle. The best spot on that circle is the one where, if you tried to take one more tiny step toward the treat, the leash itself would be exactly the thing stopping you — not your own laziness. That's the instant your "pull toward the treat" and the leash's "pull toward the post" are perfectly opposed.</p>
+    </div>
+  </div>
+
+  <div class="analogy-card">
+    <div class="icon">⚖️</div>
+    <div>
+      <h4>Feynman analogy #2 — balancing on a tightrope</h4>
+      <p>A tightrope walker isn't trying to go anywhere off the rope — every useful adjustment they make is <em>along</em> the rope. The moment their "I want to move this way" instinct points exactly perpendicular to the rope, they've found the most stable balance available on that rope. Constrained optimization is the same balance, just in numbers instead of physical balance.</p>
+    </div>
+  </div>
+
+  <div class="interactive-block" id="lagrangeLab">
+    <span class="tag">Interactive · Build-it-yourself sandbox</span>
+    <h3 style="margin-top:0">Drag the point around the leash (the constraint circle)</h3>
+    <p class="small dim">The gold star is the treat you want to reach. The point can only move along the circle (the leash). Watch the readout for when your direction and the leash's direction are perfectly balanced — that's the constrained optimum.</p>
+    <div class="diagram-frame">
+      <svg id="lagrangeSvg" viewBox="0 0 500 320" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A point constrained to a circle, draggable, with a target star showing the unconstrained goal">
+        <circle cx="250" cy="170" r="110" fill="none" stroke="var(--fence)" stroke-width="2.5"/>
+        <circle cx="250" cy="170" r="3" fill="var(--text-dim)"/>
+        <path id="lagrangeStar" d="M380,55 l6,14 l15,2 l-11,10 l3,15 l-13,-8 l-13,8 l3,-15 l-11,-10 l15,-2 z" fill="var(--summit)"/>
+        <line id="lagrangeWant" stroke="var(--path)" stroke-width="2.5" marker-end="url(#arrowhead2)"/>
+        <line id="lagrangeAllow" stroke="var(--fence)" stroke-width="2.5" stroke-dasharray="4 4"/>
+        <defs>
+          <marker id="arrowhead2" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+            <path d="M0,0 L8,4 L0,8 Z" fill="var(--path)"/>
+          </marker>
+        </defs>
+        <circle id="lagrangePoint" cx="140" cy="170" r="11" fill="var(--valley)" tabindex="0" style="cursor:grab;"/>
+      </svg>
+    </div>
+    <div class="slider-row">
+      <label class="mono small dim" for="lagrangeAngle">angle along the leash</label>
+      <input type="range" id="lagrangeAngle" min="0" max="359" value="180">
+      <span class="readout" id="lagrangeReadout">alignment: 0%</span>
+    </div>
+    <div class="slider-row">
+      <button class="btn" onclick="lagrangeSnap()">✨ Snap to the true optimum</button>
+    </div>
+  </div>
+
+  <div class="media-row">
+    <figure class="media-card">
+      <img src="https://picsum.photos/seed/tightrope/800/400" alt="A tightrope stretched between two points, representing motion restricted to a single path" loading="lazy">
+      <figcaption>Every useful move on a tightrope happens along the rope.</figcaption>
+    </figure>
+    <figure class="media-card loop-gif">
+      <svg viewBox="0 0 200 160" width="160" height="120">
+        <circle cx="100" cy="80" r="55" fill="none" stroke="var(--fence)" stroke-width="3"/>
+        <circle r="7" fill="var(--valley)">
+          <animateMotion dur="3.4s" repeatCount="indefinite" path="M0,-55 A55,55 0 1 1 0,55 A55,55 0 1 1 0,-55" rotate="auto"/>
+        </circle>
+      </svg>
+    </figure>
+  </div>
+
+  <div class="sticking">
+    <h4>⚡ Common Sticking Point</h4>
+    <p>Students often expect the constrained optimum to be the point on the circle <em>closest</em> to the unconstrained best answer. That's only an accident of perfectly circular, perfectly symmetric setups. In general, the balance condition (gradients pointing in exactly opposite, or perfectly aligned, directions) is the real rule — proximity is not.</p>
+  </div>
+
+  <details>
+    <summary>Reveal the why: what does "Lagrange multiplier" actually mean in plain words?</summary>
+    <p>It's just the exchange rate between "how much better my score gets" and "how much I'd have to loosen the rule to get there." If loosening the leash by one inch would let you get a lot closer to the treat, the multiplier is large; if it would barely help, it's small. The formal machinery is just bookkeeping for that trade-off.</p>
+  </details>
+
+  <div class="interactive-block explain-back">
+    <span class="tag">Teach it back</span>
+    <h3 style="margin-top:0">In your own words: why isn't the constrained optimum simply the closest point on the boundary to the unconstrained best answer?</h3>
+    <textarea id="explain5" placeholder="Type your explanation here..."></textarea>
+    <div class="slider-row"><button class="btn ghost" onclick="revealModel('model5')">Compare with a model answer</button></div>
+    <div class="model-answer" id="model5">
+      Because "closest point" only measures distance, while the real optimum balances the objective's pull against the boundary's own shape. The true constrained optimum is wherever your desired direction of improvement is exactly canceled by the boundary's allowed direction of movement — which can sit anywhere on the boundary, not necessarily the nearest spot.
+    </div>
+  </div>
+
+  <div class="interactive-block quiz-block" data-quiz="q5">
+    <span class="tag">Did you get it?</span>
+    <div class="quiz-q" data-correct="0">
+      <p class="question">1. At the constrained optimum on a smooth boundary, what is true about the directions involved?</p>
+      <button class="quiz-opt" data-i="0">The objective's gradient and the constraint's gradient point in directly opposing (or aligned) directions</button>
+      <button class="quiz-opt" data-i="1">The objective's gradient is always exactly zero</button>
+      <button class="quiz-opt" data-i="2">The point must be at a sharp corner of the boundary</button>
+      <div class="quiz-feedback"></div>
+    </div>
+    <div class="quiz-q" data-correct="1">
+      <p class="question">2. The Lagrange multiplier is best described as:</p>
+      <button class="quiz-opt" data-i="0">A random number used to break ties</button>
+      <button class="quiz-opt" data-i="1">An exchange rate between improving the score and relaxing the constraint</button>
+      <button class="quiz-opt" data-i="2">The exact value of the objective function at the optimum</button>
+      <div class="quiz-feedback"></div>
+    </div>
+  </div>
+
+  <div class="worked">
+    <h4>Worked example — solving a constrained optimum exactly</h4>
+    <p>Minimize $f(x,y) = x^2+y^2$ (distance-squared from the origin) subject to staying on the line $g(x,y) = x+y-4 = 0$.</p>
+    <ol>
+      <li>Form the Lagrangian: $\mathcal{L}(x,y,\lambda) = x^2+y^2+\lambda(x+y-4)$.</li>
+      <li>Take partial derivatives and set each to zero: $\frac{\partial \mathcal{L}}{\partial x}=2x+\lambda=0$, $\frac{\partial \mathcal{L}}{\partial y}=2y+\lambda=0$, $\frac{\partial \mathcal{L}}{\partial \lambda}=x+y-4=0$.</li>
+      <li>From the first two equations: $x = -\lambda/2$ and $y=-\lambda/2$, so $x=y$.</li>
+      <li>Substitute into the constraint: $x+x-4=0 \Rightarrow x=2$, so $y=2$ too, and $\lambda=-4$.</li>
+      <li>The constrained optimum is $(2,2)$, with $f(2,2)=8$ — exactly the point on the line closest to the origin, found without ever checking an "edge" because this constraint has no edges.</li>
+    </ol>
+    <p class="small dim" style="margin-top:.6em;">$\lambda=-4$ is the exchange rate: nudging the constraint from $x+y=4$ to $x+y=4.01$ would change the optimal score by roughly $\lambda \times 0.01 = -0.04$ — a slightly looser budget buys you a slightly better score, exactly as the leash analogy predicted.</p>
+  </div>
+
+  <details>
+    <summary>📐 Going further: what if the rule is "at most," not "exactly"? (KKT conditions)</summary>
+    <p>A leash tied to a post (equality, $g(\theta)=0$) is one kind of rule. A fenced yard you merely can't leave (inequality, $g(\theta)\le 0$) is another — and it behaves differently, because sometimes the optimum sits safely inside the fence, away from the boundary entirely. The Karush–Kuhn–Tucker (KKT) conditions generalize the Lagrangian to handle this:</p>
+    <div class="math-block left">
+      $$ \nabla f(\theta) + \mu \nabla g(\theta) = 0, \qquad \mu \ge 0, \qquad \mu \, g(\theta) = 0 $$
+    </div>
+    <p>The last condition, called <em>complementary slackness</em>, is the key new idea: either the constraint is exactly on its boundary ($g(\theta)=0$) and pulls on the solution with some real force $\mu>0$, or it's slack — the unconstrained optimum already lies safely inside the fence — in which case $\mu=0$ and the constraint exerts no pull at all. The leash from the diagram above only ever pulls taut; KKT is what lets the math notice when it doesn't need to.</p>
+  </details>
+
+  <div class="takeaway">
+    <h4>Key takeaway</h4>
+    <p>Constrained optimization isn't "ignore the rule and check corners" — it's finding the precise spot on the boundary where pushing toward a better score and staying inside the rule become perfectly, exactly opposed.</p>
+  </div>
+</section>
+<section id="ch6" class="chapter reveal" data-chapter="6" data-accent="summit" data-title="Smarter Steps">
+  <div class="eyebrow"><span class="num">CH 06</span> ADVANCED</div>
+  <span class="chapter-badge">⏱️ 12 min</span>
+  <h2>Taking Smarter Steps: Learning Rate &amp; Momentum</h2>
+  <p>Knowing which direction to step (the gradient) is only half the problem. How big a step you take changes everything about whether you arrive — or overshoot, or crawl forever.</p>
+
+  <div class="math-block">
+    $$ v_{t+1} = \beta v_t + \nabla f(\theta_t) \qquad \theta_{t+1} = \theta_t - \alpha v_{t+1} $$
+  </div>
+  <p class="small dim center" style="margin-top:-10px;">$v$ is the "velocity" — a running average of recent gradients. $\beta$ (usually around 0.9) controls how much of the old velocity survives each step. When $\beta=0$ this collapses exactly back to plain gradient descent; as $\beta \to 1$, the skateboarder carries more and more of their previous speed through bumps.</p>
+
+  <div class="misconception">
+    <div class="think">
+      <h4>What you think</h4>
+      <p>A smaller learning rate is always the "safe" choice, so when in doubt, shrink it.</p>
+    </div>
+    <div class="real">
+      <h4>What's actually true</h4>
+      <p>Too small a step wastes enormous time and can get permanently trapped in tiny, shallow dips that a slightly bigger step would have rolled straight through. Step size is a balance, not a "smaller is safer" dial — and <strong>momentum</strong> is the specific tool for rolling through those small dips without needing a risky large step size.</p>
+    </div>
+  </div>
+
+  <div class="analogy-card">
+    <div class="icon">🏃</div>
+    <div>
+      <h4>Feynman analogy #1 — three hikers</h4>
+      <p>An eager hiker takes giant leaps downhill — and sometimes leaps clean over the valley floor into the opposite wall, bouncing back and forth without ever settling. A timid hiker takes inch-long steps — technically always moving the right way, but takes forever and gets exhausted (or stuck) in the first tiny dimple in the ground. The hiker who gets there fastest takes steps sized to the terrain: bigger strides on gentle slopes, smaller ones near the bottom.</p>
+    </div>
+  </div>
+
+  <div class="analogy-card">
+    <div class="icon">🛹</div>
+    <div>
+      <h4>Feynman analogy #2 — a skateboarder's momentum</h4>
+      <p>A skateboarder rolling fast through a half-pipe doesn't stop in every tiny crack in the pavement — their built-up speed carries them through. Momentum-based optimization works the same way: it remembers some of its previous direction and "rolls through" small bumps that would have trapped a step that resets to zero speed every single move.</p>
+    </div>
+  </div>
+
+  <div class="interactive-block" id="gdLab2">
+    <span class="tag">Interactive · Live playground (continued)</span>
+    <h3 style="margin-top:0">Try three learning-rate presets on the same hill</h3>
+    <div class="diagram-frame">
+      <svg id="gdSvg2" viewBox="0 0 700 280" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Gradient descent simulation comparing too-small, just-right, and too-large learning rates">
+        <line x1="30" y1="250" x2="670" y2="250" stroke="var(--line)" stroke-width="1"/>
+        <path id="gdCurve2" fill="none" stroke="var(--path)" stroke-width="3"/>
+        <circle id="gdMinMarker2" r="5" fill="var(--valley)"/>
+        <circle id="gdBall2" r="9" fill="var(--summit)"/>
+        <path id="gdTrail2" fill="none" stroke="var(--summit)" stroke-width="1.5" stroke-dasharray="3 3" opacity="0.6"/>
+      </svg>
+    </div>
+    <div class="slider-row">
+      <button class="btn ghost" onclick="gdPreset2(3)">Too small</button>
+      <button class="btn" onclick="gdPreset2(14)">Just right</button>
+      <button class="btn ghost" onclick="gdPreset2(38)">Too large</button>
+      <span class="readout" id="gdReadout2">pick a preset</span>
+    </div>
+    <div class="slider-row">
+      <button class="btn ghost" onclick="gdRun2()">Run ▸▸</button>
+      <button class="btn ghost" onclick="gdReset2()">↻ Reset</button>
+    </div>
+  </div>
+
+  <div class="media-row">
+    <figure class="media-card">
+      <img src="https://picsum.photos/seed/skateboardramp/800/400" alt="A skateboarder mid-motion on a curved ramp, representing momentum carrying through small bumps" loading="lazy">
+      <figcaption>Momentum carries you through small dips a plain step would get caught in.</figcaption>
+    </figure>
+    <figure class="media-card loop-gif">
+      <svg viewBox="0 0 200 140" width="160" height="110">
+        <path d="M10,120 L60,30 L100,120 L150,20 L190,120" fill="none" stroke="var(--path)" stroke-width="3"/>
+        <circle r="6" fill="var(--summit)">
+          <animateMotion dur="1.8s" repeatCount="indefinite" path="M10,90 L70,30 L90,80 L160,30 L190,90" calcMode="linear"/>
+        </circle>
+      </svg>
+    </figure>
+  </div>
+
+  <div class="sticking">
+    <h4>⚡ Common Sticking Point</h4>
+    <p>People expect "too large" to simply mean "slow to converge." Actually it can be far worse: an oversized learning rate can make the score get <em>worse</em> every step, bouncing further and further from the minimum — a phenomenon called divergence. Watch the "too large" preset above; it doesn't just take longer, it can actively run away.</p>
+  </div>
+
+  <div class="interactive-block" id="sortLab">
+    <span class="tag">Interactive · Sortable sequencer</span>
+    <h3 style="margin-top:0">Order these four training runs from least to most stable</h3>
+    <p class="small dim">Use the arrows to reorder. Check your answer when ready.</p>
+    <ul class="sortable-list" id="sortList">
+      <li data-id="huge"><span>Learning rate so large the loss explodes upward every step</span><span class="move-btns"><button onclick="moveSort(this,-1)">↑</button><button onclick="moveSort(this,1)">↓</button></span></li>
+      <li data-id="big"><span>Learning rate large enough to overshoot and oscillate, but slowly settle</span><span class="move-btns"><button onclick="moveSort(this,-1)">↑</button><button onclick="moveSort(this,1)">↓</button></span></li>
+      <li data-id="tiny"><span>Learning rate so small it's still inching along after thousands of steps</span><span class="move-btns"><button onclick="moveSort(this,-1)">↑</button><button onclick="moveSort(this,1)">↓</button></span></li>
+      <li data-id="good"><span>Learning rate tuned to the slope, with a touch of momentum to glide through bumps</span><span class="move-btns"><button onclick="moveSort(this,-1)">↑</button><button onclick="moveSort(this,1)">↓</button></span></li>
+    </ul>
+    <button class="btn" onclick="checkSort()">Check order</button>
+    <p class="small dim" id="sortFeedback" style="margin-top:10px;"></p>
+  </div>
+
+  <div class="interactive-block explain-back">
+    <span class="tag">Teach it back</span>
+    <h3 style="margin-top:0">In your own words: why can a learning rate that's "too small" be just as problematic as one that's "too large"?</h3>
+    <textarea id="explain6" placeholder="Type your explanation here..."></textarea>
+    <div class="slider-row"><button class="btn ghost" onclick="revealModel('model6')">Compare with a model answer</button></div>
+    <div class="model-answer" id="model6">
+      A too-small learning rate moves so slowly that it can take impractically long to converge, and it has no momentum to roll through small shallow dips, so it can get stuck in a minor local minimum that a slightly larger step would have skipped right over. A too-large rate overshoots and can diverge entirely. Neither extreme is "safe" — both fail, just differently.
+    </div>
+  </div>
+
+  <div class="interactive-block quiz-block" data-quiz="q6">
+    <span class="tag">Did you get it?</span>
+    <div class="quiz-q" data-correct="2">
+      <p class="question">1. What does momentum add to plain gradient descent?</p>
+      <button class="quiz-opt" data-i="0">A larger learning rate, permanently</button>
+      <button class="quiz-opt" data-i="1">A way to compute the gradient faster</button>
+      <button class="quiz-opt" data-i="2">A memory of recent direction, helping it roll through small bumps</button>
+      <div class="quiz-feedback"></div>
+    </div>
+    <div class="quiz-q" data-correct="0">
+      <p class="question">2. Which symptom signals a learning rate that is too large?</p>
+      <button class="quiz-opt" data-i="0">The score gets worse and worse with each step (divergence)</button>
+      <button class="quiz-opt" data-i="1">Progress is extremely slow but steady</button>
+      <button class="quiz-opt" data-i="2">The score is constant from the very first step</button>
+      <div class="quiz-feedback"></div>
+    </div>
+  </div>
+
+  <div class="worked">
+    <h4>Worked example — three steps of momentum, by hand</h4>
+    <p>Take $f'(\theta) = \theta$ (so the minimum is at $\theta=0$), start at $\theta_0=10$, $v_0=0$, with $\alpha=0.1$ and momentum $\beta=0.9$.</p>
+    <ol>
+      <li><strong>Step 1:</strong> $v_1 = 0.9(0) + f'(10) = 10$. Then $\theta_1 = 10 - 0.1(10) = 9.0$.</li>
+      <li><strong>Step 2:</strong> $v_2 = 0.9(10) + f'(9.0) = 9 + 9 = 18$. Then $\theta_2 = 9.0 - 0.1(18) = 7.2$.</li>
+      <li><strong>Step 3:</strong> $v_3 = 0.9(18) + f'(7.2) = 16.2 + 7.2 = 23.4$. Then $\theta_3 = 7.2 - 0.1(23.4) = 4.86$.</li>
+    </ol>
+    <p class="small dim" style="margin-top:.6em;">Compare the per-step drop: $-1.0$, then $-1.8$, then $-2.34$ — each step moves <em>further</em> than the last, even though the gradient itself is shrinking as $\theta$ approaches zero. That accelerating progress is the accumulated velocity $v$ at work; plain gradient descent with the same $\alpha=0.1$ would only ever move $-1.0,\ -0.9,\ -0.81$ — decelerating, not accelerating.</p>
+  </div>
+
+  <div class="takeaway">
+    <h4>Key takeaway</h4>
+    <p>Step size is a balance between speed and stability, not a "smaller is safer" dial. Momentum gives you some of the benefits of a bigger step (rolling through small bumps) without the full risk of overshooting.</p>
+  </div>
+</section>
+
+<section id="ch7" class="chapter reveal" data-chapter="7" data-accent="path" data-title="Curvature: Newton's Method">
+  <div class="eyebrow"><span class="num">CH 07</span> ADVANCED</div>
+  <span class="chapter-badge">⏱️ 11 min</span>
+  <h2>Using Curvature: Newton's Method</h2>
+  <p>Gradient descent only ever asks "which way is downhill?" It never asks "how sharply does the ground curve here?" Knowing the curvature lets you take a far smarter, often much faster step.</p>
+
+  <div class="misconception">
+    <div class="think">
+      <h4>What you think</h4>
+      <p>The only way to speed up an optimizer is to fiddle with the learning rate by trial and error.</p>
+    </div>
+    <div class="real">
+      <h4>What's actually true</h4>
+      <p>The <strong>second derivative</strong> — how the slope itself is changing — tells you exactly how far you can safely step before the slope flattens out. Using it lets an algorithm choose its own step size automatically, instead of you guessing one.</p>
+    </div>
+  </div>
+
+  <div class="analogy-card">
+    <div class="icon">🎯</div>
+    <div>
+      <h4>Feynman analogy #1 — parking a car</h4>
+      <p>If you're far from a parking spot, you turn the wheel hard. As the car gets close, you straighten out, because you can feel how quickly your trajectory is curving toward the spot. Plain gradient descent is like always turning the wheel by the same fixed amount regardless of how close you are. Newton's method is like a driver who feels the curvature and adjusts the turn size automatically — big correction far away, tiny correction once you're nearly parked.</p>
+    </div>
+  </div>
+
+  <div class="analogy-card">
+    <div class="icon">🏹</div>
+    <div>
+      <h4>Feynman analogy #2 — an archer who learns from the wind</h4>
+      <p>A first arrow tells you not just "too far left," but, if you pay attention, <em>how quickly</em> "left" is changing as you adjust your aim. A first-time archer (gradient descent) corrects by a fixed amount each shot. An archer who also tracks how their correction is curving (Newton's method) can often land the very next arrow dead center, jumping straight to the right answer in far fewer shots — when the curvature estimate is good.</p>
+    </div>
+  </div>
+
+  <div class="math-block">
+    $$ \theta_{t+1} = \theta_t - \frac{f'(\theta_t)}{f''(\theta_t)} $$
+  </div>
+  <p class="small dim center" style="margin-top:-10px;">Compare this to plain gradient descent, $\theta_{t+1} = \theta_t - \alpha f'(\theta_t)$. Newton's method replaces the hand-picked learning rate $\alpha$ with $\frac{1}{f''(\theta_t)}$ — the step size is computed automatically from the curvature, $f''$, the second derivative.</p>
+
+  <details>
+    <summary>Reveal the why: where does this formula come from? (Taylor expansion derivation)</summary>
+    <p>Approximate $f$ near $\theta_t$ with a quadratic (second-order Taylor) model: $f(\theta) \approx f(\theta_t) + f'(\theta_t)(\theta-\theta_t) + \tfrac{1}{2}f''(\theta_t)(\theta-\theta_t)^2$. This is just a parabola that matches the true function's value, slope, and curvature at $\theta_t$. Minimizing this parabola exactly — by differentiating with respect to $\theta$ and setting the result to zero — gives $f'(\theta_t) + f''(\theta_t)(\theta-\theta_t) = 0$, which rearranges directly to $\theta = \theta_t - \frac{f'(\theta_t)}{f''(\theta_t)}$. Newton's method is, in other words, "pretend the function is a parabola right here, and jump straight to that parabola's exact minimum."</p>
+  </details>
+
+  <div class="interactive-block" id="newtonLab">
+    <span class="tag">Interactive · Compare two methods</span>
+    <h3 style="margin-top:0">Gradient descent vs. Newton's method on the same hill</h3>
+    <div class="diagram-frame">
+      <svg id="newtonSvg" viewBox="0 0 700 260" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Comparison of gradient descent and Newton's method converging on the same curve">
+        <line x1="30" y1="230" x2="670" y2="230" stroke="var(--line)" stroke-width="1"/>
+        <path id="newtonCurve" fill="none" stroke="var(--path)" stroke-width="3"/>
+        <circle id="newtonMin" r="5" fill="var(--valley)"/>
+        <circle id="gdBall3" r="9" fill="var(--summit)"/>
+        <circle id="newtonBall" r="9" fill="var(--signal)"/>
+      </svg>
+    </div>
+    <div class="slider-row">
+      <button class="btn" onclick="newtonStep()">Step both ▸</button>
+      <button class="btn ghost" onclick="newtonReset()">↻ Reset</button>
+      <span class="readout" id="newtonReadout">step 0</span>
+    </div>
+    <p class="small dim"><span style="color:var(--summit)">●</span> amber = gradient descent &nbsp;&nbsp; <span style="color:var(--signal)">●</span> green = Newton's method. Watch how few steps the green ball needs on this smooth bowl.</p>
+  </div>
+
+  <div class="sticking">
+    <h4>⚡ Common Sticking Point</h4>
+    <p>Newton's method looks strictly better in the demo above, so people assume it should always be used. In practice, computing $f''$ — and its high-dimensional cousin, the full matrix of second derivatives called the <strong>Hessian</strong> — gets extremely expensive when there are millions or billions of parameters, which is exactly the regime large AI models live in. That expense is the entire reason plain gradient descent (and its cheaper cousins) still dominates large-scale machine learning.</p>
+  </div>
+
+  <details>
+    <summary>Reveal the why: what does the second derivative actually measure?</summary>
+    <p>The first derivative tells you the slope; the second derivative tells you how fast <em>that slope itself</em> is changing. A large positive $f''$ means the curve is tightly bowl-shaped (the slope flattens out quickly), so you can safely take a large, confident step. A small $f''$ means the curve is nearly flat for a long stretch, so a smaller, more cautious step is warranted.</p>
+  </details>
+
+  <details>
+    <summary>📐 Where the formula comes from: a second-order Taylor expansion</summary>
+    <p>Near the current point $\theta_t$, approximate $f$ with a parabola that matches its value, slope, and curvature:</p>
+    <div class="math-block left">
+      $$ f(\theta) \approx f(\theta_t) + f'(\theta_t)(\theta-\theta_t) + \tfrac{1}{2}f''(\theta_t)(\theta-\theta_t)^2 $$
+    </div>
+    <p>This parabola is easy to minimize exactly: differentiate it with respect to $\theta$, set the result to zero, and solve. Doing so gives $\theta = \theta_t - f'(\theta_t)/f''(\theta_t)$ — exactly the Newton's method update. In other words, Newton's method doesn't follow the curve itself downhill; at every step it builds the best local parabola it can, then jumps straight to <em>that</em> parabola's exact minimum.</p>
+    <p class="small dim" style="margin-top:.6em;">In many dimensions, $f''$ becomes the <strong>Hessian matrix</strong> $H$ — a full grid of every second partial derivative $\frac{\partial^2 f}{\partial \theta_i \partial \theta_j}$ — and the update becomes $\theta_{t+1} = \theta_t - H^{-1}\nabla f(\theta_t)$. Inverting that matrix is exactly the expensive step that makes Newton's method impractical once $\theta$ has millions of entries.</p>
+  </details>
+
+  <div class="interactive-block explain-back">
+    <span class="tag">Teach it back</span>
+    <h3 style="margin-top:0">In your own words: what extra information does Newton's method use that plain gradient descent ignores, and why isn't it used everywhere?</h3>
+    <textarea id="explain8" placeholder="Type your explanation here..."></textarea>
+    <div class="slider-row"><button class="btn ghost" onclick="revealModel('model8')">Compare with a model answer</button></div>
+    <div class="model-answer" id="model8">
+      Newton's method uses the second derivative (curvature) to automatically size its step, instead of relying on a fixed, hand-tuned learning rate. It isn't used everywhere because computing curvature information — the Hessian, in many dimensions — becomes prohibitively expensive once a problem has millions or billions of parameters, which is the typical scale of modern AI models.
+    </div>
+  </div>
+
+  <div class="interactive-block quiz-block" data-quiz="q8">
+    <span class="tag">Did you get it?</span>
+    <div class="quiz-q" data-correct="1">
+      <p class="question">1. What does Newton's method use that plain gradient descent does not?</p>
+      <button class="quiz-opt" data-i="0">A larger fixed learning rate</button>
+      <button class="quiz-opt" data-i="1">The second derivative (curvature) to size its own step</button>
+      <button class="quiz-opt" data-i="2">A random restart every few steps</button>
+      <div class="quiz-feedback"></div>
+    </div>
+    <div class="quiz-q" data-correct="2">
+      <p class="question">2. Why is Newton's method rarely used directly for training huge AI models?</p>
+      <button class="quiz-opt" data-i="0">It always diverges</button>
+      <button class="quiz-opt" data-i="1">It cannot be combined with momentum</button>
+      <button class="quiz-opt" data-i="2">Computing the full matrix of second derivatives is too expensive at large scale</button>
+      <div class="quiz-feedback"></div>
+    </div>
+  </div>
+
+  <div class="worked">
+    <h4>Worked example — Newton's method converges in one step on a quadratic</h4>
+    <p>Let $f(\theta) = (\theta-4)^2$, starting at $\theta_0 = 10$.</p>
+    <ol>
+      <li>$f'(\theta) = 2(\theta-4)$, so $f'(10) = 12$.</li>
+      <li>$f''(\theta) = 2$ (constant, since the function is already a perfect parabola).</li>
+      <li>Apply the update: $\theta_1 = 10 - \frac{12}{2} = 10 - 6 = 4$.</li>
+      <li>Check: $f'(4) = 0$ — already at the exact minimum, in a single step.</li>
+    </ol>
+    <p class="small dim" style="margin-top:.6em;">This isn't a coincidence: since Newton's method exactly minimizes a quadratic approximation, and $f$ here <em>is</em> exactly quadratic, the approximation is perfect and one step suffices. Plain gradient descent with $\alpha=0.1$ would have needed roughly 13 steps to get this close — the curvature information is doing all the extra work.</p>
+  </div>
+
+  <div class="takeaway">
+    <h4>Key takeaway</h4>
+    <p>Curvature ($f''$) tells an optimizer how confidently to step, letting Newton's method often converge in far fewer iterations — at the cost of needing information that becomes too expensive to compute once a problem has millions of dimensions.</p>
+  </div>
+</section>
+
+<section id="ch8" class="chapter reveal" data-chapter="8" data-accent="fence" data-title="Stochastic Gradient Descent">
+  <div class="eyebrow"><span class="num">CH 08</span> ADVANCED</div>
+  <span class="chapter-badge">⏱️ 12 min</span>
+  <h2>Noisy Steps: Stochastic Gradient Descent</h2>
+  <p>Every gradient you've computed so far used the <em>entire</em> dataset to measure "how wrong am I?" When that dataset has billions of examples, computing one exact gradient before taking a single step becomes absurdly slow. There's a faster — if noisier — way.</p>
+
+  <div class="misconception">
+    <div class="think">
+      <h4>What you think</h4>
+      <p>Using a noisy, approximate gradient instead of the true one is a compromise that should make optimization worse.</p>
+    </div>
+    <div class="real">
+      <h4>What's actually true</h4>
+      <p>Taking many cheap, noisy steps using small random batches of data (<strong>stochastic gradient descent</strong>, or SGD) usually reaches a good answer faster in wall-clock time than taking few, expensive, perfectly accurate steps — and the noise itself can even help the ball hop out of small, shallow local minima.</p>
+    </div>
+  </div>
+
+  <div class="analogy-card">
+    <div class="icon">🗳️</div>
+    <div>
+      <h4>Feynman analogy #1 — an election poll</h4>
+      <p>To know the exact nationwide opinion on an issue, you'd have to survey every single citizen — accurate, but achingly slow. Polling a random sample of a thousand people gives you a noisy, slightly-off estimate almost instantly. Run several quick polls and average their direction, and you converge on the true opinion faster overall than waiting for one perfect, exhaustive survey. A "mini-batch" gradient is exactly this: a quick poll of the data instead of a full census.</p>
+    </div>
+  </div>
+
+  <div class="analogy-card">
+    <div class="icon">🍪</div>
+    <div>
+      <h4>Feynman analogy #2 — tasting cookie dough</h4>
+      <p>You don't need to eat the entire bowl of cookie dough to judge whether it needs more sugar — one representative spoonful (a mini-batch) gives you a noisy but useful estimate, fast enough to adjust the recipe and taste again right away. Tasting the whole bowl every time you adjust (full-batch gradient descent) would technically be more accurate per check, but you'd run out of dough — and time — long before perfecting the recipe.</p>
+    </div>
+  </div>
+
+  <div class="math-block">
+    $$ \nabla f(\theta) \approx \frac{1}{|B|}\sum_{i \in B} \nabla f_i(\theta) $$
+  </div>
+  <p class="small dim center" style="margin-top:-10px;">Instead of averaging the gradient over every example in the whole dataset, SGD averages over a small random batch $B$ of examples. It's a noisy estimate of the true gradient — but a vastly cheaper one to compute, so you can take many more steps in the same amount of time.</p>
+
+  <div class="math-block">
+    $$ \mathbb{E}_B\!\left[\frac{1}{|B|}\sum_{i \in B} \nabla f_i(\theta)\right] = \nabla f(\theta) $$
+  </div>
+  <p class="small dim center" style="margin-top:-10px;">This is the formal "unbiasedness" guarantee: if you averaged the mini-batch gradient over every possible random batch you could have drawn, you'd recover the true full-dataset gradient exactly. Any single batch is noisy, but the noise has no systematic direction — it doesn't consistently pull you off-course, it just jitters around the correct path.</p>
+
+  <div class="interactive-block" id="sgdLab">
+    <span class="tag">Interactive · Slider morphs the path</span>
+    <h3 style="margin-top:0">Compare full-batch vs. stochastic descent paths</h3>
+    <div class="diagram-frame">
+      <svg id="sgdSvg" viewBox="0 0 700 280" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Comparison of a smooth full-batch descent path and a noisy stochastic descent path converging to the same minimum">
+        <line x1="30" y1="250" x2="670" y2="250" stroke="var(--line)" stroke-width="1"/>
+        <path id="sgdCurve" fill="none" stroke="var(--line)" stroke-width="2"/>
+        <circle id="sgdMin" r="5" fill="var(--valley)"/>
+        <path id="sgdPathFull" fill="none" stroke="var(--summit)" stroke-width="2"/>
+        <path id="sgdPathNoisy" fill="none" stroke="var(--fence)" stroke-width="2"/>
+        <circle id="sgdBallFull" r="8" fill="var(--summit)"/>
+        <circle id="sgdBallNoisy" r="8" fill="var(--fence)"/>
+      </svg>
+    </div>
+    <div class="slider-row">
+      <label class="mono small dim" for="sgdNoise">batch noise</label>
+      <input type="range" id="sgdNoise" min="0" max="40" value="18">
+      <span class="readout" id="sgdReadout">noise level: 18</span>
+    </div>
+    <div class="slider-row">
+      <button class="btn" onclick="sgdRun()">Run both ▸▸</button>
+      <button class="btn ghost" onclick="sgdReset()">↻ Reset</button>
+    </div>
+    <p class="small dim"><span style="color:var(--summit)">●</span> amber = full-batch (smooth, expensive per step) &nbsp;&nbsp; <span style="color:var(--fence)">●</span> red = stochastic (jittery, cheap per step). Crank the noise slider up and watch the red path wobble more, while still drifting toward the same valley.</p>
+  </div>
+
+  <div class="sticking">
+    <h4>⚡ Common Sticking Point</h4>
+    <p>People expect a noisy path to mean a worse final answer. It almost never does, for one key reason: the noise <em>averages out</em> over many steps, since each batch's gradient is an unbiased estimate of the true gradient. The wobble you see is real, but it's wobble <em>around</em> the correct downhill direction, not a random walk in an arbitrary direction.</p>
+  </div>
+
+  <div class="math-block">
+    $$ \mathbb{E}_B\!\left[\frac{1}{|B|}\sum_{i \in B} \nabla f_i(\theta)\right] = \nabla f(\theta) $$
+  </div>
+  <p class="small dim center" style="margin-top:-10px;">This is the formal version of "the noise averages out": if you imagine drawing infinitely many random batches and averaging their gradient estimates, you land exactly on the true full-batch gradient. Any single batch is noisy, but the noise has no systematic bias pulling it in a wrong direction — which is precisely why the jittery red path in the simulator still reliably drifts toward the true minimum.</p>
+
+  <details>
+    <summary>Reveal the why: how can adding noise ever help, rather than hurt?</summary>
+    <p>Recall Chapter 4's "egg carton" landscape of shallow false valleys. A perfectly smooth, noise-free descent can get permanently trapped the instant it lands in one. SGD's jitter occasionally jostles it just enough to escape a shallow dip, while a true, deep valley is wide and steep enough that the noise can't kick it back out. The very imprecision that seems like a flaw is what gives it an escape hatch plain gradient descent lacks.</p>
+  </details>
+
+  <div class="interactive-block explain-back">
+    <span class="tag">Teach it back</span>
+    <h3 style="margin-top:0">In your own words: why can a noisier, cheaper gradient estimate often reach a good answer faster than a perfectly accurate one?</h3>
+    <textarea id="explain9" placeholder="Type your explanation here..."></textarea>
+    <div class="slider-row"><button class="btn ghost" onclick="revealModel('model9')">Compare with a model answer</button></div>
+    <div class="model-answer" id="model9">
+      Computing the exact gradient over an entire huge dataset is expensive, so each full-batch step takes a long time. A small random batch gives a noisy but unbiased estimate of that same gradient for a fraction of the cost, letting you take many more steps in the same wall-clock time — and the resulting noise can even help the optimizer hop out of small, shallow local minima.
+    </div>
+  </div>
+
+  <div class="interactive-block quiz-block" data-quiz="q9">
+    <span class="tag">Did you get it?</span>
+    <div class="quiz-q" data-correct="0">
+      <p class="question">1. What does a "mini-batch" represent in stochastic gradient descent?</p>
+      <button class="quiz-opt" data-i="0">A small random sample of the full dataset used to estimate the gradient</button>
+      <button class="quiz-opt" data-i="1">A smaller version of the objective function</button>
+      <button class="quiz-opt" data-i="2">A reduced learning rate</button>
+      <div class="quiz-feedback"></div>
+    </div>
+    <div class="quiz-q" data-correct="1">
+      <p class="question">2. Why doesn't the noise in SGD usually send the optimizer in a completely wrong direction?</p>
+      <button class="quiz-opt" data-i="0">The noise is removed before each step</button>
+      <button class="quiz-opt" data-i="1">Each batch's gradient is still an unbiased estimate of the true gradient, so the noise averages out over many steps</button>
+      <button class="quiz-opt" data-i="2">SGD doesn't actually use gradients at all</button>
+      <div class="quiz-feedback"></div>
+    </div>
+  </div>
+
+  <div class="worked">
+    <h4>Worked example — full-batch vs. mini-batch gradient, with real numbers</h4>
+    <p>Suppose a tiny "dataset" has 4 examples, each contributing a per-example gradient: $\nabla f_1=3,\ \nabla f_2=5,\ \nabla f_3=1,\ \nabla f_4=7$.</p>
+    <ol>
+      <li><strong>Full-batch gradient</strong> (average over all 4): $\nabla f = \frac{3+5+1+7}{4} = \frac{16}{4} = 4$.</li>
+      <li><strong>Mini-batch of size 2</strong>, randomly drawing examples 1 and 3: $\frac{3+1}{2} = 2$ — noisy: off from the true value of 4 by $-2$.</li>
+      <li><strong>A different mini-batch</strong>, drawing examples 2 and 4: $\frac{5+7}{2} = 6$ — also noisy, this time off by $+2$.</li>
+      <li>Average the two batch estimates together: $\frac{2+6}{2} = 4$ — exactly the full-batch value, illustrating the unbiasedness formula above: individual batches wobble, but they wobble around the truth.</li>
+    </ol>
+    <p class="small dim" style="margin-top:.6em;">In a real model, "examples" are training data points and computing all four per-example gradients to get the true average would be the expensive part — a mini-batch sidesteps that cost at the price of exactly this kind of wobble.</p>
+  </div>
+
+  <div class="takeaway">
+    <h4>Key takeaway</h4>
+    <p>When data is huge, trade per-step accuracy for many more, cheaper steps. Stochastic gradient descent's noise isn't a flaw to tolerate — it's often a feature that helps escape shallow false valleys.</p>
+  </div>
+</section>
+
+<section id="ch9" class="chapter reveal" data-chapter="9" data-accent="valley" data-title="Expert Synthesis">
+  <div class="eyebrow"><span class="num">CH 09</span> EXPERT SYNTHESIS</div>
+  <span class="chapter-badge">⏱️ 14 min</span>
+  <h2>The Expert Synthesis: One Hill, Every AI Model</h2>
+  <p>Every idea you've learned — the score, the slope, the gradient, the risk of false valleys, the rules of constraints, the art of step size — combines into one machine. That machine is, mechanically, how every modern AI model learns.</p>
+
+  <div class="misconception">
+    <div class="think">
+      <h4>What you think</h4>
+      <p>Training a large language model is some fundamentally different, much more mysterious process than the simple hill-rolling you practiced in this course.</p>
+    </div>
+    <div class="real">
+      <h4>What's actually true</h4>
+      <p>Mechanically, it is the exact same loop: define a score (how wrong the model's predictions are), compute the local gradient (in millions or billions of directions at once instead of one or two), and take a step against it. The landscape just has an almost incomprehensibly large number of dimensions — the algorithm itself is unchanged.</p>
+    </div>
+  </div>
+
+  <div class="diagram-frame">
+    <svg id="synthesisMap" viewBox="0 0 760 360" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A unified mental model diagram connecting all chapter concepts with animated connecting lines">
+      <g id="synthNodes" font-family="JetBrains Mono, monospace" font-size="12">
+        <circle cx="120" cy="80" r="46" fill="rgba(43,217,194,0.12)" stroke="var(--valley)" stroke-width="2"/>
+        <text x="120" y="76" text-anchor="middle" fill="var(--valley)">Objective</text>
+        <text x="120" y="92" text-anchor="middle" fill="var(--valley)">function</text>
+
+        <circle cx="380" cy="60" r="46" fill="rgba(156,143,255,0.12)" stroke="var(--path)" stroke-width="2"/>
+        <text x="380" y="56" text-anchor="middle" fill="var(--path)">Slope /</text>
+        <text x="380" y="72" text-anchor="middle" fill="var(--path)">Gradient</text>
+
+        <circle cx="640" cy="100" r="46" fill="rgba(242,169,59,0.12)" stroke="var(--summit)" stroke-width="2"/>
+        <text x="640" y="96" text-anchor="middle" fill="var(--summit)">Step size /</text>
+        <text x="640" y="112" text-anchor="middle" fill="var(--summit)">Momentum</text>
+
+        <circle cx="160" cy="270" r="46" fill="rgba(255,107,107,0.12)" stroke="var(--fence)" stroke-width="2"/>
+        <text x="160" y="266" text-anchor="middle" fill="var(--fence)">Constraints</text>
+        <text x="160" y="282" text-anchor="middle" fill="var(--fence)">(rules)</text>
+
+        <circle cx="430" cy="300" r="46" fill="rgba(255,107,107,0.10)" stroke="var(--error)" stroke-width="2"/>
+        <text x="430" y="296" text-anchor="middle" fill="var(--error)">Local vs.</text>
+        <text x="430" y="312" text-anchor="middle" fill="var(--error)">Global minima</text>
+
+        <circle cx="640" cy="260" r="52" fill="rgba(195,255,107,0.10)" stroke="var(--signal)" stroke-width="2.5"/>
+        <text x="640" y="255" text-anchor="middle" fill="var(--signal)">Trained</text>
+        <text x="640" y="271" text-anchor="middle" fill="var(--signal)">AI model</text>
+      </g>
+      <g id="synthLines" stroke="var(--line)" stroke-width="2" fill="none"></g>
+    </svg>
+    <p class="diagram-caption">Every concept from this course feeding into one loop. <button class="replay-btn" onclick="playSynthAnim()">↻ Replay connections</button></p>
+  </div>
+
+  <div class="analogy-card">
+    <div class="icon">🧠</div>
+    <div>
+      <h4>Putting it together — training an LLM</h4>
+      <p>A language model's "objective function" is how wrong its next-word guesses are across huge amounts of text. Its "θ" isn't one or two numbers — it's billions of adjustable weights, so its landscape has billions of dimensions, far beyond what anyone could visualize. But the loop is unchanged: measure the score, compute the gradient (using a clever bookkeeping trick called backpropagation), take a scaled, momentum-aided step against that gradient using small random batches of text (stochastic gradient descent, from Chapter 8) rather than the whole internet at once, and repeat — millions of times. There is no extra magic beyond what you already practiced on a single hill.</p>
+    </div>
+  </div>
+
+  <div class="media-row">
+    <figure class="media-card">
+      <img src="https://picsum.photos/seed/networkgraph/800/400" alt="A dense network graph of interconnected nodes, representing a high-dimensional landscape of weights" loading="lazy">
+      <figcaption>A model's parameter landscape, visualized as a graph instead of a hill.</figcaption>
+    </figure>
+    <figure class="media-card loop-gif">
+      <svg viewBox="0 0 200 140" width="160" height="110">
+        <g stroke="var(--path)" stroke-width="1.5" opacity="0.6">
+          <line x1="30" y1="30" x2="100" y2="70"><animate attributeName="opacity" values="0.1;0.8;0.1" dur="2s" repeatCount="indefinite"/></line>
+          <line x1="170" y1="30" x2="100" y2="70"><animate attributeName="opacity" values="0.8;0.1;0.8" dur="2s" repeatCount="indefinite"/></line>
+          <line x1="30" y1="110" x2="100" y2="70"><animate attributeName="opacity" values="0.4;0.9;0.4" dur="1.6s" repeatCount="indefinite"/></line>
+          <line x1="170" y1="110" x2="100" y2="70"><animate attributeName="opacity" values="0.9;0.3;0.9" dur="2.4s" repeatCount="indefinite"/></line>
+        </g>
+        <circle cx="100" cy="70" r="8" fill="var(--valley)"/>
+        <circle cx="30" cy="30" r="5" fill="var(--summit)"/>
+        <circle cx="170" cy="30" r="5" fill="var(--summit)"/>
+        <circle cx="30" cy="110" r="5" fill="var(--summit)"/>
+        <circle cx="170" cy="110" r="5" fill="var(--summit)"/>
+      </svg>
+    </figure>
+  </div>
+
+  <div class="sticking">
+    <h4>⚡ Common Sticking Point</h4>
+    <p>The word "training" makes people imagine something closer to teaching a student than running an algorithm. Resist that framing: there is no understanding happening step-by-step — there is a number going down, computed the same mechanical way every time, repeated an enormous number of times. The "intelligence" that emerges is a byproduct of scale and clever architecture, not of the optimization loop doing anything conceptually new.</p>
+  </div>
+
+  <h3>The one piece of new machinery: the chain rule</h3>
+  <p>A neural network isn't one function — it's a chain of functions stacked on top of each other, layer feeding into layer. To get the gradient of the final score with respect to a weight buried deep inside that chain, you need the chain rule from calculus, applied automatically and efficiently. That's the entirety of what backpropagation is.</p>
+
+  <div class="math-block">
+    $$ \frac{\partial L}{\partial w_1} = \frac{\partial L}{\partial a_2} \cdot \frac{\partial a_2}{\partial a_1} \cdot \frac{\partial a_1}{\partial w_1} $$
+  </div>
+  <p class="small dim center" style="margin-top:-10px;">If a loss $L$ depends on layer-2 output $a_2$, which depends on layer-1 output $a_1$, which depends on weight $w_1$, the chain rule says: multiply the local derivatives along the chain. Backpropagation computes this product layer by layer, working backward from the loss — reusing each layer's partial result instead of recomputing it from scratch for every single weight.</p>
+
+  <details>
+    <summary>📐 Worked example: backpropagating through a two-layer toy network</summary>
+    <p>Let $a_1 = w_1 x$, $a_2 = w_2 a_1$, and loss $L = (a_2 - y)^2$. Suppose $x=2$, $y=10$, $w_1=1.5$, $w_2=2$.</p>
+    <ol>
+      <li>Forward pass: $a_1 = 1.5 \times 2 = 3$, then $a_2 = 2 \times 3 = 6$, so $L = (6-10)^2 = 16$.</li>
+      <li>$\frac{\partial L}{\partial a_2} = 2(a_2-y) = 2(6-10) = -8$.</li>
+      <li>$\frac{\partial a_2}{\partial a_1} = w_2 = 2$.</li>
+      <li>$\frac{\partial a_1}{\partial w_1} = x = 2$.</li>
+      <li>Chain them together: $\frac{\partial L}{\partial w_1} = (-8)(2)(2) = -32$.</li>
+    </ol>
+    <p class="small dim" style="margin-top:.6em;">A gradient descent step with $\alpha=0.01$ would update $w_1 \to 1.5 - 0.01(-32) = 1.82$ — nudging the network toward a lower loss, using nothing but the same "score, slope, step" loop from Chapter 3, applied through one extra layer of bookkeeping.</p>
+  </details>
+
+  <div class="interactive-block" id="flashcards">
+    <span class="tag">Flashcard deck</span>
+    <h3 style="margin-top:0">Terminology recap — click a card to flip</h3>
+    <div class="flash-grid">
+      <div class="flashcard" tabindex="0" onclick="this.classList.toggle('flipped')" onkeypress="if(event.key==='Enter')this.classList.toggle('flipped')">
+        <div class="flashcard-inner">
+          <div class="flash-face front">Objective function</div>
+          <div class="flash-face back">The single score used to compare candidate answers.</div>
+        </div>
+      </div>
+      <div class="flashcard" tabindex="0" onclick="this.classList.toggle('flipped')" onkeypress="if(event.key==='Enter')this.classList.toggle('flipped')">
+        <div class="flashcard-inner">
+          <div class="flash-face front">Gradient</div>
+          <div class="flash-face back">The arrow pointing in the steepest uphill direction across all parameters at once.</div>
+        </div>
+      </div>
+      <div class="flashcard" tabindex="0" onclick="this.classList.toggle('flipped')" onkeypress="if(event.key==='Enter')this.classList.toggle('flipped')">
+        <div class="flashcard-inner">
+          <div class="flash-face front">Learning rate</div>
+          <div class="flash-face back">How big a step you take in the direction opposite the gradient.</div>
+        </div>
+      </div>
+      <div class="flashcard" tabindex="0" onclick="this.classList.toggle('flipped')" onkeypress="if(event.key==='Enter')this.classList.toggle('flipped')">
+        <div class="flashcard-inner">
+          <div class="flash-face front">Local minimum</div>
+          <div class="flash-face back">The bottom of whichever dip you're currently in — not necessarily the deepest dip available.</div>
+        </div>
+      </div>
+      <div class="flashcard" tabindex="0" onclick="this.classList.toggle('flipped')" onkeypress="if(event.key==='Enter')this.classList.toggle('flipped')">
+        <div class="flashcard-inner">
+          <div class="flash-face front">Convex</div>
+          <div class="flash-face back">A single bowl-shaped landscape where every local minimum is also the global minimum.</div>
+        </div>
+      </div>
+      <div class="flashcard" tabindex="0" onclick="this.classList.toggle('flipped')" onkeypress="if(event.key==='Enter')this.classList.toggle('flipped')">
+        <div class="flashcard-inner">
+          <div class="flash-face front">Lagrange multiplier</div>
+          <div class="flash-face back">The exchange rate between improving the score and relaxing a constraint.</div>
+        </div>
+      </div>
+      <div class="flashcard" tabindex="0" onclick="this.classList.toggle('flipped')" onkeypress="if(event.key==='Enter')this.classList.toggle('flipped')">
+        <div class="flashcard-inner">
+          <div class="flash-face front">Momentum</div>
+          <div class="flash-face back">Carrying some of the previous step's direction forward to roll through small bumps.</div>
+        </div>
+      </div>
+      <div class="flashcard" tabindex="0" onclick="this.classList.toggle('flipped')" onkeypress="if(event.key==='Enter')this.classList.toggle('flipped')">
+        <div class="flashcard-inner">
+          <div class="flash-face front">Backpropagation</div>
+          <div class="flash-face back">The bookkeeping trick that efficiently computes the gradient for every weight in a neural network.</div>
+        </div>
+      </div>
+      <div class="flashcard" tabindex="0" onclick="this.classList.toggle('flipped')" onkeypress="if(event.key==='Enter')this.classList.toggle('flipped')">
+        <div class="flashcard-inner">
+          <div class="flash-face front">Newton's method</div>
+          <div class="flash-face back">Uses the second derivative (curvature) to size its own step, often converging in fewer iterations.</div>
+        </div>
+      </div>
+      <div class="flashcard" tabindex="0" onclick="this.classList.toggle('flipped')" onkeypress="if(event.key==='Enter')this.classList.toggle('flipped')">
+        <div class="flashcard-inner">
+          <div class="flash-face front">Stochastic gradient descent (SGD)</div>
+          <div class="flash-face back">Estimates the gradient from a small random batch instead of the whole dataset — noisy but fast.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="interactive-block explain-back">
+    <span class="tag">Teach it back</span>
+    <h3 style="margin-top:0">In your own words: explain, in one paragraph, how training an AI model is "the same machine" as rolling a ball down a single hill.</h3>
+    <textarea id="explain7" placeholder="Type your explanation here..."></textarea>
+    <div class="slider-row"><button class="btn ghost" onclick="revealModel('model7')">Compare with a model answer</button></div>
+    <div class="model-answer" id="model7">
+      Both follow the identical loop: define a score for how good the current answer is, compute the local gradient telling you which way makes that score worse, take a step in the opposite direction sized by a learning rate, and repeat until the slope flattens out. Training an AI model just runs this loop across billions of parameters instead of one or two, using backpropagation to compute the gradient efficiently — the algorithm itself never changes.
+    </div>
+  </div>
+
+  <div class="interactive-block quiz-block" data-quiz="q7">
+    <span class="tag">Did you get it?</span>
+    <div class="quiz-q" data-correct="1">
+      <p class="question">1. What is fundamentally different about training a billion-parameter model compared to the single-hill examples in this course?</p>
+      <button class="quiz-opt" data-i="0">It uses a completely different mathematical idea, unrelated to gradients</button>
+      <button class="quiz-opt" data-i="1">Mainly the number of dimensions involved, not the core algorithm</button>
+      <button class="quiz-opt" data-i="2">It doesn't use an objective function at all</button>
+      <div class="quiz-feedback"></div>
+    </div>
+    <div class="quiz-q" data-correct="0">
+      <p class="question">2. What is backpropagation, in plain terms?</p>
+      <button class="quiz-opt" data-i="0">An efficient way to compute the gradient for every weight in a network</button>
+      <button class="quiz-opt" data-i="1">A way to avoid using gradients altogether</button>
+      <button class="quiz-opt" data-i="2">A type of constraint used only in robotics</button>
+      <div class="quiz-feedback"></div>
+    </div>
+  </div>
+
+  <div class="takeaway">
+    <h4>Key takeaway</h4>
+    <p>Score, slope, step, repeat. That four-word loop, dressed up with momentum and constraints where needed, is the entire mechanism underneath everything from a single rolling ball to the largest AI models in existence.</p>
+  </div>
+
+  <div class="center" style="margin-top:50px;">
+    <button class="btn" onclick="document.getElementById('cheatsheet').classList.toggle('show'); this.textContent = document.getElementById('cheatsheet').classList.contains('show') ? '✕ Hide cheat sheet' : '📋 Reveal printable cheat sheet'">📋 Reveal printable cheat sheet</button>
+  </div>
+  <div class="callout model-answer" id="cheatsheet" style="margin-top:18px;">
+    <h3 style="margin-top:0">Optimization Cheat Sheet</h3>
+    <p class="mono small">objective function — the score you minimize or maximize<br>
+    derivative / slope — local rate of change, one direction<br>
+    gradient — slope generalized to many directions, points uphill<br>
+    gradient descent — θ_new = θ_old − rate × gradient<br>
+    learning rate — size of each step; too big diverges, too small stalls<br>
+    momentum — remembers prior direction, rolls through small bumps<br>
+    convex — bowl-shaped; every local minimum is the global minimum<br>
+    local vs. global minimum — the dip you're in vs. the deepest dip that exists<br>
+    constrained optimum — gradients of objective and constraint perfectly aligned/opposed<br>
+    Lagrange multiplier — exchange rate between score and constraint relaxation<br>
+    Newton's method — θ_new = θ_old − f'(θ)/f''(θ); uses curvature to size its own step<br>
+    Hessian — matrix of all second partial derivatives; generalizes f'' to many dimensions<br>
+    KKT conditions — generalize Lagrange multipliers to "at most" (inequality) constraints<br>
+    stochastic gradient descent (SGD) — estimates the gradient from a small random batch, not the whole dataset<br>
+    chain rule — multiply local derivatives along a chain of nested functions<br>
+    backpropagation — efficient gradient computation across a network's weights, via the chain rule</p>
+  </div>
+
+  <div class="center" id="certificateArea" style="margin-top:50px;">
+    <button class="btn ghost" onclick="document.getElementById('certificate').classList.toggle('show')">🏆 Generate certificate of completion</button>
+    <div class="callout model-answer" id="certificate" style="margin-top:18px; text-align:center;">
+      <div style="font-family:'Fraunces',serif; font-size:1.6rem; color:var(--summit); margin-bottom:6px;">Certificate of Completion</div>
+      <p class="mono small dim">This certifies that the learner has walked from the first hill to the expert synthesis of</p>
+      <h3 style="color:var(--valley); margin:6px 0;">Optimization Using Math</h3>
+      <p class="mono small dim" id="certDate"></p>
+    </div>
+  </div>
+
+  <h3 style="margin-top:60px;">What to learn next</h3>
+  <div class="roadmap-grid">
+    <a class="roadmap-card" href="https://www.deeplearningbook.org/" target="_blank" rel="noopener"><div class="n">→</div><h5>Deep Learning Book</h5><p>The full mathematical treatment of optimization in neural networks.</p></a>
+    <a class="roadmap-card" href="https://www.khanacademy.org/math/multivariable-calculus" target="_blank" rel="noopener"><div class="n">→</div><h5>Multivariable Calculus</h5><p>Build deeper fluency with gradients in many dimensions.</p></a>
+    <a class="roadmap-card" href="https://web.stanford.edu/~boyd/cvxbook/" target="_blank" rel="noopener"><div class="n">→</div><h5>Convex Optimization (Boyd &amp; Vandenberghe)</h5><p>The definitive text on constraints and convexity, free online.</p></a>
+  </div>
+</section>
+
+<footer>
+  <p class="mono">You walked from a single rolling ball to the engine behind modern AI. 🎓</p>
+  <p class="mono small dim">Built with plain HTML, CSS and JavaScript — no frameworks, no build step.</p>
+</footer>
+</main>
+<script>
+/* ---------- Progress bar + chapter nav ---------- */
+const chapters = Array.from(document.querySelectorAll('.chapter'));
+const nav = document.getElementById('chapterNav');
+chapters.forEach(ch => {
+  const a = document.createElement('a');
+  a.href = '#' + ch.id;
+  const label = ch.dataset.title || ch.id;
+  a.innerHTML = '<span>'+label+'</span>';
+  nav.appendChild(a);
+});
+const navLinks = Array.from(nav.querySelectorAll('a'));
+
+function onScroll(){
+  const scrollTop = window.scrollY;
+  const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+  document.getElementById('progressBar').style.width = (docHeight>0 ? (scrollTop/docHeight*100) : 0) + '%';
+
+  let activeIdx = 0;
+  chapters.forEach((ch,i)=>{
+    if(ch.getBoundingClientRect().top < window.innerHeight*0.4) activeIdx = i;
+  });
+  navLinks.forEach((l,i)=> l.classList.toggle('active', i===activeIdx));
+}
+window.addEventListener('scroll', onScroll, {passive:true});
+onScroll();
+
+/* ---------- Reveal on scroll ---------- */
+const io = new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); } });
+},{threshold:0.12});
+document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+
+/* ---------- localStorage progress tracking ---------- */
+const PROGRESS_KEY = 'optimization_course_progress_v1';
+function getProgress(){ try{ return JSON.parse(localStorage.getItem(PROGRESS_KEY))||{}; }catch(e){ return {}; } }
+function setProgress(p){ try{ localStorage.setItem(PROGRESS_KEY, JSON.stringify(p)); }catch(e){} }
+function markChapterDone(id){ const p = getProgress(); p[id]=true; setProgress(p); }
+
+/* ---------- Generic quiz logic ---------- */
+document.querySelectorAll('.quiz-block').forEach(block=>{
+  block.querySelectorAll('.quiz-q').forEach(q=>{
+    const correct = parseInt(q.dataset.correct,10);
+    const fb = q.querySelector('.quiz-feedback');
+    q.querySelectorAll('.quiz-opt').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const i = parseInt(btn.dataset.i,10);
+        q.querySelectorAll('.quiz-opt').forEach(b=>b.classList.remove('correct','wrong'));
+        if(i===correct){
+          btn.classList.add('correct');
+          fb.textContent = '✓ Correct — nice work.';
+          fb.className = 'quiz-feedback show ok';
+          markChapterDone(block.closest('.chapter').id);
+        } else {
+          btn.classList.add('wrong');
+          q.querySelectorAll('.quiz-opt')[correct].classList.add('correct');
+          fb.textContent = '✗ Not quite — the highlighted option is correct. Re-read the section above if this surprised you.';
+          fb.className = 'quiz-feedback show no';
+        }
+      });
+    });
+  });
+});
+
+/* ---------- Explain-it-back reveal ---------- */
+function revealModel(id){
+  document.getElementById(id).classList.toggle('show');
+}
+
+/* ---------- Matching exercise (Chapter 1) ---------- */
+(function(){
+  const items = document.querySelectorAll('#match1 .match-item');
+  let selected = null;
+  let matchedCount = 0;
+  const status = document.getElementById('match1status');
+  items.forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      if(btn.classList.contains('correct')) return;
+      if(!selected){
+        items.forEach(b=>b.classList.remove('selected'));
+        btn.classList.add('selected');
+        selected = btn;
+      } else if(selected === btn){
+        btn.classList.remove('selected'); selected = null;
+      } else {
+        if(selected.dataset.pair === btn.dataset.pair){
+          selected.classList.remove('selected','wrong'); selected.classList.add('correct');
+          btn.classList.remove('wrong'); btn.classList.add('correct');
+          matchedCount++;
+          status.textContent = matchedCount+' of 4 matched.';
+          if(matchedCount===4){ status.textContent = '✓ All matched!'; }
+        } else {
+          selected.classList.add('wrong'); btn.classList.add('wrong');
+          setTimeout(()=>{ selected.classList.remove('wrong','selected'); btn.classList.remove('wrong'); },500);
+        }
+        selected = null;
+      }
+    });
+  });
+})();
+
+/* ---------- Hero landscape replay ---------- */
+function playHeroAnim(){
+  const ball = document.getElementById('heroBall');
+  ball.style.transition = 'none';
+  ball.setAttribute('cx',60); ball.setAttribute('cy',232);
+  requestAnimationFrame(()=>{
+    ball.style.transition = 'cx 1.6s cubic-bezier(.4,0,.2,1), cy 1.6s cubic-bezier(.4,0,.2,1)';
+    requestAnimationFrame(()=>{ ball.setAttribute('cx',280); ball.setAttribute('cy',270); });
+  });
+}
+window.addEventListener('load', ()=> setTimeout(playHeroAnim, 400));
+
+/* ---------- Synthesis map connecting lines ---------- */
+function playSynthAnim(){
+  const linesGroup = document.getElementById('synthLines');
+  linesGroup.innerHTML = '';
+  const coords = [[120,80,380,60],[380,60,640,100],[120,80,160,270],[160,270,430,300],[430,300,640,260],[640,100,640,260]];
+  coords.forEach((c,i)=>{
+    const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+    line.setAttribute('x1',c[0]); line.setAttribute('y1',c[1]);
+    line.setAttribute('x2',c[0]); line.setAttribute('y2',c[1]);
+    linesGroup.appendChild(line);
+    setTimeout(()=>{
+      line.style.transition = 'x2 0.5s ease, y2 0.5s ease';
+      line.setAttribute('x2',c[2]); line.setAttribute('y2',c[3]);
+    }, i*180);
+  });
+}
+const synthSection = document.getElementById('ch9');
+const synthIO = new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{ if(e.isIntersecting){ playSynthAnim(); synthIO.disconnect(); } });
+},{threshold:0.3});
+synthIO.observe(synthSection);
+
+/* ---------- Chapter 2: slope slider ---------- */
+(function(){
+  const svg = document.getElementById('slopeSvg');
+  const curve = document.getElementById('slopeCurve');
+  const tangent = document.getElementById('tangentLine');
+  const dot = document.getElementById('slopeDot');
+  const slider = document.getElementById('slopeX');
+  const readout = document.getElementById('slopeReadout');
+
+  // f(x) maps x in [0,100] to plotted coords; underlying f(u) = (u-50)^2/200 + 1, u in [0,100]
+  function f(u){ return Math.pow(u-50,2)/200 + 1; }
+  function fPrime(u){ return (u-50)/100; }
+  function toPlot(u){
+    const px = 40 + (u/100)*620;
+    const py = 230 - (f(u)-1)*180;
+    return [px,py];
+  }
+  // draw curve
+  let d = '';
+  for(let u=0;u<=100;u+=2){
+    const [px,py] = toPlot(u);
+    d += (u===0?'M':'L')+px.toFixed(1)+','+py.toFixed(1)+' ';
+  }
+  curve.setAttribute('d', d);
+
+  function update(){
+    const u = parseFloat(slider.value);
+    const [px,py] = toPlot(u);
+    dot.setAttribute('cx',px); dot.setAttribute('cy',py);
+    const slope = fPrime(u);
+    const dx = 60;
+    const pxPerU = 620/100;
+    const dPyDPx = (-(2*(u-50)/200)*180) / pxPerU;
+    const x1 = px-dx, y1 = py - dPyDPx*dx;
+    const x2 = px+dx, y2 = py + dPyDPx*dx;
+    tangent.setAttribute('x1',x1); tangent.setAttribute('y1',y1);
+    tangent.setAttribute('x2',x2); tangent.setAttribute('y2',y2);
+    readout.textContent = 'slope ≈ ' + slope.toFixed(2);
+  }
+  slider.addEventListener('input', update);
+  update();
+})();
+
+/* ---------- Chapter 3: gradient descent simulator ---------- */
+(function(){
+  const curve = document.getElementById('gdCurve');
+  const ball = document.getElementById('gdBall');
+  const minMarker = document.getElementById('gdMinMarker');
+  const arrow = document.getElementById('gdArrow');
+  const trail = document.getElementById('gdTrail');
+  const startSlider = document.getElementById('gdStart');
+  const rateSlider = document.getElementById('gdRate');
+  const readout = document.getElementById('gdReadout');
+
+  function f(u){ return Math.pow(u-50,2)/150 + 1; }
+  function fPrime(u){ return (u-50)/75; }
+  function toPlot(u){
+    const px = 40 + (u/100)*610;
+    const py = 250 - (f(u)-1)*200;
+    return [px,py];
+  }
+  let d='';
+  for(let u=0;u<=100;u+=2){ const [px,py]=toPlot(u); d += (u===0?'M':'L')+px.toFixed(1)+','+py.toFixed(1)+' '; }
+  curve.setAttribute('d', d);
+  const [mx,my] = toPlot(50);
+  minMarker.setAttribute('cx',mx); minMarker.setAttribute('cy',my);
+
+  let theta = parseFloat(startSlider.value);
+  let trailPts = [];
+  let stepCount = 0;
+  let runTimer = null;
+
+  function render(){
+    const [px,py] = toPlot(theta);
+    ball.setAttribute('cx',px); ball.setAttribute('cy',py);
+    const slope = fPrime(theta);
+    const arrowLen = 40;
+    const dirX = slope>0 ? -arrowLen : arrowLen;
+    arrow.setAttribute('x1',px); arrow.setAttribute('y1',py-14);
+    arrow.setAttribute('x2',px+ (slope>0?-1:1)*arrowLen); arrow.setAttribute('y2',py-14);
+    let trailD = '';
+    trailPts.forEach((u,i)=>{ const [tx,ty]=toPlot(u); trailD += (i===0?'M':'L')+tx.toFixed(1)+','+ty.toFixed(1)+' '; });
+    trail.setAttribute('d',trailD);
+    readout.textContent = 'step '+stepCount+' · θ='+theta.toFixed(1);
+  }
+
+  function gdStep(){
+    trailPts.push(theta);
+    const rate = parseFloat(rateSlider.value)/10;
+    const slope = fPrime(theta);
+    theta = theta - rate*slope*10;
+    theta = Math.max(-10, Math.min(110, theta));
+    stepCount++;
+    render();
+  }
+  function gdRun(){
+    if(runTimer) return;
+    let n=0;
+    runTimer = setInterval(()=>{
+      gdStep(); n++;
+      if(n>30 || Math.abs(fPrime(theta))<0.01){ clearInterval(runTimer); runTimer=null; }
+    },280);
+  }
+  function gdReset(){
+    if(runTimer){ clearInterval(runTimer); runTimer=null; }
+    theta = parseFloat(startSlider.value);
+    trailPts = []; stepCount = 0;
+    render();
+  }
+  startSlider.addEventListener('input', gdReset);
+  window.gdStep = gdStep; window.gdRun = gdRun; window.gdReset = gdReset;
+  render();
+})();
+
+/* ---------- Chapter 4: convexity step-by-step ---------- */
+(function(){
+  const curve = document.getElementById('convexCurve');
+  const ballsGroup = document.getElementById('convexBalls');
+  const nextBtn = document.getElementById('convexNextBtn');
+  const readout = document.getElementById('convexReadout');
+  const commentary = document.getElementById('convexCommentary');
+
+  function f(u){
+    return 1.6 + Math.sin(u/12)*0.6 + Math.sin(u/35+1)*0.9 + (u-50)*(u-50)/4000;
+  }
+  function toPlot(u){
+    const px = 20 + (u/100)*660;
+    const py = 230 - (f(u))*55;
+    return [px,py];
+  }
+  let d='';
+  for(let u=0;u<=100;u+=1){ const [px,py]=toPlot(u); d += (u===0?'M':'L')+px.toFixed(1)+','+py.toFixed(1)+' '; }
+  curve.setAttribute('d', d);
+
+  const starts = [8, 32, 58, 90];
+  const colors = ['var(--summit)','var(--path)','var(--fence)','var(--signal)'];
+  let positions = starts.slice();
+  let step = 0;
+  const maxSteps = 6;
+  const comments = [
+    'Four marbles dropped at different starting points.',
+    'Each marble feels its own local slope and starts rolling.',
+    'Notice they move toward different nearby dips — not all toward the same place.',
+    'Two marbles have already found a flat spot and stopped.',
+    'The remaining marbles continue settling into their nearest dip.',
+    'All four have settled — but into different valleys! Only one of these is the true global minimum.'
+  ];
+
+  function findLocalStep(u){
+    const h = 0.5;
+    const slope = (f(u+h)-f(u-h))/(2*h);
+    let next = u - slope*14;
+    return Math.max(0, Math.min(100, next));
+  }
+
+  function render(){
+    ballsGroup.innerHTML = '';
+    positions.forEach((u,i)=>{
+      const [px,py] = toPlot(u);
+      const c = document.createElementNS('http://www.w3.org/2000/svg','circle');
+      c.setAttribute('cx',px); c.setAttribute('cy',py-9); c.setAttribute('r',8);
+      c.setAttribute('fill',colors[i]);
+      ballsGroup.appendChild(c);
+    });
+    readout.textContent = 'step '+step+' of '+maxSteps;
+    commentary.textContent = comments[step];
+  }
+  function convexNext(){
+    if(step>=maxSteps){ return; }
+    positions = positions.map(u=>findLocalStep(u));
+    step++;
+    render();
+    if(step>=maxSteps){ nextBtn.textContent = '✓ Settled'; nextBtn.disabled = true; }
+  }
+  function convexReset(){
+    positions = starts.slice(); step = 0;
+    nextBtn.textContent = 'Next Step ▸'; nextBtn.disabled = false;
+    render();
+  }
+  window.convexNext = convexNext; window.convexReset = convexReset;
+  render();
+})();
+
+/* ---------- Chapter 5: Lagrange / leash sandbox ---------- */
+(function(){
+  const cx=250, cy=170, r=110;
+  const point = document.getElementById('lagrangePoint');
+  const want = document.getElementById('lagrangeWant');
+  const allow = document.getElementById('lagrangeAllow');
+  const slider = document.getElementById('lagrangeAngle');
+  const readout = document.getElementById('lagrangeReadout');
+  const star = {x:380,y:55};
+
+  function update(){
+    const angle = parseFloat(slider.value) * Math.PI/180;
+    const px = cx + r*Math.cos(angle);
+    const py = cy + r*Math.sin(angle);
+    point.setAttribute('cx',px); point.setAttribute('cy',py);
+
+    // want direction: toward star
+    let wx = star.x-px, wy = star.y-py;
+    const wlen = Math.hypot(wx,wy); wx/=wlen; wy/=wlen;
+    want.setAttribute('x1',px); want.setAttribute('y1',py);
+    want.setAttribute('x2',px+wx*50); want.setAttribute('y2',py+wy*50);
+
+    // allowed direction: tangent to circle
+    let tx = -Math.sin(angle), ty = Math.cos(angle);
+    allow.setAttribute('x1',px-tx*50); allow.setAttribute('y1',py-ty*50);
+    allow.setAttribute('x2',px+tx*50); allow.setAttribute('y2',py+ty*50);
+
+    // alignment: how perpendicular want is to tangent (0% = perpendicular = optimum, 100% = parallel = furthest from optimum)
+    const dot = Math.abs(wx*tx + wy*ty);
+    const alignment = Math.round((1-dot)*100);
+    readout.textContent = 'alignment: ' + alignment + '%' + (alignment>92 ? ' ✓ balanced!' : '');
+  }
+  slider.addEventListener('input', update);
+
+  function lagrangeSnap(){
+    // true optimum: angle pointing directly away from star along the line connecting circle center to star, on near side
+    const dx = star.x-cx, dy = star.y-cy;
+    const angleToStar = Math.atan2(dy,dx) * 180/Math.PI;
+    let target = ((angleToStar % 360) + 360) % 360;
+    slider.value = target;
+    update();
+  }
+  window.lagrangeSnap = lagrangeSnap;
+  update();
+
+  // simple drag support
+  let dragging=false;
+  point.addEventListener('pointerdown', ()=>{ dragging=true; });
+  window.addEventListener('pointerup', ()=>{ dragging=false; });
+  document.getElementById('lagrangeSvg').addEventListener('pointermove', (e)=>{
+    if(!dragging) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const scaleX = 500/rect.width, scaleY = 320/rect.height;
+    const mx = (e.clientX-rect.left)*scaleX, my = (e.clientY-rect.top)*scaleY;
+    const angle = Math.atan2(my-cy, mx-cx) * 180/Math.PI;
+    slider.value = ((angle%360)+360)%360;
+    update();
+  });
+})();
+
+/* ---------- Chapter 6: learning rate presets ---------- */
+(function(){
+  const curve = document.getElementById('gdCurve2');
+  const ball = document.getElementById('gdBall2');
+  const minMarker = document.getElementById('gdMinMarker2');
+  const trail = document.getElementById('gdTrail2');
+  const readout = document.getElementById('gdReadout2');
+
+  function f(u){ return Math.pow(u-50,2)/150 + 1; }
+  function fPrime(u){ return (u-50)/75; }
+  function toPlot(u){
+    const px = 40 + (u/100)*610;
+    const py = 250 - (f(u)-1)*200;
+    return [Math.max(20,Math.min(680,px)),py];
+  }
+  let d='';
+  for(let u=-20;u<=120;u+=2){ const [px,py]=toPlot(u); d += (u===-20?'M':'L')+px.toFixed(1)+','+py.toFixed(1)+' '; }
+  curve.setAttribute('d', d);
+  const [mx,my] = toPlot(50);
+  minMarker.setAttribute('cx',mx); minMarker.setAttribute('cy',my);
+
+  let theta = 8, rate = 14, trailPts=[], timer=null, stepCount=0;
+
+  function render(){
+    const [px,py] = toPlot(theta);
+    ball.setAttribute('cx',px); ball.setAttribute('cy',py);
+    let trailD='';
+    trailPts.forEach((u,i)=>{ const [tx,ty]=toPlot(u); trailD += (i===0?'M':'L')+tx.toFixed(1)+','+ty.toFixed(1)+' '; });
+    trail.setAttribute('d',trailD);
+  }
+  function gdPreset2(rateVal){
+    gdReset2();
+    rate = rateVal;
+    const label = rateVal<=5?'Too small':(rateVal>=30?'Too large':'Just right');
+    readout.textContent = label+' (rate '+rateVal+')';
+  }
+  function gdRun2(){
+    if(timer) return;
+    let n=0;
+    timer = setInterval(()=>{
+      trailPts.push(theta);
+      const r = rate/10;
+      theta = theta - r*fPrime(theta)*10;
+      theta = Math.max(-30, Math.min(130, theta));
+      stepCount++;
+      render();
+      n++;
+      if(n>40 || Math.abs(theta-50)>200){ clearInterval(timer); timer=null; }
+    },200);
+  }
+  function gdReset2(){
+    if(timer){ clearInterval(timer); timer=null; }
+    theta=8; trailPts=[]; stepCount=0;
+    render();
+  }
+  window.gdPreset2 = gdPreset2; window.gdRun2 = gdRun2; window.gdReset2 = gdReset2;
+  render();
+})();
+
+/* ---------- Chapter 6: sortable list ---------- */
+function moveSort(btn, dir){
+  const li = btn.closest('li');
+  const list = li.parentElement;
+  if(dir===-1 && li.previousElementSibling){ list.insertBefore(li, li.previousElementSibling); }
+  if(dir===1 && li.nextElementSibling){ list.insertBefore(li.nextElementSibling, li); }
+}
+function checkSort(){
+  const list = document.getElementById('sortList');
+  const order = Array.from(list.children).map(li=>li.dataset.id);
+  const correctOrder = ['huge','big','tiny','good'];
+  const isCorrect = JSON.stringify(order)===JSON.stringify(correctOrder);
+  const fb = document.getElementById('sortFeedback');
+  list.classList.toggle('correct', isCorrect);
+  fb.textContent = isCorrect
+    ? '✓ Correct! From least to most stable: exploding, oscillating, painfully slow, well-tuned with momentum.'
+    : '✗ Not quite the order intended — think about which problems are "unstable" vs. just "slow", then try again.';
+  fb.style.color = isCorrect ? 'var(--signal)' : 'var(--error)';
+}
+
+/* ---------- Chapter 7: Newton's method vs gradient descent ---------- */
+(function(){
+  const curve = document.getElementById('newtonCurve');
+  const minMarker = document.getElementById('newtonMin');
+  const gdBall = document.getElementById('gdBall3');
+  const newtonBall = document.getElementById('newtonBall');
+  const readout = document.getElementById('newtonReadout');
+  if(!curve) return;
+
+  function f(u){ return Math.pow(u-50,2)/150 + 1; }
+  function fPrime(u){ return (u-50)/75; }
+  const fDoublePrime = 1/75; // constant for this quadratic
+  function toPlot(u){
+    const px = 40 + (u/100)*610;
+    const py = 230 - (f(u)-1)*180;
+    return [px,py];
+  }
+  let d='';
+  for(let u=0;u<=100;u+=2){ const [px,py]=toPlot(u); d += (u===0?'M':'L')+px.toFixed(1)+','+py.toFixed(1)+' '; }
+  curve.setAttribute('d', d);
+  const [mx,my] = toPlot(50);
+  minMarker.setAttribute('cx',mx); minMarker.setAttribute('cy',my);
+
+  let gdTheta = 5, newtonTheta = 5, step = 0;
+
+  function render(){
+    const [gx,gy] = toPlot(gdTheta);
+    gdBall.setAttribute('cx',gx); gdBall.setAttribute('cy',gy);
+    const [nx,ny] = toPlot(newtonTheta);
+    newtonBall.setAttribute('cx',nx); newtonBall.setAttribute('cy',ny-16);
+    readout.textContent = 'step '+step+' · GD θ='+gdTheta.toFixed(1)+' · Newton θ='+newtonTheta.toFixed(1);
+  }
+  function newtonStep(){
+    const rate = 0.15;
+    gdTheta = gdTheta - rate*fPrime(gdTheta)*10;
+    newtonTheta = newtonTheta - fPrime(newtonTheta)/fDoublePrime;
+    step++;
+    render();
+  }
+  function newtonReset(){
+    gdTheta = 5; newtonTheta = 5; step = 0;
+    render();
+  }
+  window.newtonStep = newtonStep; window.newtonReset = newtonReset;
+  render();
+})();
+
+/* ---------- Chapter 8: stochastic vs full-batch descent ---------- */
+(function(){
+  const curve = document.getElementById('sgdCurve');
+  const minMarker = document.getElementById('sgdMin');
+  const pathFull = document.getElementById('sgdPathFull');
+  const pathNoisy = document.getElementById('sgdPathNoisy');
+  const ballFull = document.getElementById('sgdBallFull');
+  const ballNoisy = document.getElementById('sgdBallNoisy');
+  const noiseSlider = document.getElementById('sgdNoise');
+  const readout = document.getElementById('sgdReadout');
+  if(!curve) return;
+
+  function f(u){ return Math.pow(u-50,2)/150 + 1; }
+  function fPrime(u){ return (u-50)/75; }
+  function toPlot(u){
+    const px = 40 + (u/100)*610;
+    const py = 250 - (f(u)-1)*200;
+    return [px,py];
+  }
+  let d='';
+  for(let u=0;u<=100;u+=2){ const [px,py]=toPlot(u); d += (u===0?'M':'L')+px.toFixed(1)+','+py.toFixed(1)+' '; }
+  curve.setAttribute('d', d);
+  const [mx,my] = toPlot(50);
+  minMarker.setAttribute('cx',mx); minMarker.setAttribute('cy',my);
+
+  let thetaFull = 6, thetaNoisy = 6, trailFull=[], trailNoisy=[], timer=null;
+
+  function render(){
+    const [fx,fy] = toPlot(thetaFull);
+    ballFull.setAttribute('cx',fx); ballFull.setAttribute('cy',fy);
+    const [nx,ny] = toPlot(thetaNoisy);
+    ballNoisy.setAttribute('cx',nx); ballNoisy.setAttribute('cy',ny);
+    let dFull=''; trailFull.forEach((u,i)=>{ const [x,y]=toPlot(u); dFull+=(i===0?'M':'L')+x.toFixed(1)+','+y.toFixed(1)+' '; });
+    let dNoisy=''; trailNoisy.forEach((u,i)=>{ const [x,y]=toPlot(u); dNoisy+=(i===0?'M':'L')+x.toFixed(1)+','+y.toFixed(1)+' '; });
+    pathFull.setAttribute('d', dFull);
+    pathNoisy.setAttribute('d', dNoisy);
+  }
+  function sgdRun(){
+    if(timer) return;
+    let n=0;
+    const noise = parseFloat(noiseSlider.value)/10;
+    timer = setInterval(()=>{
+      trailFull.push(thetaFull);
+      trailNoisy.push(thetaNoisy);
+      thetaFull = thetaFull - 0.12*fPrime(thetaFull)*10;
+      const jitter = (Math.random()-0.5)*noise;
+      thetaNoisy = thetaNoisy - 0.12*(fPrime(thetaNoisy)+jitter)*10;
+      thetaFull = Math.max(-20,Math.min(120,thetaFull));
+      thetaNoisy = Math.max(-20,Math.min(120,thetaNoisy));
+      render();
+      n++;
+      if(n>45){ clearInterval(timer); timer=null; }
+    },180);
+  }
+  function sgdReset(){
+    if(timer){ clearInterval(timer); timer=null; }
+    thetaFull=6; thetaNoisy=6; trailFull=[]; trailNoisy=[];
+    render();
+  }
+  noiseSlider.addEventListener('input', ()=>{ readout.textContent = 'noise level: '+noiseSlider.value; });
+  window.sgdRun = sgdRun; window.sgdReset = sgdReset;
+  render();
+})();
+
+/* ---------- Render math notation (KaTeX), with graceful fallback ---------- */
+window.addEventListener('load', function(){
+  if(window.renderMathInElement){
+    renderMathInElement(document.body, {
+      delimiters: [
+        {left:'$$', right:'$$', display:true},
+        {left:'$', right:'$', display:false}
+      ],
+      throwOnError:false
+    });
+  }
+});
+
+/* ---------- Certificate date ---------- */
+document.getElementById('certDate').textContent = 'Completed on ' + new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
+</script>
+</body>
+</html>

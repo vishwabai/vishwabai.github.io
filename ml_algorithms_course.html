@@ -1,0 +1,1749 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Model's Eye — ML Algorithms &amp; the Math Beneath Them</title>
+<style>
+:root{
+  --bg:#070a12;
+  --bg2:#0c1220;
+  --panel:#0f1626;
+  --panel2:#131c30;
+  --line:#1e2c46;
+  --ink:#dbe4f5;
+  --ink-dim:#8fa0c2;
+  --ink-faint:#5a6a8c;
+  --accent:#5ee6c9;
+  --accent2:#ff8a5c;
+  --accent3:#8f7bff;
+  --warn:#ffb454;
+  --good:#5ee6c9;
+  --bad:#ff6b6b;
+  --grid:#132038;
+  --serif:'Georgia','Iowan Old Style',ui-serif,serif;
+  --mono:'SF Mono','JetBrains Mono',ui-monospace,Menlo,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,sans-serif;
+}
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{
+  margin:0;
+  background:
+    radial-gradient(ellipse at 20% -10%, #10203a 0%, transparent 55%),
+    radial-gradient(ellipse at 90% 10%, #1a1030 0%, transparent 50%),
+    var(--bg);
+  color:var(--ink);
+  font-family:var(--sans);
+  line-height:1.6;
+  min-height:100vh;
+}
+::selection{background:var(--accent);color:#03110d;}
+a{color:var(--accent);}
+
+/* ---------- layout shell ---------- */
+.shell{display:grid;grid-template-columns:280px 1fr;min-height:100vh;}
+@media (max-width:900px){.shell{grid-template-columns:1fr;}}
+
+/* ---------- sidebar ---------- */
+.side{
+  position:sticky;top:0;height:100vh;overflow-y:auto;
+  background:linear-gradient(180deg,var(--bg2),var(--bg));
+  border-right:1px solid var(--line);
+  padding:22px 16px 60px;
+}
+@media (max-width:900px){.side{position:relative;height:auto;border-right:none;border-bottom:1px solid var(--line);}}
+.brand{padding:4px 8px 18px;border-bottom:1px solid var(--line);margin-bottom:14px;}
+.brand .eye{
+  width:34px;height:34px;border-radius:50%;
+  background:radial-gradient(circle at 35% 35%,#dffaf2,var(--accent) 45%,#0a3d33 100%);
+  box-shadow:0 0 18px rgba(94,230,201,.45);
+  margin-bottom:10px;
+}
+.brand h1{font-family:var(--serif);font-size:1.05rem;margin:0 0 4px;letter-spacing:.02em;font-weight:600;}
+.brand p{margin:0;font-size:.74rem;color:var(--ink-faint);letter-spacing:.03em;}
+
+.progress-wrap{padding:10px 8px 18px;border-bottom:1px solid var(--line);margin-bottom:8px;}
+.progress-wrap .label{display:flex;justify-content:space-between;font-size:.68rem;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;}
+.progress-bar{height:5px;border-radius:3px;background:var(--panel2);overflow:hidden;}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent3));width:0%;transition:width .4s;}
+
+nav.toc{display:flex;flex-direction:column;gap:1px;}
+.toc-group{margin-top:12px;}
+.toc-group h3{font-size:.66rem;text-transform:uppercase;letter-spacing:.12em;color:var(--ink-faint);margin:0 0 6px;padding:0 8px;}
+.toc a{
+  display:flex;align-items:center;gap:9px;
+  padding:8px 8px;border-radius:8px;
+  font-size:.83rem;color:var(--ink-dim);text-decoration:none;
+  border-left:2px solid transparent;
+}
+.toc a:hover{background:var(--panel2);color:var(--ink);}
+.toc a.active{background:var(--panel2);color:var(--accent);border-left:2px solid var(--accent);}
+.toc a .dot{width:6px;height:6px;border-radius:50%;background:var(--ink-faint);flex:none;}
+.toc a.done .dot{background:var(--good);box-shadow:0 0 6px var(--good);}
+.toc a.active .dot{background:var(--accent);box-shadow:0 0 6px var(--accent);}
+
+/* ---------- main ---------- */
+main{padding:0;min-width:0;}
+.hero{
+  padding:64px 8vw 48px;border-bottom:1px solid var(--line);
+  background:
+    repeating-linear-gradient(90deg, transparent, transparent 79px, rgba(94,230,201,0.035) 80px),
+    repeating-linear-gradient(0deg, transparent, transparent 79px, rgba(94,230,201,0.035) 80px);
+}
+.hero .eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent2);margin-bottom:14px;}
+.hero h1{font-family:var(--serif);font-size:clamp(2rem,4.4vw,3.4rem);line-height:1.08;margin:0 0 18px;max-width:16ch;}
+.hero h1 em{color:var(--accent);font-style:normal;}
+.hero p.lede{max-width:62ch;color:var(--ink-dim);font-size:1.05rem;}
+.hero .startbtn{
+  display:inline-block;margin-top:22px;padding:12px 22px;border-radius:8px;
+  background:var(--accent);color:#04241d;font-weight:700;text-decoration:none;font-size:.9rem;
+  box-shadow:0 8px 24px rgba(94,230,201,.18);
+}
+
+section.chapter{padding:60px 8vw;border-bottom:1px solid var(--line);scroll-margin-top:20px;}
+section.chapter:nth-child(even){background:linear-gradient(180deg,rgba(255,255,255,.012),transparent);}
+.chapter-head{max-width:850px;margin-bottom:30px;}
+.chapter-num{font-family:var(--mono);color:var(--accent2);font-size:.78rem;letter-spacing:.1em;}
+.chapter-head h2{font-family:var(--serif);font-size:clamp(1.5rem,2.6vw,2.2rem);margin:8px 0 12px;}
+.chapter-head .sub{color:var(--ink-dim);max-width:70ch;}
+
+.panel{
+  background:var(--panel);border:1px solid var(--line);border-radius:14px;
+  padding:22px 24px;margin:22px 0;max-width:900px;
+}
+.panel h3{margin-top:0;font-size:1rem;color:var(--ink);font-family:var(--serif);}
+.panel.intuition{border-left:3px solid var(--accent3);}
+.panel.misconception{border-left:3px solid var(--bad);background:linear-gradient(90deg,rgba(255,107,107,.06),transparent);}
+.panel.misconception h3::before{content:"⚠ Misconception  ";color:var(--bad);}
+.panel.math{border-left:3px solid var(--accent);}
+.panel.analogy{border-left:3px solid var(--warn);}
+
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:1100px;}
+@media (max-width:800px){.two-col{grid-template-columns:1fr;}}
+
+/* math typography (no external deps) */
+.math-block{
+  font-family:var(--serif);font-style:italic;font-size:1.15rem;color:var(--ink);
+  background:var(--panel2);border:1px solid var(--line);border-radius:10px;
+  padding:16px 20px;margin:14px 0;overflow-x:auto;text-align:center;
+}
+.math-inline{font-family:var(--serif);font-style:italic;color:var(--accent);}
+sup{font-size:.68em;}
+sub{font-size:.68em;}
+.frac{display:inline-flex;flex-direction:column;vertical-align:middle;text-align:center;margin:0 4px;}
+.frac .num{border-bottom:1.3px solid currentColor;padding:0 4px 2px;}
+.frac .den{padding:2px 4px 0;}
+.vecbold{font-weight:700;font-style:normal;}
+
+/* interactive widget shells */
+.widget{
+  background:var(--panel);border:1px solid var(--line);border-radius:14px;
+  padding:18px 20px 22px;margin:22px 0;max-width:900px;
+}
+.widget .wtitle{font-size:.72rem;text-transform:uppercase;letter-spacing:.1em;color:var(--accent);margin-bottom:12px;display:flex;align-items:center;gap:8px;}
+.widget .wtitle::before{content:"◆";font-size:.7rem;}
+canvas{display:block;width:100%;background:var(--bg2);border-radius:8px;border:1px solid var(--grid);touch-action:none;}
+.controls{display:flex;flex-wrap:wrap;gap:14px;margin-top:14px;align-items:center;}
+.ctl{display:flex;flex-direction:column;gap:4px;font-size:.76rem;color:var(--ink-dim);min-width:120px;}
+.ctl label{display:flex;justify-content:space-between;}
+.ctl .val{color:var(--accent);font-family:var(--mono);}
+input[type=range]{-webkit-appearance:none;height:4px;border-radius:2px;background:var(--line);outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--accent);cursor:pointer;box-shadow:0 0 8px rgba(94,230,201,.5);}
+button.btn{
+  background:var(--panel2);border:1px solid var(--line);color:var(--ink);
+  padding:8px 14px;border-radius:8px;font-size:.78rem;cursor:pointer;font-family:var(--sans);
+}
+button.btn:hover{border-color:var(--accent);color:var(--accent);}
+button.btn.primary{background:var(--accent);color:#04241d;border-color:var(--accent);font-weight:700;}
+.readout{font-family:var(--mono);font-size:.8rem;color:var(--ink-dim);margin-top:10px;display:flex;flex-wrap:wrap;gap:16px;}
+.readout b{color:var(--accent);}
+.hint{font-size:.75rem;color:var(--ink-faint);margin-top:8px;}
+
+/* quiz / explain-it-back */
+.quiz{max-width:900px;margin:22px 0;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px 22px;}
+.quiz h3{margin-top:0;font-size:.95rem;}
+.quiz .q{margin-bottom:14px;}
+.quiz .opts{display:flex;flex-direction:column;gap:8px;margin-top:8px;}
+.quiz .opt{
+  padding:9px 12px;border:1px solid var(--line);border-radius:8px;cursor:pointer;font-size:.86rem;color:var(--ink-dim);
+}
+.quiz .opt:hover{border-color:var(--accent3);}
+.quiz .opt.correct{border-color:var(--good);background:rgba(94,230,201,.08);color:var(--good);}
+.quiz .opt.wrong{border-color:var(--bad);background:rgba(255,107,107,.08);color:var(--bad);}
+.explain{max-width:900px;margin:22px 0;}
+.explain textarea{
+  width:100%;min-height:90px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;
+  color:var(--ink);padding:12px 14px;font-family:var(--sans);font-size:.86rem;resize:vertical;
+}
+.explain .fb{margin-top:8px;font-size:.78rem;color:var(--ink-faint);}
+
+/* table */
+table.datatable{border-collapse:collapse;width:100%;font-size:.82rem;font-family:var(--mono);}
+table.datatable th,table.datatable td{border:1px solid var(--line);padding:6px 10px;text-align:right;}
+table.datatable th{color:var(--accent);background:var(--panel2);text-align:right;}
+table.datatable td:first-child,table.datatable th:first-child{text-align:left;}
+.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:.68rem;font-family:var(--mono);}
+.badge.miss{background:rgba(255,107,107,.15);color:var(--bad);}
+.badge.ok{background:rgba(94,230,201,.15);color:var(--good);}
+
+footer{padding:50px 8vw 90px;color:var(--ink-faint);font-size:.8rem;}
+.chapter-nav{display:flex;justify-content:space-between;max-width:900px;margin-top:36px;}
+.chapter-nav a{color:var(--ink-dim);text-decoration:none;font-size:.85rem;border:1px solid var(--line);padding:9px 16px;border-radius:8px;}
+.chapter-nav a:hover{border-color:var(--accent);color:var(--accent);}
+</style>
+</head>
+<body>
+
+<div class="shell">
+<aside class="side">
+  <div class="brand">
+    <div class="eye"></div>
+    <h1>The Model's Eye</h1>
+    <p>ML algorithms &amp; the math behind them</p>
+  </div>
+  <div class="progress-wrap">
+    <div class="label"><span>Progress</span><span id="progPct">0%</span></div>
+    <div class="progress-bar"><div class="progress-fill" id="progFill"></div></div>
+  </div>
+  <nav class="toc" id="toc">
+    <div class="toc-group">
+      <h3>Foundations</h3>
+      <a href="#ch0" data-ch="ch0"><span class="dot"></span>0 · How data becomes a model</a>
+      <a href="#ch1" data-ch="ch1"><span class="dot"></span>1 · Cleaning &amp; preprocessing</a>
+    </div>
+    <div class="toc-group">
+      <h3>Regression</h3>
+      <a href="#ch2" data-ch="ch2"><span class="dot"></span>2 · Linear regression</a>
+      <a href="#ch3" data-ch="ch3"><span class="dot"></span>3 · Logistic regression</a>
+    </div>
+    <div class="toc-group">
+      <h3>Instance &amp; tree methods</h3>
+      <a href="#ch4" data-ch="ch4"><span class="dot"></span>4 · k-Nearest Neighbors</a>
+      <a href="#ch5" data-ch="ch5"><span class="dot"></span>5 · Decision trees</a>
+    </div>
+    <div class="toc-group">
+      <h3>Unsupervised</h3>
+      <a href="#ch6" data-ch="ch6"><span class="dot"></span>6 · k-Means clustering</a>
+      <a href="#ch7" data-ch="ch7"><span class="dot"></span>7 · PCA</a>
+    </div>
+    <div class="toc-group">
+      <h3>Probabilistic &amp; evaluation</h3>
+      <a href="#ch8" data-ch="ch8"><span class="dot"></span>8 · Naive Bayes</a>
+      <a href="#ch9" data-ch="ch9"><span class="dot"></span>9 · Evaluating models</a>
+    </div>
+  </nav>
+</aside>
+
+<main>
+<div class="hero">
+  <div class="eyebrow">A self-contained course · math + interactive graphs only</div>
+  <h1>Every algorithm is <em>a shape</em> drawn through data.</h1>
+  <p class="lede">This course strips ML down to what actually happens under the hood: the equations, the optimization,
+  and the geometry. No frameworks, no boilerplate — just the math, and a graph you can push around with your
+  own hands until the equation stops being symbols and starts being a picture.</p>
+  <a class="startbtn" href="#ch0">Begin →</a>
+</div>
+
+<!-- ================= CHAPTER 0 ================= -->
+<section class="chapter" id="ch0" data-ch="ch0">
+  <div class="chapter-head">
+    <div class="chapter-num">CHAPTER 0</div>
+    <h2>How data becomes a model</h2>
+    <p class="sub">Before any algorithm, one idea: a model is a function with knobs (parameters), and learning
+    is turning those knobs to make the function's output match reality as closely as some <em>loss</em> allows.</p>
+  </div>
+
+  <div class="panel intuition">
+    <h3>The one idea underneath everything</h3>
+    <p>Pick a function shape <span class="math-inline">f(x; θ)</span> — a line, a curve, a set of if/else splits,
+    a distance rule. It has adjustable numbers <span class="math-inline">θ</span> inside it. Define a loss
+    <span class="math-inline">L(θ)</span> that scores how wrong <span class="math-inline">f</span> currently is
+    on your data. Then search for the <span class="math-inline">θ</span> that makes <span class="math-inline">L</span>
+    smallest. That's the whole game — every chapter below is just a different choice of <span class="math-inline">f</span>
+    and <span class="math-inline">L</span>, and a different way of doing the searching.</p>
+  </div>
+
+  <div class="widget">
+    <div class="wtitle">Interactive — loss as a landscape</div>
+    <p style="font-size:.85rem;color:var(--ink-dim);margin-top:0;">Drag the point along the curve. The height is the
+    loss <span class="math-inline">L(θ)</span> for a toy 1-parameter model. Learning = rolling downhill to the minimum.</p>
+    <canvas id="c0" height="280"></canvas>
+    <div class="controls">
+      <button class="btn primary" id="c0-roll">▶ Roll downhill (gradient descent)</button>
+      <button class="btn" id="c0-reset">Reset</button>
+    </div>
+    <div class="readout" id="c0-readout">θ = 0.00 &nbsp; L(θ) = —</div>
+  </div>
+
+  <div class="quiz">
+    <h3>Check yourself</h3>
+    <div class="q">If gradient descent keeps overshooting past the minimum and oscillating wildly, what's the most likely cause?</div>
+    <div class="opts" data-answer="1">
+      <div class="opt">The loss function has no minimum</div>
+      <div class="opt">The learning rate is too large</div>
+      <div class="opt">There isn't enough data</div>
+      <div class="opt">θ was initialized at exactly zero</div>
+    </div>
+  </div>
+
+  <div class="chapter-nav"><span></span><a href="#ch1">Next: Cleaning &amp; preprocessing →</a></div>
+</section>
+
+<!-- ================= CHAPTER 1 : PREPROCESSING ================= -->
+<section class="chapter" id="ch1" data-ch="ch1">
+  <div class="chapter-head">
+    <div class="chapter-num">CHAPTER 1</div>
+    <h2>Cleaning &amp; preprocessing data</h2>
+    <p class="sub">Every algorithm downstream silently assumes the data was prepared a certain way. Get this
+    chapter wrong and no amount of algorithm sophistication saves you.</p>
+  </div>
+
+  <div class="panel misconception">
+    <h3></h3>
+    <p>"Preprocessing is just busywork before the real ML starts." In practice, preprocessing decisions —
+    how you scale, how you fill gaps, how you encode categories — change <em>which</em> minimum an optimizer finds,
+    sometimes more than the choice of algorithm does.</p>
+  </div>
+
+  <h3 style="max-width:900px;">1.1 Missing values</h3>
+  <div class="panel math">
+    <h3>Mean / median imputation</h3>
+    <div class="math-block">x̂<sub>i</sub> = <span class="frac"><span class="num">1</span><span class="den">n</span></span> Σ<sub>j=1</sub><sup>n</sup> x<sub>j</sub> &nbsp; (mean) &nbsp;&nbsp;or&nbsp;&nbsp; x̂<sub>i</sub> = median(x<sub>1</sub>…x<sub>n</sub>)</div>
+    <p style="font-size:.86rem;color:var(--ink-dim);">Mean imputation is pulled toward outliers; median is not. Neither adds real information —
+    both shrink variance and can bias any model that reads variance as signal (e.g. regression coefficients).</p>
+  </div>
+
+  <div class="widget">
+    <div class="wtitle">Interactive — imputation strategy vs. distribution shape</div>
+    <p style="font-size:.85rem;color:var(--ink-dim);margin-top:0;">A dataset with missing values (shown as gaps on the axis).
+    Toggle the imputation strategy and watch how the reconstructed histogram — and its variance — changes.</p>
+    <canvas id="c1" height="240"></canvas>
+    <div class="controls">
+      <div class="ctl"><label>Strategy</label>
+        <select id="c1-strategy" style="background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:6px;">
+          <option value="mean">Mean imputation</option>
+          <option value="median">Median imputation</option>
+          <option value="drop">Drop rows (listwise deletion)</option>
+        </select>
+      </div>
+      <button class="btn" id="c1-resample">New sample (adds outlier)</button>
+    </div>
+    <div class="readout" id="c1-readout"></div>
+  </div>
+
+  <h3 style="max-width:900px;">1.2 Feature scaling</h3>
+  <div class="two-col">
+    <div class="panel math">
+      <h3>Standardization (z-score)</h3>
+      <div class="math-block">z = <span class="frac"><span class="num">x − μ</span><span class="den">σ</span></span></div>
+      <p style="font-size:.82rem;color:var(--ink-dim);">Centers to mean 0, scales to std 1. Assumes roughly Gaussian-shaped data; robust choice for
+      algorithms that rely on distances or gradients (linear/logistic regression, k-NN, PCA, SVM).</p>
+    </div>
+    <div class="panel math">
+      <h3>Min-max normalization</h3>
+      <div class="math-block">x′ = <span class="frac"><span class="num">x − min(x)</span><span class="den">max(x) − min(x)</span></span></div>
+      <p style="font-size:.82rem;color:var(--ink-dim);">Squashes into [0,1]. Sensitive to outliers (a single extreme value compresses everything
+      else into a tiny sub-range) — check for outliers first.</p>
+    </div>
+  </div>
+
+  <div class="widget">
+    <div class="wtitle">Interactive — why unscaled features break gradient descent</div>
+    <p style="font-size:.85rem;color:var(--ink-dim);margin-top:0;">Two features on very different scales (e.g. "age" 0–90
+    vs "income" 0–200,000) create an elongated, elliptical loss bowl. Gradient descent zig-zags instead of heading
+    straight for the minimum. Toggle scaling and watch the descent path.</p>
+    <canvas id="c1b" height="300"></canvas>
+    <div class="controls">
+      <button class="btn" id="c1b-toggle">Scaling: <b id="c1b-state">OFF</b></button>
+      <button class="btn primary" id="c1b-run">▶ Run gradient descent</button>
+      <button class="btn" id="c1b-reset">Reset</button>
+    </div>
+    <div class="readout" id="c1b-readout">steps: 0</div>
+  </div>
+
+  <h3 style="max-width:900px;">1.3 Encoding categorical variables</h3>
+  <div class="panel math">
+    <h3>One-hot vs. ordinal encoding</h3>
+    <p style="font-size:.86rem;color:var(--ink-dim);margin-top:0;">Ordinal encoding maps categories to integers
+    (Red=0, Green=1, Blue=2) — this silently tells the model Blue &gt; Green &gt; Red, which is meaningless for
+    unordered categories. One-hot encoding instead creates a binary column per category:</p>
+    <div class="math-block">Red → [1,0,0] &nbsp; Green → [0,1,0] &nbsp; Blue → [0,0,1]</div>
+    <p style="font-size:.82rem;color:var(--ink-dim);">Trade-off: one-hot avoids inventing false ordinal structure, but adds
+    one dimension per category — with high-cardinality categories (e.g. zip codes) this explodes the feature space.</p>
+  </div>
+
+  <h3 style="max-width:900px;">1.4 Outlier detection</h3>
+  <div class="two-col">
+    <div class="panel math">
+      <h3>Z-score rule</h3>
+      <div class="math-block">|z<sub>i</sub>| = <span class="frac"><span class="num">|x<sub>i</sub> − μ|</span><span class="den">σ</span></span> &gt; 3 ⇒ outlier</div>
+    </div>
+    <div class="panel math">
+      <h3>IQR rule</h3>
+      <div class="math-block">x<sub>i</sub> &lt; Q1 − 1.5·IQR &nbsp;or&nbsp; x<sub>i</sub> &gt; Q3 + 1.5·IQR</div>
+      <p style="font-size:.8rem;color:var(--ink-dim);">IQR = Q3 − Q1. Robust to outliers itself, unlike the z-score
+      rule (μ and σ are themselves dragged by outliers).</p>
+    </div>
+  </div>
+
+  <div class="widget">
+    <div class="wtitle">Interactive — IQR fence on live data</div>
+    <canvas id="c1c" height="150"></canvas>
+    <div class="controls">
+      <button class="btn" id="c1c-add">Click canvas to add a point, then flag outliers →</button>
+    </div>
+    <div class="readout" id="c1c-readout">Q1 = — · Q3 = — · IQR = —</div>
+  </div>
+
+  <h3 style="max-width:900px;">1.5 Train/test split &amp; leakage</h3>
+  <div class="panel misconception">
+    <h3></h3>
+    <p>"I'll scale the whole dataset, then split into train/test." This leaks test-set statistics
+    (its mean, its min/max) into training — the model gets information it wouldn't have at real deployment time.
+    Correct order: split first → fit the scaler (compute μ, σ) on train only → apply that same transform to test.</p>
+  </div>
+  <div class="math-block" style="max-width:820px;">fit: μ, σ ← train &nbsp;&nbsp;→&nbsp;&nbsp; transform: z<sub>train</sub>, z<sub>test</sub> both use train's μ, σ</div>
+
+  <div class="explain">
+    <h3 style="font-family:var(--serif);font-size:.95rem;">Explain it back</h3>
+    <p style="font-size:.85rem;color:var(--ink-dim);">In your own words: why does fitting a scaler on the full dataset before splitting cause data leakage?</p>
+    <textarea id="ex1" placeholder="Type your explanation…"></textarea>
+    <div class="fb">Not graded — writing it out is what cements it. Your answer saves locally.</div>
+  </div>
+
+  <div class="chapter-nav"><a href="#ch0">← How data becomes a model</a><a href="#ch2">Next: Linear regression →</a></div>
+</section>
+
+<!-- ================= CHAPTER 2 : LINEAR REGRESSION ================= -->
+<section class="chapter" id="ch2" data-ch="ch2">
+  <div class="chapter-head">
+    <div class="chapter-num">CHAPTER 2</div>
+    <h2>Linear regression</h2>
+    <p class="sub">The simplest possible <span class="math-inline">f</span>: a straight line. Everything about
+    optimization shows up here first, in a form you can see.</p>
+  </div>
+
+  <div class="panel math">
+    <h3>Model &amp; loss</h3>
+    <div class="math-block">ŷ = θ₀ + θ₁x</div>
+    <div class="math-block">J(θ₀,θ₁) = <span class="frac"><span class="num">1</span><span class="den">2n</span></span> Σ<sub>i=1</sub><sup>n</sup> (ŷ<sub>i</sub> − y<sub>i</sub>)²</div>
+    <p style="font-size:.82rem;color:var(--ink-dim);">Mean Squared Error. Squaring punishes large errors disproportionately
+    and keeps <span class="math-inline">J</span> smooth and differentiable everywhere — essential for gradient descent.</p>
+  </div>
+
+  <div class="panel math">
+    <h3>Gradient descent update</h3>
+    <div class="math-block">θⱼ ← θⱼ − α <span class="frac"><span class="num">∂J</span><span class="den">∂θⱼ</span></span></div>
+    <div class="math-block">
+      <span class="frac"><span class="num">∂J</span><span class="den">∂θ₀</span></span> = <span class="frac"><span class="num">1</span><span class="den">n</span></span> Σ(ŷᵢ−yᵢ)
+      &nbsp;&nbsp;&nbsp;
+      <span class="frac"><span class="num">∂J</span><span class="den">∂θ₁</span></span> = <span class="frac"><span class="num">1</span><span class="den">n</span></span> Σ(ŷᵢ−yᵢ)xᵢ
+    </div>
+    <p style="font-size:.82rem;color:var(--ink-dim);"><span class="math-inline">α</span> is the learning rate. Too small
+    → slow crawl. Too large → overshoot / diverge, exactly as in Chapter 0.</p>
+  </div>
+
+  <div class="widget">
+    <div class="wtitle">Interactive — fit a line by hand vs. by gradient descent</div>
+    <p style="font-size:.85rem;color:var(--ink-dim);margin-top:0;">Click on the canvas to add data points. Drag the line's
+    two handles to fit it yourself, or let gradient descent do it — watch θ₀, θ₁ and the loss update live.</p>
+    <canvas id="c2" height="320"></canvas>
+    <div class="controls">
+      <div class="ctl"><label>Learning rate α <span class="val" id="c2-alpha-v">0.008</span></label>
+        <input type="range" id="c2-alpha" min="0.001" max="0.02" step="0.001" value="0.008"></div>
+      <button class="btn primary" id="c2-step">▶ Step gradient descent</button>
+      <button class="btn" id="c2-run">Run to convergence</button>
+      <button class="btn" id="c2-clear">Clear points</button>
+      <button class="btn" id="c2-seed">Seed example data</button>
+    </div>
+    <div class="readout" id="c2-readout">θ₀ = 0.00 &nbsp; θ₁ = 0.00 &nbsp; MSE = — &nbsp; iters: 0</div>
+    <div class="hint">Click empty canvas area to add a point. Drag existing points to move them.</div>
+  </div>
+
+  <div class="panel analogy">
+    <h3>Two ways to see it</h3>
+    <p><b>Physical:</b> the loss surface is a bowl; θ is a ball; gradient descent is gravity plus friction (α controls
+    the friction/step size).<br><b>Geometric:</b> at the true minimum, the residual errors are uncorrelated with x —
+    the line has "absorbed" all the linear signal there is to absorb, leaving only noise.</p>
+  </div>
+
+  <div class="panel math">
+    <h3>Closed form: the Normal Equation</h3>
+    <div class="math-block">θ = (XᵀX)<sup>−1</sup> Xᵀy</div>
+    <p style="font-size:.82rem;color:var(--ink-dim);">For linear regression the minimum has an exact algebraic solution —
+    no iteration needed. But <span class="math-inline">XᵀX</span> inversion is <span class="math-inline">O(d³)</span>
+    in the number of features <span class="math-inline">d</span>, so gradient descent wins when <span class="math-inline">d</span>
+    is large (many features).</p>
+  </div>
+
+  <div class="quiz">
+    <h3>Check yourself</h3>
+    <div class="q">Why is the loss squared instead of using the absolute error |ŷ−y|?</div>
+    <div class="opts" data-answer="0">
+      <div class="opt">Squaring makes the loss smooth/differentiable everywhere, which absolute value is not at 0</div>
+      <div class="opt">Squaring is computationally faster than absolute value</div>
+      <div class="opt">Squaring always produces a smaller loss value</div>
+      <div class="opt">There is no real reason — either works identically</div>
+    </div>
+  </div>
+
+  <div class="chapter-nav"><a href="#ch1">← Cleaning &amp; preprocessing</a><a href="#ch3">Next: Logistic regression →</a></div>
+</section>
+
+<!-- ================= CHAPTER 3 : LOGISTIC REGRESSION ================= -->
+<section class="chapter" id="ch3" data-ch="ch3">
+  <div class="chapter-head">
+    <div class="chapter-num">CHAPTER 3</div>
+    <h2>Logistic regression</h2>
+    <p class="sub">Same linear core as Chapter 2, but squashed through a curve so the output is a probability,
+    and paired with a loss that specifically punishes confident wrongness.</p>
+  </div>
+
+  <div class="panel math">
+    <h3>The sigmoid</h3>
+    <div class="math-block">σ(z) = <span class="frac"><span class="num">1</span><span class="den">1 + e<sup>−z</sup></span></span> &nbsp;&nbsp; z = θ₀ + θ₁x</div>
+    <p style="font-size:.82rem;color:var(--ink-dim);">Maps any real number to (0,1). z=0 → 0.5; large positive z → near 1;
+    large negative z → near 0. The <em>decision boundary</em> is simply where z = 0.</p>
+  </div>
+
+  <div class="panel math">
+    <h3>Binary cross-entropy loss</h3>
+    <div class="math-block">J(θ) = −<span class="frac"><span class="num">1</span><span class="den">n</span></span> Σ [ yᵢ log(ŷᵢ) + (1−yᵢ) log(1−ŷᵢ) ]</div>
+    <p style="font-size:.82rem;color:var(--ink-dim);">If the true label is 1 and the model predicts ŷ→0, log(ŷ)→−∞ — the loss
+    explodes. This is deliberate: it punishes confident-and-wrong predictions far more than MSE would.</p>
+  </div>
+
+  <div class="widget">
+    <div class="wtitle">Interactive — sigmoid decision boundary</div>
+    <p style="font-size:.85rem;color:var(--ink-dim);margin-top:0;">Click to place points, label them with the buttons, then
+    train. The right panel shows the raw sigmoid curve; the left shows the 1-D decision boundary sliding along x.</p>
+    <canvas id="c3" height="300"></canvas>
+    <div class="controls">
+      <button class="btn" id="c3-classA">Add class: <span style="color:var(--accent)">●</span> (click canvas)</button>
+      <button class="btn" id="c3-classB">Add class: <span style="color:var(--accent2)">●</span> (click canvas)</button>
+      <button class="btn primary" id="c3-train">▶ Train (gradient descent)</button>
+      <button class="btn" id="c3-clear">Clear</button>
+      <button class="btn" id="c3-seed">Seed example data</button>
+    </div>
+    <div class="readout" id="c3-readout">θ₀=0.00 θ₁=0.00 &nbsp; loss=— &nbsp; boundary x=—</div>
+  </div>
+
+  <div class="panel misconception">
+    <h3></h3>
+    <p>"Logistic regression is a classification tree in disguise." It's not — it produces one smooth linear boundary
+    (a straight line/plane), not the axis-aligned rectangular regions that trees produce (Chapter 5). If classes aren't
+    linearly separable, logistic regression will underfit no matter how much data you add.</p>
+  </div>
+
+  <div class="chapter-nav"><a href="#ch2">← Linear regression</a><a href="#ch4">Next: k-Nearest Neighbors →</a></div>
+</section>
+
+<!-- ================= CHAPTER 4 : KNN ================= -->
+<section class="chapter" id="ch4" data-ch="ch4">
+  <div class="chapter-head">
+    <div class="chapter-num">CHAPTER 4</div>
+    <h2>k-Nearest Neighbors</h2>
+    <p class="sub">No training phase, no parameters to fit — just a distance function and a vote. The entire
+    "model" is the dataset itself.</p>
+  </div>
+
+  <div class="panel math">
+    <h3>Euclidean distance &amp; the vote</h3>
+    <div class="math-block">d(a,b) = √( Σ<sub>j=1</sub><sup>d</sup> (aⱼ − bⱼ)² )</div>
+    <p style="font-size:.82rem;color:var(--ink-dim);">Find the k training points with smallest d to the query point;
+    predict the majority class among them (classification) or their average y (regression).</p>
+  </div>
+
+  <div class="widget">
+    <div class="wtitle">Interactive — vote among the k nearest</div>
+    <p style="font-size:.85rem;color:var(--ink-dim);margin-top:0;">Move your mouse over the canvas — the k nearest
+    labeled points get highlighted and connected, and the predicted class for that location is shown.</p>
+    <canvas id="c4" height="320"></canvas>
+    <div class="controls">
+      <div class="ctl"><label>k <span class="val" id="c4-k-v">3</span></label>
+        <input type="range" id="c4-k" min="1" max="15" step="1" value="3"></div>
+      <button class="btn" id="c4-seed">New random dataset</button>
+      <label style="font-size:.78rem;color:var(--ink-dim);"><input type="checkbox" id="c4-heatmap"> show full decision regions</label>
+    </div>
+    <div class="readout" id="c4-readout">Hover the canvas to classify a point.</div>
+  </div>
+
+  <div class="panel analogy">
+    <h3>Two ways to see it</h3>
+    <p><b>Physical:</b> ask your k closest neighbors what they'd do, then do the majority answer.<br>
+    <b>Geometric:</b> as k→1, the decision regions become a Voronoi diagram (every point owned by its single nearest
+    neighbor) — jagged and overfit. As k→n, the boundary flattens toward always predicting the majority class overall — underfit.</p>
+  </div>
+
+  <div class="panel misconception">
+    <h3></h3>
+    <p>"k-NN has no hyperparameters since there's no training." k itself is a hyperparameter, and — critically —
+    k-NN is extremely sensitive to feature scale (Chapter 1.2): an unscaled feature with a huge numeric range will
+    dominate the distance calculation and silently drown out every other feature.</p>
+  </div>
+
+  <div class="chapter-nav"><a href="#ch3">← Logistic regression</a><a href="#ch5">Next: Decision trees →</a></div>
+</section>
+
+<!-- ================= CHAPTER 5 : DECISION TREES ================= -->
+<section class="chapter" id="ch5" data-ch="ch5">
+  <div class="chapter-head">
+    <div class="chapter-num">CHAPTER 5</div>
+    <h2>Decision trees</h2>
+    <p class="sub">Instead of one global equation, a tree asks a sequence of yes/no questions, each chosen to
+    make the resulting groups as "pure" as possible.</p>
+  </div>
+
+  <div class="panel math">
+    <h3>Entropy &amp; Gini impurity</h3>
+    <div class="math-block">H(S) = − Σ<sub>c</sub> pᶜ log₂(pᶜ) &nbsp;&nbsp;&nbsp; Gini(S) = 1 − Σ<sub>c</sub> pᶜ²</div>
+    <p style="font-size:.82rem;color:var(--ink-dim);">Both measure how mixed a group's labels are. H=0 (or Gini=0) means
+    perfectly pure (one class only). Both peak when classes are 50/50.</p>
+  </div>
+
+  <div class="panel math">
+    <h3>Information gain</h3>
+    <div class="math-block">IG = H(parent) − Σ<sub>k</sub> <span class="frac"><span class="num">|Sₖ|</span><span class="den">|S|</span></span> H(Sₖ)</div>
+    <p style="font-size:.82rem;color:var(--ink-dim);">At each node, the tree tries every possible split threshold on
+    every feature, and picks whichever split maximizes information gain — the biggest drop in weighted impurity.</p>
+  </div>
+
+  <div class="widget">
+    <div class="wtitle">Interactive — find the best split</div>
+    <p style="font-size:.85rem;color:var(--ink-dim);margin-top:0;">Drag the vertical threshold line. The readout shows
+    entropy on each side and the resulting information gain — find the threshold that maximizes it.</p>
+    <canvas id="c5" height="260"></canvas>
+    <div class="controls">
+      <button class="btn primary" id="c5-best">Find optimal split</button>
+      <button class="btn" id="c5-seed">New random dataset</button>
+    </div>
+    <div class="readout" id="c5-readout">threshold = — &nbsp; H(left)=— H(right)=— &nbsp; IG=—</div>
+  </div>
+
+  <div class="panel misconception">
+    <h3></h3>
+    <p>"A deeper tree is always a better tree." An unconstrained tree keeps splitting until every leaf is pure —
+    including leaves that isolate a single noisy outlier. That's memorization, not learning: the tree overfits, which
+    is why max depth, min samples per leaf, or pruning are essential in practice.</p>
+  </div>
+
+  <div class="chapter-nav"><a href="#ch4">← k-Nearest Neighbors</a><a href="#ch6">Next: k-Means clustering →</a></div>
+</section>
+
+<!-- ================= CHAPTER 6 : KMEANS ================= -->
+<section class="chapter" id="ch6" data-ch="ch6">
+  <div class="chapter-head">
+    <div class="chapter-num">CHAPTER 6</div>
+    <h2>k-Means clustering</h2>
+    <p class="sub">The first unsupervised algorithm in this course — there are no labels, only a claim that the
+    data has k natural groups, and an alternating optimization to find them.</p>
+  </div>
+
+  <div class="panel math">
+    <h3>Objective &amp; the two-step loop</h3>
+    <div class="math-block">J = Σ<sub>i=1</sub><sup>n</sup> ‖xᵢ − μ<sub>c(i)</sub>‖²</div>
+    <p style="font-size:.82rem;color:var(--ink-dim);">Minimize total squared distance from each point to its assigned
+    centroid. There's no closed form — instead, alternate:</p>
+    <div class="math-block">1. Assign: c(i) = argmin<sub>k</sub> ‖xᵢ − μ<sub>k</sub>‖² &nbsp;&nbsp; 2. Update: μ<sub>k</sub> = mean of points assigned to k</div>
+  </div>
+
+  <div class="widget">
+    <div class="wtitle">Interactive — watch it converge</div>
+    <canvas id="c6" height="320"></canvas>
+    <div class="controls">
+      <div class="ctl"><label>k <span class="val" id="c6-k-v">3</span></label>
+        <input type="range" id="c6-k" min="2" max="6" step="1" value="3"></div>
+      <button class="btn primary" id="c6-step">▶ One iteration</button>
+      <button class="btn" id="c6-run">Run to convergence</button>
+      <button class="btn" id="c6-reset">New random dataset</button>
+    </div>
+    <div class="readout" id="c6-readout">iteration: 0 &nbsp; J = —</div>
+  </div>
+
+  <div class="panel misconception">
+    <h3></h3>
+    <p>"k-Means finds THE correct clusters." It converges to <em>a</em> local minimum of J, and which one depends on
+    the random centroid initialization — run it a few times with different seeds and compare J; k itself also has to
+    be chosen, often via the "elbow" in J vs k.</p>
+  </div>
+
+  <div class="chapter-nav"><a href="#ch5">← Decision trees</a><a href="#ch7">Next: PCA →</a></div>
+</section>
+
+<!-- ================= CHAPTER 7 : PCA ================= -->
+<section class="chapter" id="ch7" data-ch="ch7">
+  <div class="chapter-head">
+    <div class="chapter-num">CHAPTER 7</div>
+    <h2>Principal Component Analysis</h2>
+    <p class="sub">Not a predictor at all — a change of viewpoint. PCA finds the rotation of the axes under which
+    the data's spread is easiest to describe with the fewest numbers.</p>
+  </div>
+
+  <div class="panel math">
+    <h3>Covariance &amp; eigenvectors</h3>
+    <div class="math-block">Σ = <span class="frac"><span class="num">1</span><span class="den">n</span></span> Xᵀ<sub>c</sub>X<sub>c</sub> &nbsp;&nbsp; (X<sub>c</sub> = X mean-centered)</div>
+    <p style="font-size:.82rem;color:var(--ink-dim);">The principal components are the eigenvectors of the covariance
+    matrix Σ; their eigenvalues are the variance captured along each. The first principal component points along the
+    direction of maximum spread.</p>
+  </div>
+
+  <div class="widget">
+    <div class="wtitle">Interactive — rotate to find maximum spread</div>
+    <p style="font-size:.85rem;color:var(--ink-dim);margin-top:0;">Drag the rotation handle. The bar shows the variance
+    of the data <em>projected</em> onto the rotated axis — PCA is exactly the angle that maximizes this bar.</p>
+    <canvas id="c7" height="320"></canvas>
+    <div class="controls">
+      <button class="btn primary" id="c7-solve">Snap to true principal axis</button>
+      <button class="btn" id="c7-seed">New random dataset</button>
+    </div>
+    <div class="readout" id="c7-readout">angle = 0° &nbsp; projected variance = —</div>
+  </div>
+
+  <div class="panel analogy">
+    <h3>Two ways to see it</h3>
+    <p><b>Physical:</b> shine a flashlight through the cloud of points onto a wall and rotate the light — PCA is the
+    angle where the shadow is longest.<br><b>Geometric:</b> it's a rotation of the coordinate system so the new axes
+    are uncorrelated and sorted by how much variance each one explains.</p>
+  </div>
+
+  <div class="chapter-nav"><a href="#ch6">← k-Means clustering</a><a href="#ch8">Next: Naive Bayes →</a></div>
+</section>
+
+<!-- ================= CHAPTER 8 : NAIVE BAYES ================= -->
+<section class="chapter" id="ch8" data-ch="ch8">
+  <div class="chapter-head">
+    <div class="chapter-num">CHAPTER 8</div>
+    <h2>Naive Bayes</h2>
+    <p class="sub">A fully probabilistic classifier built from one theorem and one — deliberately naive —
+    simplifying assumption.</p>
+  </div>
+
+  <div class="panel math">
+    <h3>Bayes' theorem</h3>
+    <div class="math-block">P(y|x) = <span class="frac"><span class="num">P(x|y) P(y)</span><span class="den">P(x)</span></span></div>
+    <p style="font-size:.82rem;color:var(--ink-dim);">To classify, compare P(y=1|x) against P(y=0|x); since P(x) is the
+    same for both, just compare the numerators.</p>
+  </div>
+
+  <div class="panel math">
+    <h3>The "naive" independence assumption</h3>
+    <div class="math-block">P(x₁,…,x<sub>d</sub>|y) = Π<sub>j=1</sub><sup>d</sup> P(xⱼ|y)</div>
+    <p style="font-size:.82rem;color:var(--ink-dim);">Treats every feature as conditionally independent given the class —
+    almost never exactly true, but it turns an intractable joint distribution into a product of easy 1-D ones, and
+    works surprisingly well in practice (spam filtering is the classic example).</p>
+  </div>
+
+  <div class="panel math">
+    <h3>Gaussian Naive Bayes</h3>
+    <div class="math-block">P(xⱼ|y) = <span class="frac"><span class="num">1</span><span class="den">√(2πσ<sub>y</sub>²)</span></span> exp(−<span class="frac"><span class="num">(xⱼ − μ<sub>y</sub>)²</span><span class="den">2σ<sub>y</sub>²</span></span>)</div>
+    <p style="font-size:.82rem;color:var(--ink-dim);">For continuous features, model each class's feature distribution
+    as a Gaussian fit from the training data, then plug into the product above.</p>
+  </div>
+
+  <div class="widget">
+    <div class="wtitle">Interactive — two Gaussians and a decision point</div>
+    <p style="font-size:.85rem;color:var(--ink-dim);margin-top:0;">Two classes, each with its own fitted Gaussian over
+    a single feature x. Drag the query point x and watch which class's curve is taller there — that's the prediction.</p>
+    <canvas id="c8" height="260"></canvas>
+    <div class="readout" id="c8-readout">x = — &nbsp; P(y=A|x) ∝ — &nbsp; P(y=B|x) ∝ —</div>
+  </div>
+
+  <div class="chapter-nav"><a href="#ch7">← PCA</a><a href="#ch9">Next: Evaluating models →</a></div>
+</section>
+
+<!-- ================= CHAPTER 9 : EVALUATION ================= -->
+<section class="chapter" id="ch9" data-ch="ch9">
+  <div class="chapter-head">
+    <div class="chapter-num">CHAPTER 9</div>
+    <h2>Evaluating models</h2>
+    <p class="sub">A model is only as good as the number you use to judge it. Accuracy alone lies constantly —
+    here's what to use instead.</p>
+  </div>
+
+  <div class="panel math">
+    <h3>Confusion matrix</h3>
+    <div class="math-block">TP · FP<br>FN · TN</div>
+    <p style="font-size:.82rem;color:var(--ink-dim);">TP = predicted positive, actually positive. FP = predicted
+    positive, actually negative ("false alarm"). FN = predicted negative, actually positive ("missed it"). TN = correctly negative.</p>
+  </div>
+
+  <div class="two-col">
+    <div class="panel math">
+      <h3>Precision &amp; recall</h3>
+      <div class="math-block">Precision = <span class="frac"><span class="num">TP</span><span class="den">TP+FP</span></span></div>
+      <div class="math-block">Recall = <span class="frac"><span class="num">TP</span><span class="den">TP+FN</span></span></div>
+    </div>
+    <div class="panel math">
+      <h3>F1 score</h3>
+      <div class="math-block">F1 = 2 · <span class="frac"><span class="num">Precision · Recall</span><span class="den">Precision + Recall</span></span></div>
+      <p style="font-size:.8rem;color:var(--ink-dim);">The harmonic mean — punishes the case where one of the two is
+      very low, unlike a plain average.</p>
+    </div>
+  </div>
+
+  <div class="widget">
+    <div class="wtitle">Interactive — threshold, confusion matrix, and the ROC curve</div>
+    <p style="font-size:.85rem;color:var(--ink-dim);margin-top:0;">A fixed set of scored predictions. Slide the
+    classification threshold and watch TP/FP/FN/TN update live, along with your current point on the ROC curve.</p>
+    <canvas id="c9" height="320"></canvas>
+    <div class="controls">
+      <div class="ctl"><label>Threshold <span class="val" id="c9-t-v">0.50</span></label>
+        <input type="range" id="c9-t" min="0" max="1" step="0.01" value="0.5"></div>
+    </div>
+    <div class="readout" id="c9-readout"></div>
+  </div>
+
+  <div class="panel misconception">
+    <h3></h3>
+    <p>"95% accuracy means a great model." If 95% of a dataset is the negative class, a model that always predicts
+    "negative" scores 95% accuracy while catching zero positives — this is exactly why precision, recall, and the
+    ROC/AUC exist: they surface performance imbalance that raw accuracy hides.</p>
+  </div>
+
+  <div class="quiz">
+    <h3>Check yourself</h3>
+    <div class="q">A cancer-screening model needs to minimize missed diagnoses, even at the cost of more false alarms. Which metric should it prioritize?</div>
+    <div class="opts" data-answer="2">
+      <div class="opt">Precision</div>
+      <div class="opt">Accuracy</div>
+      <div class="opt">Recall</div>
+      <div class="opt">None — accuracy alone is sufficient</div>
+    </div>
+  </div>
+
+  <div class="panel intuition">
+    <h3>Where this leaves you</h3>
+    <p>Every chapter followed the same pattern: choose a function shape, choose a loss that reflects what you actually
+    care about, and optimize. Preprocessing decides what the model even sees; evaluation decides whether you can trust
+    what it tells you. Everything else — random forests, gradient boosting, neural networks — builds on exactly these
+    same pieces, just composed more elaborately.</p>
+  </div>
+
+  <div class="chapter-nav"><a href="#ch8">← Naive Bayes</a><span></span></div>
+</section>
+
+<footer>
+  Built as a standalone, offline-capable page — no frameworks, no external libraries. Progress is saved locally in this browser.
+</footer>
+</main>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* ============ progress tracking ============ */
+const CH_IDS = ['ch0','ch1','ch2','ch3','ch4','ch5','ch6','ch7','ch8','ch9'];
+let progress = {};
+try{ progress = JSON.parse(localStorage.getItem('mleye_progress')||'{}'); }catch(e){ progress = {}; }
+function saveProgress(){ try{ localStorage.setItem('mleye_progress', JSON.stringify(progress)); }catch(e){} }
+function markVisited(id){
+  progress[id] = true; saveProgress();
+  const link = document.querySelector('.toc a[data-ch="'+id+'"]');
+  if(link) link.classList.add('done');
+  updateProgressBar();
+}
+function updateProgressBar(){
+  const done = CH_IDS.filter(id=>progress[id]).length;
+  const pct = Math.round(done/CH_IDS.length*100);
+  document.getElementById('progFill').style.width = pct+'%';
+  document.getElementById('progPct').textContent = pct+'%';
+}
+// restore done marks
+CH_IDS.forEach(id=>{ if(progress[id]){ const l=document.querySelector('.toc a[data-ch="'+id+'"]'); if(l) l.classList.add('done'); } });
+updateProgressBar();
+
+const sections = document.querySelectorAll('section.chapter');
+const io = new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{
+    const id = e.target.getAttribute('data-ch');
+    const link = document.querySelector('.toc a[data-ch="'+id+'"]');
+    if(e.isIntersecting){
+      document.querySelectorAll('.toc a').forEach(a=>a.classList.remove('active'));
+      if(link) link.classList.add('active');
+      markVisited(id);
+    }
+  });
+}, {threshold:[0,0.05], rootMargin:'-10% 0px -60% 0px'});
+sections.forEach(s=>io.observe(s));
+
+/* ============ quiz logic ============ */
+document.querySelectorAll('.quiz').forEach(q=>{
+  const optsWrap = q.querySelector('.opts');
+  const answer = parseInt(optsWrap.dataset.answer,10);
+  const opts = optsWrap.querySelectorAll('.opt');
+  opts.forEach((opt,i)=>{
+    opt.addEventListener('click', ()=>{
+      if(optsWrap.classList.contains('answered')) return;
+      optsWrap.classList.add('answered');
+      opts.forEach((o,j)=>{
+        if(j===answer) o.classList.add('correct');
+        else if(j===i) o.classList.add('wrong');
+      });
+    });
+  });
+});
+
+/* ============ explain-it-back autosave ============ */
+document.querySelectorAll('.explain textarea').forEach(t=>{
+  const key = 'mleye_'+t.id;
+  try{ const v = localStorage.getItem(key); if(v) t.value = v; }catch(e){}
+  t.addEventListener('input', ()=>{ try{ localStorage.setItem(key, t.value); }catch(e){} });
+});
+
+/* ============ shared helpers ============ */
+function fitCanvas(cv){
+  const dpr = window.devicePixelRatio||1;
+  const rect = cv.getBoundingClientRect();
+  cv.width = Math.round(rect.width*dpr);
+  cv.height = Math.round(parseFloat(getComputedStyle(cv).height)*dpr);
+  const ctx = cv.getContext('2d');
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  return {ctx, w:rect.width, h:parseFloat(getComputedStyle(cv).height)};
+}
+function rand(a,b){ return a + Math.random()*(b-a); }
+function randn(){ let u=1-Math.random(), v=Math.random(); return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); }
+const COL = { accent:'#5ee6c9', accent2:'#ff8a5c', accent3:'#8f7bff', ink:'#dbe4f5', dim:'#5a6a8c', grid:'#132038', bad:'#ff6b6b', warn:'#ffb454', bg:'#0c1220', panel2:'#131c30'};
+
+/* =====================================================================
+   CH0 — loss landscape / gradient descent
+===================================================================== */
+(function(){
+  const cv = document.getElementById('c0'); if(!cv) return;
+  let dims = fitCanvas(cv);
+  window.addEventListener('resize', ()=>{ dims = fitCanvas(cv); draw(); });
+  const lossFn = t => 0.9*Math.pow(t-1.3,2) + 0.4*Math.sin(t*3)*Math.exp(-0.15*Math.pow(t-1.3,2)) + 1.5;
+  let theta = -3.4, running=false, rafId=null;
+  function toXY(t, val){
+    const w=dims.w, h=dims.h;
+    const px = (t+4)/8 * (w-60) + 30;
+    const py = h-40 - (val/6)*(h-70);
+    return [px,py];
+  }
+  function draw(){
+    const {ctx,w,h} = dims;
+    ctx.clearRect(0,0,w,h);
+    // curve
+    ctx.beginPath();
+    for(let i=0;i<=200;i++){
+      const t = -4 + i/200*8;
+      const [x,y] = toXY(t, lossFn(t));
+      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    }
+    ctx.strokeStyle = COL.accent3; ctx.lineWidth=2; ctx.stroke();
+    // ball
+    const [bx,by] = toXY(theta, lossFn(theta));
+    ctx.beginPath(); ctx.arc(bx,by,7,0,7); ctx.fillStyle=COL.accent2; ctx.shadowColor=COL.accent2; ctx.shadowBlur=12; ctx.fill(); ctx.shadowBlur=0;
+    document.getElementById('c0-readout').innerHTML = 'θ = '+theta.toFixed(2)+' &nbsp; L(θ) = '+lossFn(theta).toFixed(3);
+  }
+  cv.addEventListener('pointerdown', e=>{
+    running=false;
+    const rect=cv.getBoundingClientRect();
+    const x = e.clientX-rect.left;
+    theta = (x-30)/(dims.w-60)*8-4;
+    theta = Math.max(-4,Math.min(4,theta));
+    draw();
+    const move = ev=>{
+      const r=cv.getBoundingClientRect();
+      let t=(ev.clientX-r.left-30)/(dims.w-60)*8-4;
+      theta=Math.max(-4,Math.min(4,t)); draw();
+    };
+    const up=()=>{ window.removeEventListener('pointermove',move); window.removeEventListener('pointerup',up); };
+    window.addEventListener('pointermove',move); window.addEventListener('pointerup',up);
+  });
+  document.getElementById('c0-roll').addEventListener('click', ()=>{
+    running = !running;
+    document.getElementById('c0-roll').textContent = running? '⏸ Pause' : '▶ Roll downhill (gradient descent)';
+    if(running) step();
+  });
+  document.getElementById('c0-reset').addEventListener('click', ()=>{ theta=-3.4; running=false; document.getElementById('c0-roll').textContent='▶ Roll downhill (gradient descent)'; draw(); });
+  function step(){
+    if(!running) return;
+    const eps=0.001;
+    const grad = (lossFn(theta+eps)-lossFn(theta-eps))/(2*eps);
+    theta -= 0.05*grad;
+    theta = Math.max(-4,Math.min(4,theta));
+    draw();
+    rafId = requestAnimationFrame(()=>setTimeout(step,20));
+  }
+  draw();
+})();
+
+/* =====================================================================
+   CH1 — imputation
+===================================================================== */
+(function(){
+  const cv = document.getElementById('c1'); if(!cv) return;
+  let dims = fitCanvas(cv);
+  window.addEventListener('resize', ()=>{ dims=fitCanvas(cv); draw(); });
+  let data = [];
+  function genData(){
+    data = [];
+    for(let i=0;i<40;i++){
+      let v = randn()*8+50;
+      data.push({v, missing: Math.random()<0.25});
+    }
+    // add an outlier
+    data.push({v: rand(90,110), missing:false});
+  }
+  genData();
+  function draw(){
+    const {ctx,w,h} = dims;
+    ctx.clearRect(0,0,w,h);
+    const strategy = document.getElementById('c1-strategy').value;
+    const present = data.filter(d=>!d.missing).map(d=>d.v);
+    const sorted = [...present].sort((a,b)=>a-b);
+    const mean = present.reduce((a,b)=>a+b,0)/present.length;
+    const median = sorted[Math.floor(sorted.length/2)];
+    let filled;
+    if(strategy==='drop') filled = present.slice();
+    else filled = data.map(d=> d.missing ? (strategy==='mean'?mean:median) : d.v);
+    // histogram
+    const min=0,max=120, bins=24;
+    const counts = new Array(bins).fill(0);
+    filled.forEach(v=>{ let idx=Math.floor((v-min)/(max-min)*bins); idx=Math.max(0,Math.min(bins-1,idx)); counts[idx]++; });
+    const maxCount = Math.max(...counts,1);
+    const barW = (w-60)/bins;
+    for(let i=0;i<bins;i++){
+      const bh = counts[i]/maxCount*(h-60);
+      ctx.fillStyle = COL.accent3+'aa';
+      ctx.fillRect(30+i*barW, h-30-bh, barW-2, bh);
+    }
+    // axis
+    ctx.strokeStyle=COL.grid; ctx.beginPath(); ctx.moveTo(30,h-30); ctx.lineTo(w-30,h-30); ctx.stroke();
+    // variance readout
+    const m2 = filled.reduce((a,b)=>a+b,0)/filled.length;
+    const variance = filled.reduce((a,b)=>a+(b-m2)*(b-m2),0)/filled.length;
+    document.getElementById('c1-readout').innerHTML =
+      'n(missing) = '+data.filter(d=>d.missing).length+' / '+data.length+
+      ' &nbsp; strategy = <b>'+strategy+'</b> &nbsp; resulting n = '+filled.length+
+      ' &nbsp; variance = <b>'+variance.toFixed(1)+'</b>';
+  }
+  document.getElementById('c1-strategy').addEventListener('change', draw);
+  document.getElementById('c1-resample').addEventListener('click', ()=>{ genData(); draw(); });
+  draw();
+})();
+
+/* =====================================================================
+   CH1b — scaling & elongated bowl gradient descent
+===================================================================== */
+(function(){
+  const cv = document.getElementById('c1b'); if(!cv) return;
+  let dims = fitCanvas(cv);
+  window.addEventListener('resize', ()=>{ dims=fitCanvas(cv); draw(); });
+  let scaled = false;
+  let path = [];
+  let pos = {x:-3.6, y:3.2}; // in normalized theta-space
+  function lossAt(x,y){
+    // elongated bowl unless scaled
+    const a = scaled ? 1 : 8;
+    return a*x*x + y*y;
+  }
+  function grad(x,y){
+    const a = scaled?1:8;
+    return [2*a*x, 2*y];
+  }
+  function reset(){ pos={x:-3.6,y:3.2}; path=[{...pos}]; draw(); document.getElementById('c1b-readout').textContent='steps: 0'; }
+  function draw(){
+    const {ctx,w,h} = dims;
+    ctx.clearRect(0,0,w,h);
+    const cx=w/2, cy=h/2, scale=Math.min(w,h)/9;
+    // contour ellipses
+    for(let r=0.6;r<=3.6;r+=0.6){
+      ctx.beginPath();
+      const rx = r*scale/Math.sqrt(scaled?1:8);
+      const ry = r*scale;
+      ctx.ellipse(cx,cy,rx,ry,0,0,Math.PI*2);
+      ctx.strokeStyle='rgba(143,123,255,0.18)'; ctx.lineWidth=1; ctx.stroke();
+    }
+    // axes
+    ctx.strokeStyle=COL.grid;
+    ctx.beginPath(); ctx.moveTo(0,cy); ctx.lineTo(w,cy); ctx.moveTo(cx,0); ctx.lineTo(cx,h); ctx.stroke();
+    // path
+    ctx.beginPath();
+    path.forEach((p,i)=>{
+      const px = cx + p.x*scale, py = cy + p.y*scale;
+      if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+    });
+    ctx.strokeStyle=COL.accent2; ctx.lineWidth=2; ctx.stroke();
+    path.forEach((p,i)=>{
+      const px = cx+p.x*scale, py=cy+p.y*scale;
+      ctx.beginPath(); ctx.arc(px,py,2.5,0,7); ctx.fillStyle=COL.accent2; ctx.fill();
+    });
+    // current point
+    const px=cx+pos.x*scale, py=cy+pos.y*scale;
+    ctx.beginPath(); ctx.arc(px,py,6,0,7); ctx.fillStyle=COL.accent; ctx.shadowColor=COL.accent; ctx.shadowBlur=10; ctx.fill(); ctx.shadowBlur=0;
+    // minimum marker
+    ctx.beginPath(); ctx.arc(cx,cy,4,0,7); ctx.strokeStyle=COL.ink; ctx.lineWidth=1.5; ctx.stroke();
+  }
+  document.getElementById('c1b-toggle').addEventListener('click', ()=>{
+    scaled = !scaled;
+    document.getElementById('c1b-state').textContent = scaled?'ON':'OFF';
+    reset();
+  });
+  document.getElementById('c1b-run').addEventListener('click', ()=>{
+    let steps=0;
+    const iv = setInterval(()=>{
+      const [gx,gy] = grad(pos.x,pos.y);
+      const lr = scaled? 0.15 : 0.06;
+      pos = {x: pos.x-lr*gx, y: pos.y-lr*gy};
+      path.push({...pos});
+      steps++;
+      draw();
+      document.getElementById('c1b-readout').innerHTML = 'steps: '+steps+' &nbsp; loss = '+lossAt(pos.x,pos.y).toFixed(4);
+      if(steps>60 || (Math.abs(pos.x)<0.02 && Math.abs(pos.y)<0.02)) clearInterval(iv);
+    }, 40);
+  });
+  document.getElementById('c1b-reset').addEventListener('click', reset);
+  reset();
+})();
+
+/* =====================================================================
+   CH1c — IQR outlier fence
+===================================================================== */
+(function(){
+  const cv = document.getElementById('c1c'); if(!cv) return;
+  let dims = fitCanvas(cv);
+  window.addEventListener('resize', ()=>{ dims=fitCanvas(cv); draw(); });
+  let pts = [];
+  for(let i=0;i<18;i++) pts.push(rand(0.15,0.85));
+  function quartile(sorted,q){
+    const pos = (sorted.length-1)*q;
+    const base = Math.floor(pos), rest = pos-base;
+    return sorted[base+1]!==undefined ? sorted[base]+rest*(sorted[base+1]-sorted[base]) : sorted[base];
+  }
+  function draw(){
+    const {ctx,w,h} = dims;
+    ctx.clearRect(0,0,w,h);
+    const y = h/2;
+    ctx.strokeStyle=COL.grid; ctx.beginPath(); ctx.moveTo(20,y); ctx.lineTo(w-20,y); ctx.stroke();
+    const sorted = [...pts].sort((a,b)=>a-b);
+    const q1 = quartile(sorted,0.25), q3 = quartile(sorted,0.75);
+    const iqr = q3-q1;
+    const lo = q1-1.5*iqr, hi = q3+1.5*iqr;
+    function toX(v){ return 20 + v*(w-40); }
+    // fence
+    ctx.fillStyle='rgba(94,230,201,0.08)';
+    ctx.fillRect(toX(Math.max(0,lo)), y-40, toX(Math.min(1,hi))-toX(Math.max(0,lo)), 80);
+    [ [q1,COL.accent3],[q3,COL.accent3] ].forEach(([v,c])=>{
+      ctx.beginPath(); ctx.moveTo(toX(v),y-45); ctx.lineTo(toX(v),y+45); ctx.strokeStyle=c; ctx.lineWidth=1.5; ctx.stroke();
+    });
+    pts.forEach(v=>{
+      const isOutlier = v<lo || v>hi;
+      ctx.beginPath(); ctx.arc(toX(v), y, 6, 0, 7);
+      ctx.fillStyle = isOutlier? COL.bad : COL.accent;
+      ctx.fill();
+    });
+    document.getElementById('c1c-readout').innerHTML =
+      'Q1 = '+q1.toFixed(2)+' · Q3 = '+q3.toFixed(2)+' · IQR = '+iqr.toFixed(2)+
+      ' &nbsp; outliers: <b>'+pts.filter(v=>v<lo||v>hi).length+'</b>';
+  }
+  cv.addEventListener('pointerdown', e=>{
+    const rect=cv.getBoundingClientRect();
+    const x=(e.clientX-rect.left-20)/(dims.w-40);
+    pts.push(Math.max(0,Math.min(1,x)));
+    draw();
+  });
+  draw();
+})();
+
+/* =====================================================================
+   CH2 — linear regression
+===================================================================== */
+(function(){
+  const cv = document.getElementById('c2'); if(!cv) return;
+  let dims = fitCanvas(cv);
+  window.addEventListener('resize', ()=>{ dims=fitCanvas(cv); draw(); });
+  let pts = []; // in data space, x:[0,10] y:[0,10]
+  let theta0=5, theta1=0, iters=0;
+  let dragIdx=-1;
+  function toPx(x,y){ return [40+x/10*(dims.w-70), dims.h-30-y/10*(dims.h-50)]; }
+  function toData(px,py){ return [ (px-40)/(dims.w-70)*10, (dims.h-30-py)/(dims.h-50)*10 ]; }
+  function mse(){
+    if(pts.length===0) return 0;
+    let s=0; pts.forEach(p=>{ const yh=theta0+theta1*p[0]; s+=(yh-p[1])*(yh-p[1]); });
+    return s/pts.length;
+  }
+  function gradStep(){
+    if(pts.length===0) return;
+    const alpha = parseFloat(document.getElementById('c2-alpha').value);
+    let g0=0,g1=0;
+    pts.forEach(p=>{ const yh=theta0+theta1*p[0]; g0+=(yh-p[1]); g1+=(yh-p[1])*p[0]; });
+    g0/=pts.length; g1/=pts.length;
+    const newTheta0 = theta0 - alpha*g0;
+    const newTheta1 = theta1 - alpha*g1;
+    // safety clamp: if a step would blow up (bad alpha + steep data), cap the move
+    // rather than let it runaway toward NaN/astronomical values.
+    const clamp = v => Math.max(-30, Math.min(30, v));
+    theta0 = clamp(isFinite(newTheta0) ? newTheta0 : theta0);
+    theta1 = clamp(isFinite(newTheta1) ? newTheta1 : theta1);
+    iters++;
+  }
+  function draw(){
+    const {ctx,w,h} = dims;
+    ctx.clearRect(0,0,w,h);
+    // grid
+    ctx.strokeStyle=COL.grid; ctx.lineWidth=1;
+    for(let g=0; g<=10; g+=2){
+      const [gx,gy0]=toPx(g,0), [,gy10]=toPx(g,10);
+      ctx.beginPath(); ctx.moveTo(gx,gy0); ctx.lineTo(gx,gy10); ctx.stroke();
+      const [gx0,gyy]=toPx(0,g), [gx10,]=toPx(10,g);
+      ctx.beginPath(); ctx.moveTo(gx0,gyy); ctx.lineTo(gx10,gyy); ctx.stroke();
+    }
+    // regression line
+    const [lx1,ly1] = toPx(0, theta0);
+    const [lx2,ly2] = toPx(10, theta0+theta1*10);
+    ctx.beginPath(); ctx.moveTo(lx1,ly1); ctx.lineTo(lx2,ly2); ctx.strokeStyle=COL.accent2; ctx.lineWidth=2.5; ctx.stroke();
+    // residuals
+    pts.forEach(p=>{
+      const yh = theta0+theta1*p[0];
+      const [px1,py1]=toPx(p[0],p[1]); const [px2,py2]=toPx(p[0],yh);
+      ctx.beginPath(); ctx.moveTo(px1,py1); ctx.lineTo(px2,py2); ctx.strokeStyle='rgba(255,180,84,0.4)'; ctx.lineWidth=1; ctx.stroke();
+    });
+    // points
+    pts.forEach(p=>{
+      const [px,py]=toPx(p[0],p[1]);
+      ctx.beginPath(); ctx.arc(px,py,6,0,7); ctx.fillStyle=COL.accent; ctx.fill();
+      ctx.strokeStyle=COL.bg; ctx.lineWidth=1.5; ctx.stroke();
+    });
+    document.getElementById('c2-readout').innerHTML =
+      'θ₀ = '+theta0.toFixed(2)+' &nbsp; θ₁ = '+theta1.toFixed(2)+' &nbsp; MSE = '+mse().toFixed(3)+' &nbsp; iters: '+iters;
+  }
+  document.getElementById('c2-alpha').addEventListener('input', ()=>{
+    document.getElementById('c2-alpha-v').textContent = parseFloat(document.getElementById('c2-alpha').value).toFixed(3);
+  });
+  cv.addEventListener('pointerdown', e=>{
+    const rect=cv.getBoundingClientRect();
+    const px=e.clientX-rect.left, py=e.clientY-rect.top;
+    // check drag existing
+    for(let i=0;i<pts.length;i++){
+      const [ex,ey]=toPx(pts[i][0],pts[i][1]);
+      if(Math.hypot(ex-px,ey-py)<10){ dragIdx=i; return; }
+    }
+    const [dx,dy]=toData(px,py);
+    if(dx>=0&&dx<=10&&dy>=0&&dy<=10) pts.push([dx,dy]);
+    draw();
+  });
+  cv.addEventListener('pointermove', e=>{
+    if(dragIdx<0) return;
+    const rect=cv.getBoundingClientRect();
+    const [dx,dy]=toData(e.clientX-rect.left, e.clientY-rect.top);
+    pts[dragIdx]=[Math.max(0,Math.min(10,dx)), Math.max(0,Math.min(10,dy))];
+    draw();
+  });
+  window.addEventListener('pointerup', ()=>{ dragIdx=-1; });
+  document.getElementById('c2-step').addEventListener('click', ()=>{ gradStep(); draw(); });
+  document.getElementById('c2-run').addEventListener('click', ()=>{
+    let i=0;
+    const iv=setInterval(()=>{ gradStep(); draw(); i++; if(i>200) clearInterval(iv); }, 20);
+  });
+  document.getElementById('c2-clear').addEventListener('click', ()=>{ pts=[]; theta0=5; theta1=0; iters=0; draw(); });
+  document.getElementById('c2-seed').addEventListener('click', ()=>{
+    pts=[]; theta0=5; theta1=0; iters=0;
+    for(let i=0;i<14;i++){ const x=rand(0.5,9.5); const y=Math.max(0,Math.min(10, 0.7*x+1+randn()*0.9)); pts.push([x,y]); }
+    draw();
+  });
+  draw();
+})();
+
+/* =====================================================================
+   CH3 — logistic regression
+===================================================================== */
+(function(){
+  const cv = document.getElementById('c3'); if(!cv) return;
+  let dims = fitCanvas(cv);
+  window.addEventListener('resize', ()=>{ dims=fitCanvas(cv); draw(); });
+  let pts = []; // {x in [0,10], label:0/1}
+  let mode = 0;
+  let theta0=0, theta1=0;
+  function sigmoid(z){ return 1/(1+Math.exp(-z)); }
+  function toPxX(x){ return 40 + x/10*(dims.w-70); }
+  function loss(){
+    if(pts.length===0) return 0;
+    let s=0;
+    pts.forEach(p=>{
+      const z = theta0+theta1*p.x;
+      const yh = sigmoid(z);
+      const yhc = Math.min(Math.max(yh,1e-7),1-1e-7);
+      s += -(p.label*Math.log(yhc) + (1-p.label)*Math.log(1-yhc));
+    });
+    return s/pts.length;
+  }
+  function gradStep(){
+    if(pts.length===0) return;
+    let g0=0,g1=0;
+    pts.forEach(p=>{ const yh=sigmoid(theta0+theta1*p.x); g0+=(yh-p.label); g1+=(yh-p.label)*p.x; });
+    g0/=pts.length; g1/=pts.length;
+    theta0 -= 0.5*g0; theta1 -= 0.5*g1;
+  }
+  function draw(){
+    const {ctx,w,h} = dims;
+    ctx.clearRect(0,0,w,h);
+    const baseY = h*0.72, curveTop = 20, curveH = h*0.5;
+    // sigmoid curve
+    ctx.beginPath();
+    for(let i=0;i<=200;i++){
+      const x = i/200*10;
+      const yh = sigmoid(theta0+theta1*x);
+      const px = toPxX(x), py = baseY - yh*curveH;
+      if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+    }
+    ctx.strokeStyle=COL.accent3; ctx.lineWidth=2; ctx.stroke();
+    // 0.5 line
+    ctx.beginPath(); ctx.moveTo(40, baseY-0.5*curveH); ctx.lineTo(w-30, baseY-0.5*curveH);
+    ctx.strokeStyle='rgba(255,180,84,0.35)'; ctx.setLineDash([4,4]); ctx.stroke(); ctx.setLineDash([]);
+    // decision boundary
+    if(Math.abs(theta1)>1e-6){
+      const xb = -theta0/theta1;
+      if(xb>=0 && xb<=10){
+        const px = toPxX(xb);
+        ctx.beginPath(); ctx.moveTo(px,10); ctx.lineTo(px,h-10);
+        ctx.strokeStyle=COL.accent2; ctx.lineWidth=2; ctx.stroke();
+      }
+    }
+    // points along axis (jittered vertically near baseY for visibility, colored by label)
+    pts.forEach(p=>{
+      const px = toPxX(p.x);
+      const py = p.label===1 ? baseY-curveH-14 : baseY+14;
+      ctx.beginPath(); ctx.arc(px,py,6,0,7);
+      ctx.fillStyle = p.label===1 ? COL.accent2 : COL.accent;
+      ctx.fill();
+    });
+    document.getElementById('c3-readout').innerHTML =
+      'θ₀='+theta0.toFixed(2)+' θ₁='+theta1.toFixed(2)+' &nbsp; loss='+loss().toFixed(3)+
+      ' &nbsp; boundary x='+(Math.abs(theta1)>1e-6?(-theta0/theta1).toFixed(2):'—');
+  }
+  cv.addEventListener('pointerdown', e=>{
+    const rect=cv.getBoundingClientRect();
+    const px=e.clientX-rect.left;
+    const x = (px-40)/(dims.w-70)*10;
+    if(x<0||x>10) return;
+    pts.push({x, label: mode});
+    draw();
+  });
+  document.getElementById('c3-classA').addEventListener('click', ()=>{ mode=0; });
+  document.getElementById('c3-classB').addEventListener('click', ()=>{ mode=1; });
+  document.getElementById('c3-train').addEventListener('click', ()=>{
+    let i=0; const iv=setInterval(()=>{ gradStep(); draw(); i++; if(i>150) clearInterval(iv); },20);
+  });
+  document.getElementById('c3-clear').addEventListener('click', ()=>{ pts=[]; theta0=0; theta1=0; draw(); });
+  document.getElementById('c3-seed').addEventListener('click', ()=>{
+    pts=[]; theta0=0; theta1=0;
+    for(let i=0;i<10;i++) pts.push({x: rand(0,4)+randn()*0.5, label:0});
+    for(let i=0;i<10;i++) pts.push({x: rand(6,10)+randn()*0.5, label:1});
+    draw();
+  });
+  draw();
+})();
+
+/* =====================================================================
+   CH4 — KNN
+===================================================================== */
+(function(){
+  const cv = document.getElementById('c4'); if(!cv) return;
+  let dims = fitCanvas(cv);
+  window.addEventListener('resize', ()=>{ dims=fitCanvas(cv); draw(); });
+  let pts = [];
+  function seed(){
+    pts=[];
+    for(let i=0;i<18;i++) pts.push({x:rand(0.1,0.45), y:rand(0.15,0.85), c:0});
+    for(let i=0;i<18;i++) pts.push({x:rand(0.55,0.9), y:rand(0.15,0.85), c:1});
+  }
+  seed();
+  let hover=null;
+  function draw(){
+    const {ctx,w,h} = dims;
+    ctx.clearRect(0,0,w,h);
+    const k = parseInt(document.getElementById('c4-k').value,10);
+    document.getElementById('c4-k-v').textContent = k;
+    const showHeat = document.getElementById('c4-heatmap').checked;
+    function classify(qx,qy){
+      const ds = pts.map(p=>({p, d: Math.hypot(p.x-qx,p.y-qy)})).sort((a,b)=>a.d-b.d).slice(0,k);
+      const votes = [0,0]; ds.forEach(d=>votes[d.p.c]++);
+      return {cls: votes[0]>=votes[1]?0:1, neighbors: ds};
+    }
+    if(showHeat){
+      const step=8;
+      for(let px=0; px<w; px+=step){
+        for(let py=0; py<h; py+=step){
+          const qx=px/w, qy=py/h;
+          const {cls} = classify(qx,qy);
+          ctx.fillStyle = cls===0? 'rgba(94,230,201,0.10)' : 'rgba(255,138,92,0.10)';
+          ctx.fillRect(px,py,step,step);
+        }
+      }
+    }
+    pts.forEach(p=>{
+      ctx.beginPath(); ctx.arc(p.x*w, p.y*h, 6, 0, 7);
+      ctx.fillStyle = p.c===0? COL.accent : COL.accent2;
+      ctx.fill();
+    });
+    if(hover){
+      const {cls, neighbors} = classify(hover.x/w, hover.y/h);
+      neighbors.forEach(n=>{
+        ctx.beginPath(); ctx.moveTo(hover.x, hover.y); ctx.lineTo(n.p.x*w, n.p.y*h);
+        ctx.strokeStyle='rgba(219,228,245,0.25)'; ctx.lineWidth=1; ctx.stroke();
+      });
+      ctx.beginPath(); ctx.arc(hover.x,hover.y,8,0,7);
+      ctx.strokeStyle = cls===0? COL.accent : COL.accent2; ctx.lineWidth=2.5; ctx.stroke();
+      document.getElementById('c4-readout').innerHTML = 'k = '+k+' &nbsp; predicted class: <b style="color:'+(cls===0?COL.accent:COL.accent2)+'">'+(cls===0?'●':'●')+' class '+(cls===0?'A':'B')+'</b>';
+    }
+  }
+  cv.addEventListener('pointermove', e=>{
+    const rect=cv.getBoundingClientRect();
+    hover = {x: e.clientX-rect.left, y: e.clientY-rect.top};
+    draw();
+  });
+  cv.addEventListener('pointerleave', ()=>{ hover=null; draw(); });
+  document.getElementById('c4-k').addEventListener('input', draw);
+  document.getElementById('c4-heatmap').addEventListener('change', draw);
+  document.getElementById('c4-seed').addEventListener('click', ()=>{ seed(); draw(); });
+  draw();
+})();
+
+/* =====================================================================
+   CH5 — decision tree split
+===================================================================== */
+(function(){
+  const cv = document.getElementById('c5'); if(!cv) return;
+  let dims = fitCanvas(cv);
+  window.addEventListener('resize', ()=>{ dims=fitCanvas(cv); draw(); });
+  let pts = [];
+  function seed(){
+    pts=[];
+    for(let i=0;i<15;i++) pts.push({x: rand(0.05,0.55)+randn()*0.05, c:0});
+    for(let i=0;i<15;i++) pts.push({x: rand(0.45,0.95)+randn()*0.05, c:1});
+    pts.forEach(p=>p.x=Math.max(0.02,Math.min(0.98,p.x)));
+  }
+  seed();
+  let threshold = 0.5;
+  let dragging=false;
+  function entropy(arr){
+    if(arr.length===0) return 0;
+    const p1 = arr.filter(p=>p.c===1).length/arr.length;
+    const p0 = 1-p1;
+    let h=0;
+    [p0,p1].forEach(p=>{ if(p>0) h -= p*Math.log2(p); });
+    return h;
+  }
+  function infoGain(t){
+    const left = pts.filter(p=>p.x<t), right = pts.filter(p=>p.x>=t);
+    const hParent = entropy(pts);
+    const hL = entropy(left), hR = entropy(right);
+    const ig = hParent - (left.length/pts.length)*hL - (right.length/pts.length)*hR;
+    return {ig, hL, hR};
+  }
+  function draw(){
+    const {ctx,w,h} = dims;
+    ctx.clearRect(0,0,w,h);
+    const y = h/2;
+    const tx = 20 + threshold*(w-40);
+    ctx.fillStyle='rgba(94,230,201,0.05)'; ctx.fillRect(20,20,tx-20,h-40);
+    ctx.fillStyle='rgba(255,138,92,0.05)'; ctx.fillRect(tx,20,w-20-tx,h-40);
+    ctx.beginPath(); ctx.moveTo(tx,10); ctx.lineTo(tx,h-10);
+    ctx.strokeStyle=COL.ink; ctx.lineWidth=2; ctx.stroke();
+    pts.forEach(p=>{
+      const px = 20+p.x*(w-40);
+      ctx.beginPath(); ctx.arc(px, y+randSeed(p), 6, 0, 7);
+      ctx.fillStyle = p.c===0? COL.accent : COL.accent2;
+      ctx.fill();
+    });
+    const {ig,hL,hR} = infoGain(threshold);
+    document.getElementById('c5-readout').innerHTML =
+      'threshold = '+threshold.toFixed(2)+' &nbsp; H(left)='+hL.toFixed(3)+' H(right)='+hR.toFixed(3)+' &nbsp; IG=<b>'+ig.toFixed(3)+'</b>';
+  }
+  const seedJitter = new Map();
+  function randSeed(p){
+    if(!seedJitter.has(p)) seedJitter.set(p, rand(-40,40));
+    return seedJitter.get(p);
+  }
+  cv.addEventListener('pointerdown', e=>{ dragging=true; move(e); });
+  cv.addEventListener('pointermove', e=>{ if(dragging) move(e); });
+  window.addEventListener('pointerup', ()=>{ dragging=false; });
+  function move(e){
+    const rect=cv.getBoundingClientRect();
+    threshold = Math.max(0.02,Math.min(0.98,(e.clientX-rect.left-20)/(dims.w-40)));
+    draw();
+  }
+  document.getElementById('c5-best').addEventListener('click', ()=>{
+    let best=0.5, bestIg=-1;
+    for(let t=0.03;t<0.97;t+=0.01){ const {ig}=infoGain(t); if(ig>bestIg){bestIg=ig; best=t;} }
+    threshold=best; draw();
+  });
+  document.getElementById('c5-seed').addEventListener('click', ()=>{ seedJitter.clear(); seed(); draw(); });
+  draw();
+})();
+
+/* =====================================================================
+   CH6 — k-means
+===================================================================== */
+(function(){
+  const cv = document.getElementById('c6'); if(!cv) return;
+  let dims = fitCanvas(cv);
+  window.addEventListener('resize', ()=>{ dims=fitCanvas(cv); draw(); });
+  let pts=[], centroids=[], assigns=[], iteration=0;
+  const palette=[COL.accent,COL.accent2,COL.accent3,COL.warn,'#ff6bd6','#6ba8ff'];
+  function seed(){
+    pts=[];
+    const clusters = [[0.25,0.25],[0.75,0.3],[0.5,0.75],[0.2,0.7],[0.8,0.75],[0.5,0.15]];
+    const k = parseInt(document.getElementById('c6-k').value,10);
+    for(let c=0;c<Math.max(3,k);c++){
+      const [cx,cy]=clusters[c%clusters.length];
+      for(let i=0;i<12;i++) pts.push({x:Math.max(0.03,Math.min(0.97,cx+randn()*0.07)), y:Math.max(0.03,Math.min(0.97,cy+randn()*0.07))});
+    }
+    initCentroids();
+    iteration=0;
+  }
+  function initCentroids(){
+    const k = parseInt(document.getElementById('c6-k').value,10);
+    centroids=[];
+    for(let i=0;i<k;i++) centroids.push({x:rand(0.1,0.9), y:rand(0.1,0.9)});
+    assigns = pts.map(()=>0);
+  }
+  function costJ(){
+    let s=0;
+    pts.forEach((p,i)=>{ const c=centroids[assigns[i]]; s += (p.x-c.x)**2+(p.y-c.y)**2; });
+    return s;
+  }
+  function oneIteration(){
+    // assign
+    pts.forEach((p,i)=>{
+      let best=0, bd=Infinity;
+      centroids.forEach((c,ci)=>{ const d=(p.x-c.x)**2+(p.y-c.y)**2; if(d<bd){bd=d;best=ci;} });
+      assigns[i]=best;
+    });
+    // update
+    centroids.forEach((c,ci)=>{
+      const members = pts.filter((p,i)=>assigns[i]===ci);
+      if(members.length>0){
+        c.x = members.reduce((a,p)=>a+p.x,0)/members.length;
+        c.y = members.reduce((a,p)=>a+p.y,0)/members.length;
+      }
+    });
+    iteration++;
+  }
+  function draw(){
+    const {ctx,w,h} = dims;
+    ctx.clearRect(0,0,w,h);
+    pts.forEach((p,i)=>{
+      ctx.beginPath(); ctx.arc(p.x*w,p.y*h,5,0,7);
+      ctx.fillStyle = palette[assigns[i]%palette.length];
+      ctx.globalAlpha=0.85; ctx.fill(); ctx.globalAlpha=1;
+    });
+    centroids.forEach((c,ci)=>{
+      ctx.beginPath(); ctx.arc(c.x*w,c.y*h,10,0,7);
+      ctx.fillStyle=palette[ci%palette.length]; ctx.strokeStyle=COL.ink; ctx.lineWidth=2; ctx.fill(); ctx.stroke();
+    });
+    document.getElementById('c6-readout').innerHTML = 'iteration: '+iteration+' &nbsp; J = '+costJ().toFixed(4);
+  }
+  document.getElementById('c6-k').addEventListener('input', ()=>{
+    document.getElementById('c6-k-v').textContent = document.getElementById('c6-k').value;
+    seed(); draw();
+  });
+  document.getElementById('c6-step').addEventListener('click', ()=>{ oneIteration(); draw(); });
+  document.getElementById('c6-run').addEventListener('click', ()=>{
+    let i=0; const iv=setInterval(()=>{ oneIteration(); draw(); i++; if(i>25) clearInterval(iv); }, 250);
+  });
+  document.getElementById('c6-reset').addEventListener('click', ()=>{ seed(); draw(); });
+  seed(); draw();
+})();
+
+/* =====================================================================
+   CH7 — PCA rotation
+===================================================================== */
+(function(){
+  const cv = document.getElementById('c7'); if(!cv) return;
+  let dims = fitCanvas(cv);
+  window.addEventListener('resize', ()=>{ dims=fitCanvas(cv); draw(); });
+  let pts=[], angle=0.3, dragging=false;
+  function seed(){
+    pts=[];
+    const trueAngle = rand(0,Math.PI);
+    for(let i=0;i<60;i++){
+      const along = randn()*0.28, across = randn()*0.08;
+      const x = along*Math.cos(trueAngle) - across*Math.sin(trueAngle);
+      const y = along*Math.sin(trueAngle) + across*Math.cos(trueAngle);
+      pts.push({x,y});
+    }
+  }
+  seed();
+  function projVariance(a){
+    const dx=Math.cos(a), dy=Math.sin(a);
+    const proj = pts.map(p=>p.x*dx+p.y*dy);
+    const m = proj.reduce((s,v)=>s+v,0)/proj.length;
+    return proj.reduce((s,v)=>s+(v-m)*(v-m),0)/proj.length;
+  }
+  function bestAngle(){
+    let best=0, bv=-1;
+    for(let a=0;a<Math.PI;a+=0.01){ const v=projVariance(a); if(v>bv){bv=v;best=a;} }
+    return best;
+  }
+  function draw(){
+    const {ctx,w,h} = dims;
+    ctx.clearRect(0,0,w,h);
+    const cx=w/2, cy=h*0.42, scale=Math.min(w,h*0.75)/1.1;
+    // axes
+    ctx.strokeStyle=COL.grid; ctx.beginPath(); ctx.moveTo(0,cy); ctx.lineTo(w,cy); ctx.moveTo(cx,0); ctx.lineTo(cx,h*0.8); ctx.stroke();
+    // rotated axis line
+    const dx=Math.cos(angle), dy=Math.sin(angle);
+    ctx.beginPath(); ctx.moveTo(cx-dx*w, cy-dy*w); ctx.lineTo(cx+dx*w, cy+dy*w);
+    ctx.strokeStyle=COL.accent2; ctx.lineWidth=2; ctx.stroke();
+    // points + projections
+    pts.forEach(p=>{
+      const px=cx+p.x*scale, py=cy+p.y*scale;
+      const t = p.x*dx+p.y*dy;
+      const projx = cx+t*dx*scale, projy=cy+t*dy*scale;
+      ctx.beginPath(); ctx.moveTo(px,py); ctx.lineTo(projx,projy);
+      ctx.strokeStyle='rgba(143,123,255,0.15)'; ctx.lineWidth=1; ctx.stroke();
+      ctx.beginPath(); ctx.arc(px,py,4,0,7); ctx.fillStyle=COL.accent3; ctx.fill();
+    });
+    // variance bar
+    const v = projVariance(angle);
+    const maxV = projVariance(bestAngle());
+    const barY = h*0.86, barMaxW = w-60;
+    ctx.fillStyle=COL.panel2;
+    ctx.fillRect(30,barY,barMaxW,14);
+    ctx.fillStyle=COL.accent;
+    ctx.fillRect(30,barY,barMaxW*Math.min(1,v/maxV),14);
+    document.getElementById('c7-readout').innerHTML =
+      'angle = '+(angle*180/Math.PI).toFixed(0)+'° &nbsp; projected variance = '+v.toFixed(4)+' / max '+maxV.toFixed(4);
+  }
+  function angleFromEvent(e){
+    const rect=cv.getBoundingClientRect();
+    const cx=rect.width/2, cy=dims.h*0.42;
+    const x=e.clientX-rect.left-cx, y=e.clientY-rect.top-cy;
+    return Math.atan2(y,x);
+  }
+  cv.addEventListener('pointerdown', e=>{ dragging=true; angle=angleFromEvent(e); draw(); });
+  cv.addEventListener('pointermove', e=>{ if(dragging){ angle=angleFromEvent(e); draw(); } });
+  window.addEventListener('pointerup', ()=>{ dragging=false; });
+  document.getElementById('c7-solve').addEventListener('click', ()=>{ angle=bestAngle(); draw(); });
+  document.getElementById('c7-seed').addEventListener('click', ()=>{ seed(); draw(); });
+  draw();
+})();
+
+/* =====================================================================
+   CH8 — naive bayes gaussians
+===================================================================== */
+(function(){
+  const cv = document.getElementById('c8'); if(!cv) return;
+  let dims = fitCanvas(cv);
+  window.addEventListener('resize', ()=>{ dims=fitCanvas(cv); draw(); });
+  const A = {mu:3.2, sigma:1.1, color:COL.accent};
+  const B = {mu:6.8, sigma:1.5, color:COL.accent2};
+  let qx = 5;
+  function gauss(x,mu,sigma){ return (1/(sigma*Math.sqrt(2*Math.PI)))*Math.exp(-((x-mu)**2)/(2*sigma*sigma)); }
+  function toPxX(x){ return 30 + x/10*(dims.w-60); }
+  function draw(){
+    const {ctx,w,h} = dims;
+    ctx.clearRect(0,0,w,h);
+    const baseY = h-30, scaleY = (h-60)*2.2;
+    [A,B].forEach(cls=>{
+      ctx.beginPath();
+      for(let i=0;i<=200;i++){
+        const x=i/200*10;
+        const px=toPxX(x), py=baseY-gauss(x,cls.mu,cls.sigma)*scaleY;
+        if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+      }
+      ctx.strokeStyle=cls.color; ctx.lineWidth=2; ctx.stroke();
+    });
+    // query line
+    const qpx = toPxX(qx);
+    ctx.beginPath(); ctx.moveTo(qpx,10); ctx.lineTo(qpx,baseY);
+    ctx.strokeStyle='rgba(219,228,245,0.4)'; ctx.setLineDash([4,4]); ctx.stroke(); ctx.setLineDash([]);
+    const pa = gauss(qx,A.mu,A.sigma), pb = gauss(qx,B.mu,B.sigma);
+    const sum = pa+pb;
+    document.getElementById('c8-readout').innerHTML =
+      'x = '+qx.toFixed(2)+' &nbsp; P(y=A|x) ∝ <b style="color:'+A.color+'">'+(pa/sum*100).toFixed(1)+'%</b>'+
+      ' &nbsp; P(y=B|x) ∝ <b style="color:'+B.color+'">'+(pb/sum*100).toFixed(1)+'%</b>';
+  }
+  function setFromEvent(e){
+    const rect=cv.getBoundingClientRect();
+    qx = Math.max(0,Math.min(10,(e.clientX-rect.left-30)/(dims.w-60)*10));
+    draw();
+  }
+  cv.addEventListener('pointerdown', e=>{ setFromEvent(e); const move=ev=>setFromEvent(ev); const up=()=>{window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',up);}; window.addEventListener('pointermove',move); window.addEventListener('pointerup',up); });
+  draw();
+})();
+
+/* =====================================================================
+   CH9 — confusion matrix / ROC
+===================================================================== */
+(function(){
+  const cv = document.getElementById('c9'); if(!cv) return;
+  let dims = fitCanvas(cv);
+  window.addEventListener('resize', ()=>{ dims=fitCanvas(cv); draw(); });
+  // fixed set of scored samples: {score in [0,1], label 0/1}
+  let samples = [];
+  (function seed(){
+    for(let i=0;i<40;i++) samples.push({score: Math.min(1,Math.max(0, randn()*0.15+0.3)), label:0});
+    for(let i=0;i<40;i++) samples.push({score: Math.min(1,Math.max(0, randn()*0.15+0.65)), label:1});
+  })();
+  function computeAt(t){
+    let TP=0,FP=0,FN=0,TN=0;
+    samples.forEach(s=>{
+      const pred = s.score>=t?1:0;
+      if(pred===1&&s.label===1) TP++;
+      else if(pred===1&&s.label===0) FP++;
+      else if(pred===0&&s.label===1) FN++;
+      else TN++;
+    });
+    return {TP,FP,FN,TN};
+  }
+  function rocPoint(t){
+    const {TP,FP,FN,TN} = computeAt(t);
+    const tpr = TP/(TP+FN||1), fpr = FP/(FP+TN||1);
+    return {tpr,fpr};
+  }
+  function draw(){
+    const {ctx,w,h} = dims;
+    ctx.clearRect(0,0,w,h);
+    const t = parseFloat(document.getElementById('c9-t').value);
+    document.getElementById('c9-t-v').textContent = t.toFixed(2);
+    // left: score distribution with threshold
+    const leftW = w*0.48;
+    const baseY = h-30;
+    ctx.strokeStyle=COL.grid; ctx.beginPath(); ctx.moveTo(20,baseY); ctx.lineTo(20+leftW,baseY); ctx.stroke();
+    samples.forEach((s,i)=>{
+      const px = 20+s.score*leftW;
+      const py = baseY - 8 - (i%20)*7;
+      ctx.beginPath(); ctx.arc(px,py,3,0,7);
+      ctx.fillStyle = s.label===1?COL.accent2:COL.accent;
+      ctx.fill();
+    });
+    const tpx = 20+t*leftW;
+    ctx.beginPath(); ctx.moveTo(tpx,10); ctx.lineTo(tpx,baseY);
+    ctx.strokeStyle=COL.ink; ctx.lineWidth=2; ctx.stroke();
+    // right: ROC curve
+    const rx0 = w*0.56, ry0=10, rs = Math.min(w*0.4, h-60);
+    ctx.strokeStyle=COL.grid; ctx.strokeRect(rx0,ry0,rs,rs);
+    ctx.beginPath(); ctx.moveTo(rx0,ry0+rs); ctx.lineTo(rx0+rs,ry0);
+    ctx.strokeStyle='rgba(219,228,245,0.15)'; ctx.setLineDash([3,3]); ctx.stroke(); ctx.setLineDash([]);
+    ctx.beginPath();
+    for(let i=0;i<=50;i++){
+      const tt = i/50;
+      const {tpr,fpr} = rocPoint(tt);
+      const px = rx0+fpr*rs, py = ry0+rs-tpr*rs;
+      if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+    }
+    ctx.strokeStyle=COL.accent3; ctx.lineWidth=2; ctx.stroke();
+    const cur = rocPoint(t);
+    ctx.beginPath(); ctx.arc(rx0+cur.fpr*rs, ry0+rs-cur.tpr*rs, 6,0,7);
+    ctx.fillStyle=COL.accent2; ctx.fill();
+
+    const {TP,FP,FN,TN} = computeAt(t);
+    const precision = TP/(TP+FP||1), recall = TP/(TP+FN||1);
+    const f1 = 2*precision*recall/((precision+recall)||1);
+    document.getElementById('c9-readout').innerHTML =
+      'TP='+TP+' FP='+FP+' FN='+FN+' TN='+TN+
+      ' &nbsp; precision='+precision.toFixed(2)+' recall='+recall.toFixed(2)+' F1='+f1.toFixed(2);
+  }
+  document.getElementById('c9-t').addEventListener('input', draw);
+  draw();
+})();
+
+})();
+</script>
+</body>
+</html>

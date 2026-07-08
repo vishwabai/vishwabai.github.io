@@ -1,0 +1,1882 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Silicon Instrument — CPU · GPU · TPU from scratch</title>
+<style>
+:root{
+  --void:#070809; --void2:#0b0d13; --panel:#111521; --panel2:#161c2a;
+  --raised:#1d2436; --line:rgba(150,168,200,.12); --line2:rgba(150,168,200,.22);
+  --ink:#e9edf5; --dim:#9aa3b6; --faint:#616a7e;
+  --cpu:#f0a542; --cpuG:rgba(240,165,66,.14); --cpuL:rgba(240,165,66,.4);
+  --gpu:#3fd4c2; --gpuG:rgba(63,212,194,.13); --gpuL:rgba(63,212,194,.4);
+  --tpu:#c982ec; --tpuG:rgba(201,130,236,.14); --tpuL:rgba(201,130,236,.42);
+  --live:#57cfe8; --ok:#5fd08a; --bad:#ff6b6b; --warn:#f5c860;
+  --mono:ui-monospace,"SF Mono","JetBrains Mono","Cascadia Code",Menlo,Consolas,monospace;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--void); color:var(--ink); font-family:var(--sans);
+  line-height:1.65; font-size:17px; overflow-x:hidden;
+  background-image:
+    radial-gradient(ellipse 900px 600px at 12% -5%, rgba(240,165,66,.05), transparent 60%),
+    radial-gradient(ellipse 800px 700px at 92% 8%, rgba(63,212,194,.05), transparent 60%),
+    radial-gradient(ellipse 900px 800px at 50% 105%, rgba(201,130,236,.05), transparent 60%);
+}
+::selection{background:rgba(87,207,232,.28)}
+
+/* ---------- circuit trace background ---------- */
+.grid-bg{position:fixed;inset:0;z-index:0;opacity:.4;pointer-events:none;
+  background-image:
+    linear-gradient(var(--line) 1px,transparent 1px),
+    linear-gradient(90deg,var(--line) 1px,transparent 1px);
+  background-size:44px 44px;
+  mask-image:radial-gradient(ellipse 80% 70% at 50% 40%,#000 30%,transparent 90%);
+}
+
+/* ---------- layout ---------- */
+.wrap{position:relative;z-index:1;max-width:960px;margin:0 auto;padding:0 24px}
+section{padding:34px 0;border-bottom:1px solid var(--line)}
+section:last-of-type{border-bottom:none}
+
+/* ---------- top progress + nav ---------- */
+#railtop{position:fixed;top:0;left:0;right:0;height:3px;background:transparent;z-index:60}
+#railfill{height:100%;width:0;background:linear-gradient(90deg,var(--cpu),var(--gpu),var(--tpu));
+  box-shadow:0 0 12px rgba(87,207,232,.5);transition:width .1s linear}
+nav#topbar{position:fixed;top:0;left:0;right:0;z-index:50;
+  background:rgba(7,8,9,.82);backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--line);height:52px;display:flex;align-items:center}
+nav#topbar .wrap{display:flex;align-items:center;gap:16px;width:100%}
+.brand{font-family:var(--mono);font-size:13px;font-weight:600;letter-spacing:.5px;
+  color:var(--ink);display:flex;align-items:center;gap:9px;white-space:nowrap}
+.brand .dot{width:9px;height:9px;border-radius:2px;
+  background:conic-gradient(var(--cpu),var(--gpu),var(--tpu),var(--cpu));
+  animation:spin 6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.navlinks{margin-left:auto;display:flex;gap:4px;font-family:var(--mono);font-size:12px}
+.navlinks a{color:var(--dim);text-decoration:none;padding:6px 10px;border-radius:6px;
+  transition:.15s;letter-spacing:.3px}
+.navlinks a:hover{color:var(--ink);background:var(--panel2)}
+.navlinks a.c{color:var(--cpu)} .navlinks a.g{color:var(--gpu)} .navlinks a.t{color:var(--tpu)}
+#pct{font-family:var(--mono);font-size:12px;color:var(--dim);white-space:nowrap}
+
+/* ---------- hero ---------- */
+#hero{min-height:100vh;display:flex;flex-direction:column;justify-content:center;
+  padding-top:80px;padding-bottom:60px;border-bottom:1px solid var(--line)}
+.eyebrow{font-family:var(--mono);font-size:12.5px;letter-spacing:3px;text-transform:uppercase;
+  color:var(--live);margin-bottom:22px;display:flex;align-items:center;gap:12px}
+.eyebrow::before{content:"";width:30px;height:1px;background:var(--live)}
+h1.title{font-size:clamp(38px,7.5vw,74px);line-height:1.02;font-weight:850;
+  letter-spacing:-1.5px;margin-bottom:8px}
+h1.title .si{background:linear-gradient(120deg,var(--cpu),var(--gpu) 55%,var(--tpu));
+  -webkit-background-clip:text;background-clip:text;color:transparent}
+.subtitle{font-size:clamp(17px,2.4vw,21px);color:var(--dim);max-width:620px;margin:20px 0 34px;line-height:1.6}
+.subtitle b{color:var(--ink);font-weight:600}
+.herostats{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:38px}
+.hstat{border:1px solid var(--line2);border-radius:10px;padding:12px 16px;background:var(--panel);min-width:120px}
+.hstat .n{font-family:var(--mono);font-size:22px;font-weight:700}
+.hstat .l{font-family:var(--mono);font-size:11px;color:var(--dim);letter-spacing:.5px;text-transform:uppercase;margin-top:2px}
+.cta{display:inline-flex;align-items:center;gap:10px;font-family:var(--mono);font-size:14px;
+  font-weight:600;color:var(--void);background:var(--live);padding:13px 22px;border-radius:9px;
+  text-decoration:none;letter-spacing:.4px;transition:.18s;border:none;cursor:pointer}
+.cta:hover{transform:translateY(-2px);box-shadow:0 8px 26px rgba(87,207,232,.35)}
+.cta.ghost{background:transparent;color:var(--ink);border:1px solid var(--line2)}
+.cta.ghost:hover{border-color:var(--live);box-shadow:none}
+.ctarow{display:flex;gap:12px;flex-wrap:wrap}
+
+/* ---------- section furniture ---------- */
+.sechead{display:flex;align-items:baseline;gap:14px;margin-bottom:6px}
+.secnum{font-family:var(--mono);font-size:13px;font-weight:600;letter-spacing:1px;
+  padding:3px 9px;border-radius:6px;border:1px solid var(--line2);color:var(--dim)}
+.tag-cpu .secnum{color:var(--cpu);border-color:var(--cpuL);background:var(--cpuG)}
+.tag-gpu .secnum{color:var(--gpu);border-color:var(--gpuL);background:var(--gpuG)}
+.tag-tpu .secnum{color:var(--tpu);border-color:var(--tpuL);background:var(--tpuG)}
+.kicker{font-family:var(--mono);font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--dim)}
+.tag-cpu .kicker{color:var(--cpu)} .tag-gpu .kicker{color:var(--gpu)} .tag-tpu .kicker{color:var(--tpu)}
+h2{font-size:clamp(26px,4.2vw,38px);font-weight:800;letter-spacing:-.6px;line-height:1.12;margin:6px 0 16px}
+h3{font-size:21px;font-weight:700;letter-spacing:-.2px;margin:30px 0 10px;color:var(--ink)}
+h4{font-size:16px;font-weight:700;margin:20px 0 8px;font-family:var(--mono);letter-spacing:.3px}
+p{margin:13px 0;color:#d3d9e6}
+p.lead{font-size:19px;color:var(--ink)}
+strong{color:var(--ink);font-weight:650}
+em{color:var(--live);font-style:normal;font-weight:600}
+a.ln{color:var(--live);text-decoration:none;border-bottom:1px dotted var(--live)}
+ul,ol{margin:13px 0 13px 4px;padding-left:22px;color:#d3d9e6}
+li{margin:7px 0}
+li::marker{color:var(--dim)}
+code.k{font-family:var(--mono);font-size:.9em;background:var(--panel2);padding:2px 6px;
+  border-radius:5px;color:var(--live);border:1px solid var(--line)}
+
+/* ---------- cards & callouts ---------- */
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px;margin:20px 0}
+.card.raised{background:var(--panel2)}
+.callout{border-radius:12px;padding:16px 18px;margin:18px 0;border:1px solid;display:flex;gap:13px;align-items:flex-start;font-size:15.5px}
+.callout .ico{font-family:var(--mono);font-weight:700;flex-shrink:0;margin-top:1px}
+.callout .bd{flex:1}
+.callout .bd b{display:block;margin-bottom:3px;font-family:var(--mono);font-size:12px;letter-spacing:1px;text-transform:uppercase}
+.miscon{background:rgba(255,107,107,.07);border-color:rgba(255,107,107,.3)}
+.miscon .ico,.miscon b{color:var(--bad)}
+.key{background:rgba(87,207,232,.07);border-color:rgba(87,207,232,.3)}
+.key .ico,.key b{color:var(--live)}
+.analogy{background:rgba(95,208,138,.06);border-color:rgba(95,208,138,.28)}
+.analogy .ico,.analogy b{color:var(--ok)}
+.deep{background:var(--panel2);border-color:var(--line2)}
+.deep .ico,.deep b{color:var(--warn)}
+
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:18px 0}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:18px 0}
+@media(max-width:720px){.grid2,.grid3{grid-template-columns:1fr}}
+
+/* processor mini-cards */
+.pcard{border-radius:14px;padding:18px;border:1px solid;background:var(--panel)}
+.pcard h4{margin-top:0;font-size:15px}
+.pcard .big{font-family:var(--mono);font-size:15px;font-weight:700;margin-bottom:6px}
+.pcard.pc{border-color:var(--cpuL)} .pcard.pc h4,.pcard.pc .big{color:var(--cpu)}
+.pcard.pg{border-color:var(--gpuL)} .pcard.pg h4,.pcard.pg .big{color:var(--gpu)}
+.pcard.pt{border-color:var(--tpuL)} .pcard.pt h4,.pcard.pt .big{color:var(--tpu)}
+.pcard p{font-size:14px;margin:6px 0}
+
+/* ---------- interactive lab shell ---------- */
+.lab{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line2);
+  border-radius:16px;padding:20px;margin:24px 0;position:relative;overflow:hidden}
+.lab::before{content:"◆ LIVE LAB";position:absolute;top:14px;right:16px;font-family:var(--mono);
+  font-size:10px;letter-spacing:2px;color:var(--dim);opacity:.7}
+.lab h4{margin-top:0;color:var(--ink);font-size:14px;letter-spacing:1px;color:var(--live)}
+.lab .desc{font-size:14px;color:var(--dim);margin-bottom:16px}
+.controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:14px 0}
+.btn{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--ink);
+  background:var(--raised);border:1px solid var(--line2);padding:9px 15px;border-radius:8px;
+  cursor:pointer;transition:.15s;letter-spacing:.3px}
+.btn:hover{border-color:var(--live);color:var(--live)}
+.btn:active{transform:scale(.96)}
+.btn.primary{background:var(--live);color:var(--void);border-color:var(--live)}
+.btn.primary:hover{color:var(--void);opacity:.9}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn.on{background:var(--cpuG);border-color:var(--cpu);color:var(--cpu)}
+.readout{font-family:var(--mono);font-size:13px;color:var(--dim);padding:8px 12px;
+  background:var(--void2);border-radius:7px;border:1px solid var(--line)}
+.readout b{color:var(--live)}
+label.sl{font-family:var(--mono);font-size:12px;color:var(--dim);display:flex;flex-direction:column;gap:5px}
+input[type=range]{-webkit-appearance:none;appearance:none;height:5px;border-radius:3px;
+  background:var(--raised);outline:none;cursor:pointer;width:150px}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;height:15px;border-radius:50%;
+  background:var(--live);cursor:pointer;box-shadow:0 0 8px rgba(87,207,232,.6)}
+input[type=range]::-moz-range-thumb{width:15px;height:15px;border-radius:50%;background:var(--live);border:none;cursor:pointer}
+svg.stage{width:100%;display:block;background:var(--void2);border-radius:10px;border:1px solid var(--line)}
+.canvwrap{background:var(--void2);border-radius:10px;border:1px solid var(--line);overflow:hidden}
+canvas{display:block;width:100%;height:auto}
+
+/* ---------- data table ---------- */
+.tbl{width:100%;border-collapse:collapse;margin:18px 0;font-size:14px;overflow:hidden;border-radius:10px}
+.tbl th{font-family:var(--mono);font-size:11px;letter-spacing:1px;text-transform:uppercase;
+  color:var(--dim);text-align:left;padding:11px 13px;background:var(--panel2);border-bottom:1px solid var(--line2)}
+.tbl td{padding:11px 13px;border-bottom:1px solid var(--line);color:#d3d9e6}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tr:hover td{background:var(--panel)}
+.tbl .mono{font-family:var(--mono);font-size:13px}
+.tbl .cpu{color:var(--cpu)} .tbl .gpu{color:var(--gpu)} .tbl .tpu{color:var(--tpu)}
+
+/* latency bar viz */
+.latrow{display:flex;align-items:center;gap:12px;margin:9px 0;font-family:var(--mono);font-size:13px}
+.latrow .lbl{width:150px;color:var(--dim);flex-shrink:0}
+.latrow .bar{height:16px;border-radius:4px;background:linear-gradient(90deg,var(--gpu),var(--cpu));min-width:3px}
+.latrow .val{color:var(--ink);white-space:nowrap}
+
+/* ---------- quiz ---------- */
+.quiz{background:var(--panel);border:1px solid var(--line2);border-radius:14px;padding:20px;margin:20px 0}
+.quiz .q{font-weight:650;font-size:16px;margin-bottom:14px}
+.opt{display:block;width:100%;text-align:left;font-family:var(--sans);font-size:15px;color:var(--ink);
+  background:var(--void2);border:1px solid var(--line);border-radius:9px;padding:12px 15px;margin:8px 0;
+  cursor:pointer;transition:.15s}
+.opt:hover{border-color:var(--line2);background:var(--raised)}
+.opt.correct{border-color:var(--ok);background:rgba(95,208,138,.12);color:var(--ok)}
+.opt.wrong{border-color:var(--bad);background:rgba(255,107,107,.1);color:var(--bad)}
+.opt.disabled{pointer-events:none;opacity:.55}
+.explain{font-size:14px;color:var(--dim);margin-top:12px;padding:12px 14px;background:var(--void2);
+  border-radius:9px;border-left:3px solid var(--live);display:none}
+.explain.show{display:block}
+
+/* explain-it-back */
+.eib{border:1px dashed var(--line2);border-radius:14px;padding:20px;margin:22px 0;background:rgba(87,207,232,.03)}
+.eib h4{color:var(--live);margin-top:0}
+.eib textarea{width:100%;min-height:80px;background:var(--void2);border:1px solid var(--line);
+  border-radius:9px;padding:12px;color:var(--ink);font-family:var(--sans);font-size:15px;resize:vertical;margin:8px 0}
+.eib textarea:focus{outline:none;border-color:var(--live)}
+.eib .reveal{display:none;margin-top:14px;padding:14px;background:var(--panel2);border-radius:10px;font-size:15px}
+.eib .reveal.show{display:block}
+
+/* section reveal animation */
+.reveal-on-scroll{opacity:0;transform:translateY(24px);transition:opacity .6s ease,transform .6s ease}
+.reveal-on-scroll.in{opacity:1;transform:none}
+
+/* footer */
+footer{padding:50px 0 70px;text-align:center}
+footer .fmono{font-family:var(--mono);font-size:12px;color:var(--faint);letter-spacing:1px}
+.chip-sig{font-family:var(--mono);font-size:11px;color:var(--faint);margin-top:16px;line-height:1.9}
+
+/* misc */
+.divlabel{font-family:var(--mono);font-size:11px;letter-spacing:3px;text-transform:uppercase;
+  color:var(--faint);text-align:center;margin:8px 0}
+.pipe-cell{font-family:var(--mono);font-size:11px;text-align:center;border-radius:4px;padding:6px 2px;font-weight:600}
+@media(max-width:600px){
+  body{font-size:16px}
+  .navlinks{display:none}
+  .herostats{gap:10px}
+  .hstat{min-width:calc(50% - 5px);flex:1}
+}
+@media(prefers-reduced-motion:reduce){
+  *{animation-duration:.001s!important;transition-duration:.001s!important}
+  html{scroll-behavior:auto}
+}
+</style>
+</head>
+<body>
+<div class="grid-bg"></div>
+<div id="railtop"><div id="railfill"></div></div>
+
+<nav id="topbar"><div class="wrap">
+  <span class="brand"><span class="dot"></span>SILICON&nbsp;INSTRUMENT</span>
+  <span class="navlinks">
+    <a href="#foundations">Foundations</a>
+    <a href="#cpu" class="c">CPU</a>
+    <a href="#gpu" class="g">GPU</a>
+    <a href="#tpu" class="t">TPU</a>
+    <a href="#versus">Versus</a>
+    <a href="#future">Future</a>
+  </span>
+  <span id="pct">0%</span>
+</div></nav>
+
+<div class="wrap">
+
+<!-- ================= HERO ================= -->
+<section id="hero">
+  <div class="eyebrow">A from-scratch field guide to the chips that compute</div>
+  <h1 class="title">The <span class="si">Silicon</span><br>Instrument</h1>
+  <p class="subtitle">Three machines do all the world's computing. The <b>CPU</b> thinks carefully,
+  the <b>GPU</b> thinks in parallel, the <b>TPU</b> thinks in matrices. This course opens each one up —
+  from a single transistor to the pipelines, caches, warps, and systolic arrays inside — and shows you
+  <b>how to actually use them well.</b></p>
+
+  <div class="herostats">
+    <div class="hstat"><div class="n" style="color:var(--cpu)">CPU</div><div class="l">Latency machine</div></div>
+    <div class="hstat"><div class="n" style="color:var(--gpu)">GPU</div><div class="l">Throughput machine</div></div>
+    <div class="hstat"><div class="n" style="color:var(--tpu)">TPU</div><div class="l">Matrix machine</div></div>
+    <div class="hstat"><div class="n">18</div><div class="l">Chapters · hex-numbered</div></div>
+  </div>
+
+  <div class="ctarow">
+    <a href="#foundations" class="cta">Begin at the transistor →</a>
+    <a href="#versus" class="cta ghost">Jump to the showdown</a>
+  </div>
+
+  <div class="card" style="margin-top:44px;background:var(--panel);border-color:var(--line2)">
+    <div style="font-family:var(--mono);font-size:12px;letter-spacing:2px;color:var(--dim);text-transform:uppercase;margin-bottom:10px">How to read this course</div>
+    <p style="margin:0;font-size:15px;color:#d3d9e6">Every chapter follows the same loop: a <em>plain-language mental model</em>, a
+    <em>real interactive lab</em> you can poke, a <em>misconception</em> to unlearn, and an <em>explain-it-back</em>
+    prompt. Your progress is saved locally in this browser — close the tab and come back where you left off.
+    Nothing here needs the internet. Colors are your compass: <span style="color:var(--cpu)">copper is CPU</span>,
+    <span style="color:var(--gpu)">teal is GPU</span>, <span style="color:var(--tpu)">violet is TPU</span>.</p>
+  </div>
+</section>
+
+<!-- ================= FOUNDATIONS ================= -->
+<section id="foundations" class="reveal-on-scroll">
+  <div class="sechead"><span class="secnum">0x01</span><span class="kicker">Foundations</span></div>
+  <h2>Everything is a switch that a clock keeps poking</h2>
+  <p class="lead">Before CPU, GPU, or TPU mean anything, you need one idea: a computer is an enormous pile of
+  tiny switches, arranged so that flipping some of them flips others in useful patterns — and a metronome called
+  the <em>clock</em> that tells the whole pile "now… now… now" billions of times a second.</p>
+
+  <h3>The transistor: the atom of computing</h3>
+  <p>A transistor is a switch with no moving parts. It has an input, an output, and a <strong>gate</strong>.
+  Put a voltage on the gate and current flows (a <code class="k">1</code>); remove it and current stops (a
+  <code class="k">0</code>). That's it. No magic — just a valve for electricity that another wire can open and close.
+  A modern chip has <strong>tens of billions</strong> of these, each far smaller than a virus.</p>
+
+  <div class="callout analogy"><span class="ico">≈</span><div class="bd"><b>Analogy — dominoes vs water valves</b>
+  Think of each transistor as a water valve where the handle is itself turned by water pressure from another pipe.
+  Chain them cleverly and the flow of water in one place decides the flow everywhere else. Computation is just
+  water (electrons) being routed by valves (transistors) that route each other.</div></div>
+
+  <h3>From switches to logic</h3>
+  <p>Wire two switches in series and current only passes when <em>both</em> are on — you've built an
+  <strong>AND</strong> gate. Wire them in parallel and current passes when <em>either</em> is on — an
+  <strong>OR</strong> gate. Add a clever inverter and you get <strong>XOR</strong>, the gate that says "one
+  or the other, but not both." From AND, OR, and NOT you can build <em>anything</em> a computer does — arithmetic,
+  memory, decisions. Poke the gates below and watch logic emerge from switches.</p>
+
+  <div class="lab">
+    <h4>LAB · Build logic from switches</h4>
+    <div class="desc">Flip the two input switches. Watch how the same two bits produce different answers depending on how the transistors are wired.</div>
+    <div class="controls">
+      <button class="btn" id="inA">A = 0</button>
+      <button class="btn" id="inB">B = 0</button>
+    </div>
+    <svg class="stage" id="gateSVG" viewBox="0 0 640 240" role="img" aria-label="Logic gate outputs">
+      <g id="gateGroup"></g>
+    </svg>
+    <div class="readout" id="gateRead" style="margin-top:12px">Both inputs are 0 — every gate is quiet.</div>
+  </div>
+
+  <div class="callout miscon"><span class="ico">✕</span><div class="bd"><b>Misconception</b>
+  "Computers understand numbers and letters." They don't. Deep down there are only high and low voltages.
+  The number 42, the letter 'A', this sentence, and a cat photo are all just agreed-upon patterns of on/off
+  switches. Meaning lives in the convention, not the silicon.</div></div>
+
+  <h3>The clock: the heartbeat</h3>
+  <p>Switches settle at different speeds, so a chip can't just let signals ripple freely — it would be chaos.
+  Instead a <strong>clock</strong> sends a square wave through the whole chip: <em>tick</em> (rise), <em>tock</em>
+  (fall), over and over. On each tick, every part of the chip latches its result and moves to the next step in
+  lockstep. "3.5 GHz" means <strong>3.5 billion ticks per second</strong> — 3.5 billion chances every second for
+  the machine to take one more baby step of computation.</p>
+
+  <div class="lab">
+    <h4>LAB · The clock that drives everything</h4>
+    <div class="desc">Drag the frequency. The waveform is the drumbeat; the counter is what gets done each beat. Faster clock = more steps per second — but as you'll learn, more steps isn't the whole story.</div>
+    <label class="sl">CLOCK FREQUENCY &nbsp;<span id="clkLbl" style="color:var(--live)">2.0 GHz</span>
+      <input type="range" id="clkRange" min="1" max="50" value="20">
+    </label>
+    <div class="canvwrap" style="margin-top:14px"><canvas id="clkCanvas" width="900" height="150"></canvas></div>
+    <div class="readout" id="clkRead" style="margin-top:12px">At <b>2.0 GHz</b>, one tick lasts <b>0.50 nanoseconds</b>. In that time, light travels only <b>15 cm</b>.</div>
+  </div>
+
+  <div class="callout key"><span class="ico">★</span><div class="bd"><b>The one idea to keep</b>
+  A processor is a machine that, on every clock tick, reads an instruction, does the tiny thing it says, and
+  moves on. CPU, GPU, and TPU differ entirely in <em>how many</em> of these tiny things they do per tick, and
+  <em>what kind</em>. Everything else in this course is detail on that theme.</div></div>
+
+  <div class="eib">
+    <h4>Explain it back</h4>
+    <p style="margin-top:0;font-size:15px;color:var(--dim)">In your own words: if there are only voltages inside a chip, where does the number "5" actually live?</p>
+    <textarea placeholder="Type your answer — no wrong tries, this is for you..."></textarea>
+    <button class="btn" onclick="this.nextElementSibling.classList.add('show')">Reveal a model answer</button>
+    <div class="reveal">The number 5 doesn't "live" anywhere as a 5. It exists as a pattern of on/off voltages —
+    e.g. <code class="k">00000101</code> — on a set of wires, plus a shared <em>agreement</em> that this pattern
+    means five. Change the agreement (say, treat it as a color or a pixel) and the identical voltages mean something
+    else. The silicon holds switches; meaning is a convention layered on top.</div>
+  </div>
+</section>
+
+<!-- ================= CPU DIVIDER ================= -->
+<section id="cpu" class="tag-cpu reveal-on-scroll" style="border-bottom:none;padding-bottom:8px">
+  <div class="divlabel" style="color:var(--cpu)">━━━━━━━━  PART ONE  ━━━━━━━━</div>
+  <h2 style="text-align:center;font-size:clamp(30px,6vw,52px);background:linear-gradient(120deg,var(--cpu),#ffd89b);-webkit-background-clip:text;background-clip:text;color:transparent">The CPU</h2>
+  <p class="lead" style="text-align:center;max-width:640px;margin:0 auto">The <strong style="color:var(--cpu)">latency machine</strong>. A CPU's whole design philosophy is to finish
+  <em>one</em> chain of dependent steps as fast as physically possible. It is a genius that does things one-at-a-time,
+  brilliantly.</p>
+</section>
+
+<!-- 0x02 instruction cycle -->
+<section class="tag-cpu reveal-on-scroll">
+  <div class="sechead"><span class="secnum">0x02</span><span class="kicker">CPU · The engine loop</span></div>
+  <h2>Fetch, decode, execute — forever</h2>
+  <p class="lead">A CPU runs one loop for its entire life. It reads the next instruction from memory
+  (<em>fetch</em>), works out what it means (<em>decode</em>), does it (<em>execute</em>), and saves the result
+  (<em>writeback</em>). Then it does it again. Billions of times a second. That loop is the beating heart of every
+  program you've ever run.</p>
+
+  <p>To follow the loop you need to meet four parts of the core:</p>
+  <ul>
+    <li><strong>Program Counter (PC)</strong> — a pointer holding the address of the next instruction. Think of it as your finger on the current line of a recipe.</li>
+    <li><strong>Registers</strong> — a handful of ultra-fast scratchpad slots (R1, R2, …) right next to the math unit. A CPU has only dozens of them, but they're the fastest storage in the universe of the chip.</li>
+    <li><strong>ALU (Arithmetic Logic Unit)</strong> — the calculator. Adds, subtracts, compares, ANDs, ORs.</li>
+    <li><strong>Control Unit</strong> — the conductor that decodes each instruction and tells everyone else what to do this tick.</li>
+  </ul>
+
+  <div class="lab">
+    <h4>LAB · Step a real program through the datapath</h4>
+    <div class="desc">Here's a tiny program that computes (5 + 3) × 3 and stores it. Press <b>Step</b> to advance one phase at a time and watch data move through the core. Watch the PC climb, registers fill, and the ALU light up.</div>
+    <div class="controls">
+      <button class="btn primary" id="cpuStep">▸ Step</button>
+      <button class="btn" id="cpuRun">▶▶ Auto-run</button>
+      <button class="btn" id="cpuReset">↺ Reset</button>
+      <span class="readout" id="cpuPhase" style="margin-left:auto">Phase: <b>IDLE</b> — press Step to begin</span>
+    </div>
+    <svg class="stage" id="cpuSVG" viewBox="0 0 680 360" role="img" aria-label="CPU datapath simulator"></svg>
+    <div class="readout" id="cpuExplain" style="margin-top:12px">The program counter points at address 0. Nothing has run yet.</div>
+  </div>
+
+  <div class="callout deep"><span class="ico">◆</span><div class="bd"><b>Going deeper — what an "instruction" really is</b>
+  An instruction like <code class="k">ADD R3, R1, R2</code> is, in the chip, just a number — say
+  <code class="k">0x00232820</code>. Certain bits are the <em>opcode</em> ("this is an ADD"), others name the
+  source and destination registers. The decoder is a big lookup table that turns those bit-fields into control
+  signals. Assembly language is just human-readable names for these numbers.</div></div>
+
+  <div class="callout miscon"><span class="ico">✕</span><div class="bd"><b>Misconception</b>
+  "The CPU runs my Python/JavaScript." It never sees them. Your high-level code is translated — by a compiler or
+  interpreter — down into these tiny numeric instructions. The CPU only ever eats machine code. Everything above
+  that is a translation layer for humans.</div></div>
+</section>
+
+<!-- 0x03 pipeline -->
+<section class="tag-cpu reveal-on-scroll">
+  <div class="sechead"><span class="secnum">0x03</span><span class="kicker">CPU · The assembly-line trick</span></div>
+  <h2>Pipelining: the single best idea in CPU design</h2>
+  <p class="lead">If each instruction needs 5 phases, why let all 5 units sit idle waiting for one instruction to
+  finish? A car factory doesn't build one car start-to-finish before starting the next. It runs an
+  <em>assembly line</em>: while car 1 is getting doors, car 2 is getting an engine, car 3 a chassis. CPUs do exactly
+  this with instructions.</p>
+
+  <p>Split the core into stages — <strong>Fetch → Decode → Execute → Memory → Writeback</strong> — and keep every
+  stage busy on a <em>different</em> instruction. One instruction still takes 5 ticks to finish, but a new one
+  <strong>completes every single tick</strong>. That's a near-5× throughput win from rearranging work you were
+  already doing.</p>
+
+  <div class="lab">
+    <h4>LAB · Watch the assembly line fill up</h4>
+    <div class="desc">Toggle pipelining on and off. Each row is an instruction, each column a clock cycle, each colored block a pipeline stage. Notice how pipelining <b>overlaps</b> instructions instead of stacking them end-to-end.</div>
+    <div class="controls">
+      <button class="btn on" id="pipeToggle">PIPELINE: ON</button>
+      <button class="btn" id="pipeRunBtn">▶ Animate</button>
+      <span class="readout" id="pipeStat" style="margin-left:auto">Throughput: <b>~1 instruction / cycle</b></span>
+    </div>
+    <div id="pipeGrid" style="margin-top:6px;overflow-x:auto"></div>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:12px;font-family:var(--mono);font-size:11px;color:var(--dim)">
+      <span><span style="display:inline-block;width:11px;height:11px;background:#4a7fd4;border-radius:3px;vertical-align:middle"></span> IF fetch</span>
+      <span><span style="display:inline-block;width:11px;height:11px;background:#5fb0d0;border-radius:3px;vertical-align:middle"></span> ID decode</span>
+      <span><span style="display:inline-block;width:11px;height:11px;background:#f0a542;border-radius:3px;vertical-align:middle"></span> EX execute</span>
+      <span><span style="display:inline-block;width:11px;height:11px;background:#e08050;border-radius:3px;vertical-align:middle"></span> MEM memory</span>
+      <span><span style="display:inline-block;width:11px;height:11px;background:#5fd08a;border-radius:3px;vertical-align:middle"></span> WB writeback</span>
+    </div>
+  </div>
+
+  <div class="callout key"><span class="ico">★</span><div class="bd"><b>Two numbers you must not confuse</b>
+  <em>Latency</em> = how long one instruction takes start to finish (still 5 ticks). <em>Throughput</em> = how many
+  finish per tick (now ~1). Pipelining doesn't make a single instruction faster — it makes the <em>stream</em>
+  faster. This latency-vs-throughput split is the exact fault line between CPUs and GPUs, so hold onto it.</div></div>
+
+  <div class="callout deep"><span class="ico">◆</span><div class="bd"><b>Going deeper — why chips have "deep" pipelines</b>
+  Modern CPUs split work into 14–20 stages, not 5. Shorter stages mean each does less per tick, so the clock can
+  tick faster. But there's a catch you'll meet next: the deeper the pipeline, the more work is thrown away when the
+  CPU guesses wrong about what comes next. Pipeline depth is a tug-of-war between clock speed and the cost of being wrong.</div></div>
+</section>
+
+<!-- 0x04 hazards -->
+<section class="tag-cpu reveal-on-scroll">
+  <div class="sechead"><span class="secnum">0x04</span><span class="kicker">CPU · When the line jams</span></div>
+  <h2>Hazards, guessing, and running ahead of yourself</h2>
+  <p class="lead">The assembly line only flows if every instruction is independent and known in advance. Real code
+  isn't. Sometimes instruction 4 needs the result of instruction 3 (which isn't done yet). Sometimes the code says
+  "if X, go here, else go there" and the CPU doesn't yet know X. These are <em>hazards</em>, and how CPUs fight them
+  is where the deep engineering lives.</p>
+
+  <h3>Data hazards &amp; the stall</h3>
+  <p>If <code class="k">ADD R3,R1,R2</code> is immediately followed by <code class="k">MUL R4,R3,R5</code>, the MUL
+  needs R3 — but the ADD hasn't written it back yet. The pipeline must <strong>stall</strong> (insert idle
+  "bubbles") until R3 is ready. CPUs soften this with <strong>forwarding</strong>: wiring the ALU's fresh result
+  straight back to the next instruction before it's even saved, dodging most stalls.</p>
+
+  <h3>Control hazards &amp; branch prediction</h3>
+  <p>When code branches (<code class="k">if</code>, loops, function calls), the CPU doesn't know which instruction
+  comes next until the branch resolves — several stages later. Rather than wait, it <strong>guesses</strong> and
+  charges ahead <em>speculatively</em>. A hardware <strong>branch predictor</strong> — often a little learning
+  machine tracking each branch's history — is right well over 95% of the time. When it's wrong, the CPU must
+  <strong>flush</strong> the wrongly-fetched instructions and restart. On a deep pipeline that misprediction can
+  cost 15–20 wasted ticks.</p>
+
+  <div class="lab">
+    <h4>LAB · Feel the cost of a bad guess</h4>
+    <div class="desc">This branch predictor learns a pattern. Feed it a predictable loop and it nails almost every prediction. Feed it random branches and watch it thrash — every miss flushes the pipeline and burns cycles.</div>
+    <div class="controls">
+      <button class="btn" id="brPredict">Pattern: LOOP (taken, taken, taken…)</button>
+      <button class="btn primary" id="brRun">▶ Run 40 branches</button>
+      <span class="readout" id="brStat" style="margin-left:auto">Accuracy: <b>—</b></span>
+    </div>
+    <div class="canvwrap"><canvas id="brCanvas" width="900" height="120"></canvas></div>
+    <div class="readout" id="brExplain" style="margin-top:12px">A green tick = correct guess (line flows). A red cross = misprediction (pipeline flush, ~15 cycles wasted).</div>
+  </div>
+
+  <h3>Out-of-order &amp; superscalar: doing several at once</h3>
+  <p>Two more tricks stack on top. A <strong>superscalar</strong> CPU has multiple copies of each unit, so it can
+  fetch and execute <em>several</em> instructions per tick (4–6 is common). An <strong>out-of-order</strong> engine
+  looks ahead in the instruction stream, finds work whose inputs are ready, and runs it <em>now</em> instead of
+  waiting in program order — then quietly reassembles the results in the right order so your program never notices.
+  This is why a single CPU core is so ferociously good at one messy, branchy task.</p>
+
+  <div class="callout miscon"><span class="ico">✕</span><div class="bd"><b>Misconception</b>
+  "A 4 GHz CPU does 4 billion instructions per second." It can do <em>more</em> — a superscalar core retires several
+  per tick — or far <em>fewer</em>, if it keeps stalling on memory or mispredicting branches. Clock speed is the
+  drumbeat, not the amount of music. The real metric is <strong>IPC</strong> (instructions per cycle) × clock.</div></div>
+
+  <div class="eib">
+    <h4>Explain it back</h4>
+    <p style="margin-top:0;font-size:15px;color:var(--dim)">Why does a deeper pipeline (more stages) make branch mispredictions more expensive?</p>
+    <textarea placeholder="Your answer..."></textarea>
+    <button class="btn" onclick="this.nextElementSibling.classList.add('show')">Reveal a model answer</button>
+    <div class="reveal">Because the CPU keeps fetching and starting new instructions speculatively while it waits to
+    learn whether its guess was right. The more stages between the guess and its confirmation, the more speculative
+    instructions are already in flight — and all of them must be thrown away and refetched when the guess was wrong.
+    A 5-stage pipeline wastes a few cycles on a miss; a 20-stage pipeline can waste 15–20. Depth buys clock speed but
+    raises the penalty for being wrong.</div>
+  </div>
+</section>
+
+<!-- 0x05 memory wall + caches -->
+<section class="tag-cpu reveal-on-scroll">
+  <div class="sechead"><span class="secnum">0x05</span><span class="kicker">CPU · The real bottleneck</span></div>
+  <h2>The memory wall, and the caches built to hide it</h2>
+  <p class="lead">Here's the dirty secret of modern computing: the CPU is almost never the slow part. <em>Waiting for
+  data</em> is. Your processor can do arithmetic in a fraction of a nanosecond, but fetching a number from main
+  memory takes <strong>hundreds</strong> of times longer. A CPU that had to hit RAM for every value would spend 99%
+  of its life tapping its foot.</p>
+
+  <p>The fix is a stack of small, fast memories called <strong>caches</strong> sitting between the core and RAM.
+  L1 is tiny and blindingly fast, right beside the ALU. L2 is bigger and a bit slower. L3 is shared across cores and
+  slower still. When the core needs data, it checks L1, then L2, then L3, then finally RAM — hoping to find it early.
+  A <em>hit</em> is cheap; a <em>miss</em> that reaches all the way to RAM is a catastrophe measured in hundreds of
+  wasted cycles.</p>
+
+  <div class="lab">
+    <h4>LAB · The latency ladder, at human scale</h4>
+    <div class="desc">Real access times are too far apart to draw side by side, so here's the trick that makes them felt: imagine an L1 cache hit took <b>one second</b>. Everything else scales up from there. Suddenly a trip to main memory is a coffee break, and reaching an old spinning disk is a seasons-long expedition. (Bars are log-scaled; the human-scale time is the point.)</div>
+    <div id="latLadder"></div>
+    <div class="readout" style="margin-top:8px">The gap between a cache hit and a RAM miss is why "cache-friendly" code can run many times faster than "correct but naive" code doing identical math.</div>
+  </div>
+
+  <h3>Locality: why caches work at all</h3>
+  <p>Caches would be useless if programs accessed memory randomly. They work because real programs have
+  <strong>locality</strong>:</p>
+  <ul>
+    <li><strong>Temporal locality</strong> — if you used a value, you'll probably use it again soon (a loop counter, a running total). So the cache keeps recently-used data around.</li>
+    <li><strong>Spatial locality</strong> — if you used address <em>N</em>, you'll probably use <em>N+1</em> soon (walking through an array). So the cache never fetches one byte — it grabs a whole <strong>cache line</strong> (usually 64 bytes) at once, betting you'll want the neighbors.</li>
+  </ul>
+
+  <div class="lab">
+    <h4>LAB · Same math, 8× the speed — just from access order</h4>
+    <div class="desc">This 2D array lives in memory row by row. Sum it <b>row-major</b> (across each row) and you march along contiguous memory — every cache line you pull is fully used. Sum it <b>column-major</b> (down each column) and you leap across memory, wasting most of every line you fetch. Identical additions. Wildly different cache behavior.</div>
+    <div class="controls">
+      <button class="btn on" id="localMode">ORDER: ROW-MAJOR (cache-friendly)</button>
+      <button class="btn primary" id="localRun">▶ Traverse</button>
+      <span class="readout" id="localStat" style="margin-left:auto">Cache misses: <b>—</b></span>
+    </div>
+    <div class="canvwrap"><canvas id="localCanvas" width="900" height="360"></canvas></div>
+    <div class="readout" id="localExplain" style="margin-top:12px">Green flashes = the value was already in cache (hit). Red flashes = a miss that stalled the core to fetch a fresh 64-byte line from RAM.</div>
+  </div>
+
+  <div class="callout key"><span class="ico">★</span><div class="bd"><b>The most useful performance rule you'll ever learn</b>
+  Modern CPU performance is mostly about <em>keeping the caches fed</em>. Contiguous data, predictable access
+  patterns, and structures that pack tightly into cache lines routinely beat "smarter" algorithms that jump around
+  memory. When people say a program is "cache-friendly," this is what they mean — and it's often a bigger win than a
+  better big-O.</div></div>
+
+  <div class="callout deep"><span class="ico">◆</span><div class="bd"><b>Going deeper — false sharing, the multicore trap</b>
+  Because caches move data in 64-byte lines, two CPU cores writing to two <em>different</em> variables that happen to
+  sit in the <em>same</em> cache line will fight over it — each write forces the other core's copy to reload. Your
+  code looks perfectly parallel and independent, yet it crawls. This is <strong>false sharing</strong>, and the fix
+  is simply padding hot variables so they land on separate lines.</div></div>
+</section>
+
+<!-- 0x06 multicore/SMT/SIMD -->
+<section class="tag-cpu reveal-on-scroll">
+  <div class="sechead"><span class="secnum">0x06</span><span class="kicker">CPU · More cores, more lanes</span></div>
+  <h2>Three flavors of "do more at once"</h2>
+  <p class="lead">A single core is already parallel inside (pipelining, superscalar). But there are three bigger
+  levers for doing more simultaneously — and understanding them is the runway to the GPU.</p>
+
+  <div class="grid3">
+    <div class="pcard pc"><div class="big">Multicore</div><p>Put 8, 16, 64 complete cores on one chip. Each runs its own instruction stream. <strong>True</strong> parallelism, but only if your work splits into independent chunks — and coordinating them (locks, shared data) has real cost.</p></div>
+    <div class="pcard pc"><div class="big">SMT / Hyperthreading</div><p>One physical core pretends to be two. When thread A stalls waiting on memory, the core instantly runs thread B's work in the idle slots. It doesn't double speed — it just stops wasting the bubbles.</p></div>
+    <div class="pcard pc"><div class="big">SIMD (vectors)</div><p><em>Single Instruction, Multiple Data.</em> One instruction adds 8 or 16 numbers at once through wide vector lanes (AVX, NEON). Perfect for the same operation over a big array — and the seed of the GPU's whole idea.</p></div>
+  </div>
+
+  <p>Notice the trend across these three: we keep finding ways to apply the <em>same</em> work to <em>more</em> data
+  at once. SIMD does it with 8–16 lanes bolted onto a CPU core. A GPU asks: <strong>what if we did this with tens of
+  thousands of lanes and made it the whole point of the machine?</strong> That question is the next part of the course.</p>
+
+  <div class="callout miscon"><span class="ico">✕</span><div class="bd"><b>Misconception</b>
+  "More cores always means faster." Only for work that actually divides into independent pieces. By
+  <strong>Amdahl's Law</strong>, if even 10% of a job must run sequentially, then no matter how many cores you throw
+  at it you can never get more than a 10× speedup — the stubborn 10% dominates. Some problems simply refuse to
+  parallelize.</div></div>
+</section>
+
+<!-- 0x07 using CPU well -->
+<section class="tag-cpu reveal-on-scroll">
+  <div class="sechead"><span class="secnum">0x07</span><span class="kicker">CPU · Practice</span></div>
+  <h2>How to actually use a CPU well</h2>
+  <p class="lead">Everything above becomes practical advice. You rarely control the hardware, but you completely
+  control how your code <em>meets</em> it. Here's what actually moves the needle, roughly in order of impact.</p>
+
+  <div class="card raised">
+    <h4 style="color:var(--cpu)">1 · Measure before you touch anything</h4>
+    <p style="font-size:15px">Intuition about performance is almost always wrong. Profile first, find the one hot
+    loop that dominates, and ignore the rest. Optimizing code that runs 0.1% of the time is wasted effort no matter
+    how clever it is.</p>
+    <h4 style="color:var(--cpu)">2 · Respect the cache above all</h4>
+    <p style="font-size:15px">Lay data out contiguously and walk it in order. Prefer arrays of values over scattered
+    pointer-chasing structures. Keep hot data small and packed. This single habit often beats every other
+    optimization combined, because the memory wall is the real enemy.</p>
+    <h4 style="color:var(--cpu)">3 · Keep branches predictable in hot loops</h4>
+    <p style="font-size:15px">Sorted or patterned data lets the branch predictor win; random conditions make it
+    thrash. Sometimes rewriting an <code class="k">if</code> as branchless arithmetic in a tight loop is a real speedup.</p>
+    <h4 style="color:var(--cpu)">4 · Let the compiler vectorize — or help it</h4>
+    <p style="font-size:15px">Simple, tight loops over contiguous arrays let the compiler emit SIMD automatically.
+    Convoluted loops with hidden dependencies block it. Clean code is fast code here.</p>
+    <h4 style="color:var(--cpu)">5 · Parallelize last, and only what divides cleanly</h4>
+    <p style="font-size:15px">Threads add coordination cost and bugs. Reach for them when you have genuinely
+    independent work and you've already made the single-threaded path cache-efficient.</p>
+  </div>
+
+  <div class="callout key"><span class="ico">★</span><div class="bd"><b>The CPU in one sentence</b>
+  A CPU spends billions of transistors — on caches, predictors, and out-of-order engines — to make <em>one messy
+  sequential task</em> finish as fast as possible. It is the right tool whenever the work is branchy, unpredictable,
+  latency-sensitive, or hard to parallelize. When the work is instead thousands of identical independent operations,
+  the CPU is the wrong tool — and that's the GPU's cue to enter.</div></div>
+
+  <div class="quiz" id="cpuQuiz">
+    <div class="q">Checkpoint · A program spends 90% of its time in a loop that sums a huge 2D array column-by-column and runs slowly. What's the highest-impact fix?</div>
+    <button class="opt">Increase the CPU clock speed</button>
+    <button class="opt" data-correct>Change the loop to sum row-by-row so it walks memory contiguously</button>
+    <button class="opt">Add more CPU cores and split the columns across them</button>
+    <button class="opt">Rewrite the addition in hand-tuned assembly</button>
+    <div class="explain">Column-by-column traversal of a row-major array leaps across memory, so nearly every access
+    misses cache and stalls on RAM — the memory wall, not the math, is the bottleneck. Reordering to row-major makes
+    each 64-byte cache line fully used, often an 8× win from a one-line change. Faster clocks, more cores, or hand
+    assembly don't help when the core is just waiting on memory.</div>
+  </div>
+</section>
+
+<!-- ================= GPU DIVIDER ================= -->
+<section id="gpu" class="tag-gpu reveal-on-scroll" style="border-bottom:none;padding-bottom:8px">
+  <div class="divlabel" style="color:var(--gpu)">━━━━━━━━  PART TWO  ━━━━━━━━</div>
+  <h2 style="text-align:center;font-size:clamp(30px,6vw,52px);background:linear-gradient(120deg,var(--gpu),#a8f0e6);-webkit-background-clip:text;background-clip:text;color:transparent">The GPU</h2>
+  <p class="lead" style="text-align:center;max-width:660px;margin:0 auto">The <strong style="color:var(--gpu)">throughput machine</strong>. Where a CPU is a few brilliant geniuses, a GPU is
+  ten thousand diligent clerks. No single one is fast — but ask them all the same question at once and they answer
+  faster than any genius could.</p>
+</section>
+
+<!-- 0x08 why GPUs -->
+<section class="tag-gpu reveal-on-scroll">
+  <div class="sechead"><span class="secnum">0x08</span><span class="kicker">GPU · The opposite bet</span></div>
+  <h2>Why a different machine had to exist</h2>
+  <p class="lead">GPUs were born to draw pixels. A 4K screen has ~8 million pixels, and every frame you must compute
+  a color for each — the <em>same</em> lighting math, 8 million times, with no pixel depending on its neighbor. A CPU
+  doing them one-at-a-time, however cleverly, is hopeless. The task begged for a machine built the opposite way.</p>
+
+  <p>So the GPU makes a radical trade. It <strong>throws away</strong> most of the CPU's cleverness — the giant
+  branch predictors, the deep out-of-order engines, the huge caches that make one thread fast — and spends that
+  silicon on <strong>thousands of simple arithmetic cores</strong> instead. Each core is slow and dumb compared to a
+  CPU core. But there are thousands, and they all work at once.</p>
+
+  <div class="grid2">
+    <div class="pcard pc"><div class="big">CPU philosophy</div><p>Minimize <strong>latency</strong>: finish one dependent chain as fast as possible. Spend transistors on caches and prediction to never let a single thread wait. A handful of very smart cores.</p></div>
+    <div class="pcard pg"><div class="big">GPU philosophy</div><p>Maximize <strong>throughput</strong>: finish the most total work per second. Don't fight latency — <em>hide</em> it by always having thousands of other threads ready to run. A flood of simple cores.</p></div>
+  </div>
+
+  <h3>Latency hiding: the trick that replaces caches</h3>
+  <p>When a CPU thread stalls waiting on memory, the core sits mostly idle (SMT fills a little of it). A GPU's answer
+  is brutally simple: when one group of threads stalls on memory, <strong>instantly switch to another group that's
+  ready</strong>, and another, and another. With tens of thousands of threads resident, there's always someone
+  ready to run. The memory latency never disappears — it's just <em>hidden behind a mountain of other work.</em>
+  This is why GPUs need to be kept <em>drowning</em> in threads to perform.</p>
+
+  <div class="callout key"><span class="ico">★</span><div class="bd"><b>The core trade in one line</b>
+  A CPU <em>reduces</em> the time each task waits. A GPU <em>accepts</em> the waiting and covers it with sheer volume.
+  That's why GPUs are spectacular at big, uniform, independent workloads (graphics, matrix math, neural nets) and
+  poor at branchy, sequential, one-thing-at-a-time logic — the exact inverse of a CPU.</div></div>
+
+  <div class="callout miscon"><span class="ico">✕</span><div class="bd"><b>Misconception</b>
+  "A GPU is just a faster CPU." It is dramatically <em>slower</em> on any single sequential task — one GPU core
+  might run at a third of a CPU core's speed with none of its cleverness. The GPU only wins when the <em>same</em>
+  operation applies to enormous amounts of independent data. On your everyday branchy code it would lose badly.</div></div>
+</section>
+
+<!-- 0x09 SIMT & warps -->
+<section class="tag-gpu reveal-on-scroll">
+  <div class="sechead"><span class="secnum">0x09</span><span class="kicker">GPU · The execution model</span></div>
+  <h2>SIMT: thousands of threads marching in lockstep</h2>
+  <p class="lead">A GPU doesn't schedule its thousands of threads individually — that'd need thousands of expensive
+  control units. Instead it herds them into groups (NVIDIA calls a group of 32 a <strong>warp</strong>) and runs the
+  <em>whole group off a single instruction</em>. All 32 threads execute the identical instruction at the identical
+  tick, each on its own slice of data. This is <strong>SIMT</strong> — Single Instruction, Multiple Threads.</p>
+
+  <p>It's an elegant cheat: one control unit steers 32 arithmetic lanes. That's how you afford thousands of cores —
+  you share the "brain" across whole warps and spend the saved silicon on more raw math.</p>
+
+  <div class="lab">
+    <h4>LAB · A warp executes — and then diverges</h4>
+    <div class="desc">Each square is a thread. In lockstep mode they all run the same instruction together — beautifully efficient. But hit a branch where threads disagree (<code class="k">if(data > 0)</code> where only some are), and the warp must run the <b>if</b> path with half the threads masked off, then the <b>else</b> path with the other half. The lanes that aren't active just idle. That's <b>warp divergence</b>, and it can halve your throughput.</div>
+    <div class="controls">
+      <button class="btn primary" id="warpLockstep">▶ Run in lockstep</button>
+      <button class="btn" id="warpDiverge">⑂ Trigger a divergent branch</button>
+      <span class="readout" id="warpStat" style="margin-left:auto">Efficiency: <b>—</b></span>
+    </div>
+    <div class="canvwrap"><canvas id="warpCanvas" width="900" height="300"></canvas></div>
+    <div class="readout" id="warpExplain" style="margin-top:12px">Bright = actively computing this cycle. Dim = masked off / idle. Lockstep keeps every lane bright; divergence forces lanes to take turns.</div>
+  </div>
+
+  <h3>The hierarchy: threads, blocks, and SMs</h3>
+  <p>Threads are grouped into <strong>blocks</strong>; blocks are handed to physical units called
+  <strong>Streaming Multiprocessors (SMs)</strong> — each SM being a cluster of cores with its own scheduler and a
+  patch of ultra-fast on-chip <em>shared memory</em>. A big GPU has dozens of SMs, each juggling many warps, switching
+  between them every time one stalls. When you write GPU code, you're really describing what <em>one thread</em> does,
+  then launching millions of copies of it across this hierarchy.</p>
+
+  <div class="callout key"><span class="ico">★</span><div class="bd"><b>Why "avoid branches" is GPU gospel</b>
+  On a CPU, a branch is cheap (predict it and move on). On a GPU, a branch where threads in the same warp
+  <em>disagree</em> forces the warp to execute <em>both</em> sides one after the other, wasting the idle lanes.
+  Uniform, branch-free work over uniform data is what keeps all 32 lanes lit. This is the single biggest mindset
+  shift moving from CPU to GPU programming.</div></div>
+
+  <div class="callout deep"><span class="ico">◆</span><div class="bd"><b>Going deeper — tensor cores</b>
+  Modern GPUs bolt on special units called <strong>tensor cores</strong> that do nothing but small matrix
+  multiply-accumulates in one shot, often in reduced precision. Because deep learning is 90% matrix multiply, these
+  units deliver most of a modern GPU's AI performance — and they're the GPU quietly borrowing the TPU's whole idea,
+  which you're about to meet.</div></div>
+</section>
+
+<!-- 0x0A GPU memory + coalescing -->
+<section class="tag-gpu reveal-on-scroll">
+  <div class="sechead"><span class="secnum">0x0A</span><span class="kicker">GPU · Feeding the beast</span></div>
+  <h2>Bandwidth is king — and how you access memory decides everything</h2>
+  <p class="lead">A GPU's thousands of cores have a bottomless appetite for data. Keeping them fed needs enormous
+  <strong>memory bandwidth</strong> — which is why GPUs use exotic stacked memory (HBM) delivering terabytes per
+  second. But raw bandwidth only helps if your threads request memory the way the hardware wants.</p>
+
+  <h3>The memory hierarchy, GPU-style</h3>
+  <ul>
+    <li><strong>Registers</strong> — per-thread, instant. Thousands per SM, split among resident threads.</li>
+    <li><strong>Shared memory</strong> — per-block, on-chip, very fast, and <em>programmer-controlled</em>. This is your secret weapon: manually stage data here so a whole block reuses it instead of hammering global memory.</li>
+    <li><strong>L2 cache</strong> — shared across the chip.</li>
+    <li><strong>Global memory (HBM)</strong> — huge (tens of GB) but hundreds of cycles away. Every trip here is expensive; the game is to make as few as possible.</li>
+  </ul>
+
+  <div class="lab">
+    <h4>LAB · Coalesced vs scattered access</h4>
+    <div class="desc">When the 32 threads of a warp read <b>consecutive</b> addresses, the hardware fuses them into one fat memory transaction — full bandwidth. When they read <b>scattered</b> addresses, it needs a separate transaction per thread — bandwidth collapses. Same amount of data, up to 32× the memory traffic.</div>
+    <div class="controls">
+      <button class="btn on" id="coalMode">PATTERN: COALESCED (consecutive)</button>
+      <button class="btn primary" id="coalRun">▶ Issue warp access</button>
+      <span class="readout" id="coalStat" style="margin-left:auto">Transactions: <b>—</b></span>
+    </div>
+    <div class="canvwrap"><canvas id="coalCanvas" width="900" height="240"></canvas></div>
+    <div class="readout" id="coalExplain" style="margin-top:12px">Each arrow is a thread reaching into memory. Coalesced accesses group under one bracket (one transaction); scattered ones each need their own.</div>
+  </div>
+
+  <div class="callout deep"><span class="ico">◆</span><div class="bd"><b>Going deeper — the PCIe tax</b>
+  A GPU is a separate device with its own memory. Your data starts in CPU RAM and must be <strong>copied across the
+  PCIe bus</strong> to the GPU before it can be touched — and that link is far slower than the GPU's internal
+  bandwidth. This is why a small job is often <em>slower</em> on a GPU: you spend more time shipping data back and
+  forth than computing. The rule: move data to the GPU once and keep it there, doing as much work as possible before
+  bringing results back.</div></div>
+</section>
+
+<!-- 0x0B using GPU well -->
+<section class="tag-gpu reveal-on-scroll">
+  <div class="sechead"><span class="secnum">0x0B</span><span class="kicker">GPU · Practice</span></div>
+  <h2>How to actually use a GPU well</h2>
+  <p class="lead">You may never write raw CUDA — libraries like PyTorch hide it — but the same handful of truths
+  decide whether your GPU flies or crawls, whether you're training a model or writing a kernel by hand.</p>
+
+  <div class="card raised">
+    <h4 style="color:var(--gpu)">1 · Give it a mountain of parallel work</h4>
+    <p style="font-size:15px">GPUs hide latency with sheer thread count. A half-empty GPU is a slow GPU. This is
+    exactly why <strong>larger batch sizes</strong> often train faster per-item — you're keeping more lanes lit. Tiny
+    workloads can't fill the machine and waste it.</p>
+    <h4 style="color:var(--gpu)">2 · Move data once, compute a lot</h4>
+    <p style="font-size:15px">The PCIe trip dominates small jobs. Keep tensors resident on the GPU, chain operations
+    there, and avoid needless <code class="k">.cpu()</code> / <code class="k">.numpy()</code> round-trips that
+    silently stall everything to shuttle data back.</p>
+    <h4 style="color:var(--gpu)">3 · Keep warps uniform — dodge divergence</h4>
+    <p style="font-size:15px">Data-dependent branches where neighboring threads disagree serialize the warp. Prefer
+    uniform operations over uniform data; sort or bucket data so threads in a warp take the same path.</p>
+    <h4 style="color:var(--gpu)">4 · Access memory in coalesced, contiguous patterns</h4>
+    <p style="font-size:15px">Lay out data so consecutive threads touch consecutive addresses. This one habit can
+    swing memory-bound kernels by an order of magnitude.</p>
+    <h4 style="color:var(--gpu)">5 · Prefer big matrix ops — they hit the tensor cores</h4>
+    <p style="font-size:15px">Framing work as large matrix multiplies lets the tensor cores do the heavy lifting.
+    Many small ops leave that specialized hardware idle. Fuse where you can.</p>
+  </div>
+
+  <div class="callout key"><span class="ico">★</span><div class="bd"><b>The GPU in one sentence</b>
+  A GPU wins when you have thousands-to-millions of identical, independent operations and enough of them to keep the
+  machine drowning in work — graphics, simulations, and above all the dense matrix math of neural networks. Feed it
+  small, branchy, or sequential work and it starves. Which raises a question: if AI is <em>mostly</em> matrix
+  multiply, why not build a chip that does <em>only</em> that? Enter the TPU.</div></div>
+</section>
+
+<!-- ================= TPU DIVIDER ================= -->
+<section id="tpu" class="tag-tpu reveal-on-scroll" style="border-bottom:none;padding-bottom:8px">
+  <div class="divlabel" style="color:var(--tpu)">━━━━━━━━  PART THREE  ━━━━━━━━</div>
+  <h2 style="text-align:center;font-size:clamp(30px,6vw,52px);background:linear-gradient(120deg,var(--tpu),#e9c2ff);-webkit-background-clip:text;background-clip:text;color:transparent">The TPU</h2>
+  <p class="lead" style="text-align:center;max-width:660px;margin:0 auto">The <strong style="color:var(--tpu)">matrix machine</strong>. If the GPU is a general-purpose parallel workhorse, the
+  TPU is a scalpel: a chip that does almost nothing <em>except</em> multiply matrices — and does it with an elegance
+  that borders on the beautiful.</p>
+</section>
+
+<!-- 0x0C why TPUs -->
+<section class="tag-tpu reveal-on-scroll">
+  <div class="sechead"><span class="secnum">0x0C</span><span class="kicker">TPU · The specialist's bet</span></div>
+  <h2>When you know exactly what you'll compute, build the chip for it</h2>
+  <p class="lead">Google noticed something around 2013: if their neural networks kept growing, they'd need to
+  <em>double every datacenter</em> just to serve them on CPUs. But those networks spent almost all their time doing
+  one operation — <strong>matrix multiplication</strong>. So they asked the specialist's question: why pay for a
+  flexible chip when the workload never changes?</p>
+
+  <p>A <strong>TPU</strong> (Tensor Processing Unit) is an <em>ASIC</em> — an
+  Application-Specific Integrated Circuit. It throws away even more generality than a GPU did. No support for
+  branchy code, no rendering hardware, a stripped-down instruction set. Nearly all its silicon is poured into one
+  gigantic <strong>matrix-multiply unit</strong>. Give up doing everything, and you can do <em>one</em> thing with
+  staggering efficiency per watt and per dollar.</p>
+
+  <div class="grid3">
+    <div class="pcard pc"><div class="big">CPU</div><p>Does <strong>anything</strong>. Flexible, latency-optimized, general-purpose. Jack of all trades.</p></div>
+    <div class="pcard pg"><div class="big">GPU</div><p>Does <strong>parallel things</strong>. Thousands of cores for any data-parallel workload — graphics, science, AI.</p></div>
+    <div class="pcard pt"><div class="big">TPU</div><p>Does <strong>matrix multiplies</strong>. Almost nothing else — but at an efficiency general chips can't touch.</p></div>
+  </div>
+
+  <div class="callout key"><span class="ico">★</span><div class="bd"><b>The specialization spectrum</b>
+  This is the master pattern of all computing hardware: <em>generality costs efficiency</em>. Every step from CPU →
+  GPU → TPU trades flexibility for speed and power on a narrower job. A TPU can't run your operating system or even
+  most of your Python — but for the matrix math at the heart of deep learning, nothing general-purpose keeps up.</div></div>
+</section>
+
+<!-- 0x0D systolic array -->
+<section class="tag-tpu reveal-on-scroll">
+  <div class="sechead"><span class="secnum">0x0D</span><span class="kicker">TPU · The heart of the machine</span></div>
+  <h2>The systolic array: computation as a heartbeat</h2>
+  <p class="lead">Here is the idea that makes a TPU a TPU — and once it clicks, you'll see why it's so efficient.
+  The word <em>systolic</em> comes from <strong>systole</strong>, the contraction of a heart. Data doesn't get
+  fetched, computed, and stored one value at a time. Instead it <em>pulses rhythmically through a grid</em> of tiny
+  multiply-and-add cells, each cell handing its results to the next like a bucket brigade.</p>
+
+  <h3>Why this is the whole trick</h3>
+  <p>In a normal chip, the expensive part of arithmetic isn't the math — it's <strong>moving data</strong> to and
+  from memory. Every fetch costs energy and time. The systolic array's genius is <em>data reuse</em>: a value read
+  from memory <strong>once</strong> flows through an entire row or column of cells, feeding dozens of multiplications
+  before it ever needs to be read again. The math happens as data streams past, without constant trips back to
+  memory. That's how a TPU does enormous matrix multiplies while sipping power.</p>
+
+  <div class="lab">
+    <h4>LAB · Watch a matrix multiply flow through the grid</h4>
+    <div class="desc">This is a 3×3 systolic array computing <b>C = A × B</b>. Rows of <b>A</b> pulse in from the left; columns of <b>B</b> pulse down from the top. They meet inside each cell, which multiplies them and <b>accumulates</b> the running sum in place. Watch the diagonal wavefront sweep through — that's the heartbeat. When it finishes, every cell holds one finished number of the answer, and no input was ever re-read from memory.</div>
+    <div class="controls">
+      <button class="btn primary" id="sysStep">▸ Pulse (step)</button>
+      <button class="btn" id="sysPlay">▶ Play</button>
+      <button class="btn" id="sysReset">↺ Reset</button>
+      <span class="readout" id="sysCycle" style="margin-left:auto">Cycle: <b>0</b></span>
+    </div>
+    <div class="canvwrap"><canvas id="sysCanvas" width="900" height="520"></canvas></div>
+    <div class="readout" id="sysExplain" style="margin-top:12px">Press Pulse to advance the heartbeat one cycle. Cells glow when a multiply-accumulate lands in them this cycle.</div>
+  </div>
+
+  <div class="callout deep"><span class="ico">◆</span><div class="bd"><b>Going deeper — real TPUs are 128×128</b>
+  This demo shows a 3×3 grid for clarity. A real TPU's matrix unit is a <strong>128×128</strong> array — over 16,000
+  multiply-accumulate cells firing every cycle, doing a 128×128 matrix multiply as data washes through. Weights are
+  loaded and held <em>stationary</em> in the cells while activations stream past, so each weight is reused across an
+  entire stream of inputs. That's tens of thousands of multiplications per tick from a single wave of data.</div></div>
+
+  <div class="callout miscon"><span class="ico">✕</span><div class="bd"><b>Misconception</b>
+  "A TPU is just a GPU for Google." Architecturally they're quite different. A GPU is thousands of independent
+  programmable cores running threads; a TPU is one enormous hardwired matrix engine with data flowing through it in
+  lockstep. The GPU is a flexible parallel computer; the TPU is closer to a purpose-built matrix-multiply pipeline
+  cast into silicon.</div></div>
+</section>
+
+<!-- 0x0E precision + using TPU well -->
+<section class="tag-tpu reveal-on-scroll">
+  <div class="sechead"><span class="secnum">0x0E</span><span class="kicker">TPU · Precision &amp; practice</span></div>
+  <h2>Cheaper numbers, and how to use a TPU well</h2>
+  <p class="lead">There's a second reason TPUs are so efficient: they don't bother with full precision. A CPU
+  computes in exact 32- or 64-bit numbers because a bank balance can't be approximate. But a neural network is a
+  giant approximation already — it barely notices if its numbers are a little fuzzy. So TPUs compute in
+  <strong>low precision</strong>, and that's a superpower.</p>
+
+  <h3>Why smaller numbers win</h3>
+  <p>A smaller number takes less silicon to multiply, less energy to move, and less memory bandwidth to ship.
+  Halve the bits and you can roughly double the throughput and the model you can fit. Google's own format,
+  <strong>bfloat16</strong>, is the clever trick here: it keeps the full <em>range</em> of 32-bit floats (so
+  training doesn't blow up) but throws away precision bits it doesn't need — half the size, nearly the same training
+  behavior. For inference, chips go further to <strong>int8</strong> or lower.</p>
+
+  <div class="callout deep"><span class="ico">◆</span><div class="bd"><b>Going deeper — this is what "quantization" means</b>
+  When you hear a model has been <strong>quantized</strong>, this is it: its weights were converted from 16/32-bit
+  floats down to 8-bit (or 4-bit) integers. The model gets smaller and faster with usually a tiny accuracy cost —
+  which is why quantization is how big models get squeezed onto phones and edge chips. TPUs made low-precision math
+  a first-class citizen; the whole industry followed.</div></div>
+
+  <div class="card raised">
+    <h4 style="color:var(--tpu)">Using a TPU well — the essentials</h4>
+    <p style="font-size:15px"><strong>Make everything a big, regular matrix multiply.</strong> The systolic array is a
+    fixed grid; the more fully you fill it, the more of the chip does useful work. Dimensions that are multiples of
+    the array size (128) waste nothing.</p>
+    <p style="font-size:15px"><strong>Use large batches.</strong> Streaming many inputs past stationary weights is
+    exactly what the array is built for. Small batches leave most of the heartbeat idle.</p>
+    <p style="font-size:15px"><strong>Embrace bfloat16.</strong> It's the native currency. Fighting to keep everything
+    in 32-bit throws away the TPU's biggest advantage.</p>
+    <p style="font-size:15px"><strong>Let the compiler (XLA) fuse your graph.</strong> TPUs shine when a whole model
+    is compiled into one efficient pipeline rather than dispatched op-by-op. Frameworks like JAX and TensorFlow are
+    built for this.</p>
+    <p style="font-size:15px"><strong>Keep data off the host.</strong> Like the GPU's PCIe tax, shuttling data
+    between the host CPU and the TPU stalls the array. Feed it in a steady stream.</p>
+  </div>
+
+  <div class="callout key"><span class="ico">★</span><div class="bd"><b>The TPU in one sentence</b>
+  A TPU is a chip that gave up nearly all flexibility to make one operation — large matrix multiplication in low
+  precision — as fast and power-efficient as physically possible. It's the ultimate expression of "know your
+  workload, then build the silicon for it." When your workload is huge, regular, matrix-heavy deep learning at
+  scale, nothing sips less power per multiply.</div></div>
+
+  <div class="quiz" id="tpuQuiz">
+    <div class="q">Checkpoint · What single property of the systolic array makes it so energy-efficient at matrix multiply?</div>
+    <button class="opt">It runs at a much higher clock speed than a CPU</button>
+    <button class="opt">It uses more transistors than any other chip</button>
+    <button class="opt" data-correct>Data read once from memory flows through many cells, so each value feeds many multiplies without repeated memory trips</button>
+    <button class="opt">It only works with 64-bit precision numbers</button>
+    <div class="explain">The dominant cost in arithmetic hardware is moving data, not the multiply itself. A systolic
+    array reads each input from memory once and lets it pulse through an entire row or column of cells, feeding many
+    multiply-accumulates before anything returns to memory. This data reuse — not clock speed, transistor count, or
+    precision — is the heart of its efficiency. (And TPUs actually favor <em>low</em> precision, not 64-bit.)</div>
+  </div>
+</section>
+
+<!-- 0x0F versus -->
+<section id="versus" class="reveal-on-scroll">
+  <div class="sechead"><span class="secnum">0x0F</span><span class="kicker">Showdown</span></div>
+  <h2>Three machines, side by side</h2>
+  <p class="lead">You've met all three. Now hold them up together. There is no "best" processor — only the right
+  tool for the shape of the work. The whole story compresses into one table and one instinct: <em>match the machine
+  to the workload.</em></p>
+
+  <div style="overflow-x:auto">
+  <table class="tbl">
+    <thead><tr><th>Dimension</th><th class="cpu">CPU</th><th class="gpu">GPU</th><th class="tpu">TPU</th></tr></thead>
+    <tbody>
+      <tr><td>Design goal</td><td class="cpu">Low latency</td><td class="gpu">High throughput</td><td class="tpu">Matrix efficiency</td></tr>
+      <tr><td>Core count</td><td class="mono">~4–64 smart cores</td><td class="mono">~thousands simple</td><td class="mono">1 huge MAC array</td></tr>
+      <tr><td>Best at</td><td>Branchy, sequential, varied tasks</td><td>Data-parallel work of any kind</td><td>Big dense matrix multiplies</td></tr>
+      <tr><td>Worst at</td><td>Massive uniform parallelism</td><td>Sequential / branchy logic</td><td>Anything that isn't matmul</td></tr>
+      <tr><td>Handles latency by</td><td class="cpu">Avoiding it (caches, prediction)</td><td class="gpu">Hiding it (swap in more threads)</td><td class="tpu">Streaming (data never stops flowing)</td></tr>
+      <tr><td>Typical precision</td><td class="mono">FP32 / FP64</td><td class="mono">FP32 / FP16 / BF16</td><td class="mono">BF16 / INT8</td></tr>
+      <tr><td>Flexibility</td><td class="cpu">Total</td><td class="gpu">High (programmable)</td><td class="tpu">Narrow (matmul-shaped)</td></tr>
+      <tr><td>Runs an OS?</td><td class="cpu">Yes — it's the boss</td><td class="gpu">No — a co-processor</td><td class="tpu">No — an accelerator</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="lab">
+    <h4>LAB · Which chip should run this?</h4>
+    <div class="desc">Pick a workload. The router will tell you which processor is the right home for it — and, more importantly, <b>why</b>, using everything you've learned.</div>
+    <div class="controls" id="routerBtns">
+      <button class="btn" data-w="os">Running your operating system</button>
+      <button class="btn" data-w="db">A branchy business-logic web server</button>
+      <button class="btn" data-w="game">Rendering a video game frame</button>
+      <button class="btn" data-w="sim">A large physics / fluid simulation</button>
+      <button class="btn" data-w="train">Training a huge language model</button>
+      <button class="btn" data-w="infer">Serving that model at datacenter scale</button>
+      <button class="btn" data-w="edge">Face-unlock on a phone</button>
+    </div>
+    <div id="routerOut" class="card" style="margin-top:8px;min-height:120px;background:var(--void2)">
+      <p style="margin:0;color:var(--dim)">Choose a workload above to see the verdict.</p>
+    </div>
+  </div>
+
+  <div class="callout miscon"><span class="ico">✕</span><div class="bd"><b>Misconception</b>
+  "The TPU/GPU is strictly better than the CPU for AI, so CPUs don't matter anymore." Even in a pure AI datacenter,
+  the CPU is the <em>conductor</em> — it loads and preprocesses data, orchestrates the accelerators, runs everything
+  that isn't a big matrix multiply, and makes the decisions. Accelerators are brilliant employees; the CPU is still
+  the manager who hands them work. They don't replace each other — they team up.</div></div>
+</section>
+
+<!-- 0x10 heterogeneous -->
+<section class="reveal-on-scroll">
+  <div class="sechead"><span class="secnum">0x10</span><span class="kicker">Together</span></div>
+  <h2>Real systems use all three at once</h2>
+  <p class="lead">The most important truth in modern computing: these chips don't compete, they <strong>collaborate</strong>.
+  Every serious system is <em>heterogeneous</em> — different silicon for different shapes of work, coordinated by the
+  CPU. This is called heterogeneous computing, and it's the whole game now.</p>
+
+  <h3>A day in the life of training a model</h3>
+  <ol>
+    <li>The <span class="cpu" style="color:var(--cpu);font-weight:600">CPU</span> reads training data from disk, decodes and shuffles it, and preprocesses batches — messy, branchy, sequential work it's perfect for.</li>
+    <li>It ships each batch to the <span class="gpu" style="color:var(--gpu);font-weight:600">GPU</span> or <span class="tpu" style="color:var(--tpu);font-weight:600">TPU</span>, which runs the forward and backward passes — a torrent of matrix multiplies they were born for.</li>
+    <li>The accelerator streams gradients back; the CPU coordinates checkpoints, logging, and the next batch — keeping the expensive accelerator fed so it never idles.</li>
+  </ol>
+  <p>The engineering skill is <strong>keeping the fast chip busy</strong>. An idle GPU waiting on a slow CPU data
+  pipeline is the most common (and expensive) failure in real ML systems — the accelerator is only worth it if the
+  conductor keeps the music flowing.</p>
+
+  <div class="callout key"><span class="ico">★</span><div class="bd"><b>Even your phone is heterogeneous</b>
+  The chip in your pocket is a <em>system-on-chip</em>: CPU cores for apps, a GPU for graphics, and an
+  <strong>NPU</strong> (neural processing unit — a tiny TPU-like matrix engine) for on-device AI like face unlock and
+  photo processing. Three philosophies, one piece of silicon, each handed the work it's best at. Learn to see this
+  division of labor and you understand modern hardware.</div></div>
+</section>
+
+<!-- 0x11 future -->
+<section id="future" class="reveal-on-scroll">
+  <div class="sechead"><span class="secnum">0x11</span><span class="kicker">The road ahead</span></div>
+  <h2>Why the hardware era is genuinely back</h2>
+  <p class="lead">Your instinct that hardware matters again is right — and there's a precise reason, not just hype.
+  For thirty years, software could ignore hardware because chips got faster for free every 18 months. That free lunch
+  is over, and it changes everything.</p>
+
+  <h3>Two laws broke, and the world pivoted</h3>
+  <p><strong>Dennard scaling</strong> — the rule that shrinking transistors also cut their power — quietly died around
+  2006. Transistors kept getting smaller, but the power per area stopped falling. Crank the clock higher and the chip
+  melts. That's the <strong>power wall</strong>, and it's why clock speeds have hovered near 3–5 GHz for nearly two
+  decades instead of racing past 10.</p>
+  <p><strong>Moore's Law</strong> — the doubling of transistor count — still limps along, but each new manufacturing
+  node is astronomically expensive and delivers less. The old strategy of "just wait for the next process" no longer
+  pays off. The industry had to find performance somewhere else.</p>
+
+  <h3>The answer was specialization — and that's this whole course</h3>
+  <p>If you can't make a general chip faster, make a specific chip for the work that matters. First came multicore.
+  Then GPUs escaped graphics and conquered scientific computing and AI. Then TPUs, NPUs, and a wave of custom AI
+  silicon. Computer architects call this <strong>a new golden age</strong>: performance now comes from
+  <em>co-designing the hardware and the algorithm together</em>, not from a faster clock. The CPU → GPU → TPU
+  progression you just learned <em>is</em> the story of this era.</p>
+
+  <div class="grid2">
+    <div class="pcard pt"><div class="big">The Cambrian explosion of chips</div><p>Custom AI silicon is everywhere now: Google TPUs, Amazon Trainium, wafer-scale engines, inference-only chips, on-device NPUs. Each targets a slice of the AI workload the general chips leave on the table.</p></div>
+    <div class="pcard pg"><div class="big">Building up, not just smaller</div><p>With shrinking hitting limits, progress moves to <strong>packaging</strong>: chiplets stitched together, memory stacked in 3D (HBM), silicon glued side-by-side. The chip becomes a system.</p></div>
+  </div>
+
+  <div class="callout key"><span class="ico">★</span><div class="bd"><b>Why this matters for you</b>
+  The comfortable abstraction — "hardware is a fast box that runs whatever I write" — has broken. Performance,
+  cost, and even what's <em>possible</em> in AI now depend on how well software fits the silicon. That's exactly why
+  understanding pipelines, caches, warps, and systolic arrays is leverage: the people who can reason across the
+  hardware-software boundary are the ones who make models train faster, run cheaper, and fit where they couldn't
+  before. You're learning the right thing at the right time.</div></div>
+
+  <div class="callout deep"><span class="ico">◆</span><div class="bd"><b>A note of honesty</b>
+  "Hardware is the future" doesn't mean software stops mattering — it means the <em>boundary</em> between them is
+  where the value is. The most valuable engineers in this era aren't pure hardware or pure software; they're the ones
+  fluent enough in both to co-design. This course is a first step onto that bridge, not the whole crossing. Keep
+  going: pick a real workload, profile it, and watch these ideas turn into speed.</div></div>
+</section>
+
+<!-- capstone quiz -->
+<section class="reveal-on-scroll">
+  <div class="sechead"><span class="secnum">0x12</span><span class="kicker">Capstone</span></div>
+  <h2>Prove the model stuck</h2>
+  <p class="lead">Six questions spanning all three machines. No peeking — but every answer traces back to something
+  you can now reason about from first principles.</p>
+
+  <div id="capstone"></div>
+  <div class="card" id="capScore" style="display:none;text-align:center">
+    <div style="font-family:var(--mono);font-size:14px;letter-spacing:1px;color:var(--dim)">YOUR SCORE</div>
+    <div id="capScoreNum" style="font-size:48px;font-weight:850;margin:6px 0"></div>
+    <div id="capScoreMsg" style="color:var(--dim)"></div>
+  </div>
+</section>
+
+<!-- footer -->
+<footer>
+  <div class="fmono" style="font-size:14px;color:var(--dim);letter-spacing:2px">END OF TRANSMISSION</div>
+  <p style="max-width:520px;margin:16px auto;color:var(--dim);font-size:15px">You started at a single transistor and
+  ended understanding the three machines that run the modern world — and why the one you reach for depends entirely
+  on the shape of your work.</p>
+  <div class="ctarow" style="justify-content:center">
+    <a href="#hero" class="cta ghost">↑ Back to the top</a>
+    <button class="cta" id="resetProgress">↺ Reset progress</button>
+  </div>
+  <div class="chip-sig">
+    ┌─────────────────────────────┐<br>
+    │ CPU · GPU · TPU — FROM SCRATCH │<br>
+    │ latency · throughput · matrix │<br>
+    └─────────────────────────────┘<br>
+    a self-contained instrument · works offline · progress saved locally
+  </div>
+</footer>
+
+</div><!-- /wrap -->
+
+<script>
+"use strict";
+/* ============================================================
+   SILICON INSTRUMENT — interactive engine
+   ============================================================ */
+const $=(s,r=document)=>r.querySelector(s);
+const $$=(s,r=document)=>Array.from(r.querySelectorAll(s));
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const reduceMotion=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ---------- progress rail + saved position ---------- */
+const railfill=$('#railfill'), pctEl=$('#pct');
+function onScroll(){
+  const h=document.documentElement;
+  const max=h.scrollHeight-h.clientHeight;
+  const p=max>0?clamp(h.scrollTop/max,0,1):0;
+  railfill.style.width=(p*100)+'%';
+  pctEl.textContent=Math.round(p*100)+'%';
+  try{localStorage.setItem('si_scroll',String(h.scrollTop));}catch(e){}
+}
+window.addEventListener('scroll',onScroll,{passive:true});
+window.addEventListener('load',()=>{
+  try{const s=localStorage.getItem('si_scroll');
+    if(s&&parseInt(s)>200){setTimeout(()=>window.scrollTo(0,parseInt(s)),60);}}catch(e){}
+  onScroll();
+});
+
+/* ---------- reveal on scroll ---------- */
+const io=new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}});
+},{threshold:0.06, rootMargin:'0px 0px -40px 0px'});
+$$('.reveal-on-scroll').forEach(el=>io.observe(el));
+
+/* ---------- reset progress ---------- */
+$('#resetProgress').addEventListener('click',()=>{
+  try{Object.keys(localStorage).filter(k=>k.startsWith('si_')).forEach(k=>localStorage.removeItem(k));}catch(e){}
+  window.scrollTo(0,0);
+});
+
+/* ---------- generic quiz ---------- */
+function wireQuiz(root){
+  const opts=$$('.opt',root), explain=$('.explain',root);
+  opts.forEach(opt=>opt.addEventListener('click',()=>{
+    if(opt.classList.contains('disabled'))return;
+    opts.forEach(o=>o.classList.add('disabled'));
+    if(opt.hasAttribute('data-correct')){opt.classList.add('correct');}
+    else{opt.classList.add('wrong');const c=opts.find(o=>o.hasAttribute('data-correct'));if(c)c.classList.add('correct');}
+    if(explain)explain.classList.add('show');
+  }));
+}
+['#cpuQuiz','#tpuQuiz'].forEach(id=>{const q=$(id);if(q)wireQuiz(q);});
+
+/* ============================================================
+   0x01 — LOGIC GATES
+   ============================================================ */
+(function(){
+  const svg=$('#gateGroup'), read=$('#gateRead');
+  const btnA=$('#inA'), btnB=$('#inB');
+  let A=0,B=0;
+  const gates=[
+    {name:'AND',x:70,fn:(a,b)=>a&&b?1:0,d:'both'},
+    {name:'OR', x:250,fn:(a,b)=>a||b?1:0,d:'either'},
+    {name:'XOR',x:430,fn:(a,b)=>a^b,d:'exactly one'},
+  ];
+  function draw(){
+    let s='';
+    // inputs
+    const iy1=70, iy2=150;
+    s+=wire(20,iy1,A);s+=wire(20,iy2,B);
+    s+=`<text x="8" y="${iy1-14}" fill="#9aa3b6" font-family="ui-monospace,monospace" font-size="12">A=${A}</text>`;
+    s+=`<text x="8" y="${iy2+26}" fill="#9aa3b6" font-family="ui-monospace,monospace" font-size="12">B=${B}</text>`;
+    gates.forEach(g=>{
+      const out=g.fn(A,B);
+      const col=out?'#5fd08a':'rgba(150,168,200,.3)';
+      s+=`<rect x="${g.x}" y="60" width="120" height="110" rx="12" fill="#111521" stroke="${out?'#5fd08a':'rgba(150,168,200,.22)'}" stroke-width="2"/>`;
+      s+=`<text x="${g.x+60}" y="100" text-anchor="middle" fill="#e9edf5" font-family="ui-monospace,monospace" font-size="18" font-weight="700">${g.name}</text>`;
+      // output bulb
+      s+=`<circle cx="${g.x+60}" cy="140" r="16" fill="${out?'#5fd08a':'#0b0d13'}" stroke="${col}" stroke-width="2"/>`;
+      s+=`<text x="${g.x+60}" y="146" text-anchor="middle" fill="${out?'#070809':'#9aa3b6'}" font-family="ui-monospace,monospace" font-size="15" font-weight="700">${out}</text>`;
+      // input stubs
+      s+=`<line x1="${g.x-50}" y1="70" x2="${g.x}" y2="70" stroke="${A?'#57cfe8':'rgba(150,168,200,.22)'}" stroke-width="2"/>`;
+      s+=`<line x1="${g.x-50}" y1="150" x2="${g.x}" y2="150" stroke="${B?'#57cfe8':'rgba(150,168,200,.22)'}" stroke-width="2"/>`;
+    });
+    svg.innerHTML=s;
+    const active=gates.filter(g=>g.fn(A,B)).map(g=>g.name);
+    read.innerHTML = (A===0&&B===0)?'Both inputs are 0 — every gate is quiet.'
+      : `With A=<b>${A}</b>, B=<b>${B}</b>: lit gates are <b>${active.join(', ')||'none'}</b>. Same two bits, different answers — that difference is where all logic comes from.`;
+  }
+  function wire(x,y,on){return `<circle cx="${x}" cy="${y}" r="6" fill="${on?'#57cfe8':'#0b0d13'}" stroke="rgba(150,168,200,.22)"/>`;}
+  btnA.addEventListener('click',()=>{A^=1;btnA.textContent='A = '+A;btnA.classList.toggle('on',!!A);draw();});
+  btnB.addEventListener('click',()=>{B^=1;btnB.textContent='B = '+B;btnB.classList.toggle('on',!!B);draw();});
+  draw();
+})();
+
+/* ============================================================
+   0x01 — CLOCK WAVEFORM
+   ============================================================ */
+(function(){
+  const cv=$('#clkCanvas'), ctx=cv.getContext('2d');
+  const range=$('#clkRange'), lbl=$('#clkLbl'), read=$('#clkRead');
+  let phase=0, ghz=2.0;
+  function fmt(){
+    const periodNs=1/ghz;
+    const cm=(0.3*periodNs*100); // c=0.3 m/ns -> cm
+    lbl.textContent=ghz.toFixed(1)+' GHz';
+    read.innerHTML=`At <b>${ghz.toFixed(1)} GHz</b>, one tick lasts <b>${periodNs.toFixed(2)} nanoseconds</b>. In that time, light travels only <b>${cm<100?cm.toFixed(0)+' cm':(cm/100).toFixed(2)+' m'}</b>.`;
+  }
+  range.addEventListener('input',()=>{ghz=range.value/10;fmt();});
+  function frame(){
+    const W=cv.width,H=cv.height;
+    ctx.clearRect(0,0,W,H);
+    // baseline grid
+    ctx.strokeStyle='rgba(150,168,200,.10)';ctx.lineWidth=1;
+    for(let x=0;x<W;x+=45){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+    // square wave: wavelength scales inversely-ish with freq for visual
+    const cyclesOnScreen=clamp(ghz*3,3,30);
+    const wl=W/cyclesOnScreen;
+    const hi=H*0.28, lo=H*0.72;
+    ctx.strokeStyle='#57cfe8';ctx.lineWidth=2.5;ctx.beginPath();
+    let x=0, up=true; const off=phase%wl;
+    ctx.moveTo(-off, up?hi:lo);
+    for(x=-off;x<W+wl;x+=wl/2){
+      ctx.lineTo(x, up?hi:lo);
+      ctx.lineTo(x, up?lo:hi);
+      up=!up;
+    }
+    ctx.stroke();
+    // tick markers
+    ctx.fillStyle='#57cfe8';
+    for(let t=-off;t<W;t+=wl){ctx.fillRect(t-1,hi-6,2,6);}
+    if(!reduceMotion)phase+=wl*ghz*0.02+0.6;
+    requestAnimationFrame(frame);
+  }
+  fmt();frame();
+})();
+
+/* ============================================================
+   0x0F — WORKLOAD ROUTER
+   ============================================================ */
+(function(){
+  const out=$('#routerOut'), btns=$$('#routerBtns .btn');
+  const V={
+    os:{chip:'CPU',col:'#f0a542',why:'An operating system is the definition of branchy, unpredictable, sequential work — thousands of tiny decisions, interrupts, and varied tasks. It needs the CPU\'s low-latency cleverness (caches, branch prediction, out-of-order). A GPU or TPU would choke on it instantly.'},
+    db:{chip:'CPU',col:'#f0a542',why:'Business logic is full of conditionals, lookups, and dependent steps that differ per request — the opposite of uniform parallel work. Each request is a short, latency-sensitive, branchy chain. This is home turf for a fast CPU core.'},
+    game:{chip:'GPU',col:'#3fd4c2',why:'Millions of pixels, each needing the same shading math independently — the exact workload GPUs were born for. Thousands of cores compute the frame in parallel while the CPU handles game logic and feeds the GPU.'},
+    sim:{chip:'GPU',col:'#3fd4c2',why:'A fluid or physics sim updates a huge grid of points with the same equations, mostly independently each step — massively data-parallel. The GPU\'s thousands of cores crush it, as long as you keep the data resident on the device.'},
+    train:{chip:'TPU',col:'#c982ec',why:'Training a large model is overwhelmingly giant matrix multiplies in low precision, repeated billions of times — exactly what a TPU\'s systolic array does most efficiently. A GPU also does this very well (via its tensor cores); at massive scale the TPU\'s specialization and efficiency shine.'},
+    infer:{chip:'TPU',col:'#c982ec',why:'Serving a model is dense matrix math at scale, often in INT8 — perfect for a TPU or inference ASIC that maximizes matmuls-per-watt. Efficiency per query is everything when you\'re running it billions of times, so specialized silicon wins.'},
+    edge:{chip:'NPU',col:'#c982ec',why:'On-device AI runs on the phone\'s NPU — a tiny TPU-like matrix engine sipping battery. Same principle as a TPU, shrunk for the edge: a specialized accelerator for the neural-net matmuls, orchestrated by the phone\'s CPU.'},
+  };
+  btns.forEach(b=>b.addEventListener('click',()=>{
+    btns.forEach(x=>x.classList.remove('on'));b.classList.add('on');
+    const v=V[b.dataset.w];
+    out.innerHTML=`<div style="font-family:ui-monospace,monospace;font-size:12px;letter-spacing:2px;color:#9aa3b6;text-transform:uppercase;margin-bottom:4px">Verdict</div>
+      <div style="font-family:ui-monospace,monospace;font-size:26px;font-weight:800;color:${v.col};margin-bottom:8px">→ ${v.chip}</div>
+      <p style="margin:0;font-size:15px;color:#d3d9e6">${v.why}</p>`;
+  }));
+})();
+
+/* ============================================================
+   0x05 — LATENCY LADDER (human scale)
+   ============================================================ */
+(function(){
+  const host=$('#latLadder'); if(!host)return;
+  const rows=[
+    {n:'CPU register',ns:0.3,c:'#3fd4c2'},
+    {n:'L1 cache',ns:1,c:'#3fd4c2'},
+    {n:'L2 cache',ns:4,c:'#57cfe8'},
+    {n:'L3 cache',ns:12,c:'#57cfe8'},
+    {n:'Main memory (RAM)',ns:100,c:'#f5c860'},
+    {n:'SSD (flash)',ns:100000,c:'#f0a542'},
+    {n:'Spinning hard disk',ns:10000000,c:'#ff6b6b'},
+  ];
+  const minL=Math.log10(0.3), maxL=Math.log10(1e7);
+  function human(sec){
+    if(sec<90)return sec.toFixed(sec<10?1:0)+' sec';
+    if(sec<5400)return (sec/60).toFixed(1)+' min';
+    if(sec<172800)return (sec/3600).toFixed(1)+' hours';
+    if(sec<5.2e6)return (sec/86400).toFixed(1)+' days';
+    return (sec/2.63e6).toFixed(1)+' months';
+  }
+  function realt(ns){
+    if(ns<1000)return ns+' ns';
+    if(ns<1e6)return (ns/1000).toFixed(0)+' \u00b5s';
+    return (ns/1e6).toFixed(0)+' ms';
+  }
+  host.innerHTML=rows.map(r=>{
+    const w=clamp(((Math.log10(r.ns)-minL)/(maxL-minL))*100,5,100);
+    return `<div class="latrow">
+      <span class="lbl">${r.n}</span>
+      <span class="bar" style="width:${w}%;background:${r.c}"></span>
+      <span class="val">${human(r.ns)} <span style="color:#616a7e">(${realt(r.ns)})</span></span>
+    </div>`;
+  }).join('');
+})();
+
+/* ============================================================
+   0x02 — CPU DATAPATH STEPPER
+   ============================================================ */
+(function(){
+  const svg=$('#cpuSVG'), phaseEl=$('#cpuPhase'), expEl=$('#cpuExplain');
+  const bStep=$('#cpuStep'), bRun=$('#cpuRun'), bReset=$('#cpuReset');
+  if(!svg)return;
+
+  const prog=[
+    {t:'LOADI R1, 5', op:'LOADI', d:'R1', imm:5},
+    {t:'LOADI R2, 3', op:'LOADI', d:'R2', imm:3},
+    {t:'ADD  R3, R1, R2', op:'ADD', d:'R3', a:'R1', b:'R2'},
+    {t:'MUL  R3, R3, R2', op:'MUL', d:'R3', a:'R3', b:'R2'},
+    {t:'STORE R3 -> M[10]', op:'STORE', s:'R3', addr:10},
+    {t:'HALT', op:'HALT'},
+  ];
+  // build flat micro-steps
+  const steps=[];
+  prog.forEach((ins,pc)=>{
+    const push=(phase,hot,mut,exp)=>steps.push({pc,phase,hot,mut,exp});
+    if(ins.op==='HALT'){
+      push('FETCH',['mem','pc','ir'],st=>{st.ir=ins.t;},pc=>`Fetch: read <b>HALT</b> from address ${pc} into the instruction register.`);
+      push('DECODE',['ir','ctrl'],st=>{st.halted=true;},()=>`Decode: it's HALT. The control unit stops the engine loop. Program done — result sits in memory.`);
+      return;
+    }
+    push('FETCH',['mem','pc','ir'],st=>{st.ir=ins.t;st.pcShown=pc;},pc=>`<b>Fetch</b>: read the instruction at address ${pc} into IR, then point PC at ${pc+1}.`);
+    if(ins.op==='LOADI'){
+      push('DECODE',['ir','ctrl'],null,()=>`<b>Decode</b>: it's LOADI — put the immediate value <b>${ins.imm}</b> into <b>${ins.d}</b>. No ALU needed.`);
+      push('EXECUTE',['ctrl','imm'],null,()=>`<b>Execute</b>: the immediate <b>${ins.imm}</b> is already in the instruction; route it toward the register file.`);
+      push('WRITEBACK',['imm','reg'],st=>{st.regs[ins.d]=ins.imm;},()=>`<b>Writeback</b>: store <b>${ins.imm}</b> into <b>${ins.d}</b>. Done.`);
+    }else if(ins.op==='ADD'||ins.op==='MUL'){
+      const sym=ins.op==='ADD'?'+':'\u00d7';
+      push('DECODE',['ir','ctrl'],null,()=>`<b>Decode</b>: it's ${ins.op} — read <b>${ins.a}</b> and <b>${ins.b}</b>, ${ins.op.toLowerCase()} them, write to <b>${ins.d}</b>.`);
+      push('EXECUTE',['reg','alu'],st=>{const r=ins.op==='ADD'?st.regs[ins.a]+st.regs[ins.b]:st.regs[ins.a]*st.regs[ins.b];st.aluOut=r;st.aluExpr=`${st.regs[ins.a]} ${sym} ${st.regs[ins.b]} = ${r}`;},st=>`<b>Execute</b>: the ALU computes <b>${st.aluExpr}</b>.`);
+      push('WRITEBACK',['alu','reg'],st=>{st.regs[ins.d]=st.aluOut;},st=>`<b>Writeback</b>: store <b>${st.aluOut}</b> into <b>${ins.d}</b>.`);
+    }else if(ins.op==='STORE'){
+      push('DECODE',['ir','ctrl'],null,()=>`<b>Decode</b>: it's STORE — take the value in <b>${ins.s}</b> and write it to memory address ${ins.addr}.`);
+      push('EXECUTE',['reg'],st=>{st.storeVal=st.regs[ins.s];},st=>`<b>Execute</b>: read <b>${st.regs[ins.s]}</b> out of <b>${ins.s}</b>, ready to send to memory.`);
+      push('WRITEBACK',['reg','mem'],st=>{st.mem10=st.storeVal;},st=>`<b>Writeback</b>: write <b>${st.storeVal}</b> into memory M[${ins.addr}]. The answer is now stored.`);
+    }
+  });
+
+  let idx=-1, running=false, timer=null;
+  function freshState(){return {regs:{R1:'?',R2:'?',R3:'?'},mem10:'?',ir:'\u2014',halted:false,aluExpr:'',aluOut:null,pcShown:0,storeVal:null};}
+  function stateAt(i){const st=freshState();for(let k=0;k<=i;k++){if(steps[k].mut)steps[k].mut(st);}return st;}
+
+  function render(){
+    const st= idx<0?freshState():stateAt(idx);
+    const cur= idx<0?null:steps[idx];
+    const hot=cur?cur.hot:[];
+    const H=k=>hot.includes(k);
+    const acc=(k)=>H(k)?'#f0a542':'rgba(150,168,200,.22)';
+    const glow=(k)=>H(k)?'filter="drop-shadow(0 0 6px rgba(240,165,66,.4))"':'';
+    const pcVal = idx<0?0:(cur.phase==='FETCH'?cur.pc:(cur.pc+1<=prog.length?cur.pc+ (cur.pc<prog.length-1?1:0):cur.pc));
+    // program listing
+    let plist='';
+    prog.forEach((ins,i)=>{
+      const y=64+i*26;
+      const active=(cur&&cur.pc===i);
+      plist+=`<text x="46" y="${y}" font-family="ui-monospace,monospace" font-size="12" fill="${active?'#f0a542':'#9aa3b6'}" font-weight="${active?'700':'400'}">${i}: ${ins.t.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</text>`;
+      if(active)plist+=`<text x="30" y="${y}" font-family="ui-monospace,monospace" font-size="13" fill="#f0a542">\u25b8</text>`;
+    });
+    const box=(x,y,w,h,k,label)=>`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="10" fill="#111521" stroke="${acc(k)}" stroke-width="${H(k)?2.4:1.4}" ${glow(k)}/>`+
+      `<text x="${x+10}" y="${y+18}" font-family="ui-monospace,monospace" font-size="10" letter-spacing="1" fill="${H(k)?'#f0a542':'#9aa3b6'}">${label}</text>`;
+    const line=(x1,y1,x2,y2,k)=>`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${H(k)?'#f0a542':'rgba(150,168,200,.25)'}" stroke-width="${H(k)?2.4:1.4}" marker-end="url(#ah${H(k)?'A':'B'})"/>`;
+
+    let s=`<defs>
+      <marker id="ahA" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#f0a542"/></marker>
+      <marker id="ahB" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="rgba(150,168,200,.4)"/></marker>
+    </defs>`;
+    // memory
+    s+=box(20,30,205,300,'mem','MEMORY  (instructions)');
+    s+=plist;
+    s+=`<line x1="34" y1="232" x2="210" y2="232" stroke="rgba(150,168,200,.12)"/>`;
+    s+=`<text x="34" y="252" font-family="ui-monospace,monospace" font-size="10" letter-spacing="1" fill="#9aa3b6">DATA</text>`;
+    s+=`<rect x="34" y="262" width="176" height="30" rx="6" fill="#0b0d13" stroke="${H('mem')?'#f0a542':'rgba(150,168,200,.12)'}"/>`;
+    s+=`<text x="44" y="281" font-family="ui-monospace,monospace" font-size="12" fill="#e9edf5">M[10] = ${st.mem10}</text>`;
+    // PC
+    s+=box(250,30,110,46,'pc','PROGRAM COUNTER');
+    s+=`<text x="262" y="62" font-family="ui-monospace,monospace" font-size="15" fill="#e9edf5" font-weight="700">PC = ${idx<0?0:pcVal}</text>`;
+    // IR
+    s+=box(250,92,175,46,'ir','INSTR. REGISTER');
+    s+=`<text x="262" y="124" font-family="ui-monospace,monospace" font-size="12" fill="#e9edf5">${st.ir.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</text>`;
+    // control
+    s+=box(250,154,175,52,'ctrl','CONTROL UNIT / DECODER');
+    s+=`<text x="262" y="190" font-family="ui-monospace,monospace" font-size="12" fill="${H('ctrl')?'#f0a542':'#9aa3b6'}">${cur?cur.phase:'idle'}</text>`;
+    // immediate token (only when hot)
+    s+=`<rect x="250" y="222" width="110" height="34" rx="8" fill="#0b0d13" stroke="${acc('imm')}" ${glow('imm')}/>`;
+    s+=`<text x="262" y="243" font-family="ui-monospace,monospace" font-size="11" fill="${H('imm')?'#f0a542':'#9aa3b6'}">immediate</text>`;
+    // registers
+    s+=box(452,30,208,150,'reg','REGISTER FILE');
+    ['R1','R2','R3'].forEach((r,i)=>{
+      const y=64+i*34;
+      s+=`<rect x="466" y="${y}" width="180" height="26" rx="6" fill="#0b0d13" stroke="rgba(150,168,200,.12)"/>`;
+      s+=`<text x="476" y="${y+18}" font-family="ui-monospace,monospace" font-size="13" fill="#e9edf5">${r} = ${st.regs[r]}</text>`;
+    });
+    // ALU
+    s+=`<path d="M452,206 L660,206 L636,270 L636,316 L476,316 L476,270 Z" fill="#111521" stroke="${acc('alu')}" stroke-width="${H('alu')?2.4:1.4}" ${glow('alu')}/>`;
+    s+=`<text x="462" y="224" font-family="ui-monospace,monospace" font-size="10" letter-spacing="1" fill="${H('alu')?'#f0a542':'#9aa3b6'}">ALU</text>`;
+    s+=`<text x="556" y="296" text-anchor="middle" font-family="ui-monospace,monospace" font-size="14" fill="#e9edf5" font-weight="700">${H('alu')&&st.aluExpr?st.aluExpr:(st.aluOut!=null&&idx>=0?st.aluOut:'')}</text>`;
+    // wires
+    s+=line(225,53,250,53,'mem');           // mem -> pc region (fetch)
+    s+=line(337,76,337,92,'pc');            // pc down to ir
+    s+=line(337,138,337,154,'ir');          // ir -> control
+    s+=line(425,180,452,180,'ctrl');        // control -> reg (execute control)
+    s+=line(425,196,452,240,'ctrl');        // control -> alu-ish
+    s+=line(556,180,556,206,'reg');         // reg -> alu (operands)
+    s+=line(636,240,652,240,'alu');         // alu out
+    s+=line(652,240,652,150,'alu');
+    s+=line(652,150,660,150,'reg');         // alu -> reg writeback (visual)
+    s+=line(360,239,452,255,'imm');         // immediate -> reg
+    s+=line(466,296,225,277,'mem');         // reg -> memory (store)
+    svg.innerHTML=s;
+
+    phaseEl.innerHTML='Phase: <b>'+(cur?cur.phase:'IDLE')+'</b>'+(cur?'':' — press Step to begin');
+    expEl.innerHTML= idx<0?'The program counter points at address 0. Nothing has run yet.'
+      : (typeof cur.exp==='function'?cur.exp(st):cur.exp);
+    bStep.disabled = (idx>=steps.length-1);
+    if(idx>=steps.length-1){bRun.disabled=true;stopRun();}
+  }
+  function next(){if(idx<steps.length-1){idx++;render();}else{stopRun();}}
+  function stopRun(){running=false;if(timer){clearInterval(timer);timer=null;}bRun.textContent='\u25b6\u25b6 Auto-run';}
+  bStep.addEventListener('click',()=>{stopRun();next();});
+  bRun.addEventListener('click',()=>{
+    if(running){stopRun();return;}
+    if(idx>=steps.length-1)return;
+    running=true;bRun.textContent='\u25fc Pause';
+    timer=setInterval(next, reduceMotion?10:900);
+  });
+  bReset.addEventListener('click',()=>{stopRun();idx=-1;bStep.disabled=false;bRun.disabled=false;render();});
+  render();
+})();
+
+/* ============================================================
+   0x03 — PIPELINE SIMULATOR
+   ============================================================ */
+(function(){
+  const grid=$('#pipeGrid'), tog=$('#pipeToggle'), runBtn=$('#pipeRunBtn'), stat=$('#pipeStat');
+  if(!grid)return;
+  const STAGES=[['IF','#4a7fd4'],['ID','#5fb0d0'],['EX','#f0a542'],['MEM','#e08050'],['WB','#5fd08a']];
+  const NI=5, NS=5;
+  let pipelined=true, revealCycle=999, anim=null;
+  function cellFor(instr,cycle){ // returns stage index at this cycle, or -1
+    if(pipelined){const s=cycle-instr; return (s>=0&&s<NS)?s:-1;}
+    else{const start=instr*NS; const s=cycle-start; return (s>=0&&s<NS)?s:-1;}
+  }
+  function totalCycles(){return pipelined?(NI-1+NS):(NI*NS);}
+  function build(){
+    const TC=totalCycles();
+    let html='<div style="display:inline-block;min-width:100%">';
+    // header row
+    html+='<div style="display:flex;gap:2px;margin-bottom:2px"><div style="width:42px;flex-shrink:0"></div>';
+    for(let c=0;c<TC;c++)html+=`<div style="width:30px;flex-shrink:0;text-align:center;font-family:ui-monospace,monospace;font-size:9px;color:#616a7e">${c+1}</div>`;
+    html+='</div>';
+    for(let i=0;i<NI;i++){
+      html+='<div style="display:flex;gap:2px;margin-bottom:2px;align-items:center">';
+      html+=`<div style="width:42px;flex-shrink:0;font-family:ui-monospace,monospace;font-size:11px;color:#9aa3b6">I${i}</div>`;
+      for(let c=0;c<TC;c++){
+        const s=cellFor(i,c);
+        const on=(c<=revealCycle);
+        if(s>=0&&on){
+          html+=`<div class="pipe-cell" style="width:30px;flex-shrink:0;background:${STAGES[s][1]};color:#08090d">${STAGES[s][0]}</div>`;
+        }else{
+          html+=`<div style="width:30px;flex-shrink:0;height:26px;border-radius:4px;background:#0b0d13;border:1px solid rgba(150,168,200,.12)"></div>`;
+        }
+      }
+      html+='</div>';
+    }
+    html+='</div>';
+    grid.innerHTML=html;
+    stat.innerHTML = pipelined
+      ? `Throughput: <b>~1 instruction / cycle</b> · ${NI} instr in ${TC} cycles`
+      : `Throughput: <b>1 instruction / ${NS} cycles</b> · ${NI} instr in ${TC} cycles`;
+  }
+  function run(){
+    if(anim)clearInterval(anim);
+    revealCycle=-1;build();
+    const TC=totalCycles();
+    anim=setInterval(()=>{revealCycle++;build();if(revealCycle>=TC){clearInterval(anim);anim=null;}}, reduceMotion?5:260);
+  }
+  tog.addEventListener('click',()=>{
+    pipelined=!pipelined;
+    tog.textContent='PIPELINE: '+(pipelined?'ON':'OFF');
+    tog.classList.toggle('on',pipelined);
+    revealCycle=999;build();
+  });
+  runBtn.addEventListener('click',run);
+  build();
+})();
+
+/* ============================================================
+   0x04 — BRANCH PREDICTOR
+   ============================================================ */
+(function(){
+  const cv=$('#brCanvas'), ctx=cv.getContext('2d');
+  const modeBtn=$('#brPredict'), runBtn=$('#brRun'), stat=$('#brStat'), exp=$('#brExplain');
+  if(!cv)return;
+  const modes=[
+    {name:'LOOP (taken, taken, taken…)', gen:i=>((i%10)!==9)}, // 9 taken then 1 exit
+    {name:'ALTERNATING (T, N, T, N…)', gen:i=>(i%2===0)},
+    {name:'RANDOM (coin flips)', gen:i=>Math.random()<0.5},
+  ];
+  let mode=0, results=[], anim=null;
+  const N=40;
+  function simulate(){
+    let state=2; results=[];
+    for(let i=0;i<N;i++){
+      const actual=modes[mode].gen(i);
+      const predict=state>=2;
+      results.push({actual,correct:predict===actual});
+      state = actual?Math.min(3,state+1):Math.max(0,state-1);
+    }
+  }
+  function draw(upTo){
+    const W=cv.width,H=cv.height;ctx.clearRect(0,0,W,H);
+    const n=results.length||N; const cw=W/n;
+    let correct=0,shown=0;
+    for(let i=0;i<results.length;i++){
+      if(i>upTo)break;
+      shown++; if(results[i].correct)correct++;
+      const x=i*cw+cw/2, y=H/2;
+      ctx.fillStyle=results[i].correct?'#5fd08a':'#ff6b6b';
+      ctx.beginPath();ctx.arc(x,y,Math.min(cw*0.32,11),0,7);ctx.fill();
+      ctx.fillStyle='#08090d';ctx.font='bold 12px ui-monospace,monospace';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText(results[i].correct?'\u2713':'\u2717',x,y+1);
+      // taken/not label
+      ctx.fillStyle='#616a7e';ctx.font='9px ui-monospace,monospace';
+      ctx.fillText(results[i].actual?'T':'N',x,H-12);
+    }
+    const acc=shown?Math.round(correct/shown*100):0;
+    stat.innerHTML=`Accuracy: <b>${shown?acc+'%':'\u2014'}</b>`;
+    const wasted=(shown-correct)*15;
+    if(shown>0) exp.innerHTML = shown<N ? 'Running\u2026' :
+      `<b>${correct}/${N}</b> correct (${acc}%). Each of the <b>${shown-correct}</b> misses flushed the pipeline — roughly <b>${wasted} cycles</b> thrown away. Predictable patterns keep the line flowing; randomness makes it thrash.`;
+  }
+  function run(){
+    simulate();if(anim)clearInterval(anim);let i=-1;
+    anim=setInterval(()=>{i++;draw(i);if(i>=N-1){clearInterval(anim);anim=null;}}, reduceMotion?2:70);
+  }
+  modeBtn.addEventListener('click',()=>{mode=(mode+1)%modes.length;modeBtn.textContent='Pattern: '+modes[mode].name;results=[];draw(-1);});
+  runBtn.addEventListener('click',run);
+  draw(-1);
+})();
+
+/* ============================================================
+   0x05 — CACHE LOCALITY
+   ============================================================ */
+(function(){
+  const cv=$('#localCanvas'), ctx=cv.getContext('2d');
+  const modeBtn=$('#localMode'), runBtn=$('#localRun'), stat=$('#localStat'), exp=$('#localExplain');
+  if(!cv)return;
+  const R=16,C=16,LINE=8,CACHE=6;
+  let rowMajor=true, anim=null;
+  const W=cv.width,H=cv.height;
+  const cell=Math.min((W-40)/C,(H-40)/R), ox=(W-cell*C)/2, oy=(H-cell*R)/2;
+  function order(){const o=[];if(rowMajor){for(let r=0;r<R;r++)for(let c=0;c<C;c++)o.push([r,c]);}else{for(let c=0;c<C;c++)for(let r=0;r<R;r++)o.push([r,c]);}return o;}
+  function grid(states){ // states: map "r,c"->'hit'|'miss'|'cur'|undefined
+    ctx.clearRect(0,0,W,H);
+    for(let r=0;r<R;r++)for(let c=0;c<C;c++){
+      const st=states[r+','+c];
+      let fill='#0b0d13',stroke='rgba(150,168,200,.12)';
+      if(st==='hit')fill='rgba(95,208,138,.35)';
+      else if(st==='miss')fill='rgba(255,107,107,.32)';
+      else if(st==='cur'){fill='#57cfe8';stroke='#57cfe8';}
+      ctx.fillStyle=fill;ctx.strokeStyle=stroke;ctx.lineWidth=1;
+      const x=ox+c*cell,y=oy+r*cell;
+      ctx.fillRect(x+1,y+1,cell-2,cell-2);ctx.strokeRect(x+1,y+1,cell-2,cell-2);
+    }
+  }
+  function run(){
+    if(anim)clearInterval(anim);
+    const o=order(); const states={};
+    let cache=[],misses=0,hits=0,i=0;
+    const access=(r,c)=>{
+      const line=Math.floor((r*C+c)/LINE);const idx=cache.indexOf(line);
+      if(idx>=0){hits++;cache.splice(idx,1);cache.push(line);return 'hit';}
+      misses++;cache.push(line);if(cache.length>CACHE)cache.shift();return 'miss';
+    };
+    grid(states);
+    const perFrame=reduceMotion?256:5;
+    anim=setInterval(()=>{
+      for(let k=0;k<perFrame&&i<o.length;k++,i++){
+        const [r,c]=o[i];
+        if(i>0){const [pr,pc]=o[i-1];/* keep */}
+        const res=access(r,c);
+        states[r+','+c]=res;
+      }
+      // mark current
+      const cs=Object.assign({},states);
+      if(i<o.length){cs[o[i][0]+','+o[i][1]]='cur';}
+      grid(cs);
+      const total=hits+misses;
+      stat.innerHTML=`Cache misses: <b style="color:${rowMajor?'#5fd08a':'#ff6b6b'}">${misses}</b> / ${total}`;
+      if(i>=o.length){
+        clearInterval(anim);anim=null;
+        const pct=Math.round(misses/o.length*100);
+        exp.innerHTML=`<b>${rowMajor?'Row-major':'Column-major'}</b>: ${misses} misses out of ${o.length} accesses (${pct}%). `+
+          (rowMajor?`Each 64-byte line fetched serves 8 neighbors — mostly hits.`:`Every step jumps to a new line before the old one's neighbors are used — nearly all misses. Same additions, ~8\u00d7 the memory stalls.`);
+      }
+    }, reduceMotion?5:24);
+  }
+  modeBtn.addEventListener('click',()=>{rowMajor=!rowMajor;modeBtn.textContent='ORDER: '+(rowMajor?'ROW-MAJOR (cache-friendly)':'COLUMN-MAJOR (cache-hostile)');modeBtn.classList.toggle('on',rowMajor);grid({});stat.innerHTML='Cache misses: <b>\u2014</b>';});
+  grid({});
+})();
+
+/* ============================================================
+   0x09 — WARP / SIMT
+   ============================================================ */
+(function(){
+  const cv=$('#warpCanvas'), ctx=cv.getContext('2d');
+  const lockBtn=$('#warpLockstep'), divBtn=$('#warpDiverge'), stat=$('#warpStat'), exp=$('#warpExplain');
+  if(!cv)return;
+  const COLS=8, ROWS=4, N=32, W=cv.width, H=cv.height;
+  const cw=Math.min((W-80)/COLS, (H-80)/ROWS), ox=(W-cw*COLS)/2, oy=(H-cw*ROWS)/2;
+  let branch=null, anim=null;
+  function draw(activeSet,labelFn){
+    ctx.clearRect(0,0,W,H);
+    for(let t=0;t<N;t++){
+      const r=Math.floor(t/COLS), c=t%COLS;
+      const x=ox+c*cw, y=oy+r*cw, on=activeSet.has(t);
+      ctx.fillStyle=on?'#3fd4c2':'rgba(63,212,194,.12)';
+      ctx.strokeStyle=on?'#3fd4c2':'rgba(150,168,200,.22)';ctx.lineWidth=1.5;
+      roundRect(x+3,y+3,cw-6,cw-6,8);ctx.fill();ctx.stroke();
+      if(labelFn){ctx.fillStyle=on?'#08090d':'#616a7e';ctx.font='10px ui-monospace,monospace';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(labelFn(t),x+cw/2,y+cw/2);}
+    }
+  }
+  function roundRect(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+  function all(){const s=new Set();for(let i=0;i<N;i++)s.add(i);return s;}
+  function lockstep(){
+    if(anim)clearInterval(anim);branch=null;
+    let cyc=0; const instrs=['LOAD','MUL','ADD','STORE'];
+    anim=setInterval(()=>{
+      draw(all(),()=>instrs[cyc%instrs.length]);
+      stat.innerHTML='Efficiency: <b style="color:#5fd08a">100%</b>';
+      exp.innerHTML=`Lockstep: all 32 lanes run <b>${instrs[cyc%instrs.length]}</b> together this cycle. One instruction fetch drives 32 multiplications — that's the efficiency SIMT buys.`;
+      cyc++; if(cyc>=6){clearInterval(anim);anim=null;}
+    }, reduceMotion?10:520);
+  }
+  function diverge(){
+    if(anim)clearInterval(anim);
+    // assign branch per thread
+    branch=[];let nIf=0;for(let i=0;i<N;i++){const b=Math.random()<0.55;branch.push(b);if(b)nIf++;}
+    const nElse=N-nIf;
+    const passes=[
+      {set:new Set(branch.map((b,i)=>b?i:-1).filter(i=>i>=0)),name:'if { ... }',lab:'if'},
+      {set:new Set(branch.map((b,i)=>!b?i:-1).filter(i=>i>=0)),name:'else { ... }',lab:'else'},
+    ];
+    let p=0;
+    const show=()=>{
+      const pass=passes[p];
+      draw(pass.set,i=>pass.set.has(i)?pass.lab:'\u2014');
+      const active=pass.set.size;
+      exp.innerHTML=`Divergence, pass ${p+1}/2: running the <b>${pass.name}</b> path with only <b>${active}</b> of 32 lanes active. The other ${32-active} lanes are masked off and idle — wasted.`;
+    };
+    show();
+    const eff=Math.round((nIf+nElse)/(2*N)*100);
+    stat.innerHTML=`Efficiency: <b style="color:#ff6b6b">${eff}%</b>`;
+    anim=setInterval(()=>{p=(p+1)%2;show();}, reduceMotion?400:1100);
+  }
+  lockBtn.addEventListener('click',lockstep);
+  divBtn.addEventListener('click',diverge);
+  draw(all(),()=>'');
+})();
+
+/* ============================================================
+   0x0A — MEMORY COALESCING
+   ============================================================ */
+(function(){
+  const cv=$('#coalCanvas'), ctx=cv.getContext('2d');
+  const modeBtn=$('#coalMode'), runBtn=$('#coalRun'), stat=$('#coalStat'), exp=$('#coalExplain');
+  if(!cv)return;
+  const W=cv.width,H=cv.height, NT=32, SEG=16;
+  let coalesced=true;
+  const segW=(W-40)/SEG, segY=H-46, thY=40;
+  function draw(targets,litSegs){
+    ctx.clearRect(0,0,W,H);
+    // memory segments
+    for(let s=0;s<SEG;s++){
+      const x=20+s*segW, on=litSegs.has(s);
+      ctx.fillStyle=on?'rgba(63,212,194,.3)':'#0b0d13';
+      ctx.strokeStyle=on?'#3fd4c2':'rgba(150,168,200,.22)';ctx.lineWidth=1.4;
+      ctx.fillRect(x+1,segY,segW-2,34);ctx.strokeRect(x+1,segY,segW-2,34);
+    }
+    ctx.fillStyle='#616a7e';ctx.font='10px ui-monospace,monospace';ctx.textAlign='left';
+    ctx.fillText('MEMORY  (each box = one 128-byte transaction line)',22,segY-8);
+    ctx.fillText('WARP  (32 threads)',22,thY-14);
+    // threads
+    const tw=(W-40)/NT;
+    for(let t=0;t<NT;t++){
+      const x=20+t*tw+tw/2;
+      ctx.fillStyle='#3fd4c2';ctx.beginPath();ctx.arc(x,thY,Math.min(tw*0.34,5),0,7);ctx.fill();
+      if(targets){
+        const s=targets[t];const tx=20+s*segW+segW/2;
+        ctx.strokeStyle='rgba(63,212,194,.4)';ctx.lineWidth=1;
+        ctx.beginPath();ctx.moveTo(x,thY+7);ctx.lineTo(tx,segY-2);ctx.stroke();
+      }
+    }
+  }
+  function run(){
+    const targets=[]; const lit=new Set();
+    if(coalesced){for(let t=0;t<NT;t++){targets.push(0);}lit.add(0);}
+    else{for(let t=0;t<NT;t++){const s=Math.floor(Math.random()*SEG);targets.push(s);lit.add(s);}}
+    draw(targets,lit);
+    const tx=coalesced?1:lit.size;
+    stat.innerHTML=`Transactions: <b style="color:${coalesced?'#5fd08a':'#ff6b6b'}">${tx}</b>`;
+    exp.innerHTML= coalesced
+      ? `Coalesced: all 32 consecutive accesses fall in one line, so the hardware fuses them into <b>1</b> memory transaction — full bandwidth.`
+      : `Scattered: the 32 threads land in <b>${lit.size}</b> different lines, forcing <b>${lit.size}</b> separate transactions for the same 32 values. Bandwidth collapses.`;
+  }
+  modeBtn.addEventListener('click',()=>{coalesced=!coalesced;modeBtn.textContent='PATTERN: '+(coalesced?'COALESCED (consecutive)':'SCATTERED (random)');modeBtn.classList.toggle('on',coalesced);draw(null,new Set());stat.innerHTML='Transactions: <b>\u2014</b>';});
+  draw(null,new Set());
+  runBtn.addEventListener('click',run);
+})();
+
+/* ============================================================
+   0x0D — SYSTOLIC ARRAY (C = A x B, 3x3, output-stationary)
+   ============================================================ */
+(function(){
+  const cv=$('#sysCanvas'), ctx=cv.getContext('2d');
+  const bStep=$('#sysStep'), bPlay=$('#sysPlay'), bReset=$('#sysReset'), cycEl=$('#sysCycle'), exp=$('#sysExplain');
+  if(!cv)return;
+  const n=3;
+  const A=[[2,1,3],[1,2,0],[0,1,2]];
+  const B=[[1,0,2],[3,1,0],[0,2,1]];
+  const MAXC=3*(n-1); // = 6
+  const W=cv.width,H=cv.height;
+  const cell=110, gx=190, gy=150; // grid top-left
+  let cyc=-1, anim=null;
+  function accAt(t){
+    const acc=Array.from({length:n},()=>Array(n).fill(0));
+    const done=Array.from({length:n},()=>Array(n).fill(false));
+    for(let c=0;c<=t;c++)for(let i=0;i<n;i++)for(let j=0;j<n;j++){const k=c-i-j;if(k>=0&&k<n){acc[i][j]+=A[i][k]*B[k][j];if(k===n-1)done[i][j]=true;}}
+    return {acc,done};
+  }
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    const t=cyc;
+    const {acc,done}=accAt(t<0?-1:t);
+    // active cells this cycle
+    const active=(i,j)=>{if(t<0)return -1;const k=t-i-j;return (k>=0&&k<n)?k:-1;};
+    // title
+    ctx.textAlign='left';ctx.fillStyle='#c982ec';ctx.font='bold 13px ui-monospace,monospace';
+    ctx.fillText('C = A \u00d7 B',24,30);
+    ctx.fillStyle='#616a7e';ctx.font='11px ui-monospace,monospace';
+    ctx.fillText('A rows pulse right \u2192   B columns pulse down \u2193   products accumulate in place',24,50);
+
+    // ----- A operands on the left (each row i shows its 3 values; highlight the one entering at cycle t) -----
+    for(let i=0;i<n;i++){
+      const rowY=gy+i*cell+cell/2;
+      for(let k=0;k<n;k++){
+        // value A[i][k] enters row i at time i+k (arrival at col0). at cycle t the "at edge" one has i+k==t
+        const enterT=i+k;
+        const x=gx-40-(n-1-k)*44; // lay out k increasing toward the grid
+        const entering=(enterT===t);
+        ctx.fillStyle=entering?'#c982ec':'rgba(201,130,236,.18)';
+        ctx.strokeStyle=entering?'#c982ec':'rgba(150,168,200,.22)';
+        roundRect(x-16,rowY-14,32,28,7);ctx.fill();ctx.stroke();
+        ctx.fillStyle=entering?'#08090d':'#9aa3b6';ctx.font='bold 13px ui-monospace,monospace';ctx.textAlign='center';ctx.textBaseline='middle';
+        ctx.fillText(A[i][k],x,rowY);
+      }
+      ctx.fillStyle='#616a7e';ctx.font='10px ui-monospace,monospace';ctx.textAlign='right';
+      ctx.fillText('A row '+i,gx-40-(n-1)*44-24,rowY);
+    }
+    // ----- B operands on top (each col j shows 3 values; highlight entering at t) -----
+    for(let j=0;j<n;j++){
+      const colX=gx+j*cell+cell/2;
+      for(let k=0;k<n;k++){
+        const enterT=j+k;
+        const y=gy-40-(n-1-k)*40;
+        const entering=(enterT===t);
+        ctx.fillStyle=entering?'#c982ec':'rgba(201,130,236,.18)';
+        ctx.strokeStyle=entering?'#c982ec':'rgba(150,168,200,.22)';
+        roundRect(colX-15,y-13,30,26,7);ctx.fill();ctx.stroke();
+        ctx.fillStyle=entering?'#08090d':'#9aa3b6';ctx.font='bold 13px ui-monospace,monospace';ctx.textAlign='center';ctx.textBaseline='middle';
+        ctx.fillText(B[k][j],colX,y);
+      }
+    }
+    ctx.fillStyle='#616a7e';ctx.font='10px ui-monospace,monospace';ctx.textAlign='center';
+    ctx.fillText('B cols',gx-40-(n-1)*44-24, gy-40-(n-1)*40);
+
+    // ----- grid of PE cells -----
+    for(let i=0;i<n;i++)for(let j=0;j<n;j++){
+      const x=gx+j*cell, y=gy+i*cell, k=active(i,j);
+      const isActive=k>=0, isDone=done[i][j];
+      ctx.lineWidth=isActive?3:1.4;
+      ctx.strokeStyle=isActive?'#c982ec':(isDone?'#5fd08a':'rgba(150,168,200,.22)');
+      ctx.fillStyle=isActive?'rgba(201,130,236,.16)':(isDone?'rgba(95,208,138,.08)':'#0b0d13');
+      roundRect(x+6,y+6,cell-12,cell-12,12);ctx.fill();ctx.stroke();
+      if(isActive){ // glow
+        ctx.save();ctx.shadowColor='rgba(201,130,236,.42)';ctx.shadowBlur=18;ctx.strokeStyle='#c982ec';ctx.lineWidth=2;roundRect(x+6,y+6,cell-12,cell-12,12);ctx.stroke();ctx.restore();
+      }
+      // cell label
+      ctx.fillStyle='#616a7e';ctx.font='9px ui-monospace,monospace';ctx.textAlign='left';ctx.textBaseline='top';
+      ctx.fillText('C['+i+']['+j+']',x+14,y+14);
+      // product being added this cycle
+      if(isActive){
+        ctx.fillStyle='#c982ec';ctx.font='bold 12px ui-monospace,monospace';ctx.textAlign='center';ctx.textBaseline='middle';
+        ctx.fillText('+ '+A[i][k]+'\u00d7'+B[k][j],x+cell/2,y+34);
+      }
+      // accumulator
+      ctx.fillStyle=isDone?'#5fd08a':(t<0?'#616a7e':'#e9edf5');
+      ctx.font='bold 26px ui-monospace,monospace';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText(t<0?'0':String(acc[i][j]),x+cell/2,y+cell/2+12);
+    }
+    // caption
+    cycEl.innerHTML='Cycle: <b>'+(t<0?0:t)+'</b>'+(t>=MAXC?' / done':'');
+    if(t<0)exp.innerHTML='Press Pulse to advance the heartbeat one cycle. Cells glow when a multiply-accumulate lands in them this cycle.';
+    else if(t>=MAXC)exp.innerHTML='<b>Done.</b> Every cell holds one finished value of C = A\u00d7B. Notice: each A and B value flowed through and fed multiple cells \u2014 read from memory once, reused many times. That reuse is why the systolic array sips power.';
+    else{
+      let cells=[];for(let i=0;i<n;i++)for(let j=0;j<n;j++)if(active(i,j)>=0)cells.push('C['+i+']['+j+']');
+      exp.innerHTML=`Cycle <b>${t}</b>: the wavefront reaches <b>${cells.join(', ')}</b>. Each multiplies the A and B values that just arrived and adds to its running sum. Watch the diagonal sweep.`;
+    }
+    bStep.disabled=(t>=MAXC);
+  }
+  function roundRect(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+  function step(){if(cyc<MAXC){cyc++;draw();}else stopPlay();}
+  function stopPlay(){if(anim){clearInterval(anim);anim=null;}bPlay.textContent='\u25b6 Play';}
+  bStep.addEventListener('click',()=>{stopPlay();step();});
+  bPlay.addEventListener('click',()=>{
+    if(anim){stopPlay();return;}
+    if(cyc>=MAXC)cyc=-1;
+    bPlay.textContent='\u25fc Pause';
+    anim=setInterval(step, reduceMotion?20:1000);
+  });
+  bReset.addEventListener('click',()=>{stopPlay();cyc=-1;bStep.disabled=false;draw();});
+  draw();
+})();
+
+/* ============================================================
+   0x12 — CAPSTONE QUIZ
+   ============================================================ */
+(function(){
+  const host=$('#capstone'); if(!host)return;
+  const Q=[
+    {q:'A CPU finishes a single, dependent email-sorting task faster than a GPU — yet a GPU processes a million images far faster. Why?',
+     o:['The GPU has a higher clock speed','The CPU optimizes for low latency on one chain; the GPU optimizes for high throughput across many independent items','The CPU has more transistors','GPUs cannot do sequential work at all'],c:1,
+     e:'CPUs spend silicon making one dependent chain finish fast (low latency). GPUs spend it on thousands of cores to finish the most total work per second (high throughput). Different goals, not "faster vs slower."'},
+    {q:'Your GPU kernel crawls, and you find that neighboring threads in each warp keep taking different if/else branches. The likely culprit?',
+     o:['Cache misses','Warp divergence','Too few registers','Clock throttling'],c:1,
+     e:'When threads in a warp disagree on a branch, the warp executes both paths in turn with the inactive lanes masked off — warp divergence. Uniform, branch-free work keeps all lanes lit.'},
+    {q:'Why do TPUs happily compute in bfloat16 instead of full 32-bit floats?',
+     o:['32-bit math is impossible in hardware','Neural nets tolerate low precision, and smaller numbers mean more throughput, less energy, and less bandwidth','It makes the results more accurate','Only 16-bit numbers fit in a systolic array'],c:1,
+     e:'A neural net is an approximation already; it barely notices fuzzier numbers. Smaller numbers are cheaper to multiply, move, and store, so low precision roughly multiplies throughput — the TPU\'s superpower.'},
+    {q:'A loop sums a huge row-major 2D array column-by-column and runs slowly on a CPU. Highest-impact fix?',
+     o:['Raise the clock speed','Rewrite it in assembly','Traverse it row-by-row so accesses walk contiguous memory','Add more cores'],c:2,
+     e:'Column-by-column traversal jumps across memory, missing cache on nearly every access — the memory wall, not the math, is the bottleneck. Row-major traversal makes each cache line fully used, often an 8\u00d7 win.'},
+    {q:'What does a systolic array minimize to be so energy-efficient at matrix multiply?',
+     o:['The number of transistors','Data movement — each value is read once and reused across many cells','The clock frequency','The number of multiply units'],c:1,
+     e:'Moving data costs far more energy than the multiply itself. A systolic array pulses each input through many cells, feeding many multiplies per memory read. That reuse is the whole efficiency story.'},
+    {q:'In a real ML training system with a GPU or TPU, what is the CPU\'s main job?',
+     o:['It sits idle while the accelerator works','It does the matrix multiplies','It orchestrates the run: loading, decoding and preprocessing data, and keeping the accelerator fed','It renders the training graphs'],c:2,
+     e:'The accelerator does the matmuls, but the CPU is the conductor — handling the messy, branchy work of feeding it. An idle accelerator waiting on a slow CPU data pipeline is the most common (and costly) real-world failure.'},
+  ];
+  let answered=0, score=0;
+  host.innerHTML=Q.map((item,qi)=>{
+    return `<div class="quiz" data-qi="${qi}"><div class="q">${qi+1} · ${item.q}</div>`+
+      item.o.map((op,oi)=>`<button class="opt" data-oi="${oi}">${op}</button>`).join('')+
+      `<div class="explain">${item.e}</div></div>`;
+  }).join('');
+  $$('.quiz',host).forEach(block=>{
+    const qi=+block.dataset.qi, item=Q[qi], opts=$$('.opt',block), explain=$('.explain',block);
+    opts.forEach(opt=>opt.addEventListener('click',()=>{
+      if(opt.classList.contains('disabled'))return;
+      opts.forEach(o=>o.classList.add('disabled'));
+      const oi=+opt.dataset.oi;
+      if(oi===item.c){opt.classList.add('correct');score++;}
+      else{opt.classList.add('wrong');opts[item.c].classList.add('correct');}
+      explain.classList.add('show');
+      answered++;
+      if(answered===Q.length)showScore();
+    }));
+  });
+  function showScore(){
+    const card=$('#capScore'), num=$('#capScoreNum'), msg=$('#capScoreMsg');
+    card.style.display='block';
+    num.textContent=score+' / '+Q.length;
+    num.style.color = score>=5?'#5fd08a':score>=3?'#f5c860':'#ff6b6b';
+    msg.textContent = score===6?'Flawless. You can reason about all three machines from first principles.'
+      : score>=4?'Strong. The core mental models have landed — revisit the ones you missed.'
+      : 'Good start. Scroll back through the labs you missed; the interactives make these click.';
+    try{localStorage.setItem('si_capstone',String(score));}catch(e){}
+    card.scrollIntoView({behavior:reduceMotion?'auto':'smooth',block:'center'});
+  }
+})();
+
+/* ---------- nav active highlight ---------- */
+(function(){
+  const secs=['foundations','cpu','gpu','tpu','versus','future'].map(id=>$('#'+id)).filter(Boolean);
+  const links=$$('#topbar .navlinks a');
+  window.addEventListener('scroll',()=>{
+    let cur=null;const y=window.scrollY+120;
+    secs.forEach(s=>{if(s.offsetTop<=y)cur=s.id;});
+    links.forEach(a=>a.style.opacity=(a.getAttribute('href')==='#'+cur)?'1':'');
+  },{passive:true});
+})();
+</script>
+</body>
+</html>

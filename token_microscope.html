@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Token Microscope — watch a GPT decide, layer by layer</title>
+<style>
+  :root{
+    --void:#0a0c11; --panel:#12151c; --panel2:#171b24; --line:#262b38;
+    --ink:#e7ebf3; --mute:#8a93a8; --faint:#545d70;
+    --amber:#ffb454; --cyan:#62d6e8; --rose:#ff7597; --green:#7ee787; --violet:#b39bff;
+    --mono:'SF Mono','JetBrains Mono','Fira Code',Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{background:var(--void);color:var(--ink);font-family:var(--sans);margin:0;padding:0;-webkit-font-smoothing:antialiased;}
+  body{padding:0 0 80px;}
+  ::selection{background:var(--amber);color:#1a1300;}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 24px;}
+
+  header.hero{padding:56px 24px 40px;border-bottom:1px solid var(--line);
+    background:radial-gradient(900px 300px at 50% -120px, rgba(98,214,232,0.09), transparent);}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--cyan);margin:0 0 14px;}
+  h1{font-size:clamp(26px,4vw,40px);line-height:1.1;margin:0 0 16px;letter-spacing:-0.01em;}
+  h1 .accent{color:var(--cyan);}
+  .lede{color:var(--mute);font-size:16px;line-height:1.65;max-width:700px;margin:0 0 4px;}
+  .lede b{color:var(--ink);}
+
+  section{padding:48px 24px;border-bottom:1px solid var(--line);}
+  section:last-of-type{border-bottom:none;}
+  .stag{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);margin:0 0 8px;}
+  h2{font-size:22px;margin:0 0 14px;letter-spacing:-0.01em;}
+  p.explain{color:var(--mute);line-height:1.7;font-size:15px;max-width:740px;}
+  p.explain b{color:var(--ink);} p.explain code{color:var(--cyan);background:rgba(98,214,232,.08);padding:1px 5px;border-radius:4px;font-size:13px;}
+
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px;margin-top:16px;}
+
+  button{font-family:var(--mono);font-size:12.5px;background:var(--panel2);color:var(--ink);
+    border:1px solid var(--line);padding:9px 14px;border-radius:7px;cursor:pointer;transition:all .15s;}
+  button:hover{border-color:var(--cyan);color:var(--cyan);}
+  button.primary{background:var(--cyan);color:#031014;border-color:var(--cyan);font-weight:700;}
+  button.primary:hover{background:#8be0ee;}
+  button:disabled{opacity:.35;cursor:not-allowed;}
+  textarea,input[type=text]{width:100%;background:var(--void);color:var(--ink);border:1px solid var(--line);
+    border-radius:7px;padding:10px 12px;font-family:var(--mono);font-size:13px;line-height:1.5;}
+  textarea{resize:vertical;min-height:60px;}
+  label.field{display:block;font-family:var(--mono);font-size:11px;color:var(--faint);margin:0 0 6px;text-transform:uppercase;letter-spacing:.08em;}
+  .btnrow{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px;}
+  input[type=range]{width:100%;accent-color:var(--cyan);}
+  .checkline{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:12px;color:var(--mute);}
+
+  .stats{display:flex;gap:0;flex-wrap:wrap;font-family:var(--mono);font-size:12px;margin-top:14px;}
+  .stat{padding:8px 16px;border-left:1px solid var(--line);}
+  .stat:first-child{border-left:none;padding-left:0;}
+  .stat .v{color:var(--cyan);font-size:16px;display:block;}
+  .stat .k{color:var(--faint);}
+  canvas{display:block;border-radius:6px;}
+  .heatmap-wrap{overflow-x:auto;}
+
+  /* ---------- the grid: the whole point of this page ---------- */
+  .gridwrap{overflow-x:auto;margin-top:18px;border:1px solid var(--line);border-radius:10px;background:var(--panel);}
+  table.microgrid{border-collapse:collapse;font-family:var(--mono);width:100%;}
+  table.microgrid th, table.microgrid td{padding:0;text-align:center;}
+  table.microgrid thead th{position:sticky;top:0;background:var(--panel2);z-index:2;border-bottom:1px solid var(--line);
+    padding:10px 4px;font-size:11px;color:var(--faint);}
+  table.microgrid thead th.tokhead{color:var(--ink);font-size:16px;padding:12px 4px 8px;}
+  table.microgrid thead th.tokhead .pos{display:block;font-size:9px;color:var(--faint);font-weight:400;margin-top:2px;}
+  table.microgrid thead th.tokhead.final-col{color:var(--amber);background:rgba(255,180,84,.08);}
+  table.microgrid tbody th{position:sticky;left:0;background:var(--panel2);z-index:1;text-align:left;padding:0 14px;
+    font-size:11.5px;color:var(--mute);white-space:nowrap;border-right:1px solid var(--line);}
+  table.microgrid tbody th.realrow{color:var(--amber);}
+  table.microgrid tbody th .stagelabel small{display:block;color:var(--faint);font-size:9px;font-weight:400;}
+  table.microgrid td.cell{border:1px solid var(--line);padding:0;min-width:52px;height:44px;position:relative;cursor:pointer;}
+  table.microgrid td.cell:hover .rowreveal{transform:scale(1.12);}
+  table.microgrid td.cell:hover{z-index:3;box-shadow:0 4px 16px rgba(0,0,0,.5);}
+  table.microgrid td.cell .ch{font-size:16px;font-weight:600;}
+  table.microgrid td.cell .p{font-size:8px;opacity:.85;}
+  table.microgrid td.cell.unchanged::after{content:'=';position:absolute;top:2px;right:4px;font-size:8px;color:var(--faint);z-index:2;}
+  table.microgrid td.cell.finalcell{box-shadow:inset 0 0 0 2px var(--amber);}
+  /* Row reveal animation lives on inner <div> wrappers, not on <tr>/<td> themselves —
+     CSS transforms on table-row/table-cell boxes render inconsistently across browsers,
+     but a plain block-level div inside a cell always animates reliably. The wrapper also
+     carries the cell's background color, so the colored cell and its text fade/slide in together. */
+  .rowreveal{opacity:0; transform:translateY(6px); transition:opacity .4s ease, transform .3s ease;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    width:100%; height:100%;}
+  tr.shown .rowreveal{opacity:1; transform:translateY(0);}
+  th .rowreveal{display:inline-flex; width:auto; height:auto;}
+
+  .legend{display:flex;align-items:center;gap:14px;flex-wrap:wrap;font-family:var(--mono);font-size:11px;color:var(--faint);margin-top:10px;}
+  .legend .grad{width:90px;height:8px;border-radius:3px;background:linear-gradient(90deg,#1a3a4a,#62d6e8,#ffb454,#ff7597);}
+  .legend .swatch{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:middle;}
+
+  #tooltip{position:fixed;background:#0d1016;border:1px solid var(--line);border-radius:8px;padding:10px 12px;
+    font-family:var(--mono);font-size:12px;color:var(--ink);pointer-events:none;z-index:50;display:none;
+    box-shadow:0 8px 24px rgba(0,0,0,.5);min-width:150px;}
+  #tooltip .tt-title{color:var(--faint);font-size:10px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;}
+  #tooltip .tt-row{display:flex;justify-content:space-between;gap:14px;padding:2px 0;}
+  #tooltip .tt-row .k{color:var(--green);} #tooltip .tt-row .v{color:var(--mute);}
+
+  .callout{border-left:3px solid var(--cyan);background:rgba(98,214,232,.06);padding:12px 16px;border-radius:0 8px 8px 0;
+    margin-top:16px;font-size:14px;line-height:1.65;color:var(--ink);}
+  .callout b{color:var(--cyan);}
+  .genline{font-family:var(--mono);font-size:16px;line-height:1.8;margin-top:14px;background:var(--void);
+    border:1px solid var(--line);border-radius:8px;padding:14px 16px;min-height:30px;white-space:pre-wrap;}
+  .genline .new{color:var(--amber);}
+  .footnote{font-family:var(--mono);font-size:11.5px;color:var(--faint);margin-top:10px;line-height:1.6;}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <p class="eyebrow">instrument lab · 015 · companion to the nanoGPT lab</p>
+    <h1>Every token, at every layer,<br>read out as <span class="accent">what it currently thinks comes next</span>.</h1>
+    <p class="lede">Real transformers never "contain" text after the first layer — just 24 numbers per position
+      that mean nothing to a human eye. This page decodes those numbers back into a character at
+      <b>every single layer</b>, using the model's own output machinery early — a real technique called the
+      <b>logit lens</b>. Watch a row of tokens sharpen, waver, and settle into an answer as they pass through
+      the network.</p>
+  </div>
+</header>
+
+<div class="wrap">
+
+<section id="idea">
+  <p class="stag">00 — the idea in one picture</p>
+  <h2>What "equivalent token" means here</h2>
+  <p class="explain">At every position, after every layer, the model has a vector — its current guess at
+  "everything relevant so far, condensed." That vector isn't a token. But you can always ask: <b>"if the network
+  stopped right here and tried to predict the next character using only this vector, what would it say?"</b>
+  Answering that question is just running the model's own final steps (<code>LayerNorm → unembed →
+  softmax → argmax</code>) early, on an intermediate vector instead of the final one. That's the entire trick.
+  Below, every cell in the grid is one of those early readings — the token each position's vector is
+  "equivalent to" at that depth.</p>
+  <p class="explain">The bottom row is not a probe — it's the model's actual real output, using the actual final
+  layers. Everything above it is a genuine but early, and often wrong, guess.</p>
+</section>
+
+<section id="train">
+  <p class="stag">01 — train a model to inspect</p>
+  <h2>Give it something to learn first</h2>
+  <p class="explain">Same tiny architecture as the companion nanoGPT lab (3 layers · 3 heads · 24-dim
+  embeddings · 16-token context) — small enough to train from scratch in your browser in a couple of seconds,
+  real gradient descent, no canned weights.</p>
+  <div class="panel">
+    <label class="field">training corpus</label>
+    <textarea id="corpus">a transformer predicts the next character by paying attention to earlier characters. attention lets each position look at other positions and decide which ones matter most. the result is combined and passed through a small feed forward network. stack this a few times and the model learns the shape of language.</textarea>
+    <div class="btnrow">
+      <button class="primary" id="btnTrain">train 250 steps</button>
+      <button id="btnTrainMore">train 2000 more</button>
+      <button id="btnReset">reset weights</button>
+    </div>
+    <div class="stats">
+      <div class="stat"><span class="v" id="statVocab">–</span><span class="k">vocab size</span></div>
+      <div class="stat"><span class="v" id="statSteps">0</span><span class="k">steps trained</span></div>
+      <div class="stat"><span class="v" id="statLoss">–</span><span class="k">last loss (nats)</span></div>
+    </div>
+    <canvas id="lossChart" width="900" height="110" style="margin-top:12px;"></canvas>
+  </div>
+</section>
+
+<section id="microscope">
+  <p class="stag">02 — the microscope</p>
+  <h2>Watch text transform, layer by layer</h2>
+  <p class="explain">Type a prompt and run it. Rows fade in one at a time, top to bottom — exactly the order the
+  model actually computes them in. <b>Columns</b> are token positions (the actual input sequence, growing as you
+  generate). <b>Rows</b> are depth: embedding first, then after each block, then the real output.</p>
+
+  <div class="panel">
+    <label class="field">prompt</label>
+    <input type="text" id="prompt" value="attention lets each">
+    <div class="btnrow">
+      <button class="primary" id="btnRun">run &amp; watch it transform</button>
+      <label class="checkline"><input type="checkbox" id="chkDetail"> show attention / MLP as separate steps</label>
+    </div>
+  </div>
+
+  <div id="gridHost" style="display:none;">
+    <div class="gridwrap"><table class="microgrid" id="microTable"></table></div>
+    <div class="legend">
+      <span><span class="grad"></span> &nbsp;low → high confidence in that guess</span>
+      <span><span style="display:inline-block;width:14px;height:14px;border:2px solid var(--amber);border-radius:3px;vertical-align:middle;"></span> real output for the position used to predict next token</span>
+      <span>hover any cell for its top-3 alternatives</span>
+    </div>
+    <div class="callout" id="readCallout" style="display:none;"></div>
+  </div>
+</section>
+
+<section id="generate">
+  <p class="stag">03 — extend it, one token at a time</p>
+  <h2>Predict, sample, append — and watch what does (and doesn't) change</h2>
+  <p class="explain">Generation is the grid above, run in a loop: read the real output row's <b>last column</b>,
+  sample a character from it, append it as a new column, and recompute. Because of the causal mask, every
+  earlier column's value is mathematically forced to stay <i>identical</i> — position 3 can never see position 7,
+  so adding position 7 cannot change position 3's answer at any layer. Watch for the <span style="color:var(--faint)">"="</span>
+  marks: they confirm every old cell really didn't move. This is also exactly <i>why</i> real inference servers
+  use a "KV-cache" — since old positions never change, there's no need to ever recompute them.</p>
+  <div class="panel">
+    <div class="btnrow">
+      <div style="flex:1;min-width:160px;">
+        <label class="field">temperature: <span id="tempVal">0.7</span></label>
+        <input type="range" id="temp" min="0.05" max="1.6" step="0.05" value="0.7">
+      </div>
+      <button class="primary" id="btnGenNext">generate next token</button>
+      <button id="btnAuto">auto-play to context limit</button>
+      <button id="btnStopAuto" disabled>stop</button>
+    </div>
+    <div class="genline" id="genLine">—</div>
+    <p class="footnote" id="ctxNote"></p>
+  </div>
+</section>
+
+</div>
+
+<div id="tooltip"></div>
+
+<script>
+// ============================================================================
+// PART A — matgrad autograd engine (identical, verified engine as the companion lab)
+// ============================================================================
+function zeros(r,c){const o=new Array(r);for(let i=0;i<r;i++)o[i]=new Float64Array(c);return o;}
+function randMat(r,c,s){const o=zeros(r,c);for(let i=0;i<r;i++)for(let j=0;j<c;j++)o[i][j]=(Math.random()*2-1)*s;return o;}
+class Value{
+  constructor(data,children=[],op=''){this.data=data;this.rows=data.length;this.cols=data[0].length;
+    this.grad=zeros(this.rows,this.cols);this.prev=children;this.op=op;this._backward=()=>{};}
+  static of(data){return new Value(data,[],'leaf');}
+  zeroGrad(){this.grad=zeros(this.rows,this.cols);}
+}
+function backwardPass(root){
+  const topo=[],seen=new Set();
+  (function build(v){if(!seen.has(v)){seen.add(v);for(const p of v.prev)build(p);topo.push(v);}})(root);
+  root.grad=[[1]];
+  for(let i=topo.length-1;i>=0;i--) topo[i]._backward();
+}
+function matmul(a,b){
+  const out=zeros(a.rows,b.cols);
+  for(let i=0;i<a.rows;i++)for(let k=0;k<a.cols;k++){const av=a.data[i][k];if(av===0)continue;
+    for(let j=0;j<b.cols;j++) out[i][j]+=av*b.data[k][j];}
+  const v=new Value(out,[a,b],'matmul');
+  v._backward=()=>{for(let i=0;i<a.rows;i++)for(let j=0;j<b.cols;j++){const g=v.grad[i][j];if(g===0)continue;
+    for(let k=0;k<a.cols;k++){a.grad[i][k]+=g*b.data[k][j]; b.grad[k][j]+=g*a.data[i][k];}}};
+  return v;
+}
+function add(a,b){
+  const bcast=b.rows===1 && a.rows!==1;
+  const out=zeros(a.rows,a.cols);
+  for(let i=0;i<a.rows;i++)for(let j=0;j<a.cols;j++) out[i][j]=a.data[i][j]+(bcast?b.data[0][j]:b.data[i][j]);
+  const v=new Value(out,[a,b],'add');
+  v._backward=()=>{for(let i=0;i<a.rows;i++)for(let j=0;j<a.cols;j++){a.grad[i][j]+=v.grad[i][j];
+    if(bcast) b.grad[0][j]+=v.grad[i][j]; else b.grad[i][j]+=v.grad[i][j];}};
+  return v;
+}
+function scaleV(a,s){
+  const out=a.data.map(row=>row.map(x=>x*s));
+  const v=new Value(out,[a],'scale');
+  v._backward=()=>{for(let i=0;i<a.rows;i++)for(let j=0;j<a.cols;j++)a.grad[i][j]+=v.grad[i][j]*s;};
+  return v;
+}
+function transposeV(a){
+  const out=zeros(a.cols,a.rows);
+  for(let i=0;i<a.rows;i++)for(let j=0;j<a.cols;j++) out[j][i]=a.data[i][j];
+  const v=new Value(out,[a],'T');
+  v._backward=()=>{for(let i=0;i<a.rows;i++)for(let j=0;j<a.cols;j++) a.grad[i][j]+=v.grad[j][i];};
+  return v;
+}
+function addConst(a,c){
+  const out=zeros(a.rows,a.cols);
+  for(let i=0;i<a.rows;i++)for(let j=0;j<a.cols;j++) out[i][j]=a.data[i][j]+c[i][j];
+  const v=new Value(out,[a],'addConst');
+  v._backward=()=>{for(let i=0;i<a.rows;i++)for(let j=0;j<a.cols;j++) a.grad[i][j]+=v.grad[i][j];};
+  return v;
+}
+function geluV(a){
+  const c=Math.sqrt(2/Math.PI);
+  const fwd=x=>0.5*x*(1+Math.tanh(c*(x+0.044715*x*x*x)));
+  const out=a.data.map(row=>row.map(fwd));
+  const v=new Value(out,[a],'gelu');
+  v._backward=()=>{for(let i=0;i<a.rows;i++)for(let j=0;j<a.cols;j++){
+    const x=a.data[i][j], t=Math.tanh(c*(x+0.044715*x*x*x));
+    const dt=c*(1+3*0.044715*x*x)*(1-t*t);
+    a.grad[i][j]+=v.grad[i][j]*(0.5*(1+t)+0.5*x*dt);
+  }};
+  return v;
+}
+function softmaxRows(a){
+  const out=zeros(a.rows,a.cols);
+  for(let i=0;i<a.rows;i++){let m=-Infinity;for(let j=0;j<a.cols;j++)m=Math.max(m,a.data[i][j]);
+    let s=0;for(let j=0;j<a.cols;j++){out[i][j]=Math.exp(a.data[i][j]-m);s+=out[i][j];}
+    for(let j=0;j<a.cols;j++)out[i][j]/=s;}
+  const v=new Value(out,[a],'softmax');
+  v._backward=()=>{for(let i=0;i<a.rows;i++){let dot=0;for(let k=0;k<a.cols;k++)dot+=v.grad[i][k]*out[i][k];
+    for(let j=0;j<a.cols;j++) a.grad[i][j]+=out[i][j]*(v.grad[i][j]-dot);}};
+  return v;
+}
+function layerNorm(a,gamma,beta,eps=1e-5){
+  const out=zeros(a.rows,a.cols), xhat=zeros(a.rows,a.cols), invstd=new Float64Array(a.rows);
+  for(let i=0;i<a.rows;i++){
+    let mean=0;for(let j=0;j<a.cols;j++)mean+=a.data[i][j]; mean/=a.cols;
+    let varr=0;for(let j=0;j<a.cols;j++)varr+=(a.data[i][j]-mean)**2; varr/=a.cols;
+    const is=1/Math.sqrt(varr+eps); invstd[i]=is;
+    for(let j=0;j<a.cols;j++){xhat[i][j]=(a.data[i][j]-mean)*is; out[i][j]=xhat[i][j]*gamma.data[0][j]+beta.data[0][j];}
+  }
+  const v=new Value(out,[a,gamma,beta],'layernorm');
+  v._backward=()=>{const N=a.cols;
+    for(let i=0;i<a.rows;i++){let dxhatSum=0,dxhatDotXhat=0; const dxhat=new Float64Array(N);
+      for(let j=0;j<N;j++){dxhat[j]=v.grad[i][j]*gamma.data[0][j]; dxhatSum+=dxhat[j]; dxhatDotXhat+=dxhat[j]*xhat[i][j];}
+      for(let j=0;j<N;j++){
+        a.grad[i][j]+=(invstd[i]/N)*(N*dxhat[j]-dxhatSum-xhat[i][j]*dxhatDotXhat);
+        gamma.grad[0][j]+=v.grad[i][j]*xhat[i][j]; beta.grad[0][j]+=v.grad[i][j];
+      }}};
+  return v;
+}
+function embedLookup(table,idx){
+  const out=idx.map(i=>Float64Array.from(table.data[i]));
+  const v=new Value(out,[table],'embed');
+  v._backward=()=>{idx.forEach((row,i)=>{for(let j=0;j<table.cols;j++) table.grad[row][j]+=v.grad[i][j];});};
+  return v;
+}
+function concatCols(parts){
+  const rows=parts[0].rows, cols=parts.reduce((s,p)=>s+p.cols,0);
+  const out=zeros(rows,cols); let off=0;
+  for(const p of parts){for(let i=0;i<rows;i++)for(let j=0;j<p.cols;j++) out[i][off+j]=p.data[i][j]; off+=p.cols;}
+  const v=new Value(out,parts,'concat');
+  v._backward=()=>{let o=0; for(const p of parts){for(let i=0;i<rows;i++)for(let j=0;j<p.cols;j++) p.grad[i][j]+=v.grad[i][o+j]; o+=p.cols;}};
+  return v;
+}
+function sliceCols(a,start,end){
+  const out=a.data.map(row=>Float64Array.from(row.slice(start,end)));
+  const v=new Value(out,[a],'slice');
+  v._backward=()=>{for(let i=0;i<a.rows;i++)for(let j=start;j<end;j++) a.grad[i][j]+=v.grad[i][j-start];};
+  return v;
+}
+function crossEntropy(logits,targets){
+  const probs=zeros(logits.rows,logits.cols); let loss=0;
+  for(let i=0;i<logits.rows;i++){let m=-Infinity;for(let j=0;j<logits.cols;j++)m=Math.max(m,logits.data[i][j]);
+    let s=0;for(let j=0;j<logits.cols;j++){probs[i][j]=Math.exp(logits.data[i][j]-m); s+=probs[i][j];}
+    for(let j=0;j<logits.cols;j++) probs[i][j]/=s;
+    loss+=-Math.log(Math.max(probs[i][targets[i]],1e-12));}
+  loss/=logits.rows;
+  const v=new Value([[loss]],[logits],'ce');
+  v._backward=()=>{const N=logits.rows;
+    for(let i=0;i<N;i++)for(let j=0;j<logits.cols;j++){const t=j===targets[i]?1:0; logits.grad[i][j]+=(probs[i][j]-t)/N;}};
+  v.probs=probs;
+  return v;
+}
+function softmaxArr(row){
+  let m=-Infinity; for(const x of row) m=Math.max(m,x);
+  const ex=row.map(x=>Math.exp(x-m)); const s=ex.reduce((a,b)=>a+b,0);
+  return ex.map(x=>x/s);
+}
+
+// ============================================================================
+// PART B — the GPT (same architecture as the companion lab)
+// ============================================================================
+const CFG = { nEmbd:24, nHead:3, nLayer:3, blockSize:16, hidden:96, lr:0.08 };
+CFG.headDim = CFG.nEmbd / CFG.nHead;
+let state = null;
+
+function buildVocab(text){
+  const chars = Array.from(new Set(text.split(''))).sort();
+  const stoi={}; chars.forEach((c,i)=>stoi[c]=i);
+  return { stoi, itos:chars, vocabSize:chars.length };
+}
+function encode(text, stoi){ return text.split('').filter(c=>c in stoi).map(c=>stoi[c]); }
+function initParams(vocabSize){
+  const p={};
+  p.wte=Value.of(randMat(vocabSize,CFG.nEmbd,0.08));
+  p.wpe=Value.of(randMat(CFG.blockSize,CFG.nEmbd,0.08));
+  p.layers=[];
+  for(let l=0;l<CFG.nLayer;l++){
+    p.layers.push({
+      ln1g:Value.of([Array(CFG.nEmbd).fill(1)]), ln1b:Value.of([Array(CFG.nEmbd).fill(0)]),
+      Wqkv:Value.of(randMat(CFG.nEmbd,3*CFG.nEmbd,0.08)), Wo:Value.of(randMat(CFG.nEmbd,CFG.nEmbd,0.08)),
+      ln2g:Value.of([Array(CFG.nEmbd).fill(1)]), ln2b:Value.of([Array(CFG.nEmbd).fill(0)]),
+      W1:Value.of(randMat(CFG.nEmbd,CFG.hidden,0.08)), W2:Value.of(randMat(CFG.hidden,CFG.nEmbd,0.08)),
+    });
+  }
+  p.lnfg=Value.of([Array(CFG.nEmbd).fill(1)]); p.lnfb=Value.of([Array(CFG.nEmbd).fill(0)]);
+  return p;
+}
+function allParams(p){
+  const out=[p.wte,p.wpe,p.lnfg,p.lnfb];
+  for(const l of p.layers) out.push(l.ln1g,l.ln1b,l.Wqkv,l.Wo,l.ln2g,l.ln2b,l.W1,l.W2);
+  return out;
+}
+function causalMask(T){ const m=zeros(T,T); for(let i=0;i<T;i++)for(let j=0;j<T;j++) m[i][j]=j>i?-1e9:0; return m; }
+function attention(x,layer,T,mask,trace){
+  const qkv=matmul(x,layer.Wqkv);
+  const q=sliceCols(qkv,0,CFG.nEmbd), k=sliceCols(qkv,CFG.nEmbd,2*CFG.nEmbd), v=sliceCols(qkv,2*CFG.nEmbd,3*CFG.nEmbd);
+  const heads=[];
+  for(let h=0;h<CFG.nHead;h++){
+    const qh=sliceCols(q,h*CFG.headDim,(h+1)*CFG.headDim), kh=sliceCols(k,h*CFG.headDim,(h+1)*CFG.headDim), vh=sliceCols(v,h*CFG.headDim,(h+1)*CFG.headDim);
+    let scores=scaleV(matmul(qh,transposeV(kh)),1/Math.sqrt(CFG.headDim));
+    scores=addConst(scores,mask);
+    heads.push(matmul(softmaxRows(scores),vh));
+  }
+  return matmul(concatCols(heads),layer.Wo);
+}
+function mlp(x,layer){ return matmul(geluV(matmul(x,layer.W1)),layer.W2); }
+function forward(p, idxs, trace){
+  const T=idxs.length, mask=causalMask(T);
+  const tok=embedLookup(p.wte,idxs), pos=embedLookup(p.wpe,Array.from({length:T},(_,i)=>i));
+  let x=add(tok,pos);
+  if(trace){ trace.stages=[]; trace.stages.push({name:'embedding', kind:'probe', snapshot: x.data.map(r=>Array.from(r))}); }
+  for(let li=0; li<p.layers.length; li++){
+    const layer=p.layers[li];
+    const a=attention(layerNorm(x,layer.ln1g,layer.ln1b),layer,T,mask,null);
+    x=add(x,a);
+    if(trace) trace.stages.push({name:`block ${li+1} · after attention`, kind:'probe', snapshot: x.data.map(r=>Array.from(r))});
+    const m=mlp(layerNorm(x,layer.ln2g,layer.ln2b),layer);
+    x=add(x,m);
+    if(trace) trace.stages.push({name:`block ${li+1} · after MLP`, kind: li===p.layers.length-1?'probe':'probe', snapshot: x.data.map(r=>Array.from(r))});
+  }
+  const xln=layerNorm(x,p.lnfg,p.lnfb);
+  const logits=matmul(xln,transposeV(p.wte));
+  if(trace) trace.finalLogits = logits.data.map(r=>Array.from(r));
+  return logits;
+}
+// decode a residual-stream snapshot through the model's OWN final LN + unembed ("logit lens")
+function decodeSnapshot(p, snapshot, itos, topK=3){
+  const xv = Value.of(snapshot.map(r=>Float64Array.from(r)));
+  const xln = layerNorm(xv, p.lnfg, p.lnfb);
+  const logits = matmul(xln, transposeV(p.wte));
+  return logits.data.map(row=>{
+    const probs = softmaxArr(Array.from(row));
+    const ranked = probs.map((pr,i)=>({ch:itos[i], p:pr})).sort((a,b)=>b.p-a.p).slice(0,topK);
+    return ranked;
+  });
+}
+
+// ============================================================================
+// PART C — training (identical scheme to the companion lab)
+// ============================================================================
+function freshState(){
+  const corpusText = document.getElementById('corpus').value.toLowerCase();
+  const {stoi,itos,vocabSize} = buildVocab(corpusText);
+  state = { stoi, itos, vocabSize, data: encode(corpusText, stoi),
+            params: initParams(vocabSize), lossHistory: [], stepsTrained: 0, idxs: [] };
+  document.getElementById('statVocab').textContent = vocabSize;
+  document.getElementById('statSteps').textContent = '0';
+  document.getElementById('statLoss').textContent = '–';
+  drawLossChart();
+  document.getElementById('gridHost').style.display = 'none';
+}
+function trainSteps(n, onDone){
+  const params = allParams(state.params);
+  const batchSize = 2;
+  let i=0;
+  function chunk(){
+    const chunkSize = Math.min(8, n-i);
+    for(let c=0;c<chunkSize;c++){
+      params.forEach(pr=>pr.zeroGrad());
+      let totalLoss=0;
+      for(let b=0;b<batchSize;b++){
+        const maxStart = state.data.length - CFG.blockSize - 1;
+        const start = Math.max(0, Math.floor(Math.random()*maxStart));
+        const xs = state.data.slice(start, start+CFG.blockSize);
+        const ys = state.data.slice(start+1, start+CFG.blockSize+1);
+        const logits = forward(state.params, xs, null);
+        const loss = crossEntropy(logits, ys);
+        backwardPass(loss);
+        totalLoss += loss.data[0][0];
+      }
+      for(const pr of params) for(let r=0;r<pr.rows;r++) for(let cI=0;cI<pr.cols;cI++)
+        pr.data[r][cI] -= (CFG.lr/batchSize) * pr.grad[r][cI];
+      state.stepsTrained++;
+      state.lossHistory.push(totalLoss/batchSize);
+      if(state.lossHistory.length>400) state.lossHistory.shift();
+    }
+    i+=chunkSize;
+    document.getElementById('statSteps').textContent = state.stepsTrained;
+    document.getElementById('statLoss').textContent = state.lossHistory[state.lossHistory.length-1].toFixed(3);
+    drawLossChart();
+    if(i<n){ requestAnimationFrame(chunk); } else if(onDone) onDone();
+  }
+  chunk();
+}
+function drawLossChart(){
+  const canvas = document.getElementById('lossChart');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  const hist = state ? state.lossHistory : [];
+  ctx.strokeStyle = '#262b38'; ctx.lineWidth=1;
+  for(let g=0; g<=3; g++){ const y=8+g*(canvas.height-20)/3; ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(canvas.width,y); ctx.stroke(); }
+  if(hist.length<2) return;
+  const maxL = Math.max(...hist, Math.log(state.vocabSize)), minL = Math.min(...hist, 0);
+  ctx.strokeStyle = '#ff7597'; ctx.lineWidth=1.6; ctx.beginPath();
+  hist.forEach((l,i)=>{ const x=i/(hist.length-1)*canvas.width; const y=8+(1-(l-minL)/(maxL-minL+1e-9))*(canvas.height-20);
+    i===0?ctx.moveTo(x,y):ctx.lineTo(x,y); });
+  ctx.stroke();
+}
+
+// ============================================================================
+// PART D — the grid (the actual point of this page)
+// ============================================================================
+let lastDecoded = null; // { stageNames, perStagePerPos: [[{ch,p,alts}]] } from previous render, for diffing
+
+function heatBg(p){
+  // confidence 0..1 -> background color, low=deep blue, high=amber/rose
+  const stops=[[26,44,64],[62,120,150],[255,180,84],[255,117,151]];
+  const t=Math.max(0,Math.min(1,p));
+  const seg=Math.min(2,Math.floor(t*3)); const lt=t*3-seg;
+  const a=stops[seg], b=stops[seg+1];
+  const r=Math.round(a[0]+(b[0]-a[0])*lt), g=Math.round(a[1]+(b[1]-a[1])*lt), bl=Math.round(a[2]+(b[2]-a[2])*lt);
+  return `rgb(${r},${g},${bl})`;
+}
+function textColor(p){ return p>0.55 ? '#0b0d12' : '#e7ebf3'; }
+
+function buildStageList(trace, detail){
+  // collapse or expand attention/MLP sub-steps depending on the checkbox
+  if(detail) return trace.stages; // embedding, then attn/mlp per block (already fine-grained)
+  const out = [trace.stages[0]]; // embedding
+  for(let li=0; li<CFG.nLayer; li++){
+    // the "after MLP" entry for block li is index 1 + li*2 + 1 = 2*li+2
+    out.push(trace.stages[2*li+2]);
+    out[out.length-1] = {...out[out.length-1], name:`after block ${li+1}`};
+  }
+  return out;
+}
+
+function runMicroscope(){
+  const promptRaw = document.getElementById('prompt').value.toLowerCase();
+  let idxs = encode(promptRaw, state.stoi).slice(-CFG.blockSize);
+  if(idxs.length===0){ alert('None of these characters are in the trained vocabulary yet — train on text containing them first.'); return; }
+  state.idxs = idxs;
+  renderGrid(true);
+}
+
+function renderGrid(animate){
+  const idxs = state.idxs;
+  const chars = idxs.map(i=>state.itos[i]);
+  const trace = {};
+  forward(state.params, idxs, trace);
+  const detail = document.getElementById('chkDetail').checked;
+  const stages = buildStageList(trace, detail);
+
+  // decode every stage's snapshot through the logit lens
+  const decodedPerStage = stages.map(st => decodeSnapshot(state.params, st.snapshot, state.itos, 3));
+  // the REAL final output (last stage's snapshot run through ln_f + unembed IS the real output,
+  // since ln_f/wte are the actual final params — so we label it specially, not as a "probe")
+  const finalRowIndex = decodedPerStage.length - 1;
+
+  document.getElementById('gridHost').style.display = 'block';
+  const table = document.getElementById('microTable');
+  table.innerHTML = '';
+
+  const thead = document.createElement('thead');
+  const headRow = document.createElement('tr');
+  headRow.innerHTML = '<th></th>';
+  chars.forEach((c,i)=>{
+    const th=document.createElement('th'); th.className='tokhead' + (i===chars.length-1?' final-col':'');
+    th.innerHTML = `${c===' '?'·':c}<span class="pos">pos ${i}</span>`;
+    headRow.appendChild(th);
+  });
+  thead.appendChild(headRow);
+  table.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+  const rows = [];
+  stages.forEach((st, si)=>{
+    const isFinal = si===finalRowIndex;
+    const tr = document.createElement('tr');
+    const th = document.createElement('th');
+    th.className = isFinal ? 'realrow' : '';
+    th.innerHTML = `<div class="rowreveal"><span class="stagelabel">${isFinal ? 'real output<small>ln_f → unembed → softmax</small>' : `${st.name}<small>logit-lens probe</small>`}</span></div>`;
+    tr.appendChild(th);
+    decodedPerStage[si].forEach((ranked, posIdx)=>{
+      const top = ranked[0];
+      const td = document.createElement('td');
+      td.className = 'cell' + (isFinal && posIdx===chars.length-1 ? ' finalcell' : '');
+      const unchanged = lastDecoded && lastDecoded.detail === detail && lastDecoded.perStagePerPos[si] && lastDecoded.perStagePerPos[si][posIdx]
+        && lastDecoded.perStagePerPos[si][posIdx][0].ch === top.ch
+        && Math.abs(lastDecoded.perStagePerPos[si][posIdx][0].p - top.p) < 1e-9
+        && posIdx < chars.length-1; // only prior columns count as "confirmed unchanged"
+      if(unchanged) td.classList.add('unchanged');
+      const bg = heatBg(top.p), fg = textColor(top.p);
+      td.innerHTML = `<div class="rowreveal" style="background:${bg};color:${fg};"><div class="ch">${top.ch===' '?'·':top.ch}</div><div class="p">${(top.p*100).toFixed(0)}%</div></div>`;
+      td.onmouseenter = (e)=> showTooltip(e, st.name, chars[posIdx], posIdx, ranked, isFinal);
+      td.onmousemove = moveTooltip;
+      td.onmouseleave = hideTooltip;
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+    rows.push(tr);
+  });
+  table.appendChild(tbody);
+
+  lastDecoded = { perStagePerPos: decodedPerStage, detail };
+
+  if(animate){
+    rows.forEach((tr,i)=> setTimeout(()=> tr.classList.add('shown'), i*220));
+  } else {
+    rows.forEach(tr=>tr.classList.add('shown'));
+  }
+
+  // reading callout
+  const finalRanked = decodedPerStage[finalRowIndex][chars.length-1];
+  const embedRanked = decodedPerStage[0][chars.length-1];
+  const cal = document.getElementById('readCallout');
+  cal.style.display = 'block';
+  cal.innerHTML = `<b>Reading the last column:</b> right after embedding, the model's best guess for what
+    comes after "<b>${chars[chars.length-1]===' '?'·':chars[chars.length-1]}</b>" was
+    "<b>${embedRanked[0].ch===' '?'·':embedRanked[0].ch}</b>" (${(embedRanked[0].p*100).toFixed(0)}% confidence) —
+    essentially a guess from ${(1)} character of context. By the real output row, ${CFG.nLayer} blocks of
+    attention + MLP later, its guess is "<b>${finalRanked[0].ch===' '?'·':finalRanked[0].ch}</b>"
+    (${(finalRanked[0].p*100).toFixed(0)}% confidence). That's the entire model, end to end: every layer nudges
+    this one column's guess a little closer to something that actually fits everything before it.`;
+
+  updateGenLine();
+}
+
+function showTooltip(e, stageName, ch, posIdx, ranked, isFinal){
+  const tt = document.getElementById('tooltip');
+  tt.style.display='block';
+  tt.innerHTML = `<div class="tt-title">${isFinal?'real output':'logit-lens probe'} · ${stageName} · position ${posIdx} ("${ch===' '?'·':ch}")</div>` +
+    ranked.map(r=>`<div class="tt-row"><span class="k">${r.ch===' '?'·':r.ch}</span><span class="v">${(r.p*100).toFixed(1)}%</span></div>`).join('');
+  moveTooltip(e);
+}
+function moveTooltip(e){
+  const tt = document.getElementById('tooltip');
+  tt.style.left = (e.clientX+14)+'px';
+  tt.style.top = (e.clientY+14)+'px';
+}
+function hideTooltip(){ document.getElementById('tooltip').style.display='none'; }
+
+// ============================================================================
+// PART E — generation
+// ============================================================================
+function updateGenLine(){
+  const text = state.idxs.map(i=>state.itos[i]).join('');
+  document.getElementById('genLine').textContent = text || '—';
+  const remaining = CFG.blockSize - state.idxs.length;
+  document.getElementById('ctxNote').textContent =
+    remaining>0 ? `${state.idxs.length}/${CFG.blockSize} tokens used — ${remaining} left before the context window (16 tokens) is full.`
+                : `context window full (${CFG.blockSize} tokens) — click "reset weights" or shorten the prompt to continue.`;
+  document.getElementById('btnGenNext').disabled = remaining<=0;
+  document.getElementById('btnAuto').disabled = remaining<=0;
+}
+function sampleFromLogits(row, temperature){
+  const scaled = row.map(x=>x/Math.max(temperature,0.01));
+  const probs = softmaxArr(scaled);
+  let r=Math.random(), acc=0, choice=probs.length-1;
+  for(let i=0;i<probs.length;i++){ acc+=probs[i]; if(r<=acc){choice=i;break;} }
+  return choice;
+}
+function generateNext(){
+  if(state.idxs.length >= CFG.blockSize) return;
+  const trace = {};
+  const logits = forward(state.params, state.idxs, trace);
+  const lastRow = Array.from(logits.data[logits.rows-1]);
+  const temp = parseFloat(document.getElementById('temp').value);
+  const choice = sampleFromLogits(lastRow, temp);
+  state.idxs = [...state.idxs, choice];
+  renderGrid(true);
+  const gl = document.getElementById('genLine');
+  gl.innerHTML = state.idxs.slice(0,-1).map(i=>state.itos[i]).join('').replace(/ /g,'&nbsp;') +
+    `<span class="new">${state.itos[choice]===' '?'&nbsp;':state.itos[choice]}</span>`;
+}
+let autoTimer = null;
+function autoPlay(){
+  document.getElementById('btnAuto').disabled = true;
+  document.getElementById('btnStopAuto').disabled = false;
+  function step(){
+    if(state.idxs.length >= CFG.blockSize){ stopAuto(); return; }
+    generateNext();
+    autoTimer = setTimeout(step, 900);
+  }
+  step();
+}
+function stopAuto(){
+  clearTimeout(autoTimer);
+  document.getElementById('btnAuto').disabled = state.idxs.length>=CFG.blockSize;
+  document.getElementById('btnStopAuto').disabled = true;
+}
+
+// ============================================================================
+// PART F — wire up
+// ============================================================================
+document.getElementById('btnTrain').onclick = ()=> trainSteps(250, ()=>{ if(state.idxs.length===0) runMicroscope(); });
+document.getElementById('btnTrainMore').onclick = ()=> trainSteps(2000);
+document.getElementById('btnReset').onclick = ()=> freshState();
+document.getElementById('btnRun').onclick = ()=> runMicroscope();
+document.getElementById('chkDetail').onchange = ()=> { if(state.idxs.length) renderGrid(false); };
+document.getElementById('btnGenNext').onclick = ()=> generateNext();
+document.getElementById('btnAuto').onclick = ()=> autoPlay();
+document.getElementById('btnStopAuto').onclick = ()=> stopAuto();
+document.getElementById('temp').oninput = e=> document.getElementById('tempVal').textContent = e.target.value;
+
+freshState();
+trainSteps(150, ()=> runMicroscope());
+</script>
+</body>
+</html>

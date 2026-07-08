@@ -1,0 +1,1167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>nanoGPT Instrument Lab — watch a transformer think</title>
+<style>
+  :root{
+    --void:#0a0c11; --panel:#12151c; --panel2:#171b24; --line:#262b38;
+    --ink:#e7ebf3; --mute:#8a93a8; --faint:#545d70;
+    --amber:#ffb454; --cyan:#62d6e8; --rose:#ff7597; --green:#7ee787; --violet:#b39bff;
+    --mono:'SF Mono','JetBrains Mono','Fira Code',Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{background:var(--void);color:var(--ink);font-family:var(--sans);margin:0;padding:0;
+    -webkit-font-smoothing:antialiased;}
+  body{padding:0 0 80px;}
+  ::selection{background:var(--amber);color:#1a1300;}
+
+  .wrap{max-width:980px;margin:0 auto;padding:0 24px;}
+
+  /* ---------- header ---------- */
+  header.hero{padding:56px 24px 40px;border-bottom:1px solid var(--line);
+    background:radial-gradient(900px 300px at 50% -120px, rgba(255,180,84,0.08), transparent);}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--amber);margin:0 0 14px;}
+  h1{font-size:clamp(28px,4.4vw,44px);line-height:1.08;margin:0 0 16px;letter-spacing:-0.01em;}
+  h1 .accent{color:var(--amber);}
+  .lede{color:var(--mute);font-size:16.5px;line-height:1.65;max-width:680px;margin:0 0 4px;}
+  .lede b{color:var(--ink);font-weight:600;}
+
+  /* ---------- nav stepper ---------- */
+  .stepper{display:flex;gap:0;flex-wrap:wrap;margin-top:28px;font-family:var(--mono);font-size:12px;}
+  .stepper a{color:var(--faint);text-decoration:none;padding:7px 12px;border:1px solid var(--line);
+    border-right:none;white-space:nowrap;transition:color .15s, background .15s;}
+  .stepper a:first-child{border-radius:6px 0 0 6px;}
+  .stepper a:last-child{border-right:1px solid var(--line);border-radius:0 6px 6px 0;}
+  .stepper a:hover{color:var(--amber);background:rgba(255,180,84,.06);}
+
+  /* ---------- sections ---------- */
+  section{padding:52px 24px;border-bottom:1px solid var(--line);}
+  section:last-of-type{border-bottom:none;}
+  .stag{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);margin:0 0 8px;}
+  h2{font-size:24px;margin:0 0 14px;letter-spacing:-0.01em;}
+  p.explain{color:var(--mute);line-height:1.7;font-size:15px;max-width:720px;}
+  p.explain b{color:var(--ink);}
+  p.explain code{color:var(--cyan);background:rgba(98,214,232,.08);padding:1px 5px;border-radius:4px;font-size:13px;}
+
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px;margin-top:18px;}
+  .panel-row{display:flex;gap:18px;flex-wrap:wrap;}
+  .panel-col{flex:1;min-width:280px;}
+
+  /* ---------- buttons / inputs ---------- */
+  button{font-family:var(--mono);font-size:12.5px;background:var(--panel2);color:var(--ink);
+    border:1px solid var(--line);padding:9px 14px;border-radius:7px;cursor:pointer;transition:all .15s;}
+  button:hover{border-color:var(--amber);color:var(--amber);}
+  button.primary{background:var(--amber);color:#1a1300;border-color:var(--amber);font-weight:600;}
+  button.primary:hover{background:#ffc476;color:#1a1300;}
+  button:disabled{opacity:.4;cursor:not-allowed;}
+  textarea,input[type=text]{width:100%;background:var(--void);color:var(--ink);border:1px solid var(--line);
+    border-radius:7px;padding:10px 12px;font-family:var(--mono);font-size:13px;line-height:1.5;}
+  textarea{resize:vertical;min-height:64px;}
+  label.field{display:block;font-family:var(--mono);font-size:11px;color:var(--faint);margin:0 0 6px;text-transform:uppercase;letter-spacing:.08em;}
+  .btnrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}
+  input[type=range]{width:100%;accent-color:var(--amber);}
+
+  /* ---------- stat strip ---------- */
+  .stats{display:flex;gap:0;flex-wrap:wrap;font-family:var(--mono);font-size:12px;margin-top:14px;}
+  .stat{padding:8px 16px;border-left:1px solid var(--line);}
+  .stat:first-child{border-left:none;padding-left:0;}
+  .stat .v{color:var(--amber);font-size:16px;display:block;}
+  .stat .k{color:var(--faint);}
+
+  /* ---------- tokens ---------- */
+  .tokrow{display:flex;flex-wrap:wrap;gap:4px;font-family:var(--mono);}
+  .tok{background:var(--panel2);border:1px solid var(--line);border-radius:5px;padding:5px 8px;font-size:14px;
+    position:relative;transition:border-color .2s, background .2s;}
+  .tok.active{border-color:var(--amber);background:rgba(255,180,84,.12);color:var(--amber);}
+  .tok .idx{position:absolute;top:-16px;left:0;right:0;text-align:center;font-size:9px;color:var(--faint);}
+
+  /* ---------- canvases ---------- */
+  canvas{display:block;border-radius:6px;}
+  .heatmap-wrap{overflow-x:auto;}
+  .legend{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:10.5px;color:var(--faint);margin-top:6px;}
+  .legend .grad{width:80px;height:8px;border-radius:3px;background:linear-gradient(90deg,#1a3a4a,#62d6e8,#ffb454,#ff7597);}
+
+  /* ---------- layer block ---------- */
+  .layer-block{border:1px solid var(--line);border-radius:10px;margin-top:14px;overflow:hidden;}
+  .layer-head{display:flex;justify-content:space-between;align-items:center;padding:10px 16px;
+    background:var(--panel2);font-family:var(--mono);font-size:12px;color:var(--mute);cursor:pointer;}
+  .layer-head .name{color:var(--ink);font-weight:600;}
+  .layer-body{padding:16px;display:none;}
+  .layer-body.open{display:block;}
+  .subhead{font-family:var(--mono);font-size:10.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.08em;margin:14px 0 8px;}
+  .subhead:first-child{margin-top:0;}
+
+  /* ---------- logit lens strip ---------- */
+  .lens-strip{display:flex;gap:4px;flex-wrap:wrap;font-family:var(--mono);margin-top:6px;}
+  .lens-cell{background:var(--void);border:1px solid var(--line);border-radius:5px;padding:6px 7px;text-align:center;min-width:30px;}
+  .lens-cell .ch{font-size:15px;color:var(--green);}
+  .lens-cell .p{font-size:9px;color:var(--faint);}
+
+  /* ---------- code panels ---------- */
+  .codepanel{background:#0d1016;border:1px solid var(--line);border-radius:8px;margin-top:14px;overflow:hidden;}
+  .codepanel .tag{font-family:var(--mono);font-size:10.5px;color:var(--violet);padding:8px 14px;border-bottom:1px solid var(--line);
+    background:rgba(179,155,255,.06);letter-spacing:.06em;}
+  pre{margin:0;padding:14px 16px;overflow-x:auto;font-family:var(--mono);font-size:12.5px;line-height:1.65;color:#c9d1e0;}
+  pre .kw{color:var(--rose);} pre .fn{color:var(--cyan);} pre .cm{color:var(--faint);font-style:italic;}
+  pre .num{color:var(--amber);} pre .str{color:var(--green);}
+
+  .twocol{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+  @media (max-width:760px){.twocol{grid-template-columns:1fr;}}
+
+  .footnote{font-family:var(--mono);font-size:11.5px;color:var(--faint);margin-top:10px;line-height:1.6;}
+  .pill{display:inline-block;font-family:var(--mono);font-size:10.5px;padding:2px 8px;border-radius:99px;border:1px solid var(--line);color:var(--mute);margin-right:6px;}
+  a.dl{color:var(--cyan);}
+
+  /* ---------- math blocks ---------- */
+  .mathcard{border:1px solid var(--line);border-radius:10px;margin-top:16px;overflow:hidden;background:var(--panel);}
+  .mathcard .mchead{display:flex;justify-content:space-between;align-items:center;padding:12px 18px;
+    background:var(--panel2);border-bottom:1px solid var(--line);}
+  .mathcard .mchead .mname{font-weight:700;font-size:15px;}
+  .mathcard .mchead .mwhy{font-family:var(--mono);font-size:10.5px;color:var(--violet);text-transform:uppercase;letter-spacing:.06em;}
+  .mathcard .mcbody{padding:18px;}
+  .eq{background:var(--void);border:1px solid var(--line);border-radius:8px;padding:18px 18px;margin:10px 0;
+    overflow-x:auto;text-align:center;font-family:'Cambria Math','STIX Two Math',Georgia,'Times New Roman',serif;
+    font-size:17px;color:var(--ink);letter-spacing:.01em;line-height:2.2;}
+  .eq .lbl{display:block;font-family:var(--mono);font-size:10px;color:var(--faint);margin-top:8px;letter-spacing:.05em;}
+  .eq sub{font-size:.68em;} .eq sup{font-size:.68em;}
+  .mfrac{display:inline-flex;flex-direction:column;vertical-align:middle;margin:0 5px;text-align:center;line-height:1.3;}
+  .mfrac .n{padding:0 5px 3px;border-bottom:1.4px solid currentColor;}
+  .mfrac .d{padding:3px 5px 0;}
+  .msqrt{display:inline-flex;align-items:flex-start;vertical-align:middle;}
+  .msqrt .rad{font-size:1.1em;margin-right:1px;}
+  .msqrt .under{border-top:1.4px solid currentColor;padding:0 3px;}
+  .purpose{border-left:3px solid var(--amber);background:rgba(255,180,84,.06);padding:10px 14px;border-radius:0 7px 7px 0;
+    margin:12px 0;font-size:14px;line-height:1.65;color:var(--ink);}
+  .purpose b{color:var(--amber);}
+  .shapes{font-family:var(--mono);font-size:12px;color:var(--cyan);margin:8px 0;}
+  .shapes span{color:var(--faint);}
+  .steplist{margin:10px 0;padding:0;list-style:none;counter-reset:step;}
+  .steplist li{counter-increment:step;padding:8px 0 8px 34px;position:relative;font-size:14px;color:var(--mute);line-height:1.6;border-top:1px dashed var(--line);}
+  .steplist li:first-child{border-top:none;}
+  .steplist li::before{content:counter(step);position:absolute;left:0;top:8px;width:22px;height:22px;border-radius:50%;
+    background:var(--panel2);border:1px solid var(--line);color:var(--amber);font-family:var(--mono);font-size:11px;
+    display:flex;align-items:center;justify-content:center;}
+  .steplist li b{color:var(--ink);}
+  .maps-to{font-family:var(--mono);font-size:11px;color:var(--faint);margin-top:10px;}
+  .maps-to code{color:var(--green);background:rgba(126,231,135,.08);padding:1px 6px;border-radius:4px;}
+
+  table.paramtable{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12.5px;margin-top:10px;}
+  table.paramtable th, table.paramtable td{text-align:left;padding:8px 12px;border-bottom:1px solid var(--line);}
+  table.paramtable th{color:var(--faint);font-weight:500;text-transform:uppercase;font-size:10.5px;letter-spacing:.05em;}
+  table.paramtable td.num{color:var(--amber);}
+  table.paramtable tr.total td{color:var(--ink);font-weight:700;border-top:1px solid var(--line);border-bottom:none;}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <p class="eyebrow">instrument lab · 014</p>
+    <h1>nanoGPT, live.<br>Watch the <span class="accent">residual stream</span> become a sentence.</h1>
+    <p class="lede">This page contains a <b>real transformer</b> — embeddings, multi-head causal self-attention,
+      MLPs, layer norm, weight-tied unembedding — implemented from scratch in plain JavaScript with its own
+      reverse-mode autograd engine. It trains <b>in your browser</b>, by real gradient descent, on text you provide.
+      No canned demo data: every heatmap below is read directly out of the model's live tensors.</p>
+    <nav class="stepper">
+      <a href="#math">01 · The math</a><a href="#train">02 · Train</a><a href="#forward">03 · Forward pass</a>
+      <a href="#generate">04 · Generate</a><a href="#python">05 · The real Python</a><a href="#howto">06 · How to build your own</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap">
+
+<!-- ================= INTRO / WHY ================= -->
+<section id="intro">
+  <p class="stag">00 — orientation</p>
+  <h2>What you're actually looking at</h2>
+  <p class="explain">A GPT is a function that takes a sequence of tokens and outputs, for every position, a
+  probability distribution over "what character comes next." It does this by turning each character into a
+  vector (an <b>embedding</b>), then repeatedly letting positions look at each other (<b>attention</b>) and
+  think privately (<b>MLP</b>), updating a running vector per position called the <b>residual stream</b>. At the
+  end it reads the residual stream back out as character probabilities. That's the entire idea — everything
+  below is that idea, instrumented so you can watch it happen.</p>
+  <p class="explain">Because real embeddings are 24+ numbers per token that mean nothing to a human eye, every
+  visualization below also decodes the residual stream back into its <b>nearest character</b> at each
+  stage — a real interpretability technique called the <b>logit lens</b> (project the intermediate vector
+  through the model's own final layer norm + unembedding matrix, and read off the argmax). It's not a fake
+  illustration; it's the same computation the model itself ends each layer with, just run early.</p>
+</section>
+
+<!-- ================= THE MATH ================= -->
+<section id="math">
+  <p class="stag">01 — the math</p>
+  <h2>Every equation the model runs, and why it's shaped that way</h2>
+  <p class="explain">Six operations, repeated and composed, are the entire model. For each one: the formula, the
+  tensor shapes flowing through it, <i>why</i> it's defined that way and not some other way, and exactly which
+  function above (and line of the PyTorch code in §05) computes it.</p>
+
+  <!-- 1. Embedding -->
+  <div class="mathcard">
+    <div class="mchead"><span class="mname">1 · Token &amp; positional embedding</span><span class="mwhy">turn symbols into geometry</span></div>
+    <div class="mcbody">
+      <div class="eq">x<sub>i</sub> &nbsp;=&nbsp; W<sub>te</sub>[t<sub>i</sub>] &nbsp;+&nbsp; W<sub>pe</sub>[i]<span class="lbl">for every position i = 0, 1, …, T−1</span></div>
+      <div class="shapes">W_te <span>∈ ℝ^(V×d)</span> &nbsp;·&nbsp; W_pe <span>∈ ℝ^(T_max×d)</span> &nbsp;·&nbsp; x_i <span>∈ ℝ^d</span> &nbsp;·&nbsp; here d=<span id="mDim">24</span>, V=<span id="mVocab">–</span></div>
+      <p class="purpose"><b>Why a lookup table, not a formula:</b> a character has no inherent numeric meaning —
+      "q" isn't "greater than" or "close to" any other letter. So instead of hand-designing a representation, we
+      give every token a free vector and let <b>gradient descent place it</b> wherever is useful for prediction.
+      After training, tokens that behave similarly in context end up geometrically close, purely as a side
+      effect of minimizing loss — meaning emerges from usage, not definition.</p>
+      <p class="purpose"><b>Why add a position vector at all:</b> attention (below) computes a weighted
+      <i>sum</i> over other positions' values — sums don't know order (Attention(shuffle(X)) is just a shuffle
+      of Attention(X)). A transformer without positional information genuinely cannot tell <code>"cat sat"</code>
+      from <code>"sat cat"</code>. Adding a learned vector per position breaks that symmetry: position 0's
+      vector is now geometrically distinguishable from position 1's, everywhere downstream.</p>
+      <div class="maps-to">→ implemented by <code>embedLookup(p.wte, idxs)</code> + <code>embedLookup(p.wpe, positions)</code> in Part B above · rendered as the "embed" heatmap in §03</div>
+    </div>
+  </div>
+
+  <!-- 2. Attention -->
+  <div class="mathcard">
+    <div class="mchead"><span class="mname">2 · Scaled dot-product self-attention</span><span class="mwhy">let positions read each other</span></div>
+    <div class="mcbody">
+      <div class="eq">Q = XW<sub>Q</sub> &nbsp;&nbsp; K = XW<sub>K</sub> &nbsp;&nbsp; V = XW<sub>V</sub></div>
+      <div class="eq">Attention(Q,K,V) &nbsp;=&nbsp; softmax<big>(</big> <span class="mfrac"><span class="n">QK<sup>⊤</sup></span><span class="d">√d<sub>k</sub></span></span> + M <big>)</big> V</div>
+      <div class="shapes">X <span>∈ ℝ^(T×d)</span> &nbsp;·&nbsp; Q,K,V <span>∈ ℝ^(T×d_k)</span> &nbsp;·&nbsp; QK^⊤ <span>∈ ℝ^(T×T)</span> &nbsp;·&nbsp; M <span>= causal mask, T×T</span></div>
+      <ol class="steplist">
+        <li><b>Q, K, V are three learned projections of the same input.</b> Query = "what am I looking for,"
+        Key = "what do I contain," Value = "what do I actually pass along if attended to." Splitting one vector
+        into three roles is what lets a token search for context without that search overwriting its own
+        content.</li>
+        <li><b>QK<sup>⊤</sup> is a similarity matrix.</b> Row i, column j is the dot product of query i and key
+        j — large when the two vectors point in a similar direction, i.e. "position i thinks position j is
+        relevant." This is exactly the (T×T) heatmap you'll see in §03.</li>
+        <li><b>Divide by √d<sub>k</sub>.</b> If Q and K have unit-variance random entries, each dot product
+        sums d<sub>k</sub> such terms, so its <i>variance grows linearly with d<sub>k</sub></i>. Un-scaled, dot
+        products get large in magnitude as dimension grows, which pushes softmax into a saturated regime where
+        one entry ≈ 1 and the rest ≈ 0 — gradients vanish everywhere except that one spike. Dividing by
+        √d<sub>k</sub> keeps the variance ≈ 1 regardless of dimension, so softmax stays in a well-conditioned
+        range early in training.</li>
+        <li><b>Add the causal mask M</b> (0 on/below the diagonal, −∞ above it) <i>before</i> the softmax.
+        Since e<sup>−∞</sup> = 0, this deterministically zeroes out attention to every future position — the
+        mathematical enforcement of "predict the next token using only what came before it," which is the
+        entire reason this is called an <i>autoregressive</i> model.</li>
+        <li><b>softmax(·) turns scores into a probability distribution</b> over which positions to read from —
+        each row sums to 1. <code>Attention·V</code> is then literally a <i>weighted average</i> of every
+        earlier position's value vector, weighted by relevance.</li>
+      </ol>
+      <div class="eq">head<sub>h</sub> = Attention(XW<sub>Q</sub><sup>(h)</sup>, XW<sub>K</sub><sup>(h)</sup>, XW<sub>V</sub><sup>(h)</sup>)<br>
+      MultiHead(X) = Concat(head₁, …, head<sub>H</sub>) W<sub>O</sub></div>
+      <p class="purpose"><b>Why multiple heads instead of one big attention:</b> one attention pattern can only
+      express one notion of "relevant" per layer. Splitting d into H independent, narrower attention
+      computations lets different heads specialize — one might track "the previous vowel," another "the start
+      of the current word," another something with no clean English name at all — and the results are
+      concatenated back to full width before being mixed by W<sub>O</sub>.</p>
+      <div class="maps-to">→ implemented by <code>attention()</code> in Part B: <code>matmul</code>, <code>scaleV</code>, <code>addConst</code> (the mask), <code>softmaxRows</code> · visualized per-block in §03</div>
+    </div>
+  </div>
+
+  <!-- 3. LayerNorm -->
+  <div class="mathcard">
+    <div class="mchead"><span class="mname">3 · Layer normalization</span><span class="mwhy">keep every layer's numbers well-behaved</span></div>
+    <div class="mcbody">
+      <div class="eq"><span class="mfrac"><span class="n">x − μ</span><span class="d">√(σ² + ε)</span></span> = x̂ &nbsp;&nbsp;&nbsp; LN(x) = γ⊙x̂ + β</div>
+      <div class="shapes">μ, σ² <span>computed per token, across the d feature channels</span> &nbsp;·&nbsp; γ, β <span>∈ ℝ^d, learned</span></div>
+      <p class="purpose"><b>Why normalize at all:</b> as a signal passes through many stacked layers, its scale
+      can drift — repeated matrix multiplies can shrink or blow up activations layer over layer, which makes
+      gradients unstable during training (the classic vanishing/exploding gradient problem). Forcing every
+      token's vector to zero mean and unit variance before each sub-layer keeps the numeric scale consistent no
+      matter how deep the stack gets, which in practice is what makes it possible to train 96-layer transformers
+      at all.</p>
+      <p class="purpose"><b>Why γ, β afterward:</b> forcing exactly mean-0/variance-1 might be too restrictive
+      for what a given layer needs to represent — γ and β let the network learn to rescale and re-shift back to
+      whatever distribution is actually useful, while still getting the stability benefit during the
+      normalization step itself.</p>
+      <p class="purpose"><b>Pre-norm placement:</b> this model normalizes <i>before</i> attention/MLP
+      (<code>x + attn(LN(x))</code>) rather than after, exactly like GPT-2 and nanoGPT. Post-norm (the original
+      2017 Transformer paper's choice) puts LayerNorm on the residual path itself, which empirically makes very
+      deep models harder to train; pre-norm keeps the residual path a clean, unimpeded identity highway (see
+      point 4) and only normalizes the branch being added to it.</p>
+      <div class="maps-to">→ implemented by <code>layerNorm()</code> in Part A · applied as <code>ln1</code>/<code>ln2</code>/<code>ln_f</code> in every block</div>
+    </div>
+  </div>
+
+  <!-- 4. Residual connections -->
+  <div class="mathcard">
+    <div class="mchead"><span class="mname">4 · Residual (skip) connections</span><span class="mwhy">let gradients — and information — skip layers</span></div>
+    <div class="mcbody">
+      <div class="eq">x<sup>(l+1)</sup> = x<sup>(l)</sup> + f(x<sup>(l)</sup>)</div>
+      <p class="purpose"><b>The calculus reason this matters:</b> by the chain rule,
+      <span style="color:var(--cyan)">∂x<sup>(l+1)</sup>/∂x<sup>(l)</sup> = I + ∂f/∂x<sup>(l)</sup></span>. That
+      leading identity matrix <b>I</b> means a gradient flowing backward always has a direct, unattenuated path
+      all the way back to the input, no matter how many blocks sit in between — the "+ f(x)" term can only
+      <i>add</i> further gradient signal, never multiply the direct path away to zero. This is precisely why
+      transformers can be stacked 10, 50, even 100+ layers deep and still train: without residual connections,
+      gradients would have to survive being multiplied by every layer's Jacobian in sequence, and in practice
+      that product shrinks toward zero.</p>
+      <p class="purpose"><b>The representational reason:</b> each block only has to learn a <i>correction</i> to
+      the residual stream ("attend to something and add a small adjustment"), not reinvent the whole
+      representation from scratch. This is why it's called a residual stream: information written in early
+      layers persists by default and is only ever added to, unless a later layer specifically learns to cancel
+      it out.</p>
+      <div class="maps-to">→ implemented by the two <code>add(x, …)</code> calls per block in <code>forward()</code>, Part B</div>
+    </div>
+  </div>
+
+  <!-- 5. MLP -->
+  <div class="mathcard">
+    <div class="mchead"><span class="mname">5 · Position-wise feed-forward network (MLP)</span><span class="mwhy">private compute, per position</span></div>
+    <div class="mcbody">
+      <div class="eq">MLP(x) = GELU(xW<sub>1</sub>) W<sub>2</sub> &nbsp;&nbsp;&nbsp; W<sub>1</sub> ∈ ℝ<sup>d×4d</sup>, &nbsp; W<sub>2</sub> ∈ ℝ<sup>4d×d</sup></div>
+      <div class="eq">GELU(x) ≈ 0.5x·( 1 + tanh[ √(2/π)·(x + 0.044715x<sup>3</sup>) ] )</div>
+      <p class="purpose"><b>Division of labor:</b> attention is the only place information moves <i>between</i>
+      positions — it's a weighted sum, which means it's fundamentally linear in V. The MLP runs on every
+      position <i>independently</i> (no T×T mixing at all) and is where the actual nonlinear computation
+      happens: "given what I now know after reading context, transform it." A common intuition: attention
+      <i>routes</i> information, the MLP <i>computes</i> with it.</p>
+      <p class="purpose"><b>Why expand to 4d and back:</b> the up-projection to a wider hidden dimension gives
+      the nonlinearity more room to carve up the space before compressing back down — empirically found to work
+      well in the original Transformer paper and kept as a convention since; it's roughly two-thirds of a
+      transformer's total parameters, and where most of its raw capacity to memorize patterns lives.</p>
+      <p class="purpose"><b>Why GELU instead of plain ReLU:</b> ReLU hard-zeroes every negative input,
+      discarding gradient information for any unit that happens to be off. GELU is a smooth curve that weights
+      inputs by their value <i>and</i> a probability of being "kept" (its own name — Gaussian Error Linear
+      Unit — comes from that probabilistic derivation), which in practice trains slightly better for
+      transformers and is what GPT-2 and nanoGPT both use.</p>
+      <div class="maps-to">→ implemented by <code>mlp()</code> in Part B, using <code>geluV()</code> from Part A</div>
+    </div>
+  </div>
+
+  <!-- 6. Softmax + cross-entropy -->
+  <div class="mathcard">
+    <div class="mchead"><span class="mname">6 · Unembedding, softmax, and the loss</span><span class="mwhy">turn the final vector into "how wrong were you"</span></div>
+    <div class="mcbody">
+      <div class="eq">z = LN(x) W<sub>te</sub><sup>⊤</sup> &nbsp;&nbsp;&nbsp; p<sub>i</sub> = <span class="mfrac"><span class="n">e<sup>z<sub>i</sub></sup></span><span class="d">Σ<sub>j</sub> e<sup>z<sub>j</sub></sup></span></span> &nbsp;&nbsp;&nbsp; L = −log p<sub>target</sub></div>
+      <p class="purpose"><b>Weight tying — reusing W<sub>te</sub> transposed:</b> the same matrix that turned
+      token ids into vectors is reused, transposed, to turn the final vector back into scores over the
+      vocabulary. It works because both directions are asking a related question — "how much does this
+      direction in space resemble token k's meaning" — so tying them halves the parameter count and, empirically,
+      also improves quality by forcing input and output representations to live in one consistent space.</p>
+      <p class="purpose"><b>The elegant part — why softmax and cross-entropy are always paired:</b> written
+      separately, differentiating softmax then cross-entropy through the chain rule requires the full softmax
+      Jacobian (an n×n matrix, since every output probability depends on every input logit). But combined, the
+      gradient collapses to something almost embarrassingly simple:
+      <span style="color:var(--cyan)">∂L/∂z<sub>i</sub> = p<sub>i</sub> − 𝟙[i = target]</span> — literally
+      "predicted probability minus 1 at the correct class, minus 0 everywhere else." That's the entire backward
+      pass for the output layer: subtract a one-hot vector from the probability vector. It's cheap, numerically
+      stable, and exactly what <code>crossEntropy()</code>'s <code>_backward</code> computes in Part A above.</p>
+      <div class="maps-to">→ implemented by <code>crossEntropy()</code> in Part A · the softmax(z) itself is what the "final distribution" bar chart in §03 shows</div>
+    </div>
+  </div>
+
+  <!-- 7. Backprop -->
+  <div class="mathcard">
+    <div class="mchead"><span class="mname">7 · Backpropagation — how every gradient above actually gets computed</span><span class="mwhy">the chain rule, mechanized</span></div>
+    <div class="mcbody">
+      <div class="eq">ū = <span class="mfrac"><span class="n">∂L</span><span class="d">∂u</span></span> = &nbsp;Σ<sub>v : u→v</sub>&nbsp; v̄ · <span class="mfrac"><span class="n">∂v</span><span class="d">∂u</span></span></div>
+      <p class="explain" style="margin-top:0;">Every operation above — <code>matmul</code>, <code>add</code>,
+      <code>layerNorm</code>, <code>softmaxRows</code>, <code>gelu</code> — is a node in a computation graph.
+      Reverse-mode autograd (what <code>.backward()</code> does in PyTorch, and what <code>backwardPass()</code>
+      does in Part A of this page) works in exactly two passes:</p>
+      <ol class="steplist">
+        <li><b>Forward pass:</b> run the computation normally, but every operation remembers its inputs and
+        which operation produced it — building a DAG (directed acyclic graph) as a side effect of just doing
+        the math.</li>
+        <li><b>Topological sort:</b> order every node so that each one appears after all the nodes that feed
+        into it — guaranteeing that by the time we compute a node's gradient, every node downstream of it has
+        already been processed.</li>
+        <li><b>Backward pass:</b> starting from the loss (whose gradient with respect to itself is trivially 1),
+        walk the topological order in <i>reverse</i>. At each node, take the gradient flowing in from
+        <i>above</i> (v̄, how much the loss changes per unit change in this node's output) and use that node's
+        own local derivative rule to push gradient onto <i>its own inputs</i>. A matmul's local rule is another
+        matmul (with a transpose); softmax's local rule is a Jacobian-vector product; layernorm's is the messier
+        formula baked into <code>layerNorm()</code>'s <code>_backward</code> — but every single one is just
+        "how does a small nudge to my input change my output," applied mechanically.</li>
+        <li><b>Accumulate into leaves:</b> parameters (the W's, γ's, β's, embedding tables) are the graph's
+        leaf nodes. Once the backward pass finishes, each parameter's <code>.grad</code> holds exactly
+        ∂Loss/∂parameter — the direction that would make the loss <i>worse</i> fastest if you moved the
+        parameter that way.</li>
+      </ol>
+      <p class="purpose"><b>This is the entire mechanism.</b> There is no separate "understanding" step — every
+      weight in the network only ever changes because some chain of local derivative rules connected it, however
+      indirectly, to the final loss number. Intelligence-as-behavior, if it emerges, emerges purely from millions
+      of these tiny local nudges compounding over billions of training steps.</p>
+      <div class="maps-to">→ implemented by <code>backwardPass()</code> in Part A · every op's <code>_backward</code> closure is exactly step 3, specialized to that op</div>
+    </div>
+  </div>
+
+  <!-- 8. Optimizer -->
+  <div class="mathcard">
+    <div class="mchead"><span class="mname">8 · The optimizer step</span><span class="mwhy">turn a gradient into a weight update</span></div>
+    <div class="mcbody">
+      <div class="eq">θ ← θ − η∇<sub>θ</sub>L<span class="lbl">plain SGD — what this page uses</span></div>
+      <div class="eq">m<sub>t</sub> = β₁m<sub>t−1</sub> + (1−β₁)g<sub>t</sub> &nbsp;&nbsp; v<sub>t</sub> = β₂v<sub>t−1</sub> + (1−β₂)g<sub>t</sub>² &nbsp;&nbsp; θ ← θ − η <span class="mfrac"><span class="n">m̂<sub>t</sub></span><span class="d">√v̂<sub>t</sub> + ε</span></span><span class="lbl">AdamW — what real nanoGPT uses</span></div>
+      <p class="purpose"><b>Why this page uses plain SGD:</b> with a model this small, minimizing implementation
+      surface area matters more than convergence speed — plain "subtract the gradient, scaled by a learning
+      rate η" is exactly the formula in every <code>trainSteps()</code> update loop above, and it's enough to
+      visibly drive the loss down in a few hundred steps.</p>
+      <p class="purpose"><b>Why real GPT training uses Adam(W) instead:</b> Adam keeps a running average of
+      each parameter's gradient (<b>m</b>, momentum — smooths out noisy per-batch gradients) and of its squared
+      gradient (<b>v</b>, variance — lets parameters with consistently small gradients take larger steps and
+      vice versa). In practice this converges faster and is far less sensitive to the exact learning rate than
+      plain SGD is, which matters enormously when a single training run costs actual GPU-hours and you can't
+      afford many restarts to find a good η by trial and error.</p>
+      <div class="maps-to">→ implemented by the weight-update loop inside <code>trainSteps()</code>, Part C above</div>
+    </div>
+  </div>
+
+  <!-- Parameter count -->
+  <div class="mathcard">
+    <div class="mchead"><span class="mname">Parameter count — this toy model vs. real GPT-2</span><span class="mwhy">where the numbers actually go</span></div>
+    <div class="mcbody">
+      <div class="eq">#params &nbsp;≈&nbsp; V·d <span class="lbl" style="display:inline;font-size:11px;">(tied embedding)</span> &nbsp;+&nbsp; n<sub>layer</sub>(4d² + 8d²) <span class="lbl" style="display:inline;font-size:11px;">(attention + MLP weights)</span> &nbsp;=&nbsp; V·d + 12·n<sub>layer</sub>·d²</div>
+      <table class="paramtable" id="paramTable">
+        <tr><th>component</th><th>this page's model</th><th>GPT-2 small (124M)</th></tr>
+        <tr><td>embedding dim d</td><td class="num" id="ptD">24</td><td class="num">768</td></tr>
+        <tr><td>layers</td><td class="num" id="ptL">3</td><td class="num">12</td></tr>
+        <tr><td>attention heads</td><td class="num" id="ptH">3</td><td class="num">12</td></tr>
+        <tr><td>context length</td><td class="num" id="ptT">16 tokens</td><td class="num">1,024 tokens</td></tr>
+        <tr><td>vocabulary</td><td class="num" id="ptV">~30 characters</td><td class="num">50,257 subwords</td></tr>
+        <tr class="total"><td>total parameters</td><td class="num" id="ptTotal">–</td><td class="num">124,439,808</td></tr>
+      </table>
+      <p class="footnote">Same equation, four orders of magnitude apart — the <code>4d²</code> term (attention's
+      Q/K/V/O projections) and the <code>8d²</code> term (MLP's up- and down-projections) both scale
+      <i>quadratically</i> with embedding dimension, which is why doubling d roughly quadruples model size, and
+      why "just make it bigger" is simultaneously the simplest and most expensive lever in this whole field.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= TRAIN ================= -->
+<section id="train">
+  <p class="stag">02 — training data</p>
+  <h2>Give it something to learn</h2>
+  <p class="explain">The model below is tiny on purpose — <span id="cfgline">…</span> — so that a full training
+  run finishes in seconds on your laptop, in JavaScript, with no GPU. Edit the text, or leave the default, then train.</p>
+
+  <div class="panel">
+    <label class="field">training corpus (character-level — keep it lowercase &amp; short for fast learning)</label>
+    <textarea id="corpus">a transformer predicts the next character by paying attention to earlier characters. attention lets each position look at other positions and decide which ones matter most. the result is combined and passed through a small feed forward network. stack this a few times and the model learns the shape of language.</textarea>
+    <div class="btnrow">
+      <button class="primary" id="btnTrain100">train 200 steps</button>
+      <button id="btnTrain1000">train 2000 steps</button>
+      <button id="btnReset">reset weights</button>
+    </div>
+    <div class="stats">
+      <div class="stat"><span class="v" id="statVocab">–</span><span class="k">vocab size</span></div>
+      <div class="stat"><span class="v" id="statSteps">0</span><span class="k">steps trained</span></div>
+      <div class="stat"><span class="v" id="statLoss">–</span><span class="k">last loss (nats)</span></div>
+      <div class="stat"><span class="v" id="statTime">–</span><span class="k">ms / 100 steps</span></div>
+    </div>
+    <div style="margin-top:14px;" class="heatmap-wrap">
+      <canvas id="lossChart" width="900" height="160"></canvas>
+    </div>
+    <p class="footnote">The curve plots <span style="color:var(--rose)">cross-entropy loss</span> — the negative
+    log-probability the model assigned to the <i>actual</i> next character, averaged over a random batch of
+    windows each step. Lower = the model is less surprised by the real text. Loss near ln(vocab) ≈
+    <span id="randomLoss">–</span> is "no better than random"; loss heading toward 0 is memorization.</p>
+  </div>
+
+  <div class="codepanel">
+    <div class="tag">equivalent — training loop (PyTorch)</div>
+    <pre><span class="kw">for</span> step <span class="kw">in</span> <span class="fn">range</span>(max_steps):
+    xb, yb = get_batch(<span class="str">'train'</span>)              <span class="cm"># (B, T) random windows + their targets</span>
+    logits = model(xb)                          <span class="cm"># (B, T, vocab_size)</span>
+    loss = F.cross_entropy(logits.view(-1, vocab_size), yb.view(-1))
+    optimizer.zero_grad()
+    loss.backward()                             <span class="cm"># exactly what backward() does below, but autograd is PyTorch's</span>
+    optimizer.step()                             <span class="cm"># param -= lr * param.grad, per AdamW's rule</span></pre>
+  </div>
+</section>
+
+<!-- ================= FORWARD PASS ================= -->
+<section id="forward">
+  <p class="stag">03 — forward pass</p>
+  <h2>Push text through every layer</h2>
+  <p class="explain">Type a short prompt (it'll be clipped to the model's context window) and run it through the
+  network. You'll see the token embeddings, then — block by block — the causal attention pattern, the residual
+  stream after attention and after the MLP, and the logit-lens guess at every position.</p>
+
+  <div class="panel">
+    <label class="field">prompt</label>
+    <input type="text" id="prompt" value="attention lets each">
+    <div class="btnrow"><button class="primary" id="btnRun">run forward pass</button></div>
+  </div>
+
+  <div id="tokenStage" class="panel" style="display:none;">
+    <div class="subhead">step 1 — tokenize</div>
+    <p class="explain" style="margin-top:0;">Each character maps to an integer id via a fixed lookup table built
+    from the training corpus's alphabet. This is the entire "tokenizer" — real GPTs use sub-word tokenizers
+    (byte-pair encoding) over ~50,000 tokens; we use raw characters so every step stays human-readable.</p>
+    <div class="tokrow" id="tokRow"></div>
+
+    <div class="subhead">step 2 — embed + positional encoding</div>
+    <p class="explain" style="margin-top:0;">Each token id looks up a learned row in the embedding table
+    <code>wte</code> (token meaning), and is added to a learned row in <code>wpe</code> (position in the
+    sequence). The sum is the model's starting representation for that position — the first state of the
+    residual stream.</p>
+    <div class="heatmap-wrap"><canvas id="embedHeat"></canvas></div>
+    <div class="legend"><span class="grad"></span><span>low → high activation</span></div>
+
+    <div id="layersHost"></div>
+
+    <div class="layer-block" id="finalBlock">
+      <div class="layer-head"><span class="name">final layer norm → unembed → softmax</span><span>read the answer</span></div>
+      <div class="layer-body open">
+        <p class="explain" style="margin-top:0;">The last residual stream is normalized once more, then
+        multiplied by <code>wte<sup>T</sup></code> (the <i>same</i> embedding matrix, transposed — "weight
+        tying," used by GPT-2 and nanoGPT to halve the parameter count and tie meaning-in to meaning-out) to get
+        a score per vocabulary character, then softmaxed into probabilities.</p>
+        <div class="subhead">distribution over next character, at the final position</div>
+        <canvas id="finalDist" width="900" height="170"></canvas>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= GENERATE ================= -->
+<section id="generate">
+  <p class="stag">04 — autoregressive generation</p>
+  <h2>Sample, append, repeat</h2>
+  <p class="explain">Generation is just the forward pass above, run over and over: predict a distribution for
+  the next character, <b>sample</b> one (temperature controls how greedy vs. random), append it to the context,
+  and feed the whole thing back in. There is no separate "writing" mechanism — it is one-token-at-a-time
+  prediction, all the way down.</p>
+  <div class="panel">
+    <label class="field">seed text</label>
+    <input type="text" id="genSeed" value="attention ">
+    <div class="panel-row" style="margin-top:12px;">
+      <div class="panel-col">
+        <label class="field">temperature: <span id="tempVal">0.7</span></label>
+        <input type="range" id="temp" min="0.05" max="1.6" step="0.05" value="0.7">
+      </div>
+      <div class="panel-col">
+        <label class="field">characters to generate: <span id="genNVal">120</span></label>
+        <input type="range" id="genN" min="20" max="300" step="10" value="120">
+      </div>
+    </div>
+    <div class="btnrow"><button class="primary" id="btnGenerate">generate</button><button id="btnStop" disabled>stop</button></div>
+    <div class="panel" style="background:var(--void);margin-top:14px;">
+      <div id="genOut" style="font-family:var(--mono);font-size:15px;line-height:1.7;white-space:pre-wrap;min-height:60px;"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= PYTHON ================= -->
+<section id="python">
+  <p class="stag">05 — the real thing</p>
+  <h2>The exact same model, in real PyTorch</h2>
+  <p class="explain">Everything above is a faithful (if small) GPT. Below is the architecture written as actual,
+  runnable PyTorch — the same shapes, the same residual stream, the same weight tying — so you can map every
+  visual panel above onto real code. The complete file (training script included) is attached to this
+  conversation as <span class="pill">model.py</span> <span class="pill">train.py</span>; run it on a GPU and it
+  scales from this toy character model up to a genuine small language model.</p>
+
+  <div class="codepanel">
+    <div class="tag">model.py — causal self-attention (the part that does the "looking at other tokens")</div>
+    <pre><span class="kw">class</span> <span class="fn">CausalSelfAttention</span>(nn.Module):
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, n_embd, n_head, block_size):
+        super().__init__()
+        self.n_head = n_head
+        self.c_attn = nn.Linear(n_embd, 3 * n_embd)   <span class="cm"># produces Q, K, V in one matmul</span>
+        self.c_proj = nn.Linear(n_embd, n_embd)        <span class="cm"># output projection (Wo above)</span>
+        mask = torch.tril(torch.ones(block_size, block_size))
+        self.register_buffer(<span class="str">"mask"</span>, mask.view(1, 1, block_size, block_size))
+
+    <span class="kw">def</span> <span class="fn">forward</span>(self, x):                      <span class="cm"># x: (B, T, C)</span>
+        B, T, C = x.shape
+        q, k, v = self.c_attn(x).split(C, dim=2)
+        hd = C // self.n_head
+        q = q.view(B, T, self.n_head, hd).transpose(1, 2)   <span class="cm"># (B, nh, T, hd)</span>
+        k = k.view(B, T, self.n_head, hd).transpose(1, 2)
+        v = v.view(B, T, self.n_head, hd).transpose(1, 2)
+
+        att = (q @ k.transpose(-2, -1)) / math.sqrt(hd)      <span class="cm"># (B, nh, T, T) — raw attention scores</span>
+        att = att.masked_fill(self.mask[:, :, :T, :T] == 0, float(<span class="str">'-inf'</span>))  <span class="cm"># causal mask: can't see the future</span>
+        att = F.softmax(att, dim=-1)                          <span class="cm"># this row is exactly the heatmap you saw above</span>
+        y = att @ v                                            <span class="cm"># weighted sum of value vectors</span>
+        y = y.transpose(1, 2).contiguous().view(B, T, C)
+        <span class="kw">return</span> self.c_proj(y)</pre>
+  </div>
+
+  <div class="twocol">
+    <div class="codepanel">
+      <div class="tag">model.py — the block (attention + MLP, pre-norm, residual)</div>
+      <pre><span class="kw">class</span> <span class="fn">Block</span>(nn.Module):
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, n_embd, n_head, block_size):
+        super().__init__()
+        self.ln1 = nn.LayerNorm(n_embd)
+        self.attn = CausalSelfAttention(n_embd, n_head, block_size)
+        self.ln2 = nn.LayerNorm(n_embd)
+        self.mlp = nn.Sequential(
+            nn.Linear(n_embd, 4 * n_embd),
+            nn.GELU(),
+            nn.Linear(4 * n_embd, n_embd),
+        )
+
+    <span class="kw">def</span> <span class="fn">forward</span>(self, x):
+        x = x + self.attn(self.ln1(x))   <span class="cm"># residual stream: add, never replace</span>
+        x = x + self.mlp(self.ln2(x))
+        <span class="kw">return</span> x</pre>
+    </div>
+    <div class="codepanel">
+      <div class="tag">model.py — full GPT (embed → blocks → unembed)</div>
+      <pre><span class="kw">class</span> <span class="fn">GPT</span>(nn.Module):
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, vocab_size, block_size,
+                 n_embd=24, n_head=3, n_layer=3):
+        super().__init__()
+        self.wte = nn.Embedding(vocab_size, n_embd)
+        self.wpe = nn.Embedding(block_size, n_embd)
+        self.blocks = nn.ModuleList(
+            [Block(n_embd, n_head, block_size) for _ in range(n_layer)])
+        self.ln_f = nn.LayerNorm(n_embd)
+        <span class="cm"># weight tying: reuse wte as the unembedding matrix</span>
+        self.lm_head = nn.Linear(n_embd, vocab_size, bias=False)
+        self.lm_head.weight = self.wte.weight
+
+    <span class="kw">def</span> <span class="fn">forward</span>(self, idx):
+        B, T = idx.shape
+        pos = torch.arange(T, device=idx.device)
+        x = self.wte(idx) + self.wpe(pos)     <span class="cm"># the FIRST residual stream state</span>
+        <span class="kw">for</span> block <span class="kw">in</span> self.blocks:
+            x = block(x)
+        x = self.ln_f(x)
+        <span class="kw">return</span> self.lm_head(x)               <span class="cm"># (B, T, vocab_size) logits</span></pre>
+    </div>
+  </div>
+
+  <p class="footnote">This is, deliberately, ~95% of what nanoGPT's <code>model.py</code> contains — Andrej
+  Karpathy's real reference implementation just adds dropout, bias terms, Flash Attention for speed, and
+  KV-caching for fast generation. Everything <i>structural</i> is above.</p>
+</section>
+
+<!-- ================= HOW TO BUILD YOUR OWN ================= -->
+<section id="howto">
+  <p class="stag">06 — from here to a real LLM</p>
+  <h2>What actually changes as this scales up</h2>
+  <p class="explain">Nothing about the <i>architecture</i> changes between this toy and GPT-2/GPT-3-scale models —
+  only the numbers, the tokenizer, and the engineering around them:</p>
+  <div class="panel">
+    <div class="twocol">
+      <div>
+        <div class="subhead">what stays identical</div>
+        <p class="explain" style="margin-top:0;">Embedding → N×(attention, MLP) → LayerNorm → unembed. Causal
+        masking. Residual connections. Cross-entropy training on "predict the next token." Weight tying.
+        Literally the code above.</p>
+        <div class="subhead">what scales up</div>
+        <p class="explain" style="margin-top:0;"><code>n_embd</code>: 24 → 768–12288. <code>n_layer</code>: 3 →
+        12–96+. <code>n_head</code>: 3 → 12–96. <code>block_size</code> (context): 16 → 2048–1,000,000+. Training
+        tokens: hundreds of characters → trillions of sub-word tokens.</p>
+      </div>
+      <div>
+        <div class="subhead">what gets added in practice</div>
+        <p class="explain" style="margin-top:0;">Byte-pair-encoding tokenizer (vocab ~50k subwords instead of
+        ~30 characters). AdamW with learning-rate warmup + cosine decay. Dropout. Mixed precision + multi-GPU
+        sharding. Flash Attention (same math, fused kernel). RLHF / instruction-tuning <i>after</i> this
+        pretraining stage, to turn "predicts plausible text" into "follows instructions."</p>
+        <div class="subhead">the honest one-sentence summary</div>
+        <p class="explain" style="margin-top:0;">An LLM is this exact loop — predict the next token, compute how
+        wrong you were, nudge every weight to be slightly less wrong, repeat billions of times — at a scale
+        large enough that "slightly less wrong at predicting text" becomes "models grammar, facts, reasoning
+        patterns, and style."</p>
+      </div>
+    </div>
+  </div>
+  <p class="footnote">Suggested path if you want to build this for real, Karpathy-style: 1) implement
+  <span class="pill">micrograd</span> (scalar autograd) by hand — you basically just did the matrix version of
+  this above. 2) Implement <span class="pill">makemore</span> (bigram → MLP → tiny attention) on a real text
+  corpus. 3) Run the attached <a class="dl" href="#">train.py</a> on a GPU with a real BPE tokenizer (e.g.
+  <code>tiktoken</code>) over a few-MB text file (Tiny Shakespeare is the classic first dataset). 4) Scale
+  up <code>n_layer</code>/<code>n_embd</code> as compute allows.</p>
+</section>
+
+</div>
+
+<script>
+// ============================================================================
+// PART A — matgrad: a tiny reverse-mode autograd engine over 2D matrices.
+// Same spirit as Karpathy's micrograd, but each Value node holds a matrix
+// instead of a scalar, because a transformer's numbers are vectors/matrices.
+// ============================================================================
+function zeros(r,c){const o=new Array(r);for(let i=0;i<r;i++)o[i]=new Float64Array(c);return o;}
+function randMat(r,c,s){const o=zeros(r,c);for(let i=0;i<r;i++)for(let j=0;j<c;j++)o[i][j]=(Math.random()*2-1)*s;return o;}
+
+class Value{
+  constructor(data,children=[],op=''){this.data=data;this.rows=data.length;this.cols=data[0].length;
+    this.grad=zeros(this.rows,this.cols);this.prev=children;this.op=op;this._backward=()=>{};}
+  static of(data){return new Value(data,[],'leaf');}
+  zeroGrad(){this.grad=zeros(this.rows,this.cols);}
+}
+function backwardPass(root){
+  const topo=[],seen=new Set();
+  (function build(v){if(!seen.has(v)){seen.add(v);for(const p of v.prev)build(p);topo.push(v);}})(root);
+  root.grad=[[1]];
+  for(let i=topo.length-1;i>=0;i--) topo[i]._backward();
+}
+function matmul(a,b){
+  const out=zeros(a.rows,b.cols);
+  for(let i=0;i<a.rows;i++)for(let k=0;k<a.cols;k++){const av=a.data[i][k];if(av===0)continue;
+    for(let j=0;j<b.cols;j++) out[i][j]+=av*b.data[k][j];}
+  const v=new Value(out,[a,b],'matmul');
+  v._backward=()=>{for(let i=0;i<a.rows;i++)for(let j=0;j<b.cols;j++){const g=v.grad[i][j];if(g===0)continue;
+    for(let k=0;k<a.cols;k++){a.grad[i][k]+=g*b.data[k][j]; b.grad[k][j]+=g*a.data[i][k];}}};
+  return v;
+}
+function add(a,b){
+  const bcast=b.rows===1 && a.rows!==1;
+  const out=zeros(a.rows,a.cols);
+  for(let i=0;i<a.rows;i++)for(let j=0;j<a.cols;j++) out[i][j]=a.data[i][j]+(bcast?b.data[0][j]:b.data[i][j]);
+  const v=new Value(out,[a,b],'add');
+  v._backward=()=>{for(let i=0;i<a.rows;i++)for(let j=0;j<a.cols;j++){a.grad[i][j]+=v.grad[i][j];
+    if(bcast) b.grad[0][j]+=v.grad[i][j]; else b.grad[i][j]+=v.grad[i][j];}};
+  return v;
+}
+function scaleV(a,s){
+  const out=a.data.map(row=>row.map(x=>x*s));
+  const v=new Value(out,[a],'scale');
+  v._backward=()=>{for(let i=0;i<a.rows;i++)for(let j=0;j<a.cols;j++)a.grad[i][j]+=v.grad[i][j]*s;};
+  return v;
+}
+function transposeV(a){
+  const out=zeros(a.cols,a.rows);
+  for(let i=0;i<a.rows;i++)for(let j=0;j<a.cols;j++) out[j][i]=a.data[i][j];
+  const v=new Value(out,[a],'T');
+  v._backward=()=>{for(let i=0;i<a.rows;i++)for(let j=0;j<a.cols;j++) a.grad[i][j]+=v.grad[j][i];};
+  return v;
+}
+function addConst(a,c){
+  const out=zeros(a.rows,a.cols);
+  for(let i=0;i<a.rows;i++)for(let j=0;j<a.cols;j++) out[i][j]=a.data[i][j]+c[i][j];
+  const v=new Value(out,[a],'addConst');
+  v._backward=()=>{for(let i=0;i<a.rows;i++)for(let j=0;j<a.cols;j++) a.grad[i][j]+=v.grad[i][j];};
+  return v;
+}
+function geluV(a){
+  const c=Math.sqrt(2/Math.PI);
+  const fwd=x=>0.5*x*(1+Math.tanh(c*(x+0.044715*x*x*x)));
+  const out=a.data.map(row=>row.map(fwd));
+  const v=new Value(out,[a],'gelu');
+  v._backward=()=>{for(let i=0;i<a.rows;i++)for(let j=0;j<a.cols;j++){
+    const x=a.data[i][j], t=Math.tanh(c*(x+0.044715*x*x*x));
+    const dt=c*(1+3*0.044715*x*x)*(1-t*t);
+    a.grad[i][j]+=v.grad[i][j]*(0.5*(1+t)+0.5*x*dt);
+  }};
+  return v;
+}
+function softmaxRows(a){
+  const out=zeros(a.rows,a.cols);
+  for(let i=0;i<a.rows;i++){let m=-Infinity;for(let j=0;j<a.cols;j++)m=Math.max(m,a.data[i][j]);
+    let s=0;for(let j=0;j<a.cols;j++){out[i][j]=Math.exp(a.data[i][j]-m);s+=out[i][j];}
+    for(let j=0;j<a.cols;j++)out[i][j]/=s;}
+  const v=new Value(out,[a],'softmax');
+  v._backward=()=>{for(let i=0;i<a.rows;i++){let dot=0;for(let k=0;k<a.cols;k++)dot+=v.grad[i][k]*out[i][k];
+    for(let j=0;j<a.cols;j++) a.grad[i][j]+=out[i][j]*(v.grad[i][j]-dot);}};
+  return v;
+}
+function layerNorm(a,gamma,beta,eps=1e-5){
+  const out=zeros(a.rows,a.cols), xhat=zeros(a.rows,a.cols), invstd=new Float64Array(a.rows);
+  for(let i=0;i<a.rows;i++){
+    let mean=0;for(let j=0;j<a.cols;j++)mean+=a.data[i][j]; mean/=a.cols;
+    let varr=0;for(let j=0;j<a.cols;j++)varr+=(a.data[i][j]-mean)**2; varr/=a.cols;
+    const is=1/Math.sqrt(varr+eps); invstd[i]=is;
+    for(let j=0;j<a.cols;j++){xhat[i][j]=(a.data[i][j]-mean)*is; out[i][j]=xhat[i][j]*gamma.data[0][j]+beta.data[0][j];}
+  }
+  const v=new Value(out,[a,gamma,beta],'layernorm');
+  v._backward=()=>{const N=a.cols;
+    for(let i=0;i<a.rows;i++){let dxhatSum=0,dxhatDotXhat=0; const dxhat=new Float64Array(N);
+      for(let j=0;j<N;j++){dxhat[j]=v.grad[i][j]*gamma.data[0][j]; dxhatSum+=dxhat[j]; dxhatDotXhat+=dxhat[j]*xhat[i][j];}
+      for(let j=0;j<N;j++){
+        a.grad[i][j]+=(invstd[i]/N)*(N*dxhat[j]-dxhatSum-xhat[i][j]*dxhatDotXhat);
+        gamma.grad[0][j]+=v.grad[i][j]*xhat[i][j]; beta.grad[0][j]+=v.grad[i][j];
+      }}};
+  return v;
+}
+function embedLookup(table,idx){
+  const out=idx.map(i=>Float64Array.from(table.data[i]));
+  const v=new Value(out,[table],'embed');
+  v._backward=()=>{idx.forEach((row,i)=>{for(let j=0;j<table.cols;j++) table.grad[row][j]+=v.grad[i][j];});};
+  return v;
+}
+function concatCols(parts){
+  const rows=parts[0].rows, cols=parts.reduce((s,p)=>s+p.cols,0);
+  const out=zeros(rows,cols); let off=0;
+  for(const p of parts){for(let i=0;i<rows;i++)for(let j=0;j<p.cols;j++) out[i][off+j]=p.data[i][j]; off+=p.cols;}
+  const v=new Value(out,parts,'concat');
+  v._backward=()=>{let o=0; for(const p of parts){for(let i=0;i<rows;i++)for(let j=0;j<p.cols;j++) p.grad[i][j]+=v.grad[i][o+j]; o+=p.cols;}};
+  return v;
+}
+function sliceCols(a,start,end){
+  const out=a.data.map(row=>Float64Array.from(row.slice(start,end)));
+  const v=new Value(out,[a],'slice');
+  v._backward=()=>{for(let i=0;i<a.rows;i++)for(let j=start;j<end;j++) a.grad[i][j]+=v.grad[i][j-start];};
+  return v;
+}
+function crossEntropy(logits,targets){
+  const probs=zeros(logits.rows,logits.cols); let loss=0;
+  for(let i=0;i<logits.rows;i++){let m=-Infinity;for(let j=0;j<logits.cols;j++)m=Math.max(m,logits.data[i][j]);
+    let s=0;for(let j=0;j<logits.cols;j++){probs[i][j]=Math.exp(logits.data[i][j]-m); s+=probs[i][j];}
+    for(let j=0;j<logits.cols;j++) probs[i][j]/=s;
+    loss+=-Math.log(Math.max(probs[i][targets[i]],1e-12));}
+  loss/=logits.rows;
+  const v=new Value([[loss]],[logits],'ce');
+  v._backward=()=>{const N=logits.rows;
+    for(let i=0;i<N;i++)for(let j=0;j<logits.cols;j++){const t=j===targets[i]?1:0; logits.grad[i][j]+=(probs[i][j]-t)/N;}};
+  v.probs=probs;
+  return v;
+}
+
+// ============================================================================
+// PART B — the GPT itself: config, params, forward pass (with an optional
+// "trace" that records every intermediate matrix for visualization).
+// ============================================================================
+const CFG = { nEmbd:24, nHead:3, nLayer:3, blockSize:16, hidden:96, lr:0.08 };
+CFG.headDim = CFG.nEmbd / CFG.nHead;
+
+let state = null; // { stoi, itos, vocabSize, params, lossHistory, stepsTrained }
+
+function buildVocab(text){
+  const chars = Array.from(new Set(text.split(''))).sort();
+  const stoi={}; chars.forEach((c,i)=>stoi[c]=i);
+  return { stoi, itos:chars, vocabSize:chars.length };
+}
+function encode(text, stoi){
+  return text.split('').filter(c=>c in stoi).map(c=>stoi[c]);
+}
+function initParams(vocabSize){
+  const p={};
+  p.wte=Value.of(randMat(vocabSize,CFG.nEmbd,0.08));
+  p.wpe=Value.of(randMat(CFG.blockSize,CFG.nEmbd,0.08));
+  p.layers=[];
+  for(let l=0;l<CFG.nLayer;l++){
+    p.layers.push({
+      ln1g:Value.of([Array(CFG.nEmbd).fill(1)]), ln1b:Value.of([Array(CFG.nEmbd).fill(0)]),
+      Wqkv:Value.of(randMat(CFG.nEmbd,3*CFG.nEmbd,0.08)), Wo:Value.of(randMat(CFG.nEmbd,CFG.nEmbd,0.08)),
+      ln2g:Value.of([Array(CFG.nEmbd).fill(1)]), ln2b:Value.of([Array(CFG.nEmbd).fill(0)]),
+      W1:Value.of(randMat(CFG.nEmbd,CFG.hidden,0.08)), W2:Value.of(randMat(CFG.hidden,CFG.nEmbd,0.08)),
+    });
+  }
+  p.lnfg=Value.of([Array(CFG.nEmbd).fill(1)]); p.lnfb=Value.of([Array(CFG.nEmbd).fill(0)]);
+  return p;
+}
+function allParams(p){
+  const out=[p.wte,p.wpe,p.lnfg,p.lnfb];
+  for(const l of p.layers) out.push(l.ln1g,l.ln1b,l.Wqkv,l.Wo,l.ln2g,l.ln2b,l.W1,l.W2);
+  return out;
+}
+function causalMask(T){
+  const m=zeros(T,T);
+  for(let i=0;i<T;i++)for(let j=0;j<T;j++) m[i][j]=j>i?-1e9:0;
+  return m;
+}
+function attention(x,layer,T,mask,trace){
+  const qkv=matmul(x,layer.Wqkv);
+  const q=sliceCols(qkv,0,CFG.nEmbd), k=sliceCols(qkv,CFG.nEmbd,2*CFG.nEmbd), v=sliceCols(qkv,2*CFG.nEmbd,3*CFG.nEmbd);
+  const heads=[]; const headAttns=[];
+  for(let h=0;h<CFG.nHead;h++){
+    const qh=sliceCols(q,h*CFG.headDim,(h+1)*CFG.headDim), kh=sliceCols(k,h*CFG.headDim,(h+1)*CFG.headDim), vh=sliceCols(v,h*CFG.headDim,(h+1)*CFG.headDim);
+    let scores=scaleV(matmul(qh,transposeV(kh)),1/Math.sqrt(CFG.headDim));
+    scores=addConst(scores,mask);
+    const attn=softmaxRows(scores);
+    if(trace) headAttns.push(attn.data.map(r=>Array.from(r)));
+    heads.push(matmul(attn,vh));
+  }
+  if(trace) trace.headAttns=headAttns;
+  return matmul(concatCols(heads),layer.Wo);
+}
+function mlp(x,layer){ return matmul(geluV(matmul(x,layer.W1)),layer.W2); }
+
+function forward(p, idxs, trace){
+  const T=idxs.length, mask=causalMask(T);
+  const tok=embedLookup(p.wte,idxs), pos=embedLookup(p.wpe,Array.from({length:T},(_,i)=>i));
+  let x=add(tok,pos);
+  if(trace) trace.embed = x.data.map(r=>Array.from(r));
+  if(trace) trace.layers = [];
+  for(const layer of p.layers){
+    const layerTrace = trace ? {} : null;
+    const a=attention(layerNorm(x,layer.ln1g,layer.ln1b),layer,T,mask,layerTrace);
+    x=add(x,a);
+    if(layerTrace) layerTrace.postAttn = x.data.map(r=>Array.from(r));
+    const m=mlp(layerNorm(x,layer.ln2g,layer.ln2b),layer);
+    x=add(x,m);
+    if(layerTrace){ layerTrace.postMlp = x.data.map(r=>Array.from(r)); trace.layers.push(layerTrace); }
+  }
+  const xln=layerNorm(x,p.lnfg,p.lnfb);
+  const logits=matmul(xln,transposeV(p.wte));
+  return logits;
+}
+// logit lens: project an arbitrary residual-stream snapshot through the
+// model's own final LN + unembedding, to read "what would it predict here?"
+function logitLens(p, residualRows, itos){
+  const xv = Value.of(residualRows.map(r=>Float64Array.from(r)));
+  const xln = layerNorm(xv, p.lnfg, p.lnfb);
+  const logits = matmul(xln, transposeV(p.wte));
+  return logits.data.map(row=>{
+    const probs=softmaxArr(row);
+    let maxI=0; for(let j=1;j<probs.length;j++) if(probs[j]>probs[maxI]) maxI=j;
+    return { ch: itos[maxI], p: probs[maxI] };
+  });
+}
+function softmaxArr(row){
+  let m=-Infinity; for(const x of row) m=Math.max(m,x);
+  const ex=row.map(x=>Math.exp(x-m)); const s=ex.reduce((a,b)=>a+b,0);
+  return ex.map(x=>x/s);
+}
+
+// ============================================================================
+// PART C — training loop
+// ============================================================================
+function freshState(){
+  const corpusText = document.getElementById('corpus').value.toLowerCase();
+  const {stoi,itos,vocabSize} = buildVocab(corpusText);
+  state = { stoi, itos, vocabSize, data: encode(corpusText, stoi),
+            params: initParams(vocabSize), lossHistory: [], stepsTrained: 0 };
+  document.getElementById('statVocab').textContent = vocabSize;
+  document.getElementById('statSteps').textContent = '0';
+  document.getElementById('statLoss').textContent = '–';
+  document.getElementById('randomLoss').textContent = Math.log(vocabSize).toFixed(2);
+  document.getElementById('cfgline').textContent =
+    `${CFG.nLayer} layers · ${CFG.nHead} heads · ${CFG.nEmbd}-dim embeddings · ${CFG.blockSize}-token context`;
+  drawLossChart();
+  updateMathPanel(vocabSize);
+}
+function updateMathPanel(vocabSize){
+  const d = CFG.nEmbd, L = CFG.nLayer, H = CFG.nHead;
+  const el = id => document.getElementById(id);
+  if(el('mDim')) el('mDim').textContent = d;
+  if(el('mVocab')) el('mVocab').textContent = vocabSize;
+  if(el('ptD')) el('ptD').textContent = d;
+  if(el('ptL')) el('ptL').textContent = L;
+  if(el('ptH')) el('ptH').textContent = H;
+  if(el('ptV')) el('ptV').textContent = vocabSize + ' characters';
+  // params ≈ V*d (tied embedding) + L * (4d^2 [Wqkv+Wo] + 8d^2 [W1+W2]) + small LN terms
+  const total = vocabSize*d + L*(4*d*d + 8*d*d) + d /*wpe rows negligible-ish, add roughly*/ * CFG.blockSize;
+  if(el('ptTotal')) el('ptTotal').textContent = total.toLocaleString();
+}
+function trainSteps(n, onDone){
+  const params = allParams(state.params);
+  const batchSize = 2;
+  let i=0;
+  const t0 = performance.now();
+  function chunk(){
+    const chunkSize = Math.min(8, n-i);
+    for(let c=0;c<chunkSize;c++){
+      params.forEach(pr=>pr.zeroGrad());
+      let totalLoss=0;
+      // average grads over a small batch of random windows
+      for(let b=0;b<batchSize;b++){
+        const maxStart = state.data.length - CFG.blockSize - 1;
+        const start = Math.max(0, Math.floor(Math.random()*maxStart));
+        const xs = state.data.slice(start, start+CFG.blockSize);
+        const ys = state.data.slice(start+1, start+CFG.blockSize+1);
+        const logits = forward(state.params, xs, null);
+        const loss = crossEntropy(logits, ys);
+        backwardPass(loss);
+        totalLoss += loss.data[0][0];
+      }
+      for(const pr of params) for(let r=0;r<pr.rows;r++) for(let cI=0;cI<pr.cols;cI++)
+        pr.data[r][cI] -= (CFG.lr/batchSize) * pr.grad[r][cI];
+      state.stepsTrained++;
+      state.lossHistory.push(totalLoss/batchSize);
+      if(state.lossHistory.length>400) state.lossHistory.shift();
+    }
+    i+=chunkSize;
+    document.getElementById('statSteps').textContent = state.stepsTrained;
+    document.getElementById('statLoss').textContent = state.lossHistory[state.lossHistory.length-1].toFixed(3);
+    drawLossChart();
+    if(i<n){ requestAnimationFrame(chunk); }
+    else {
+      document.getElementById('statTime').textContent = ((performance.now()-t0)/n*100).toFixed(0);
+      if(onDone) onDone();
+    }
+  }
+  chunk();
+}
+
+// ============================================================================
+// PART D — drawing helpers
+// ============================================================================
+function heatColor(v, lo, hi){
+  const t = Math.max(0, Math.min(1, (v-lo)/(hi-lo+1e-9)));
+  // 4-stop gradient: deep blue -> cyan -> amber -> rose
+  const stops=[[26,58,74],[98,214,232],[255,180,84],[255,117,151]];
+  const seg = Math.min(2, Math.floor(t*3));
+  const localT = t*3-seg;
+  const a=stops[seg], b=stops[seg+1];
+  const r=Math.round(a[0]+(b[0]-a[0])*localT), g=Math.round(a[1]+(b[1]-a[1])*localT), bl=Math.round(a[2]+(b[2]-a[2])*localT);
+  return `rgb(${r},${g},${bl})`;
+}
+function drawHeatmap(canvas, matrix, cellW, cellH, rowLabels){
+  const rows=matrix.length, cols=matrix[0].length;
+  const labelW = rowLabels ? 22 : 0;
+  canvas.width = cols*cellW + labelW;
+  canvas.height = rows*cellH;
+  const ctx = canvas.getContext('2d');
+  let lo=Infinity, hi=-Infinity;
+  for(const row of matrix) for(const v of row){ lo=Math.min(lo,v); hi=Math.max(hi,v); }
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  for(let i=0;i<rows;i++){
+    if(rowLabels){
+      ctx.fillStyle='#545d70'; ctx.font='10px monospace'; ctx.textBaseline='middle';
+      ctx.fillText(rowLabels[i]??'', 2, i*cellH+cellH/2);
+    }
+    for(let j=0;j<cols;j++){
+      ctx.fillStyle = heatColor(matrix[i][j], lo, hi);
+      ctx.fillRect(labelW + j*cellW, i*cellH, cellW-1, cellH-1);
+    }
+  }
+}
+function drawLossChart(){
+  const canvas = document.getElementById('lossChart');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  const hist = state ? state.lossHistory : [];
+  ctx.strokeStyle = '#262b38'; ctx.lineWidth=1;
+  for(let g=0; g<=4; g++){ const y = 10 + g*(canvas.height-30)/4; ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(canvas.width,y); ctx.stroke(); }
+  if(hist.length<2) return;
+  const maxL = Math.max(...hist, Math.log(state.vocabSize));
+  const minL = Math.min(...hist, 0);
+  ctx.strokeStyle = '#ff7597'; ctx.lineWidth=1.8; ctx.beginPath();
+  hist.forEach((l,i)=>{
+    const x = i/(hist.length-1)*canvas.width;
+    const y = 10 + (1 - (l-minL)/(maxL-minL+1e-9)) * (canvas.height-30);
+    i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+  });
+  ctx.stroke();
+  // baseline at ln(vocab)
+  const rl = Math.log(state.vocabSize);
+  const ry = 10 + (1 - (rl-minL)/(maxL-minL+1e-9)) * (canvas.height-30);
+  ctx.strokeStyle = '#545d70'; ctx.setLineDash([4,4]); ctx.beginPath(); ctx.moveTo(0,ry); ctx.lineTo(canvas.width,ry); ctx.stroke(); ctx.setLineDash([]);
+}
+
+// ============================================================================
+// PART E — forward-pass visualization wiring
+// ============================================================================
+function runForwardVisualization(){
+  const promptRaw = document.getElementById('prompt').value.toLowerCase();
+  const idxs = encode(promptRaw, state.stoi).slice(-CFG.blockSize);
+  if(idxs.length===0){ alert('Prompt has no characters from the trained vocabulary — train on text containing these characters first.'); return; }
+  const chars = idxs.map(i=>state.itos[i]);
+  const trace = {};
+  const logits = forward(state.params, idxs, trace);
+
+  document.getElementById('tokenStage').style.display = 'block';
+
+  // tokens
+  const tokRow = document.getElementById('tokRow');
+  tokRow.innerHTML = '';
+  chars.forEach((c,i)=>{
+    const d=document.createElement('div'); d.className='tok';
+    d.innerHTML = `<span class="idx">${idxs[i]}</span>${c===' '?'·':c}`;
+    tokRow.appendChild(d);
+  });
+
+  // embedding heatmap
+  drawHeatmap(document.getElementById('embedHeat'), trace.embed, 9, 18, chars.map(c=>c===' '?'·':c));
+
+  // layers
+  const host = document.getElementById('layersHost');
+  host.innerHTML = '';
+  trace.layers.forEach((lt, li)=>{
+    const block = document.createElement('div'); block.className='layer-block';
+    const lensAfter = logitLens(state.params, lt.postMlp, state.itos);
+    block.innerHTML = `
+      <div class="layer-head" onclick="this.nextElementSibling.classList.toggle('open')">
+        <span class="name">block ${li+1} / ${trace.layers.length}</span>
+        <span>attention + MLP</span>
+      </div>
+      <div class="layer-body ${li===trace.layers.length-1?'open':''}">
+        <div class="subhead">causal self-attention — averaged over ${CFG.nHead} heads (row = query position, col = key position it's attending to)</div>
+        <div class="heatmap-wrap"><canvas class="attnCanvas"></canvas></div>
+        <div class="subhead">residual stream after this block</div>
+        <div class="heatmap-wrap"><canvas class="postCanvas"></canvas></div>
+        <div class="subhead">logit lens — model's best guess for "next character" if you stopped reading right here</div>
+        <div class="lens-strip"></div>
+      </div>`;
+    host.appendChild(block);
+    // average attention across heads for a single readable heatmap
+    const T = lt.headAttns[0].length;
+    const avgAttn = zeros(T,T);
+    for(const h of lt.headAttns) for(let i=0;i<T;i++) for(let j=0;j<T;j++) avgAttn[i][j]+=h[i][j]/lt.headAttns.length;
+    drawHeatmap(block.querySelector('.attnCanvas'), avgAttn, 16, 16, chars.map(c=>c===' '?'·':c));
+    drawHeatmap(block.querySelector('.postCanvas'), lt.postMlp, 9, 18, chars.map(c=>c===' '?'·':c));
+    const lensStrip = block.querySelector('.lens-strip');
+    lensAfter.forEach(g=>{
+      const cell=document.createElement('div'); cell.className='lens-cell';
+      cell.innerHTML = `<div class="ch">${g.ch===' '?'·':g.ch}</div><div class="p">${(g.p*100).toFixed(0)}%</div>`;
+      lensStrip.appendChild(cell);
+    });
+  });
+
+  // final distribution at last position
+  const lastLogits = logits.data[logits.rows-1];
+  const probs = softmaxArr(Array.from(lastLogits));
+  drawBarChart(document.getElementById('finalDist'), probs, state.itos);
+}
+function drawBarChart(canvas, probs, itos){
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  const n = probs.length;
+  const w = canvas.width/n;
+  let maxI=0; for(let i=1;i<n;i++) if(probs[i]>probs[maxI]) maxI=i;
+  for(let i=0;i<n;i++){
+    const h = probs[i]*(canvas.height-26);
+    ctx.fillStyle = i===maxI ? '#ffb454' : '#62d6e8';
+    ctx.globalAlpha = i===maxI ? 1 : 0.55;
+    ctx.fillRect(i*w+1, canvas.height-22-h, w-2, h);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = '#8a93a8'; ctx.font='10px monospace'; ctx.textAlign='center';
+    ctx.fillText(itos[i]===' '?'·':itos[i], i*w+w/2, canvas.height-8);
+  }
+}
+
+// ============================================================================
+// PART F — generation
+// ============================================================================
+let generating = false;
+function sampleFromLogits(row, temperature){
+  const scaled = row.map(x=>x/Math.max(temperature,0.01));
+  const probs = softmaxArr(scaled);
+  let r = Math.random(), acc=0, choice=probs.length-1;
+  for(let i=0;i<probs.length;i++){ acc+=probs[i]; if(r<=acc){ choice=i; break; } }
+  return choice;
+}
+async function generateLoop(){
+  const seed = document.getElementById('genSeed').value.toLowerCase();
+  let idxs = encode(seed, state.stoi);
+  const n = parseInt(document.getElementById('genN').value);
+  const temp = parseFloat(document.getElementById('temp').value);
+  const out = document.getElementById('genOut');
+  out.textContent = seed;
+  generating = true;
+  document.getElementById('btnStop').disabled = false;
+  document.getElementById('btnGenerate').disabled = true;
+  for(let i=0;i<n && generating;i++){
+    const ctx = idxs.slice(-CFG.blockSize);
+    const logits = forward(state.params, ctx, null);
+    const lastRow = Array.from(logits.data[logits.rows-1]);
+    const choice = sampleFromLogits(lastRow, temp);
+    idxs.push(choice);
+    out.textContent += state.itos[choice];
+    if(i%2===0) await new Promise(r=>setTimeout(r, 12));
+  }
+  generating = false;
+  document.getElementById('btnStop').disabled = true;
+  document.getElementById('btnGenerate').disabled = false;
+}
+
+// ============================================================================
+// PART G — wire up UI
+// ============================================================================
+document.getElementById('btnTrain100').onclick = ()=> trainSteps(200);
+document.getElementById('btnTrain1000').onclick = ()=> trainSteps(2000);
+document.getElementById('btnReset').onclick = ()=> freshState();
+document.getElementById('btnRun').onclick = ()=> runForwardVisualization();
+document.getElementById('btnGenerate').onclick = ()=> generateLoop();
+document.getElementById('btnStop').onclick = ()=> { generating=false; };
+document.getElementById('temp').oninput = e=> document.getElementById('tempVal').textContent = e.target.value;
+document.getElementById('genN').oninput = e=> document.getElementById('genNVal').textContent = e.target.value;
+
+freshState();
+trainSteps(200, ()=> runForwardVisualization());
+</script>
+</body>
+</html>

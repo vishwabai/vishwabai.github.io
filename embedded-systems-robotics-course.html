@@ -1,0 +1,1566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Embedded Systems in Robotics — The Signal Lab</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+:root{
+  --bg:#0a0d0a;
+  --bg-raised:#10150e;
+  --bg-card:#141a12;
+  --line:#26331f;
+  --text:#e6f0e0;
+  --text-dim:#8fa085;
+  --text-faint:#586652;
+
+  --copper:#e0954a;
+  --signal:#7dfa8f;
+  --led:#ff6161;
+  --solder:#c7d0c2;
+  --blue:#5cc8ff;
+
+  --ch1:#5cc8ff;
+  --ch2:#e0954a;
+  --ch3:#a78bfa;
+  --ch4:#7dfa8f;
+  --ch5:#ff9f5c;
+  --ch6:#f472b6;
+  --ch7:#5cffe0;
+  --ch8:#ff6161;
+
+  --display:'Chakra Petch', sans-serif;
+  --body:'Inter', sans-serif;
+  --mono:'JetBrains Mono', monospace;
+
+  --fast:180ms;
+  --med:500ms;
+}
+
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+@media (prefers-reduced-motion: reduce){
+  html{scroll-behavior:auto;}
+  *{animation-duration:0.01ms !important; animation-iteration-count:1 !important; transition-duration:0.01ms !important; scroll-behavior:auto !important;}
+}
+
+body{
+  margin:0;
+  background:
+    radial-gradient(ellipse 1200px 600px at 50% -10%, rgba(125,250,143,0.06), transparent 60%),
+    var(--bg);
+  color:var(--text);
+  font-family:var(--body);
+  line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+  background-image:
+    linear-gradient(rgba(125,250,143,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(125,250,143,0.025) 1px, transparent 1px);
+  background-size:34px 34px;
+}
+
+h1,h2,h3,h4{font-family:var(--display); margin:0; letter-spacing:0.005em;}
+p{margin:0 0 1em 0;}
+.mono{font-family:var(--mono);}
+a{color:var(--signal);}
+
+#progress-rail{position:fixed; top:0; left:0; width:100%; height:3px; background:rgba(255,255,255,0.06); z-index:1000;}
+#progress-fill{height:100%; width:0%; background:linear-gradient(90deg, var(--signal), var(--copper)); transition:width 80ms linear;}
+
+#topnav{
+  position:fixed; top:3px; left:0; width:100%; z-index:999;
+  display:flex; align-items:center; justify-content:space-between;
+  padding:10px 22px; background:rgba(10,13,10,0.82); backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--line); font-family:var(--mono); font-size:13px;
+}
+#topnav .brand{color:var(--text); display:flex; align-items:center; gap:8px;}
+#topnav .dot{width:7px;height:7px;border-radius:50%;background:var(--signal); box-shadow:0 0 8px var(--signal);}
+#chapter-pips{display:flex; gap:6px;}
+.pip{width:9px; height:9px; border-radius:2px; background:var(--bg-card); border:1px solid var(--line); cursor:pointer; transition:all var(--fast);}
+.pip.done{background:var(--signal); border-color:var(--signal);}
+.pip.active{outline:2px solid var(--text-dim); outline-offset:2px;}
+
+main{max-width:100%; padding-top:54px;}
+.wrap{max-width:760px; margin:0 auto; padding:0 24px;}
+
+#hero{position:relative; min-height:92vh; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center; padding:90px 20px 60px; overflow:hidden;}
+#hero-canvas{position:absolute; inset:0; width:100%; height:100%; opacity:0.9;}
+.hero-content{position:relative; z-index:2; max-width:780px;}
+.eyebrow{
+  font-family:var(--mono); font-size:13px; color:var(--signal); letter-spacing:0.12em; text-transform:uppercase;
+  margin-bottom:18px; display:inline-flex; align-items:center; gap:8px; border:1px solid rgba(125,250,143,0.3);
+  padding:5px 12px; border-radius:4px; background:rgba(125,250,143,0.06);
+}
+.hero-title{font-size:clamp(32px, 5.6vw, 60px); font-weight:700; line-height:1.08; margin-bottom:22px;}
+.hero-title em{font-style:normal; color:var(--copper);}
+.hero-sub{font-size:18px; color:var(--text-dim); max-width:640px; margin:0 auto 30px;}
+.badge-row{display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-bottom:40px;}
+.badge{font-family:var(--mono); font-size:12.5px; color:var(--text-dim); border:1px solid var(--line); padding:7px 13px; border-radius:4px; background:var(--bg-card);}
+.badge strong{color:var(--text);}
+
+.roadmap{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; max-width:920px; width:100%; margin:0 auto; position:relative; z-index:2;}
+@media (max-width:760px){ .roadmap{grid-template-columns:repeat(2,1fr);} }
+.road-card{border:1px solid var(--line); background:var(--bg-card); border-radius:6px; padding:14px 12px; text-align:left; cursor:pointer; transition:transform var(--fast), border-color var(--fast); text-decoration:none; color:var(--text);}
+.road-card:hover{transform:translateY(-3px); border-color:var(--accent,var(--signal));}
+.road-card .num{font-family:var(--mono); font-size:11px; color:var(--accent,var(--signal));}
+.road-card .title{font-family:var(--display); font-size:14.5px; font-weight:600; margin-top:4px;}
+
+.chapter{padding:90px 0 70px; border-top:1px solid var(--line); opacity:0; transform:translateY(24px); transition:opacity 700ms ease, transform 700ms ease;}
+.chapter.visible{opacity:1; transform:translateY(0);}
+.chapter-head{display:flex; align-items:baseline; gap:14px; margin-bottom:8px;}
+.chapter-num{font-family:var(--mono); font-size:14px; color:var(--accent); border:1px solid var(--accent); border-radius:4px; padding:3px 9px;}
+.chapter-eyebrow{font-family:var(--mono); font-size:12px; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.08em;}
+.chapter h2{font-size:clamp(24px,3.6vw,36px); margin:6px 0 28px; color:var(--text);}
+.chapter h2 .accent{color:var(--accent);}
+
+.misconception{display:grid; grid-template-columns:1fr 1fr; gap:0; border:1px solid var(--line); border-radius:8px; overflow:hidden; margin:26px 0 34px;}
+@media (max-width:600px){ .misconception{grid-template-columns:1fr;} }
+.misconception > div{padding:18px 20px;}
+.misconception .think{background:rgba(255,97,97,0.06); border-right:1px solid var(--line);}
+@media (max-width:600px){ .misconception .think{border-right:none; border-bottom:1px solid var(--line);} }
+.misconception .truth{background:rgba(125,250,143,0.06);}
+.misconception .label{font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:8px; display:block;}
+.misconception .think .label{color:var(--led);}
+.misconception .truth .label{color:var(--signal);}
+.misconception p{font-size:14.5px; margin:0; color:var(--text-dim);}
+
+.analogy{border-left:3px solid var(--accent); background:var(--bg-card); border-radius:0 8px 8px 0; padding:16px 20px; margin:22px 0;}
+.analogy .label{font-family:var(--mono); font-size:11px; color:var(--accent); text-transform:uppercase; letter-spacing:0.08em; display:block; margin-bottom:6px;}
+.analogy p{margin:0; font-size:15px;}
+
+.sticking{border:1px dashed var(--copper); border-radius:8px; padding:16px 20px; margin:26px 0; background:rgba(224,149,74,0.05);}
+.sticking .label{font-family:var(--mono); font-size:12px; color:var(--copper); font-weight:600; display:flex; align-items:center; gap:7px; margin-bottom:8px;}
+.sticking p{margin:0; font-size:14.5px; color:var(--text-dim);}
+
+.diagram-frame{border:1px solid var(--line); border-radius:8px; background:var(--bg-raised); padding:18px; margin:26px 0;}
+.diagram-caption{font-family:var(--mono); font-size:12px; color:var(--text-faint); text-align:center; margin-top:10px;}
+.replay-btn{font-family:var(--mono); font-size:11.5px; color:var(--text-dim); background:var(--bg-card); border:1px solid var(--line); border-radius:4px; padding:5px 11px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; margin-top:8px; margin-right:8px;}
+.replay-btn:hover{color:var(--text); border-color:var(--accent);}
+
+.panel{border:1px solid var(--line); border-radius:8px; padding:22px; margin:28px 0; background:var(--bg-card);}
+.panel-title{font-family:var(--mono); font-size:12px; color:var(--accent); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:14px; display:flex; align-items:center; gap:8px;}
+
+button{font-family:var(--body); cursor:pointer;}
+.btn{font-family:var(--mono); font-size:13px; color:var(--bg); background:var(--accent); border:none; border-radius:4px; padding:9px 16px; font-weight:600; transition:opacity var(--fast);}
+.btn:hover{opacity:0.85;}
+.btn-ghost{font-family:var(--mono); font-size:13px; color:var(--text-dim); background:transparent; border:1px solid var(--line); border-radius:4px; padding:8px 15px;}
+.btn-ghost:hover{color:var(--text); border-color:var(--accent);}
+
+textarea{width:100%; min-height:90px; background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:12px; font-family:var(--body); font-size:14.5px; resize:vertical;}
+textarea:focus{outline:2px solid var(--accent); outline-offset:1px;}
+
+.quiz-q{margin-bottom:18px;}
+.quiz-q .qtext{font-size:14.5px; font-weight:600; margin-bottom:10px;}
+.quiz-opts{display:flex; flex-direction:column; gap:8px;}
+.qopt{text-align:left; background:var(--bg); border:1px solid var(--line); border-radius:6px; padding:10px 14px; color:var(--text); font-size:14px; transition:all var(--fast);}
+.qopt:hover{border-color:var(--accent);}
+.qopt.correct{border-color:var(--signal); background:rgba(125,250,143,0.1);}
+.qopt.wrong{border-color:var(--led); background:rgba(255,97,97,0.1);}
+.qopt:disabled{cursor:default;}
+.qfeedback{font-size:13.5px; margin-top:8px; padding:10px 12px; border-radius:6px; display:none;}
+.qfeedback.show{display:block;}
+.qfeedback.ok{background:rgba(125,250,143,0.1); color:var(--signal);}
+.qfeedback.bad{background:rgba(255,97,97,0.1); color:var(--led);}
+
+.takeaway{border:1px solid var(--accent); border-radius:8px; padding:18px 22px; margin:30px 0 10px; background:linear-gradient(135deg, rgba(255,255,255,0.03), transparent);}
+.takeaway .label{font-family:var(--mono); font-size:11px; color:var(--accent); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:8px; display:block;}
+.takeaway ul{margin:0; padding-left:18px; font-size:14.5px; color:var(--text-dim);}
+.takeaway li{margin-bottom:5px;}
+
+details.reveal{border:1px solid var(--line); border-radius:6px; padding:0; margin:14px 0; background:var(--bg);}
+details.reveal summary{padding:11px 16px; cursor:pointer; font-family:var(--mono); font-size:13px; color:var(--accent); list-style:none; display:flex; align-items:center; gap:8px;}
+details.reveal summary::-webkit-details-marker{display:none;}
+details.reveal summary::before{content:'▸'; transition:transform var(--fast);}
+details.reveal[open] summary::before{transform:rotate(90deg);}
+details.reveal .reveal-body{padding:0 16px 16px; font-size:14px; color:var(--text-dim);}
+
+svg text{font-family:var(--mono);}
+
+footer{text-align:center; padding:40px 20px; color:var(--text-faint); font-family:var(--mono); font-size:12px; border-top:1px solid var(--line);}
+.skip-link{position:absolute; left:-9999px;}
+.skip-link:focus{left:10px; top:10px; background:var(--accent); color:var(--bg); padding:8px 14px; border-radius:4px; z-index:2000;}
+
+@media (max-width:600px){
+  .wrap{padding:0 16px;}
+  .chapter{padding:60px 0 50px;}
+}
+</style>
+</head>
+<body>
+<a href="#main" class="skip-link">Skip to content</a>
+<div id="progress-rail"><div id="progress-fill"></div></div>
+<nav id="topnav">
+  <div class="brand"><span class="dot"></span> Embedded Systems in Robotics</div>
+  <div id="chapter-pips"></div>
+</nav>
+<main id="main">
+
+<section id="hero">
+  <canvas id="hero-canvas"></canvas>
+  <div class="hero-content">
+    <span class="eyebrow">⏱ ~2 hrs to mastery · full M.Tech syllabus scope</span>
+    <h1 class="hero-title">A robot's body needs<br><em>a nervous system that never misses a deadline.</em></h1>
+    <p class="hero-sub">Embedded systems are the microcontrollers, protocols, and real-time code that sit between a robot's sensors and its motors — reading the world in microseconds and reacting before it's too late. This course covers the full two-year M.Tech arc: from registers to a working robot control stack.</p>
+    <div class="badge-row">
+      <span class="badge">🎯 Goal: <strong>design and reason about a real-time robot control stack end to end</strong></span>
+      <span class="badge">📐 Assumes: <strong>C programming, basic circuits, linear algebra</strong></span>
+      <span class="badge">🧩 9 chapters · interactive labs throughout</span>
+    </div>
+    <div class="roadmap" id="roadmap"></div>
+  </div>
+</section>
+
+<article class="chapter" id="ch1" style="--accent:var(--ch1)" data-accent="ch1">
+<div class="wrap">
+  <div class="chapter-head"><span class="chapter-num">01</span><span class="chapter-eyebrow">Foundations</span></div>
+  <h2>A microcontroller isn't a tiny <span class="accent">laptop. It's a tiny factory floor.</span></h2>
+
+  <div class="misconception">
+    <div class="think"><span class="label">What you think</span><p>A microcontroller is basically a miniature computer — it boots an OS, and your code is one of several programs it juggles, like apps on a phone.</p></div>
+    <div class="truth"><span class="label">What's actually true</span><p>Most robotics microcontrollers (STM32, AVR, ESP32 in bare-metal mode) run no OS by default. Your code is the only program, starting the instant power turns on, with direct read/write access to hardware registers — the actual on/off switches for every pin and peripheral.</p></div>
+  </div>
+
+  <p>A microcontroller (MCU) packs a CPU core, a small amount of RAM, flash memory for your program, and a set of peripherals — timers, ADCs, communication interfaces — onto one chip. Unlike your laptop's CPU, which reads instructions and data from the same enormous pool of RAM, most MCUs use a <strong>Harvard architecture</strong>: separate paths for fetching instructions (from flash) and reading/writing data (from RAM), which is part of why they can execute so predictably.</p>
+
+  <div class="analogy">
+    <span class="label">Feynman analogy #1 — the factory floor</span>
+    <p>Think of a factory floor with a fixed set of levers bolted to the wall — one lever per machine. Pulling lever #14 always turns on the same conveyor belt; there's no ambiguity, no "which app is this lever for right now." A microcontroller's registers are those levers: each memory address is wired directly to a specific piece of hardware, and writing a 1 or 0 to it has an immediate physical effect.</p>
+  </div>
+
+  <div class="analogy">
+    <span class="label">Feynman analogy #2 — a chef with one recipe</span>
+    <p>Your laptop's OS is like a restaurant kitchen running dozens of orders at once, switching between them. A bare-metal MCU is a chef who received exactly one recipe and does nothing else, in the same order, every single time power is applied — which is precisely why it can guarantee "the motor will stop within 2 microseconds of this sensor triggering."</p>
+  </div>
+
+  <div class="diagram-frame">
+    <svg viewBox="0 0 680 260" id="ch1-svg" style="width:100%;height:auto;"></svg>
+    <div class="diagram-caption">hover a memory region to see what lives there</div>
+  </div>
+
+  <details class="reveal">
+    <summary>Reveal the why — why "memory-mapped" I/O?</summary>
+    <div class="reveal-body">Rather than giving peripherals a separate instruction set, MCU designers assign each peripheral's control registers a specific address inside the same address space the CPU already uses for RAM. That means turning on an LED is literally just "write the value 1 to address 0x40020014" — the same kind of instruction the CPU uses to store any other variable. It keeps the instruction set small and lets a C pointer directly control hardware.</div>
+  </details>
+
+  <div class="sticking">
+    <span class="label">⚡ Common sticking point</span>
+    <p>Students coming from application programming expect <code>digitalWrite(pin, HIGH)</code> to be "how it works." That function is a convenience wrapper — underneath, it's setting one specific bit in one specific hardware register. When something misbehaves at the register level (a misconfigured clock, a wrong bit mask), high-level wrapper functions can't explain the bug; you have to drop down to the datasheet and the register map.</p>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">🎛 try it — flip the GPIO register bits</div>
+    <p style="font-size:14px;color:var(--text-dim);margin-bottom:14px;">Click bits in this 8-bit GPIO output register to see which pins go HIGH. This is exactly what <code>digitalWrite()</code> does underneath, one bit at a time.</p>
+    <div id="ch1-bits"></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">✍️ explain it back</div>
+    <p style="font-size:14px;color:var(--text-dim);">In your own words: why can't you just treat a microcontroller like a small version of your laptop's CPU?</p>
+    <textarea id="ch1-explain" placeholder="Type your explanation here..."></textarea>
+    <button class="btn-ghost" style="margin-top:10px;" onclick="revealModel('ch1')">Compare with a model answer</button>
+    <div id="ch1-model" class="reveal-body" style="display:none; margin-top:10px; padding:12px; background:var(--bg); border-radius:6px; font-size:13.5px;">
+      A laptop CPU runs an OS that schedules many programs and abstracts hardware behind drivers, at the cost of unpredictable timing. A bare-metal MCU runs one program with direct register access to hardware — no scheduler, no abstraction layer — which sacrifices flexibility for deterministic, guaranteed-timing control, exactly what a robot's real-time control loop needs.
+    </div>
+  </div>
+
+  <div class="panel"><div class="panel-title">✅ did you get it?</div><div id="ch1-quiz"></div></div>
+
+  <div class="takeaway">
+    <span class="label">Key takeaway</span>
+    <ul>
+      <li>Most robotics MCUs run bare-metal — your code is the only program, with direct register access.</li>
+      <li>Memory-mapped I/O means hardware control is just reading/writing specific memory addresses.</li>
+      <li>This directness is what makes deterministic, real-time control possible.</li>
+    </ul>
+  </div>
+</div>
+</article>
+
+<article class="chapter" id="ch2" style="--accent:var(--ch2)" data-accent="ch2">
+<div class="wrap">
+  <div class="chapter-head"><span class="chapter-num">02</span><span class="chapter-eyebrow">Foundations</span></div>
+  <h2>The real world is a wave. Your MCU only <span class="accent">understands steps.</span></h2>
+
+  <div class="misconception">
+    <div class="think"><span class="label">What you think</span><p>A sensor "sends a number" to the microcontroller, and an output pin can smoothly vary its voltage to drive a motor at any speed.</p></div>
+    <div class="truth"><span class="label">What's actually true</span><p>Sensors output continuously varying <em>voltage</em>, which an ADC chops into discrete numeric steps. And most MCU pins can only be fully on or fully off — "analog-like" output is faked by switching on and off very fast (PWM), not by producing in-between voltages.</p></div>
+  </div>
+
+  <p>An <strong>ADC (analog-to-digital converter)</strong> samples a voltage at regular intervals and rounds it to the nearest step out of, say, 4096 possible values (12-bit resolution) — coarser than reality, but good enough. Going the other direction, <strong>PWM (pulse-width modulation)</strong> switches a pin on and off rapidly; the <em>fraction of time</em> it's on (the duty cycle) determines the effective average voltage a motor or LED "feels," even though the pin itself never leaves 0V or 5V.</p>
+
+  <div class="analogy">
+    <span class="label">Feynman analogy #1 — a staircase approximating a ramp</span>
+    <p>A ramp rises smoothly; a staircase built next to it only rises in fixed steps. An ADC replaces the smooth ramp of real-world voltage with a staircase of discrete numbers — more steps (higher bit-depth) makes the staircase feel smoother, but it's never truly continuous.</p>
+  </div>
+
+  <div class="analogy">
+    <span class="label">Feynman analogy #2 — flickering a light to fake dimming</span>
+    <p>Wave a flashlight on and off faster than your eye can track, and it looks dimmer the less time it's on — even though each flash is at full brightness. PWM does exactly this to a motor: full voltage, rapidly pulsed, at whatever fraction of "on" time gives the effective average speed you want.</p>
+  </div>
+
+  <div class="diagram-frame">
+    <svg viewBox="0 0 680 260" id="ch2-svg" style="width:100%;height:auto;"></svg>
+    <div class="diagram-caption">drag the slider — watch the PWM pulse train and its effective average voltage</div>
+  </div>
+  <div class="panel">
+    <div class="panel-title">🎛 try it — duty cycle</div>
+    <input type="range" id="ch2-slider" min="0" max="100" value="30" style="width:100%;">
+    <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:12px;color:var(--text-dim);">
+      <span>duty cycle: <strong id="ch2-pct" style="color:var(--text);">30%</strong></span>
+      <span>effective voltage: <strong id="ch2-volt" style="color:var(--copper);">1.5V</strong> of 5V</span>
+    </div>
+  </div>
+
+  <details class="reveal">
+    <summary>Reveal the why — why does higher ADC resolution matter for robotics?</summary>
+    <div class="reveal-body">A 10-bit ADC (1024 steps) reading a 3.3V sensor range can only distinguish voltage changes of about 3.2mV. If your sensor's meaningful signal — say, a subtle joint-torque change — is smaller than that step size, the ADC simply can't see it; it gets rounded away. Higher resolution (12-bit, 16-bit) narrows the step size, letting the system detect finer real-world changes, at the cost of more data to process per sample.</div>
+  </details>
+
+  <div class="sticking">
+    <span class="label">⚡ Common sticking point</span>
+    <p>People assume a higher PWM frequency is always better. Too low, and a motor audibly whines or visibly flickers (an LED). Too high, and switching losses in the driver transistor waste energy as heat, and some motor drivers simply can't switch that fast cleanly. Real designs pick a PWM frequency matched to the actuator — often 20kHz+ for motors (above human hearing) but much lower for some other loads.</p>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">✍️ explain it back</div>
+    <p style="font-size:14px;color:var(--text-dim);">In your own words: how can a pin that's only ever fully on or fully off make a motor spin at half speed?</p>
+    <textarea id="ch2-explain" placeholder="Type your explanation here..."></textarea>
+    <button class="btn-ghost" style="margin-top:10px;" onclick="revealModel('ch2')">Compare with a model answer</button>
+    <div id="ch2-model" class="reveal-body" style="display:none; margin-top:10px; padding:12px; background:var(--bg); border-radius:6px; font-size:13.5px;">
+      By switching the pin on and off very rapidly and controlling what fraction of each cycle it spends on (the duty cycle). The motor's own electrical and mechanical inertia smooths the rapid pulses into an effective average voltage — a 50% duty cycle behaves like a steady half-voltage supply, even though the pin itself is never at half voltage.
+    </div>
+  </div>
+
+  <div class="panel"><div class="panel-title">✅ did you get it?</div><div id="ch2-quiz"></div></div>
+
+  <div class="takeaway">
+    <span class="label">Key takeaway</span>
+    <ul>
+      <li>ADCs quantize continuous voltage into discrete numeric steps — resolution determines how fine that quantization is.</li>
+      <li>PWM fakes analog output by rapidly switching a digital pin; duty cycle sets the effective average voltage.</li>
+      <li>Both are approximations of the real, continuous physical world — and the approximation's coarseness has real design consequences.</li>
+    </ul>
+  </div>
+</div>
+</article>
+
+<article class="chapter" id="ch3" style="--accent:var(--ch3)" data-accent="ch3">
+<div class="wrap">
+  <div class="chapter-head"><span class="chapter-num">03</span><span class="chapter-eyebrow">Intermediate</span></div>
+  <h2>Chips don't just need wires. They need <span class="accent">shared rules.</span></h2>
+
+  <div class="misconception">
+    <div class="think"><span class="label">What you think</span><p>Connecting two chips is mostly a wiring problem — get the pins physically hooked up and data flows.</p></div>
+    <div class="truth"><span class="label">What's actually true</span><p>Without an agreed protocol, two chips wired together produce noise, not data. A protocol defines timing (when to read a bit), framing (where a message starts/ends), and often addressing (which of many devices on the same wires should respond) — the wiring is the easy part.</p></div>
+  </div>
+
+  <p>Four protocols cover most robotics wiring: <strong>UART</strong> (simple point-to-point, two wires, no shared clock — both sides must agree on speed in advance), <strong>SPI</strong> (fast, one controller + multiple devices, uses a shared clock line so timing is never ambiguous), <strong>I2C</strong> (only two wires total for many devices, using addresses instead of separate wires per device), and <strong>CAN</strong> (built for electrical noise and multi-node robustness — the standard for multi-controller robots and automotive systems).</p>
+
+  <div class="analogy">
+    <span class="label">Feynman analogy #1 — Morse code vs a phone call</span>
+    <p>UART is like two people agreeing in advance "we'll each tap out letters at exactly 1 tap per second" — no live signal tells you when a letter starts, you just have to count precisely. SPI is like a phone call with a metronome playing on a shared line — every tick, both sides know exactly when the next bit is meant to be read, which removes the timing-drift problem entirely.</p>
+  </div>
+
+  <div class="analogy">
+    <span class="label">Feynman analogy #2 — a classroom vs a hallway PA system</span>
+    <p>I2C is like a hallway PA system: one shared line where the announcer calls a specific room number ("attention, Room 42B") before speaking — every room hears everything, but only the addressed room acts. CAN is more like a classroom where anyone can raise a hand mid-lecture and the loudest, most urgent message automatically wins the floor (built-in priority arbitration) — critical for robots where multiple controllers need to talk without stepping on each other during a safety event.</p>
+  </div>
+
+  <div class="diagram-frame">
+    <svg viewBox="0 0 680 260" id="ch3-svg" style="width:100%;height:auto;"></svg>
+    <div class="diagram-caption">click a protocol tab to see its wiring and timing style</div>
+  </div>
+  <div id="ch3-tabs" style="display:flex; gap:8px; margin-top:-6px; flex-wrap:wrap;"></div>
+
+  <details class="reveal">
+    <summary>Reveal the why — why does I2C need addresses but SPI doesn't?</summary>
+    <div class="reveal-body">SPI gives each device its own dedicated "chip select" wire — the controller physically activates only one device at a time, so there's never ambiguity about who's being spoken to, at the cost of needing more wires as you add devices. I2C instead puts every device on the same two shared wires and asks each one to listen for its own address embedded in the message — fewer wires, but it means every device needs a unique address and some silicon logic to recognize it.</div>
+  </details>
+
+  <div class="sticking">
+    <span class="label">⚡ Common sticking point</span>
+    <p>Students often ask "which protocol is best?" as if one wins outright. Each is a different tradeoff: UART is simplest but point-to-point only; SPI is fastest but needs more pins per device; I2C uses the fewest pins but is slower and needs addressing; CAN is the most robust to electrical noise and supports many nodes, but has the most protocol overhead. Real robots typically use all four for different subsystems — an IMU over I2C, a motor driver over SPI, a debug console over UART, and inter-board communication over CAN.</p>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">🔀 match the protocol to its defining trait</div>
+    <div id="ch3-match"></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">✍️ explain it back</div>
+    <p style="font-size:14px;color:var(--text-dim);">In your own words: why can't two chips just be wired together and start exchanging data with no agreed protocol?</p>
+    <textarea id="ch3-explain" placeholder="Type your explanation here..."></textarea>
+    <button class="btn-ghost" style="margin-top:10px;" onclick="revealModel('ch3')">Compare with a model answer</button>
+    <div id="ch3-model" class="reveal-body" style="display:none; margin-top:10px; padding:12px; background:var(--bg); border-radius:6px; font-size:13.5px;">
+      Without a shared protocol, neither chip knows when a bit starts or ends, how many bits make up one piece of data, or — if multiple devices share the same wires — who a given message is meant for. A protocol supplies the timing and framing rules both sides agree to follow, turning raw electrical pulses into structured, interpretable data.
+    </div>
+  </div>
+
+  <div class="panel"><div class="panel-title">✅ did you get it?</div><div id="ch3-quiz"></div></div>
+
+  <div class="takeaway">
+    <span class="label">Key takeaway</span>
+    <ul>
+      <li>A protocol defines timing, framing, and (often) addressing — not just wiring.</li>
+      <li>UART, SPI, I2C, and CAN each trade off pin count, speed, complexity, and noise robustness differently.</li>
+      <li>Real robots mix protocols, matching each to the subsystem's specific needs.</li>
+    </ul>
+  </div>
+</div>
+</article>
+
+<article class="chapter" id="ch4" style="--accent:var(--ch4)" data-accent="ch4">
+<div class="wrap">
+  <div class="chapter-head"><span class="chapter-num">04</span><span class="chapter-eyebrow">Intermediate</span></div>
+  <h2>"Real-time" doesn't mean fast. <span class="accent">It means punctual.</span></h2>
+
+  <div class="misconception">
+    <div class="think"><span class="label">What you think</span><p>A "real-time" system is just a very fast system — the more operations per second, the more "real-time" it is.</p></div>
+    <div class="truth"><span class="label">What's actually true</span><p>Real-time means <em>deterministic</em>: a guarantee that a task will finish within a fixed deadline, every single time — even if that means being slower on average. A blazing-fast system that occasionally misses a deadline by 50ms is not real-time; a modest system that always meets its 10ms deadline is.</p></div>
+  </div>
+
+  <p>An <strong>RTOS</strong> (Real-Time Operating System, e.g. FreeRTOS) lets a robot run several tasks that appear to happen "at once" — reading a sensor every 1ms, running a control loop every 5ms, updating a display every 100ms — by rapidly switching between them (preemptive scheduling), always giving priority to the most urgent task. <strong>Interrupts</strong> sit above even the RTOS scheduler: hardware events (like an emergency-stop button) that immediately pause whatever's running to handle something time-critical.</p>
+
+  <div class="analogy">
+    <span class="label">Feynman analogy #1 — an ER, not a queue at a bank</span>
+    <p>A bank teller serves customers first-come-first-served — fair, but not "real-time." An emergency room doesn't work that way: a patient with a heart attack is seen before someone with a splinter, no matter who arrived first. An RTOS scheduler works like the ER — it constantly re-evaluates who's most urgent right now and runs that task next, interrupting less urgent work if needed.</p>
+  </div>
+
+  <div class="analogy">
+    <span class="label">Feynman analogy #2 — a fire alarm during a meeting</span>
+    <p>No matter how important your meeting is, a fire alarm interrupts it instantly — you don't finish your sentence first. A hardware interrupt works the same way: even the highest-priority RTOS task gets paused the instant a flagged hardware event (a button press, a sensor threshold) fires, because some things genuinely cannot wait for the next scheduling decision.</p>
+  </div>
+
+  <div class="diagram-frame">
+    <svg viewBox="0 0 680 240" id="ch4-svg" style="width:100%;height:auto;"></svg>
+    <div class="diagram-caption" id="ch4-caption">step through a scheduling timeline — watch a high-priority task preempt a running one</div>
+    <button class="replay-btn" onclick="ch4Step()">▶ next tick</button>
+    <button class="replay-btn" onclick="ch4Reset()">↻ reset</button>
+  </div>
+
+  <details class="reveal">
+    <summary>Reveal the why — what is "priority inversion" and why do robotics engineers fear it?</summary>
+    <div class="reveal-body">Priority inversion happens when a high-priority task is stuck waiting for a resource (like a shared data buffer) currently locked by a low-priority task — and that low-priority task itself gets stuck behind a medium-priority task that has no reason to yield. The high-priority task effectively waits behind a lower-priority one, inverting the intended order. This has caused real spacecraft failures (famously, Mars Pathfinder) and is why RTOS designs include mechanisms like priority inheritance, where a low-priority task temporarily "borrows" high priority while it holds a resource a more urgent task needs.</div>
+  </details>
+
+  <div class="sticking">
+    <span class="label">⚡ Common sticking point</span>
+    <p>People assume "the highest priority task always runs" is the whole story, and are then confused when a system still misses deadlines. Task priority controls scheduling order among ready tasks — it says nothing about a task that's blocked waiting on a mutex, a peripheral, or another resource. Deadline misses are often about blocking and contention, not raw priority assignment.</p>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">✍️ explain it back</div>
+    <p style="font-size:14px;color:var(--text-dim);">In your own words: what's the difference between "fast" and "real-time"?</p>
+    <textarea id="ch4-explain" placeholder="Type your explanation here..."></textarea>
+    <button class="btn-ghost" style="margin-top:10px;" onclick="revealModel('ch4')">Compare with a model answer</button>
+    <div id="ch4-model" class="reveal-body" style="display:none; margin-top:10px; padding:12px; background:var(--bg); border-radius:6px; font-size:13.5px;">
+      "Fast" describes average or peak throughput — how many operations happen per second. "Real-time" describes a guarantee about worst-case timing — that a specific task will always complete within its deadline, no matter what else is happening. A system can be fast on average yet not real-time if it occasionally misses a deadline; a system can be real-time without being especially fast, as long as it's fast enough to always meet its guarantees.
+    </div>
+  </div>
+
+  <div class="panel"><div class="panel-title">✅ did you get it?</div><div id="ch4-quiz"></div></div>
+
+  <div class="takeaway">
+    <span class="label">Key takeaway</span>
+    <ul>
+      <li>Real-time = deterministic worst-case timing guarantees, not raw speed.</li>
+      <li>RTOS schedulers use priority to decide which ready task runs next; interrupts preempt even the scheduler for time-critical hardware events.</li>
+      <li>Priority inversion (a high-priority task blocked behind a lower one) is a real, historically documented robotics/spacecraft failure mode.</li>
+    </ul>
+  </div>
+</div>
+</article>
+
+<article class="chapter" id="ch5" style="--accent:var(--ch5)" data-accent="ch5">
+<div class="wrap">
+  <div class="chapter-head"><span class="chapter-num">05</span><span class="chapter-eyebrow">Advanced</span></div>
+  <h2>You cannot plug a motor into <span class="accent">a microcontroller pin.</span></h2>
+
+  <div class="misconception">
+    <div class="think"><span class="label">What you think</span><p>Since a GPIO pin can output PWM, you can drive a motor directly from that pin the same way you'd drive an LED.</p></div>
+    <div class="truth"><span class="label">What's actually true</span><p>An MCU pin can typically source only a few tens of milliamps. A small motor can draw hundreds of milliamps to amps, and switching it off generates a voltage spike (back-EMF) that can destroy the pin. Motors always go through a driver circuit — never directly to a GPIO pin.</p></div>
+  </div>
+
+  <p>A <strong>motor driver</strong> (commonly an H-bridge for DC motors) sits between the MCU and the motor: the MCU sends a low-current logic signal, and the driver switches high-current power from a separate supply to the motor. An H-bridge's four switches let current flow through the motor in either direction — forward, reverse, brake (short both terminals), or coast (disconnect) — controlled by which switches are closed.</p>
+
+  <div class="analogy">
+    <span class="label">Feynman analogy #1 — a light switch vs the power station</span>
+    <p>Flipping a household light switch doesn't send electricity from your finger — it closes a small, low-power circuit that tells a much larger power system to deliver current. A motor driver is that same relationship: the MCU pin is the light switch, the driver + separate power supply is the power station, and the motor is the load that actually needs the current.</p>
+  </div>
+
+  <div class="analogy">
+    <span class="label">Feynman analogy #2 — four gates on a canal</span>
+    <p>Picture a motor as water flowing through a canal with four gates arranged in an H shape. Opening the top-left and bottom-right gates lets water flow one direction; opening top-right and bottom-left reverses it; closing all four stops flow entirely. That's exactly the H-bridge: four switches (usually transistors) that route current through the motor in either direction, or stop it.</p>
+  </div>
+
+  <div class="diagram-frame">
+    <svg viewBox="0 0 680 280" id="ch5-svg" style="width:100%;height:auto;"></svg>
+    <div class="diagram-caption" id="ch5-caption">click a mode to see which H-bridge switches close</div>
+  </div>
+  <div id="ch5-modes" style="display:flex; gap:8px; flex-wrap:wrap; margin-top:-6px;"></div>
+
+  <details class="reveal">
+    <summary>Reveal the why — why do servos and steppers not need an H-bridge the same way?</summary>
+    <div class="reveal-body">A hobby servo has its own small driver circuit and gearbox built in — it accepts a PWM signal that encodes a target angle, not raw motor power, so the MCU only needs to generate that timing signal directly. A stepper motor moves in discrete steps by energizing coil pairs in sequence; it typically uses a dedicated stepper driver IC that translates simple step/direction signals into the correct multi-coil switching pattern — different from an H-bridge's continuous-rotation forward/reverse control, but the same underlying principle: keep high current away from the MCU pins.</div>
+  </details>
+
+  <div class="sticking">
+    <span class="label">⚡ Common sticking point</span>
+    <p>Students forget that "brake" (both terminals shorted) and "coast" (both terminals disconnected) are physically very different, even though a motor looks "stopped" in both. Braking dissipates the motor's remaining kinetic energy quickly through electrical resistance, stopping it fast; coasting lets it spin down freely under friction alone. Choosing the wrong one in a real robot can mean the difference between a controlled stop and an arm swinging past its target.</p>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">✍️ explain it back</div>
+    <p style="font-size:14px;color:var(--text-dim);">In your own words: why does a motor need a separate driver circuit instead of connecting straight to a GPIO pin?</p>
+    <textarea id="ch5-explain" placeholder="Type your explanation here..."></textarea>
+    <button class="btn-ghost" style="margin-top:10px;" onclick="revealModel('ch5')">Compare with a model answer</button>
+    <div id="ch5-model" class="reveal-body" style="display:none; margin-top:10px; padding:12px; background:var(--bg); border-radius:6px; font-size:13.5px;">
+      A GPIO pin can only safely supply a small amount of current, far less than most motors draw, and switching a motor off can generate a damaging voltage spike. A driver circuit isolates the low-power MCU signal from the high-power motor circuit, using the MCU's signal only to control switches that route current from a separate, more capable power supply.
+    </div>
+  </div>
+
+  <div class="panel"><div class="panel-title">✅ did you get it?</div><div id="ch5-quiz"></div></div>
+
+  <div class="takeaway">
+    <span class="label">Key takeaway</span>
+    <ul>
+      <li>MCU pins output low-current logic signals; motors need high-current drivers between the pin and the motor.</li>
+      <li>An H-bridge's four switches select forward, reverse, brake, or coast for a DC motor.</li>
+      <li>Servos and steppers use their own dedicated drivers/logic, but the "keep high current off the MCU pin" principle is universal.</li>
+    </ul>
+  </div>
+</div>
+</article>
+
+<article class="chapter" id="ch6" style="--accent:var(--ch6)" data-accent="ch6">
+<div class="wrap">
+  <div class="chapter-head"><span class="chapter-num">06</span><span class="chapter-eyebrow">Advanced</span></div>
+  <h2>Telling a motor "go to 90°" isn't <span class="accent">a command. It's a negotiation.</span></h2>
+
+  <div class="misconception">
+    <div class="think"><span class="label">What you think</span><p>To move a robot arm to a target angle, you calculate the needed motor power once and apply it — the arm arrives and that's that.</p></div>
+    <div class="truth"><span class="label">What's actually true</span><p>Friction, load, and motor quirks mean a single calculated power rarely lands exactly on target. Real control is a continuous loop: measure the error, correct, measure again, correct again — dozens to thousands of times per second.</p></div>
+  </div>
+
+  <p>A <strong>PID controller</strong> computes motor output from three terms added together: <strong>P</strong>roportional (react to how far off you are right now), <strong>I</strong>ntegral (react to how long and how much you've been off, to kill persistent small errors), and <strong>D</strong>erivative (react to how fast the error is changing, to avoid overshooting). Tuning the three gains — Kp, Ki, Kd — is the art of balancing speed of response against stability.</p>
+
+  <div class="analogy">
+    <span class="label">Feynman analogy #1 — driving toward a stop sign</span>
+    <p>Proportional is like pressing the brake harder the closer you are to the stop sign — big error, big correction. Derivative is like easing off the brake as your speed drops fast, so you don't jerk to a stop. Integral is like noticing you've been creeping 2cm past every stop sign for the last mile and nudging your braking point slightly earlier to fix that persistent bias.</p>
+  </div>
+
+  <div class="analogy">
+    <span class="label">Feynman analogy #2 — adjusting shower temperature</span>
+    <p>Too little correction (low P) and you barely react to being cold, staying uncomfortable a long time. Overreact (high P with no D) and you swing from freezing to scalding, overshooting every time. A small constant offset that never seems to go away — always slightly too cold no matter what — is exactly what the I term is built to eliminate.</p>
+  </div>
+
+  <div class="diagram-frame">
+    <svg viewBox="0 0 680 300" id="ch6-svg" style="width:100%;height:auto;"></svg>
+    <div class="diagram-caption">tune Kp, Ki, Kd and watch the simulated step response</div>
+  </div>
+  <div class="panel">
+    <div class="panel-title">🎛 try it — tune the controller</div>
+    <div style="display:grid; grid-template-columns:1fr; gap:14px;">
+      <div>
+        <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:12px;"><span>Kp (proportional)</span><span id="ch6-kp-val">0.60</span></div>
+        <input type="range" id="ch6-kp" min="0" max="2" step="0.05" value="0.6" style="width:100%;">
+      </div>
+      <div>
+        <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:12px;"><span>Ki (integral)</span><span id="ch6-ki-val">0.00</span></div>
+        <input type="range" id="ch6-ki" min="0" max="1" step="0.02" value="0" style="width:100%;">
+      </div>
+      <div>
+        <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:12px;"><span>Kd (derivative)</span><span id="ch6-kd-val">0.00</span></div>
+        <input type="range" id="ch6-kd-slider" min="0" max="1" step="0.02" value="0" style="width:100%;">
+      </div>
+    </div>
+    <div style="display:flex; gap:8px; margin-top:14px;">
+      <button class="btn-ghost" onclick="ch6Preset('p')">try: P only (watch it oscillate)</button>
+      <button class="btn-ghost" onclick="ch6Preset('pd')">try: PD (damped)</button>
+      <button class="btn-ghost" onclick="ch6Preset('pid')">try: PID (tuned)</button>
+    </div>
+  </div>
+
+  <details class="reveal">
+    <summary>Reveal the why — why does too much Kp cause oscillation?</summary>
+    <div class="reveal-body">A high Kp means a large correction for even a small error. As the arm approaches the target, it's still being pushed hard, so it overshoots past the target — now the error flips sign, and the same high Kp pushes it hard back the other way. Without a derivative term to "see" the fast approach and ease off early, this can repeat indefinitely, growing or sustaining oscillation instead of settling.</div>
+  </details>
+
+  <div class="sticking">
+    <span class="label">⚡ Common sticking point</span>
+    <p>Students often add the integral term first because "it sounds like it fixes everything." In practice, Ki set too high causes a slow-building oscillation of its own (integral windup) — the accumulated error term keeps growing while the system is still catching up, then overshoots wildly once it finally moves. The conventional tuning order is P first (get roughly there), then D (damp the overshoot), then a small I only if a persistent steady-state error remains.</p>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">✍️ explain it back</div>
+    <p style="font-size:14px;color:var(--text-dim);">In your own words: what job does each of the P, I, and D terms do?</p>
+    <textarea id="ch6-explain" placeholder="Type your explanation here..."></textarea>
+    <button class="btn-ghost" style="margin-top:10px;" onclick="revealModel('ch6')">Compare with a model answer</button>
+    <div id="ch6-model" class="reveal-body" style="display:none; margin-top:10px; padding:12px; background:var(--bg); border-radius:6px; font-size:13.5px;">
+      P reacts to the current error's size — bigger error, bigger correction. D reacts to how fast the error is changing, easing off as the system approaches target to prevent overshoot. I accumulates error over time, correcting small persistent biases that P and D alone never fully eliminate.
+    </div>
+  </div>
+
+  <div class="panel"><div class="panel-title">✅ did you get it?</div><div id="ch6-quiz"></div></div>
+
+  <div class="takeaway">
+    <span class="label">Key takeaway</span>
+    <ul>
+      <li>Real control is a continuous measure-correct loop, not a one-time calculation.</li>
+      <li>P reacts to current error, D reacts to the rate of change (damping overshoot), I eliminates persistent steady-state error.</li>
+      <li>Tuning is a balance — too much P or I without enough D typically causes oscillation.</li>
+    </ul>
+  </div>
+</div>
+</article>
+
+<article class="chapter" id="ch7" style="--accent:var(--ch7)" data-accent="ch7">
+<div class="wrap">
+  <div class="chapter-head"><span class="chapter-num">07</span><span class="chapter-eyebrow">Advanced</span></div>
+  <h2>Two noisy sensors, combined well, beat <span class="accent">one perfect sensor you don't have.</span></h2>
+
+  <div class="misconception">
+    <div class="think"><span class="label">What you think</span><p>To combine readings from two different sensors (say, an accelerometer and a gyroscope estimating tilt), you just average their two estimates.</p></div>
+    <div class="truth"><span class="label">What's actually true</span><p>Different sensors have different, changing amounts of trustworthiness — a gyroscope is very accurate over short timescales but drifts over long ones; an accelerometer is noisy instant-to-instant but doesn't drift. Good fusion weights each sensor by how much to trust it <em>right now</em>, not a flat 50/50 average.</p></div>
+  </div>
+
+  <p>A <strong>Kalman filter</strong> is the standard tool for this: at every timestep, it predicts the next state from the system's known behavior, then corrects that prediction using a new sensor reading — weighted by how confident the filter currently is in its prediction versus the new measurement. That confidence (the "gain") is continuously recalculated, so the filter automatically leans more on whichever source is currently more trustworthy.</p>
+
+  <div class="analogy">
+    <span class="label">Feynman analogy #1 — two witnesses, one confident and one shaky</span>
+    <p>If one witness has given reliable testimony all day and another has been contradicting themselves, a good detective weighs the confident witness's account more heavily — not automatically 50/50. A Kalman filter does the same: it tracks each sensor's recent reliability and weights new information accordingly, rather than blindly averaging.</p>
+  </div>
+
+  <div class="analogy">
+    <span class="label">Feynman analogy #2 — a ship's dead reckoning, corrected by lighthouses</span>
+    <p>An old ship's navigator tracks position by dead reckoning (speed × time) — accurate moment to moment, but small errors accumulate into serious drift over hours. Spotting a lighthouse gives one noisy but drift-free position fix to correct that accumulated error. The Kalman filter's predict step is dead reckoning; its correct step is the lighthouse sighting — neither alone is as good as combining both.</p>
+  </div>
+
+  <div class="diagram-frame">
+    <svg viewBox="0 0 680 260" id="ch7-svg" style="width:100%;height:auto;"></svg>
+    <div class="diagram-caption">watch the fused estimate (bold) track closer to true angle than either noisy sensor alone</div>
+    <button class="replay-btn" onclick="ch7Replay()">↻ replay</button>
+  </div>
+
+  <details class="reveal">
+    <summary>Reveal the why — why not just use the gyroscope alone, since it's more precise moment to moment?</summary>
+    <div class="reveal-body">A gyroscope measures rate of rotation, not absolute angle — so estimating angle from it means continuously integrating (summing) that rate over time. Any tiny bias in the sensor accumulates with every summation step, and over seconds to minutes the estimated angle "drifts" further and further from the true value, even with a perfectly stationary sensor. The accelerometer, despite being noisy sample-to-sample, measures gravity's direction directly and has no long-term drift — fusing the two gets the gyroscope's short-term smoothness with the accelerometer's long-term stability.</div>
+  </details>
+
+  <div class="sticking">
+    <span class="label">⚡ Common sticking point</span>
+    <p>Students expect a "correct" fused value to appear immediately and stay put. In reality, a Kalman filter's confidence typically starts uncertain and narrows over the first several updates as it learns the sensor noise characteristics — the fused estimate is noisiest right after startup and settles as more measurements arrive. Judging filter quality from the very first few samples is a common and misleading mistake.</p>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">✍️ explain it back</div>
+    <p style="font-size:14px;color:var(--text-dim);">In your own words: why is fusing two imperfect sensors usually better than trusting the "better" one alone?</p>
+    <textarea id="ch7-explain" placeholder="Type your explanation here..."></textarea>
+    <button class="btn-ghost" style="margin-top:10px;" onclick="revealModel('ch7')">Compare with a model answer</button>
+    <div id="ch7-model" class="reveal-body" style="display:none; margin-top:10px; padding:12px; background:var(--bg); border-radius:6px; font-size:13.5px;">
+      Because different sensors tend to fail in different ways at different timescales — one may be noisy but drift-free, another smooth but prone to drifting over time. Combining them, weighted by how much to trust each one right now, cancels out each sensor's specific weakness using the other's specific strength, producing an estimate more reliable than either sensor alone across all timescales.
+    </div>
+  </div>
+
+  <div class="panel"><div class="panel-title">✅ did you get it?</div><div id="ch7-quiz"></div></div>
+
+  <div class="takeaway">
+    <span class="label">Key takeaway</span>
+    <ul>
+      <li>Sensor fusion weights sources by current trustworthiness, not fixed averaging.</li>
+      <li>Kalman filters alternate predicting (from known system behavior) and correcting (from new measurements).</li>
+      <li>Combining a drift-prone-but-smooth sensor with a noisy-but-drift-free one is a classic, powerful pairing (e.g. gyroscope + accelerometer).</li>
+    </ul>
+  </div>
+</div>
+</article>
+
+<article class="chapter" id="ch8" style="--accent:var(--ch8)" data-accent="ch8">
+<div class="wrap">
+  <div class="chapter-head"><span class="chapter-num">08</span><span class="chapter-eyebrow">Expert synthesis</span></div>
+  <h2>A robot isn't one chip. It's <span class="accent">a distributed conversation.</span></h2>
+
+  <div class="misconception">
+    <div class="think"><span class="label">What you think</span><p>All the embedded concepts you just learned live on one microcontroller running one program — ROS is just a fancy app layered on top.</p></div>
+    <div class="truth"><span class="label">What's actually true</span><p>A real robot is usually several MCUs and a higher-level computer talking over multiple protocols at once — a motor controller board on CAN, a sensor board on I2C, wireless telemetry over WiFi/Bluetooth, and ROS/ROS2 running on a Linux "brain" computer tying them all together as loosely-coupled communicating processes.</p></div>
+  </div>
+
+  <p><strong>ROS/ROS2</strong> (Robot Operating System) isn't an OS in the RTOS sense from Chapter 4 — it's a messaging middleware that lets independent programs ("nodes") publish and subscribe to data (sensor readings, motor commands) without needing to know about each other directly. A motor controller MCU still runs its own real-time bare-metal or RTOS code underneath — ROS typically sits at a higher level, on a more powerful onboard computer, orchestrating the overall behavior and talking down to the low-level boards over UART, CAN, or a network link.</p>
+
+  <div class="diagram-frame">
+    <svg viewBox="0 0 700 220" id="ch8-svg" style="width:100%;height:auto;"></svg>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">▶ step through the sense–think–act loop</div>
+    <div id="ch8-steps"></div>
+    <div style="display:flex; gap:10px; margin-top:14px;">
+      <button class="btn-ghost" onclick="ch8Prev()">◂ back</button>
+      <button class="btn" onclick="ch8Next()">next step ▸</button>
+    </div>
+  </div>
+
+  <div class="analogy">
+    <span class="label">Feynman analogy — a ship's crew, not a single captain</span>
+    <p>A ship doesn't run on one person doing everything — a helmsman steers, a lookout watches, an engineer manages power, and the captain integrates their reports into decisions, each communicating over agreed channels (shouted orders, signal flags, intercom). A robot's distributed embedded system works the same way: specialized boards handle specialized real-time jobs, and a higher-level computer running ROS integrates their reports into overall behavior — no single point does everything, and each link uses whichever "channel" (protocol) fits that job.</p>
+  </div>
+
+  <details class="reveal">
+    <summary>Reveal the why — why not just run everything on one powerful MCU?</summary>
+    <div class="reveal-body">Splitting the system protects real-time guarantees. A motor's control loop (Chapter 6) needs a hard, predictable deadline every few milliseconds; running that on the same processor as heavier tasks like path planning or computer vision risks an occasional slow task blocking the time-critical loop (recall Chapter 4's priority inversion). Distributing work across dedicated boards, each running lean real-time code for its one job, keeps the safety-critical loops predictable while letting the "smart but sometimes slow" computation happen elsewhere without risking a stalled motor.</div>
+  </details>
+
+  <div class="sticking">
+    <span class="label">⚡ Common sticking point</span>
+    <p>Teams debugging "the robot behaves erratically" often start by tweaking the ROS-level planning code, when the fault is frequently upstream in the embedded layer — a dropped CAN message, an under-tuned PID loop oscillating, an I2C sensor occasionally timing out. Before touching high-level logic, check what the low-level boards actually reported: log raw sensor values, controller output, and communication error rates. Most "AI behaved weird" complaints in robotics are embedded-layer problems wearing a software-layer costume.</p>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">🌐 the unified mental model</div>
+    <svg viewBox="0 0 680 420" id="ch8-unified" style="width:100%;height:auto;"></svg>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">✍️ explain it back</div>
+    <p style="font-size:14px;color:var(--text-dim);">In your own words: walk through what happens, end to end, when a mobile robot's obstacle sensor detects something close and the robot needs to stop.</p>
+    <textarea id="ch8-explain" placeholder="Type your explanation here..."></textarea>
+    <button class="btn-ghost" style="margin-top:10px;" onclick="revealModel('ch8')">Compare with a model answer</button>
+    <div id="ch8-model" class="reveal-body" style="display:none; margin-top:10px; padding:12px; background:var(--bg); border-radius:6px; font-size:13.5px;">
+      A distance sensor's analog or digital reading is sampled by its local MCU (via ADC or a protocol like I2C), which runs a real-time task or RTOS thread checking it against a threshold. If it's close enough to matter urgently, this can trigger a hardware interrupt or a high-priority task that directly commands the motor driver to brake — deliberately bypassing the slower ROS/planning layer for the safety-critical reaction. The event is also published as a message so the higher-level ROS system can log it, replan a path, or update its map, but the actual stop happens at the fast, deterministic embedded layer, exactly because that layer offers the timing guarantee a safety stop requires.
+    </div>
+  </div>
+
+  <div class="panel"><div class="panel-title">✅ final check</div><div id="ch8-quiz"></div></div>
+
+  <div class="takeaway">
+    <span class="label">Key takeaway</span>
+    <ul>
+      <li>Real robots are distributed systems: several MCUs plus a higher-level computer, communicating over multiple protocols.</li>
+      <li>ROS/ROS2 is messaging middleware at the planning/coordination layer — it doesn't replace real-time embedded code on individual boards.</li>
+      <li>Safety-critical reactions belong at the fastest, most deterministic layer available — usually embedded, not the high-level planner.</li>
+    </ul>
+  </div>
+
+  <div class="panel" style="border-color:var(--accent);">
+    <div class="panel-title">📋 cheat sheet</div>
+    <details class="reveal">
+      <summary>Reveal printable cheat sheet</summary>
+      <div class="reveal-body" id="cheatsheet">
+        <strong style="color:var(--text);">Embedded Systems in Robotics — Cheat Sheet</strong><br><br>
+        • <strong>Bare-metal MCU</strong>: one program, direct register/memory-mapped I/O access, no OS scheduler.<br>
+        • <strong>ADC</strong>: quantizes continuous voltage into discrete numeric steps; resolution = step fineness.<br>
+        • <strong>PWM</strong>: fakes analog output via rapid on/off switching; duty cycle = average effective voltage.<br>
+        • <strong>UART/SPI/I2C/CAN</strong>: protocols trading off pin count, speed, addressing, and noise robustness.<br>
+        • <strong>RTOS</strong>: preemptive task scheduling by priority; real-time = deterministic deadlines, not raw speed.<br>
+        • <strong>H-bridge</strong>: four switches routing current through a DC motor — forward/reverse/brake/coast.<br>
+        • <strong>PID control</strong>: P (current error), I (accumulated error), D (rate of change) — continuous correction loop.<br>
+        • <strong>Kalman filter</strong>: predict from known dynamics, correct from new measurements, weighted by trust.<br>
+        • <strong>ROS/ROS2</strong>: pub/sub messaging middleware coordinating distributed nodes, sitting above the real-time embedded layer.<br>
+        • <strong>Debugging rule of thumb</strong>: an erratic robot is usually an embedded-layer problem first, a planning-layer problem second.
+      </div>
+    </details>
+  </div>
+
+  <div class="panel" id="cert-panel" style="text-align:center; display:none;">
+    <div class="panel-title" style="justify-content:center;">🏆 certificate of completion</div>
+    <div id="certificate" style="border:2px solid var(--accent); border-radius:8px; padding:30px; background:radial-gradient(ellipse at center, rgba(255,97,97,0.08), transparent);">
+      <div style="font-family:var(--mono); font-size:12px; color:var(--text-faint); letter-spacing:0.1em; text-transform:uppercase;">This certifies that</div>
+      <div style="font-family:var(--display); font-size:28px; font-weight:700; margin:10px 0;">a careful learner</div>
+      <div style="font-size:14px; color:var(--text-dim);">has completed the full arc of <strong>Embedded Systems in Robotics</strong> — from register-level control to a working mental model of a distributed, real-time robot stack.</div>
+      <div style="font-family:var(--mono); font-size:11px; color:var(--text-faint); margin-top:18px;" id="cert-date"></div>
+    </div>
+    <p style="font-size:12.5px; color:var(--text-faint); margin-top:12px;">📸 screenshot this to save it</p>
+  </div>
+  <div style="text-align:center; margin-top:20px;">
+    <button class="btn" onclick="showCertificate()">Mark course complete →</button>
+  </div>
+
+  <div class="panel" style="margin-top:30px;">
+    <div class="panel-title">🧭 what to learn next</div>
+    <ul style="font-size:14px; color:var(--text-dim); padding-left:18px;">
+      <li>FreeRTOS internals: queues, semaphores, mutexes, and priority inheritance in depth</li>
+      <li>PCB design and power-supply basics for robotics boards (regulators, decoupling, noise)</li>
+      <li>ROS2's DDS transport layer and real-time-capable middleware configurations</li>
+      <li>SLAM (simultaneous localization and mapping) as the natural next layer above sensor fusion</li>
+      <li>Functional safety standards (e.g. IEC 61508 concepts) for safety-critical embedded design</li>
+    </ul>
+  </div>
+</div>
+</article>
+
+<footer>
+  built as a self-contained instrument lab · no external frameworks · works offline after first load
+</footer>
+
+</main>
+<script>
+const CHAPTERS = [
+  {id:'ch1', num:'01', title:'Inside the Microcontroller', accent:'ch1'},
+  {id:'ch2', num:'02', title:'Digital I/O, ADC & PWM', accent:'ch2'},
+  {id:'ch3', num:'03', title:'Communication Protocols', accent:'ch3'},
+  {id:'ch4', num:'04', title:'RTOS & Task Scheduling', accent:'ch4'},
+  {id:'ch5', num:'05', title:'Actuators & Motor Control', accent:'ch5'},
+  {id:'ch6', num:'06', title:'Control Theory (PID)', accent:'ch6'},
+  {id:'ch7', num:'07', title:'Sensor Fusion', accent:'ch7'},
+  {id:'ch8', num:'08', title:'Networking, ROS & Synthesis', accent:'ch8'},
+];
+
+function onScroll(){
+  const h = document.documentElement;
+  const pct = (h.scrollTop) / (h.scrollHeight - h.clientHeight) * 100;
+  document.getElementById('progress-fill').style.width = pct + '%';
+}
+window.addEventListener('scroll', onScroll, {passive:true});
+
+const pipsEl = document.getElementById('chapter-pips');
+const roadEl = document.getElementById('roadmap');
+CHAPTERS.forEach((c)=>{
+  const pip = document.createElement('div');
+  pip.className = 'pip'; pip.id = 'pip-'+c.id; pip.title = c.title;
+  pip.onclick = ()=>document.getElementById(c.id).scrollIntoView({behavior:'smooth'});
+  pipsEl.appendChild(pip);
+
+  const card = document.createElement('a');
+  card.href = '#'+c.id; card.className='road-card'; card.style.setProperty('--accent', `var(--${c.accent})`);
+  card.innerHTML = `<div class="num">CH ${c.num}</div><div class="title">${c.title}</div>`;
+  roadEl.appendChild(card);
+});
+
+const revealObserver = new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{
+    if(e.isIntersecting){
+      e.target.classList.add('visible');
+      const id = e.target.id;
+      const pip = document.getElementById('pip-'+id);
+      if(pip){ document.querySelectorAll('.pip').forEach(p=>p.classList.remove('active')); pip.classList.add('active'); pip.classList.add('done');}
+      localStorage.setItem('embedded-course-'+id, 'seen');
+    }
+  });
+}, {threshold:0.18});
+document.querySelectorAll('.chapter').forEach(ch=>revealObserver.observe(ch));
+
+CHAPTERS.forEach(c=>{
+  if(localStorage.getItem('embedded-course-'+c.id)){
+    const pip = document.getElementById('pip-'+c.id);
+    if(pip) pip.classList.add('done');
+  }
+});
+
+function revealModel(chId){
+  const el = document.getElementById(chId+'-model');
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+function buildQuiz(containerId, data){
+  const root = document.getElementById(containerId);
+  data.forEach((item, qi)=>{
+    const block = document.createElement('div');
+    block.className = 'quiz-q';
+    const qtext = document.createElement('div');
+    qtext.className = 'qtext';
+    qtext.textContent = (qi+1)+'. '+item.q;
+    block.appendChild(qtext);
+    const optsWrap = document.createElement('div');
+    optsWrap.className = 'quiz-opts';
+    const feedback = document.createElement('div');
+    feedback.className = 'qfeedback';
+
+    item.opts.forEach(opt=>{
+      const b = document.createElement('button');
+      b.className = 'qopt';
+      b.textContent = opt.t;
+      b.onclick = ()=>{
+        Array.from(optsWrap.children).forEach(c=>c.disabled=true);
+        if(opt.correct){ b.classList.add('correct'); feedback.classList.add('ok'); feedback.classList.remove('bad'); }
+        else { b.classList.add('wrong'); feedback.classList.add('bad'); feedback.classList.remove('ok');
+          const correctBtn = Array.from(optsWrap.children).find((c,ci)=>item.opts[ci].correct);
+          if(correctBtn) correctBtn.classList.add('correct');
+        }
+        feedback.textContent = (opt.correct ? '✓ Correct — ' : '✗ Not quite — ') + opt.why;
+        feedback.classList.add('show');
+      };
+      optsWrap.appendChild(b);
+    });
+    block.appendChild(optsWrap);
+    block.appendChild(feedback);
+    root.appendChild(block);
+  });
+}
+</script>
+<script>
+/* ---------- hero canvas: powering-up circuit traces ---------- */
+(function(){
+  const canvas = document.getElementById('hero-canvas');
+  const ctx = canvas.getContext('2d');
+  let W,H;
+  function resize(){ W = canvas.width = canvas.offsetWidth; H = canvas.height = canvas.offsetHeight; }
+  window.addEventListener('resize', resize);
+  resize();
+
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // generate a set of orthogonal circuit traces radiating from center chip
+  function buildTraces(){
+    const cx = W/2, cy = H*0.42;
+    const traces = [];
+    const n = 14;
+    for(let i=0;i<n;i++){
+      const angle = (i/n)*Math.PI*2;
+      const midDist = 90 + Math.random()*60;
+      const endDist = 220 + Math.random()*220;
+      const mx = cx + Math.cos(angle)*midDist;
+      const my = cy + Math.sin(angle)*midDist;
+      // orthogonal step
+      const ex = mx + (Math.random()>0.5 ? (Math.random()-0.5)*endDist : 0);
+      const ey = my + (Math.random()>0.5 ? 0 : (Math.random()-0.5)*endDist);
+      traces.push({
+        pts:[[cx,cy],[mx,my],[ex,ey]],
+        progress:0,
+        speed: 0.006 + Math.random()*0.01,
+        delay: Math.random()*80,
+        color: ['#7dfa8f','#e0954a','#5cc8ff'][i%3]
+      });
+    }
+    return traces;
+  }
+  let traces = buildTraces();
+  let frame = 0;
+
+  function pathLenAt(pts, t){
+    // t in [0,1] across full multi-segment path
+    const segs = [[pts[0],pts[1]],[pts[1],pts[2]]];
+    const lens = segs.map(s=>Math.hypot(s[1][0]-s[0][0], s[1][1]-s[0][1]));
+    const total = lens[0]+lens[1];
+    const target = t*total;
+    if(target <= lens[0]){
+      const f = lens[0]>0 ? target/lens[0] : 0;
+      return [segs[0][0][0]+(segs[0][1][0]-segs[0][0][0])*f, segs[0][0][1]+(segs[0][1][1]-segs[0][0][1])*f];
+    } else {
+      const f = lens[1]>0 ? (target-lens[0])/lens[1] : 0;
+      return [segs[1][0][0]+(segs[1][1][0]-segs[1][0][0])*f, segs[1][0][1]+(segs[1][1][1]-segs[1][0][1])*f];
+    }
+  }
+
+  function step(){
+    ctx.clearRect(0,0,W,H);
+    frame++;
+    const cx = W/2, cy = H*0.42;
+
+    traces.forEach(tr=>{
+      if(frame < tr.delay) return;
+      if(!reduced) tr.progress = Math.min(1, tr.progress + tr.speed);
+      const pts = tr.pts;
+      ctx.strokeStyle = tr.color+'55';
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.moveTo(pts[0][0], pts[0][1]);
+      const litTo = pathLenAt(pts, tr.progress);
+      // draw full faint trace
+      ctx.moveTo(pts[0][0], pts[0][1]); ctx.lineTo(pts[1][0], pts[1][1]); ctx.lineTo(pts[2][0], pts[2][1]);
+      ctx.stroke();
+      // draw lit portion
+      ctx.strokeStyle = tr.color;
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.moveTo(pts[0][0], pts[0][1]);
+      if(tr.progress <= 0.5){
+        const f = tr.progress/0.5;
+        ctx.lineTo(pts[0][0]+(pts[1][0]-pts[0][0])*f, pts[0][1]+(pts[1][1]-pts[0][1])*f);
+      } else {
+        ctx.lineTo(pts[1][0], pts[1][1]);
+        const f = (tr.progress-0.5)/0.5;
+        ctx.lineTo(pts[1][0]+(pts[2][0]-pts[1][0])*f, pts[1][1]+(pts[2][1]-pts[1][1])*f);
+      }
+      ctx.stroke();
+      // pad at endpoints
+      [pts[1], pts[2]].forEach(p=>{
+        ctx.beginPath(); ctx.arc(p[0],p[1],2.2,0,Math.PI*2); ctx.fillStyle = tr.color+'99'; ctx.fill();
+      });
+    });
+
+    // center chip
+    ctx.fillStyle = '#141a12';
+    ctx.strokeStyle = '#7dfa8f';
+    ctx.lineWidth = 1.5;
+    ctx.fillRect(cx-34, cy-24, 68, 48);
+    ctx.strokeRect(cx-34, cy-24, 68, 48);
+    ctx.fillStyle = '#7dfa8f';
+    ctx.font = '11px JetBrains Mono, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('MCU', cx, cy+4);
+
+    if(frame % 400 === 0 && !reduced){ traces = buildTraces(); frame = 0; }
+    requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+})();
+</script>
+<script>
+/* ================= CHAPTER 1 ================= */
+(function(){
+  const svg = document.getElementById('ch1-svg');
+  const regions = [
+    {name:'Flash (program code)', y:20, h:60, color:'#5cc8ff', desc:'Your compiled program lives here — read-only during execution, non-volatile (survives power-off).'},
+    {name:'SRAM (variables, stack)', y:90, h:60, color:'#7dfa8f', desc:'Live variables, the call stack, and the heap — fast, but lost when power is removed.'},
+    {name:'Peripheral registers', y:160, h:60, color:'#e0954a', desc:'Memory addresses wired directly to hardware — GPIO, timers, ADC, UART. Writing here has an immediate physical effect.'},
+  ];
+  function render(){
+    let g = `<text x="340" y="14" text-anchor="middle" fill="#8fa085" font-size="11">simplified MCU address space</text>`;
+    regions.forEach(r=>{
+      g += `<g class="ch1-region" data-name="${r.name}">
+        <rect x="140" y="${r.y}" width="400" height="${r.h}" rx="4" fill="${r.color}15" stroke="${r.color}" stroke-width="1.3"/>
+        <text x="160" y="${r.y+r.h/2+4}" fill="${r.color}" font-size="13">${r.name}</text>
+      </g>`;
+    });
+    svg.innerHTML = g + `<text id="ch1-desc" x="340" y="250" text-anchor="middle" fill="#5a6a54" font-size="11">hover a region above</text>`;
+    svg.querySelectorAll('.ch1-region').forEach((el,i)=>{
+      el.style.cursor='pointer';
+      el.addEventListener('mouseenter', ()=>{
+        document.getElementById('ch1-desc').textContent = regions[i].desc;
+        el.querySelector('rect').setAttribute('fill', regions[i].color+'30');
+      });
+      el.addEventListener('mouseleave', ()=>{
+        document.getElementById('ch1-desc').textContent = 'hover a region above';
+        el.querySelector('rect').setAttribute('fill', regions[i].color+'15');
+      });
+    });
+  }
+  render();
+
+  /* GPIO bit register */
+  const bitsEl = document.getElementById('ch1-bits');
+  let bits = [0,0,0,0,0,0,0,0];
+  function renderBits(){
+    const val = bits.reduce((acc,b,i)=>acc + b*(2**(7-i)), 0);
+    let html = `<div style="display:flex; gap:6px; margin-bottom:10px;">`;
+    bits.forEach((b,i)=>{
+      html += `<button class="btn-ghost" style="width:44px; font-family:var(--mono); ${b?'background:var(--signal);color:var(--bg);border-color:var(--signal);':''}" data-i="${i}">${b}</button>`;
+    });
+    html += `</div><div class="mono" style="font-size:13px;color:var(--text-dim);">register value: <strong style="color:var(--copper);">0x${val.toString(16).padStart(2,'0').toUpperCase()}</strong> (binary ${bits.join('')}) — pins HIGH: ${bits.map((b,i)=>b?7-i:null).filter(x=>x!==null).join(', ')||'none'}</div>`;
+    bitsEl.innerHTML = html;
+    bitsEl.querySelectorAll('button[data-i]').forEach(btn=>{
+      btn.onclick = ()=>{ const i = +btn.dataset.i; bits[i] = bits[i]?0:1; renderBits(); };
+    });
+  }
+  renderBits();
+
+  buildQuiz('ch1-quiz', [
+    {q:'What does "memory-mapped I/O" mean?', opts:[
+      {t:'Peripheral registers are assigned addresses in the same space the CPU uses for RAM', correct:true, why:'exactly — hardware control becomes an ordinary read/write to an address.'},
+      {t:'The MCU keeps a separate map file listing where each sensor is physically located', correct:false, why:'this is about address space design, not a physical location map.'},
+      {t:'RAM and flash share the exact same physical memory chip', correct:false, why:'they\u2019re typically separate physical memories, just mapped into one logical address space.'},
+    ]},
+    {q:'Why does bare-metal (no-OS) code give more predictable timing than an OS-based program?', opts:[
+      {t:'Bare-metal code always runs faster in raw instructions-per-second', correct:false, why:'raw speed isn\u2019t the point — predictability of timing is.'},
+      {t:'There\u2019s no scheduler switching between competing programs, so nothing else can delay your code unexpectedly', correct:true, why:'exactly — one program running alone means no contention for CPU time.'},
+      {t:'Bare-metal code doesn\u2019t use registers', correct:false, why:'bare-metal code uses registers directly and constantly — that\u2019s the whole point.'},
+    ]},
+  ]);
+})();
+</script>
+<script>
+/* ================= CHAPTER 2 ================= */
+(function(){
+  const svg = document.getElementById('ch2-svg');
+  const slider = document.getElementById('ch2-slider');
+  const pctEl = document.getElementById('ch2-pct');
+  const voltEl = document.getElementById('ch2-volt');
+
+  function render(duty){
+    const cycles = 5;
+    const cycleW = 600/cycles;
+    let wave = 'M 40 60 ';
+    for(let i=0;i<cycles;i++){
+      const x0 = 40 + i*cycleW;
+      const onW = cycleW*(duty/100);
+      wave += `L ${x0} 60 L ${x0} 200 L ${x0+onW} 200 L ${x0+onW} 60 L ${x0+cycleW} 60 `;
+    }
+    const avgY = 200 - (duty/100)*140;
+    svg.innerHTML = `
+      <text x="340" y="20" text-anchor="middle" fill="#8fa085" font-size="11">PWM pulse train at ${duty}% duty cycle</text>
+      <line x1="40" y1="200" x2="640" y2="200" stroke="#26331f" stroke-width="1"/>
+      <line x1="40" y1="60" x2="640" y2="60" stroke="#26331f" stroke-width="1" stroke-dasharray="3 3"/>
+      <text x="30" y="204" fill="#5a6a54" font-size="10" text-anchor="end">0V</text>
+      <text x="30" y="64" fill="#5a6a54" font-size="10" text-anchor="end">5V</text>
+      <path d="${wave}" fill="none" stroke="#e0954a" stroke-width="2"/>
+      <line x1="40" y1="${avgY}" x2="640" y2="${avgY}" stroke="#7dfa8f" stroke-width="1.6" stroke-dasharray="6 4"/>
+      <text x="640" y="${avgY-6}" fill="#7dfa8f" font-size="10" text-anchor="end">effective average</text>
+    `;
+  }
+  render(30);
+  slider.addEventListener('input', ()=>{
+    const d = +slider.value;
+    pctEl.textContent = d+'%';
+    voltEl.textContent = (5*d/100).toFixed(2)+'V';
+    render(d);
+  });
+
+  buildQuiz('ch2-quiz', [
+    {q:'A 10-bit ADC has how many possible output values?', opts:[
+      {t:'10', correct:false, why:'10 bits means 2\u00b9\u2070 possible values, not 10.'},
+      {t:'1024', correct:true, why:'2 to the power of 10 is 1024 discrete steps.'},
+      {t:'100', correct:false, why:'that would only be true for a decimal, not binary, encoding.'},
+    ]},
+    {q:'At a 75% PWM duty cycle on a 5V supply, what is the approximate effective average voltage?', opts:[
+      {t:'5V', correct:false, why:'that would be 100% duty cycle, fully on the whole time.'},
+      {t:'3.75V', correct:true, why:'75% of 5V is 3.75V \u2014 the average scales linearly with duty cycle.'},
+      {t:'0.75V', correct:false, why:'duty cycle is a percentage of the supply voltage, not a direct voltage value.'},
+    ]},
+  ]);
+})();
+</script>
+<script>
+/* ================= CHAPTER 3 ================= */
+(function(){
+  const svg = document.getElementById('ch3-svg');
+  const tabsEl = document.getElementById('ch3-tabs');
+  const protocols = {
+    UART:{wires:2, color:'#5cc8ff', diagram:(g)=>`
+      <text x="340" y="20" text-anchor="middle" fill="#8fa085" font-size="11">UART \u2014 2 wires, no shared clock, agreed baud rate</text>
+      <text x="120" y="70" fill="#5cc8ff" font-size="12">MCU A</text><rect x="90" y="80" width="80" height="40" rx="4" fill="none" stroke="#5cc8ff"/>
+      <text x="500" y="70" fill="#5cc8ff" font-size="12">MCU B</text><rect x="480" y="80" width="80" height="40" rx="4" fill="none" stroke="#5cc8ff"/>
+      <line x1="170" y1="90" x2="480" y2="90" stroke="#5cc8ff" stroke-width="2"/><text x="325" y="84" text-anchor="middle" fill="#5cc8ff" font-size="10">TX \u2192 RX</text>
+      <line x1="170" y1="110" x2="480" y2="110" stroke="#5cc8ff" stroke-width="2"/><text x="325" y="128" text-anchor="middle" fill="#5cc8ff" font-size="10">RX \u2190 TX</text>
+    `},
+    SPI:{wires:4, color:'#e0954a', diagram:(g)=>`
+      <text x="340" y="20" text-anchor="middle" fill="#8fa085" font-size="11">SPI \u2014 shared clock, one controller, per-device select line</text>
+      <text x="110" y="60" fill="#e0954a" font-size="12">Controller</text><rect x="80" y="70" width="90" height="140" rx="4" fill="none" stroke="#e0954a"/>
+      <text x="480" y="55" fill="#e0954a" font-size="11">Device 1</text><rect x="460" y="65" width="80" height="35" rx="4" fill="none" stroke="#e0954a"/>
+      <text x="480" y="115" fill="#e0954a" font-size="11">Device 2</text><rect x="460" y="125" width="80" height="35" rx="4" fill="none" stroke="#e0954a"/>
+      <line x1="170" y1="80" x2="460" y2="80" stroke="#e0954a" stroke-width="1.5"/>
+      <line x1="170" y1="95" x2="460" y2="140" stroke="#e0954a" stroke-width="1.5"/>
+      <line x1="170" y1="180" x2="460" y2="82" stroke="#e0954a" stroke-width="1" stroke-dasharray="3 3"/>
+      <line x1="170" y1="195" x2="460" y2="142" stroke="#e0954a" stroke-width="1" stroke-dasharray="3 3"/>
+      <text x="325" y="230" text-anchor="middle" fill="#e0954a" font-size="10">solid = clock/data, dashed = separate chip-select per device</text>
+    `},
+    I2C:{wires:2, color:'#a78bfa', diagram:(g)=>`
+      <text x="340" y="20" text-anchor="middle" fill="#8fa085" font-size="11">I2C \u2014 2 shared wires, every device has a unique address</text>
+      <line x1="90" y1="80" x2="590" y2="80" stroke="#a78bfa" stroke-width="2"/><text x="60" y="84" fill="#a78bfa" font-size="10">SDA</text>
+      <line x1="90" y1="110" x2="590" y2="110" stroke="#a78bfa" stroke-width="2"/><text x="60" y="114" fill="#a78bfa" font-size="10">SCL</text>
+      <rect x="90" y="140" width="70" height="35" rx="4" fill="none" stroke="#a78bfa"/><text x="125" y="162" text-anchor="middle" fill="#a78bfa" font-size="10">0x3A</text>
+      <rect x="260" y="140" width="70" height="35" rx="4" fill="none" stroke="#a78bfa"/><text x="295" y="162" text-anchor="middle" fill="#a78bfa" font-size="10">0x68</text>
+      <rect x="430" y="140" width="70" height="35" rx="4" fill="none" stroke="#a78bfa"/><text x="465" y="162" text-anchor="middle" fill="#a78bfa" font-size="10">0x76</text>
+      <line x1="125" y1="140" x2="125" y2="110" stroke="#a78bfa" stroke-width="1"/>
+      <line x1="295" y1="140" x2="295" y2="110" stroke="#a78bfa" stroke-width="1"/>
+      <line x1="465" y1="140" x2="465" y2="110" stroke="#a78bfa" stroke-width="1"/>
+    `},
+    CAN:{wires:2, color:'#7dfa8f', diagram:(g)=>`
+      <text x="340" y="20" text-anchor="middle" fill="#8fa085" font-size="11">CAN \u2014 differential bus, multi-node, priority arbitration</text>
+      <line x1="60" y1="120" x2="620" y2="120" stroke="#7dfa8f" stroke-width="3"/>
+      <text x="340" y="140" text-anchor="middle" fill="#7dfa8f" font-size="10">CAN bus (twisted pair, noise-resistant)</text>
+      ${[110,250,390,530].map((x,i)=>`<rect x="${x-40}" y="55" width="80" height="35" rx="4" fill="none" stroke="#7dfa8f"/><text x="${x}" y="77" text-anchor="middle" fill="#7dfa8f" font-size="10">Node ${i+1}</text><line x1="${x}" y1="90" x2="${x}" y2="120" stroke="#7dfa8f" stroke-width="1"/>`).join('')}
+    `},
+  };
+  Object.keys(protocols).forEach(name=>{
+    const btn = document.createElement('button');
+    btn.className='btn-ghost'; btn.textContent=name;
+    btn.style.borderColor = protocols[name].color;
+    btn.onclick = ()=>showProtocol(name);
+    tabsEl.appendChild(btn);
+  });
+  function showProtocol(name){ svg.innerHTML = protocols[name].diagram(); }
+  showProtocol('UART');
+
+  /* drag match */
+  const matchRoot = document.getElementById('ch3-match');
+  const terms = [
+    {term:'UART', def:'Simple 2-wire point-to-point link; both sides must agree on speed (baud rate) in advance'},
+    {term:'SPI', def:'Fast, shared clock line, one controller with a dedicated select wire per device'},
+    {term:'I2C', def:'Only 2 shared wires for many devices, using unique addresses instead of extra wires'},
+    {term:'CAN', def:'Noise-resistant differential bus with built-in message priority arbitration for many nodes'},
+  ];
+  const shuffledDefs = [...terms].sort(()=>Math.random()-0.5);
+  const termsCol = document.createElement('div');
+  termsCol.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;';
+  const defsCol = document.createElement('div');
+  defsCol.style.cssText = 'display:flex;flex-direction:column;gap:8px;';
+  terms.forEach(t=>{
+    const chip = document.createElement('div');
+    chip.draggable = true; chip.textContent = t.term; chip.className='mono';
+    chip.style.cssText = 'padding:9px 14px;border:1px solid var(--signal);border-radius:6px;background:var(--bg);cursor:grab;font-size:13px;';
+    chip.ondragstart = (e)=>e.dataTransfer.setData('text', t.term);
+    termsCol.appendChild(chip);
+  });
+  shuffledDefs.forEach(t=>{
+    const slot = document.createElement('div');
+    slot.style.cssText = 'padding:11px 14px;border:1.5px dashed var(--line);border-radius:6px;font-size:13.5px;color:var(--text-dim);';
+    slot.textContent = t.def;
+    slot.ondragover = (e)=>e.preventDefault();
+    slot.ondrop = (e)=>{
+      e.preventDefault();
+      const dropped = e.dataTransfer.getData('text');
+      if(dropped === t.term){
+        slot.style.borderStyle='solid'; slot.style.borderColor='var(--signal)';
+        slot.innerHTML = `<strong style="color:var(--signal);">${dropped}</strong> \u2014 ${t.def}`;
+      } else { slot.style.borderColor='var(--led)'; setTimeout(()=>{slot.style.borderColor='var(--line)';},500); }
+    };
+    defsCol.appendChild(slot);
+  });
+  matchRoot.appendChild(termsCol); matchRoot.appendChild(defsCol);
+
+  buildQuiz('ch3-quiz', [
+    {q:'Which protocol uses a shared clock line so both sides never disagree about bit timing?', opts:[
+      {t:'UART', correct:false, why:'UART has no shared clock \u2014 both sides must independently agree on the same baud rate.'},
+      {t:'SPI', correct:true, why:'SPI\u2019s clock line is generated by the controller and shared with every device, removing timing ambiguity.'},
+      {t:'CAN', correct:false, why:'CAN is asynchronous and relies on precise bit timing configuration, not a shared clock wire.'},
+    ]},
+    {q:'Why might a robot use CAN for inter-board communication instead of I2C?', opts:[
+      {t:'CAN is more resistant to electrical noise and supports priority-based arbitration among many nodes', correct:true, why:'exactly why CAN is standard in automotive and multi-controller robotics.'},
+      {t:'CAN uses fewer wires than I2C', correct:false, why:'both typically use 2 wires \u2014 wire count isn\u2019t the differentiator here.'},
+      {t:'CAN is simpler to implement in software', correct:false, why:'CAN\u2019s arbitration and framing are generally more complex than I2C, not simpler.'},
+    ]},
+  ]);
+})();
+</script>
+<script>
+/* ================= CHAPTER 4 ================= */
+(function(){
+  const svg = document.getElementById('ch4-svg');
+  // timeline: ticks 0..9, tasks: Low, Med, High(interrupt at tick 5)
+  const timeline = [
+    {tick:0, running:'Low'}, {tick:1, running:'Low'}, {tick:2, running:'Med'},
+    {tick:3, running:'Med'}, {tick:4, running:'Low'}, {tick:5, running:'High (interrupt!)'},
+    {tick:6, running:'High (interrupt!)'}, {tick:7, running:'Med'}, {tick:8, running:'Low'}, {tick:9, running:'Low'},
+  ];
+  const colors = {Low:'#5cc8ff', Med:'#e0954a', 'High (interrupt!)':'#ff6161'};
+  let step = -1;
+  function render(){
+    let g = `<text x="340" y="18" text-anchor="middle" fill="#8fa085" font-size="11">scheduler timeline \u2014 which task is running each tick</text>`;
+    const cellW = 60;
+    timeline.forEach((t,i)=>{
+      const x = 40 + i*cellW;
+      const active = i<=step;
+      const c = colors[t.running];
+      g += `<g opacity="${active?1:0.18}">
+        <rect x="${x}" y="60" width="${cellW-8}" height="60" rx="4" fill="${c}20" stroke="${c}" stroke-width="1.3"/>
+        <text x="${x+(cellW-8)/2}" y="94" text-anchor="middle" fill="${c}" font-size="10">${t.running}</text>
+      </g>`;
+    });
+    g += `<text x="340" y="160" text-anchor="middle" fill="#7dfa8f" font-size="12">${step>=0 ? 'tick '+step+': '+timeline[step].running+' task is executing' : 'press "next tick" to begin'}</text>`;
+    if(step>=5 && step<=6){
+      g += `<text x="340" y="185" text-anchor="middle" fill="#ff6161" font-size="11">\u26a1 a hardware interrupt preempted everything \u2014 highest priority always wins the CPU right now</text>`;
+    }
+    svg.innerHTML = g;
+  }
+  render();
+  window.ch4Step = function(){ step = Math.min(step+1, timeline.length-1); render(); };
+  window.ch4Reset = function(){ step = -1; render(); };
+
+  buildQuiz('ch4-quiz', [
+    {q:'What happens to a running low-priority task when a hardware interrupt fires?', opts:[
+      {t:'It finishes its current operation first, then the interrupt runs', correct:false, why:'interrupts preempt immediately \u2014 they don\u2019t wait for the current task to reach a convenient stopping point.'},
+      {t:'It is immediately paused so the interrupt handler can run', correct:true, why:'that\u2019s the defining behavior of a hardware interrupt \u2014 immediate preemption.'},
+      {t:'Nothing \u2014 interrupts only affect tasks with lower priority than themselves that are already waiting', correct:false, why:'interrupts preempt whatever is currently running, not just waiting tasks.'},
+    ]},
+    {q:'A system is very fast on average but occasionally misses its deadline under load. Is it "real-time"?', opts:[
+      {t:'Yes, because it\u2019s fast almost all the time', correct:false, why:'real-time is about guaranteed worst-case timing, not average-case speed.'},
+      {t:'No, because real-time requires the deadline to always be met, not just usually', correct:true, why:'exactly \u2014 a single missed deadline disqualifies a hard real-time guarantee.'},
+      {t:'It depends only on how many tasks are running', correct:false, why:'task count alone doesn\u2019t determine real-time status \u2014 the deadline guarantee does.'},
+    ]},
+  ]);
+})();
+</script>
+<script>
+/* ================= CHAPTER 5 ================= */
+(function(){
+  const svg = document.getElementById('ch5-svg');
+  const modesEl = document.getElementById('ch5-modes');
+  const modes = {
+    Forward:{closed:['TL','BR'], desc:'Top-left and bottom-right switches closed \u2014 current flows left-to-right through the motor.'},
+    Reverse:{closed:['TR','BL'], desc:'Top-right and bottom-left switches closed \u2014 current flows right-to-left, spinning the motor the other way.'},
+    Brake:{closed:['BL','BR'], desc:'Both bottom switches closed, shorting the motor terminals together \u2014 residual energy dissipates quickly, stopping fast.'},
+    Coast:{closed:[], desc:'All switches open \u2014 motor is electrically disconnected and spins down freely under friction alone.'},
+  };
+  function render(modeName){
+    const m = modes[modeName];
+    const sw = {
+      TL:{x:180,y:70}, TR:{x:420,y:70}, BL:{x:180,y:190}, BR:{x:420,y:190}
+    };
+    function isClosed(k){ return m.closed.includes(k); }
+    let g = `<text x="340" y="20" text-anchor="middle" fill="#8fa085" font-size="11">H-bridge \u2014 mode: ${modeName}</text>`;
+    g += `<rect x="270" y="110" width="100" height="40" rx="6" fill="#141a12" stroke="#e0954a" stroke-width="1.5"/><text x="320" y="134" text-anchor="middle" fill="#e0954a" font-size="11">MOTOR</text>`;
+    // rails
+    g += `<line x1="150" y1="40" x2="450" y2="40" stroke="#5a6a54" stroke-width="1.5"/><text x="150" y="30" fill="#5a6a54" font-size="10">+V</text>`;
+    g += `<line x1="150" y1="240" x2="450" y2="240" stroke="#5a6a54" stroke-width="1.5"/><text x="150" y="256" fill="#5a6a54" font-size="10">GND</text>`;
+    Object.entries(sw).forEach(([k,pos])=>{
+      const closed = isClosed(k);
+      const color = closed ? '#7dfa8f' : '#5a6a54';
+      g += `<g>
+        <circle cx="${pos.x}" cy="${pos.y}" r="10" fill="${closed?'#7dfa8f30':'#141a12'}" stroke="${color}" stroke-width="1.6"/>
+        <text x="${pos.x}" y="${pos.y+4}" text-anchor="middle" fill="${color}" font-size="9">${closed?'ON':'OFF'}</text>
+        <text x="${pos.x}" y="${pos.y - (pos.y<130?18:-22)}" text-anchor="middle" fill="${color}" font-size="10">${k}</text>
+      </g>`;
+    });
+    // wiring lines (static, always drawn, colored by whether current flows)
+    const flowColor = m.closed.length===2 && !(m.closed.includes('BL')&&m.closed.includes('BR')) ? '#7dfa8f' : '#26331f';
+    g += `<line x1="180" y1="40" x2="180" y2="60" stroke="#5a6a54" stroke-width="1.3"/>`;
+    g += `<line x1="180" y1="80" x2="180" y2="130" stroke="${isClosed('TL')?'#7dfa8f':'#26331f'}" stroke-width="2"/>`;
+    g += `<line x1="180" y1="130" x2="270" y2="130" stroke="${isClosed('TL')?'#7dfa8f':'#26331f'}" stroke-width="2"/>`;
+    g += `<line x1="420" y1="40" x2="420" y2="60" stroke="#5a6a54" stroke-width="1.3"/>`;
+    g += `<line x1="420" y1="80" x2="420" y2="130" stroke="${isClosed('TR')?'#7dfa8f':'#26331f'}" stroke-width="2"/>`;
+    g += `<line x1="420" y1="130" x2="370" y2="130" stroke="${isClosed('TR')?'#7dfa8f':'#26331f'}" stroke-width="2"/>`;
+    g += `<line x1="180" y1="240" x2="180" y2="200" stroke="${isClosed('BL')?'#7dfa8f':'#26331f'}" stroke-width="2"/>`;
+    g += `<line x1="180" y1="180" x2="180" y2="150" stroke="${isClosed('BL')?'#7dfa8f':'#26331f'}" stroke-width="2"/>`;
+    g += `<line x1="180" y1="150" x2="270" y2="150" stroke="${isClosed('BL')?'#7dfa8f':'#26331f'}" stroke-width="2"/>`;
+    g += `<line x1="420" y1="240" x2="420" y2="200" stroke="${isClosed('BR')?'#7dfa8f':'#26331f'}" stroke-width="2"/>`;
+    g += `<line x1="420" y1="180" x2="420" y2="150" stroke="${isClosed('BR')?'#7dfa8f':'#26331f'}" stroke-width="2"/>`;
+    g += `<line x1="420" y1="150" x2="370" y2="150" stroke="${isClosed('BR')?'#7dfa8f':'#26331f'}" stroke-width="2"/>`;
+    svg.innerHTML = g;
+    document.getElementById('ch5-caption').textContent = m.desc;
+  }
+  Object.keys(modes).forEach(name=>{
+    const b = document.createElement('button');
+    b.className='btn-ghost'; b.textContent=name;
+    b.onclick = ()=>render(name);
+    modesEl.appendChild(b);
+  });
+  render('Forward');
+
+  buildQuiz('ch5-quiz', [
+    {q:'Why can\u2019t a DC motor typically be driven directly from a GPIO pin?', opts:[
+      {t:'GPIO pins can\u2019t output PWM signals', correct:false, why:'most GPIO pins can output PWM \u2014 that\u2019s not the limiting factor here.'},
+      {t:'The pin can\u2019t safely supply the current a motor needs, and switching can create damaging voltage spikes', correct:true, why:'exactly \u2014 current capacity and back-EMF are why a driver circuit is required.'},
+      {t:'Motors only accept analog voltage, never digital signals', correct:false, why:'motors respond to whatever effective voltage/current they receive \u2014 PWM-driven digital switching works fine through a proper driver.'},
+    ]},
+    {q:'In an H-bridge, what does the "brake" mode do differently from "coast"?', opts:[
+      {t:'Brake shorts both motor terminals together, dissipating energy fast and stopping quickly; coast disconnects the motor to spin down freely', correct:true, why:'that\u2019s the key physical difference between the two stop modes.'},
+      {t:'They are functionally identical \u2014 just different names for the same thing', correct:false, why:'they produce very different physical stopping behavior.'},
+      {t:'Brake reverses the motor direction briefly before stopping', correct:false, why:'that would be a different technique (plugging), not what "brake" means in an H-bridge.'},
+    ]},
+  ]);
+})();
+</script>
+<script>
+/* ================= CHAPTER 6 ================= */
+(function(){
+  const svg = document.getElementById('ch6-svg');
+  const kpSlider = document.getElementById('ch6-kp');
+  const kiSlider = document.getElementById('ch6-ki');
+  const kdSlider = document.getElementById('ch6-kd-slider');
+  const kpVal = document.getElementById('ch6-kp-val');
+  const kiVal = document.getElementById('ch6-ki-val');
+  const kdVal = document.getElementById('ch6-kd-val');
+
+  function simulate(Kp,Ki,Kd){
+    const dt = 0.05, steps = 100, target = 1;
+    let p = 0, v = 0, integral = 0, prevError = target;
+    const pts = [];
+    for(let i=0;i<steps;i++){
+      const error = target - p;
+      integral += error*dt;
+      const derivative = (error-prevError)/dt;
+      prevError = error;
+      let u = Kp*error + Ki*integral + Kd*derivative;
+      u = Math.max(-4, Math.min(4,u));
+      const damping = 0.8;
+      v += (u - damping*v)*dt;
+      p += v*dt;
+      pts.push(p);
+    }
+    return pts;
+  }
+
+  function render(){
+    const Kp = +kpSlider.value, Ki = +kiSlider.value, Kd = +kdSlider.value;
+    kpVal.textContent = Kp.toFixed(2); kiVal.textContent = Ki.toFixed(2); kdVal.textContent = Kd.toFixed(2);
+    const pts = simulate(Kp,Ki,Kd);
+    const W=640, H=220, x0=30, y0=20;
+    const xScale = W/pts.length;
+    const yFor = (val)=> y0 + H - (Math.max(-0.3,Math.min(1.6,val))+0.3)*(H/1.9);
+    let path = `M ${x0} ${yFor(pts[0])} `;
+    pts.forEach((val,i)=>{ path += `L ${x0+i*xScale} ${yFor(val)} `; });
+    const targetY = yFor(1);
+    svg.innerHTML = `
+      <text x="340" y="14" text-anchor="middle" fill="#8fa085" font-size="11">simulated step response \u2014 arm angle over time</text>
+      <line x1="${x0}" y1="${targetY}" x2="${x0+W}" y2="${targetY}" stroke="#7dfa8f" stroke-width="1.3" stroke-dasharray="5 4"/>
+      <text x="${x0+W}" y="${targetY-6}" fill="#7dfa8f" font-size="10" text-anchor="end">target</text>
+      <path d="${path}" fill="none" stroke="#f472b6" stroke-width="2.2"/>
+      <text x="${x0}" y="${H+y0+18}" fill="#5a6a54" font-size="10">time \u2192</text>
+    `;
+  }
+  [kpSlider,kiSlider,kdSlider].forEach(s=>s.addEventListener('input', render));
+  render();
+
+  window.ch6Preset = function(kind){
+    if(kind==='p'){ kpSlider.value=1.8; kiSlider.value=0; kdSlider.value=0; }
+    if(kind==='pd'){ kpSlider.value=1.2; kiSlider.value=0; kdSlider.value=0.5; }
+    if(kind==='pid'){ kpSlider.value=1.0; kiSlider.value=0.15; kdSlider.value=0.4; }
+    render();
+  };
+
+  buildQuiz('ch6-quiz', [
+    {q:'A PID controller has high Kp and zero Kd. What behavior would you expect near the target?', opts:[
+      {t:'Smooth, immediate settling with no overshoot', correct:false, why:'without derivative damping, a high Kp alone tends to overshoot rather than settle smoothly.'},
+      {t:'Oscillation around the target as it repeatedly overshoots and corrects', correct:true, why:'exactly the classic high-P, no-D oscillation pattern.'},
+      {t:'The system will never move at all', correct:false, why:'a high Kp produces a strong, not absent, response to error.'},
+    ]},
+    {q:'What specific problem does the derivative (D) term address?', opts:[
+      {t:'Persistent small steady-state error that never fully disappears', correct:false, why:'that\u2019s the integral (I) term\u2019s job, not the derivative\u2019s.'},
+      {t:'Overshoot, by easing off the correction as the system approaches target quickly', correct:true, why:'exactly \u2014 D reacts to the rate of change, damping fast approaches.'},
+      {t:'How far off the current position is right now', correct:false, why:'that\u2019s the proportional (P) term\u2019s job.'},
+    ]},
+  ]);
+})();
+</script>
+<script>
+/* ================= CHAPTER 7 ================= */
+(function(){
+  const svg = document.getElementById('ch7-svg');
+  const steps = 60;
+  function genData(){
+    const truth = [], accel = [], gyro = [], fused = [];
+    let gyroDrift = 0;
+    let fusedEst = 0, trust = 1;
+    for(let i=0;i<steps;i++){
+      const trueVal = 20*Math.sin(i/20) + i*0.15;
+      truth.push(trueVal);
+      accel.push(trueVal + (Math.random()-0.5)*9);
+      gyroDrift += (Math.random()-0.5)*0.15;
+      gyro.push(trueVal + gyroDrift);
+      // simple complementary-style fusion: blend, trusting gyro short-term, accel long-term
+      trust = Math.max(0.05, trust*0.97);
+      const gyroTerm = i===0 ? trueVal : fused[i-1] + (gyro[i]-(i===0?0:gyro[i-1]));
+      fusedEst = 0.9*gyroTerm + 0.1*accel[i];
+      fused.push(fusedEst);
+    }
+    return {truth, accel, gyro, fused};
+  }
+  const data = genData();
+
+  function toPath(arr, x0,y0,W,H,minV,maxV){
+    const xScale = W/arr.length;
+    const yFor = v => y0 + H - ((v-minV)/(maxV-minV))*H;
+    let d = `M ${x0} ${yFor(arr[0])} `;
+    arr.forEach((v,i)=>{ d += `L ${x0+i*xScale} ${yFor(v)} `; });
+    return d;
+  }
+
+  function render(frac){
+    const n = Math.max(2, Math.floor(steps*frac));
+    const all = [...data.truth, ...data.accel, ...data.gyro, ...data.fused];
+    const minV = Math.min(...all)-3, maxV = Math.max(...all)+3;
+    const x0=30,y0=15,W=630,H=210;
+    svg.innerHTML = `
+      <text x="340" y="10" text-anchor="middle" fill="#8fa085" font-size="11">true angle vs noisy sensors vs fused estimate</text>
+      <path d="${toPath(data.truth.slice(0,n),x0,y0,W,H,minV,maxV)}" fill="none" stroke="#5a6a54" stroke-width="1.5" stroke-dasharray="4 3"/>
+      <path d="${toPath(data.accel.slice(0,n),x0,y0,W,H,minV,maxV)}" fill="none" stroke="#e0954a" stroke-width="1" opacity="0.6"/>
+      <path d="${toPath(data.gyro.slice(0,n),x0,y0,W,H,minV,maxV)}" fill="none" stroke="#5cc8ff" stroke-width="1" opacity="0.6"/>
+      <path d="${toPath(data.fused.slice(0,n),x0,y0,W,H,minV,maxV)}" fill="none" stroke="#5cffe0" stroke-width="2.5"/>
+      <g transform="translate(420,235)" font-size="10">
+        <line x1="0" y1="0" x2="16" y2="0" stroke="#5a6a54" stroke-dasharray="4 3"/><text x="20" y="4" fill="#5a6a54">true angle</text>
+        <line x1="90" y1="0" x2="106" y2="0" stroke="#e0954a"/><text x="110" y="4" fill="#e0954a">accelerometer</text>
+        <line x1="215" y1="0" x2="231" y2="0" stroke="#5cc8ff"/><text x="235" y="4" fill="#5cc8ff">gyroscope</text>
+      </g>
+      <text x="30" y="235" fill="#5cffe0" font-size="10">\u2014 fused estimate (bold)</text>
+    `;
+  }
+  render(1);
+  window.ch7Replay = function(){
+    let f=0.03;
+    const iv = setInterval(()=>{ f+=0.03; render(Math.min(f,1)); if(f>=1) clearInterval(iv); }, 30);
+  };
+
+  buildQuiz('ch7-quiz', [
+    {q:'Why does a gyroscope-only angle estimate tend to drift over time?', opts:[
+      {t:'Gyroscopes measure rate of rotation, and small biases accumulate when repeatedly integrated into an angle estimate', correct:true, why:'exactly \u2014 integration accumulates even tiny consistent errors over time.'},
+      {t:'Gyroscopes only work for the first few seconds after power-on', correct:false, why:'gyroscopes work continuously \u2014 the issue is accumulated integration error, not a time limit.'},
+      {t:'Gyroscopes measure absolute angle directly, so drift is impossible', correct:false, why:'gyroscopes measure rate, not absolute angle \u2014 that\u2019s exactly why drift occurs.'},
+    ]},
+    {q:'What does a Kalman filter\u2019s "gain" control?', opts:[
+      {t:'How much to trust the new measurement versus the current prediction, updated continuously', correct:true, why:'that\u2019s the core mechanism \u2014 dynamically weighting prediction versus measurement.'},
+      {t:'The physical voltage gain of the sensor\u2019s analog amplifier circuit', correct:false, why:'this is a separate hardware concept \u2014 the filter\u2019s gain is a mathematical weighting term.'},
+      {t:'How fast the microcontroller clock runs', correct:false, why:'clock speed is unrelated to the Kalman filter\u2019s gain calculation.'},
+    ]},
+  ]);
+})();
+</script>
+<script>
+/* ================= CHAPTER 8 ================= */
+(function(){
+  const svg = document.getElementById('ch8-svg');
+  svg.innerHTML = `
+    <text x="350" y="18" text-anchor="middle" fill="#8fa085" font-size="11">a typical distributed robot stack</text>
+    <rect x="30" y="40" width="140" height="55" rx="6" fill="#5cc8ff10" stroke="#5cc8ff"/>
+    <text x="100" y="63" text-anchor="middle" fill="#5cc8ff" font-size="11">Sensor board</text><text x="100" y="80" text-anchor="middle" fill="#5a6a54" font-size="9">I2C / ADC</text>
+    <rect x="30" y="120" width="140" height="55" rx="6" fill="#ff9f5c10" stroke="#ff9f5c"/>
+    <text x="100" y="143" text-anchor="middle" fill="#ff9f5c" font-size="11">Motor controller</text><text x="100" y="160" text-anchor="middle" fill="#5a6a54" font-size="9">RTOS + PID + H-bridge</text>
+    <line x1="170" y1="67" x2="270" y2="90" stroke="#7dfa8f" stroke-width="1.5"/>
+    <line x1="170" y1="147" x2="270" y2="105" stroke="#7dfa8f" stroke-width="1.5"/>
+    <rect x="270" y="60" width="150" height="80" rx="6" fill="#7dfa8f10" stroke="#7dfa8f"/>
+    <text x="345" y="88" text-anchor="middle" fill="#7dfa8f" font-size="11">CAN bus</text><text x="345" y="105" text-anchor="middle" fill="#5a6a54" font-size="9">multi-board messaging</text>
+    <line x1="420" y1="100" x2="510" y2="100" stroke="#a78bfa" stroke-width="1.5"/>
+    <rect x="510" y="55" width="160" height="90" rx="6" fill="#a78bfa10" stroke="#a78bfa"/>
+    <text x="590" y="80" text-anchor="middle" fill="#a78bfa" font-size="11">Onboard computer</text>
+    <text x="590" y="98" text-anchor="middle" fill="#5a6a54" font-size="9">ROS2 nodes:</text>
+    <text x="590" y="112" text-anchor="middle" fill="#5a6a54" font-size="9">planning, mapping, vision</text>
+    <text x="590" y="126" text-anchor="middle" fill="#5a6a54" font-size="9">WiFi/BT telemetry out</text>
+  `;
+
+  const steps = [
+    {t:'Step 1 \u2014 Sense', d:'A distance sensor is sampled by the sensor board over I2C or its ADC (Ch. 2). A local task compares it against a threshold every few milliseconds.'},
+    {t:'Step 2 \u2014 React locally if urgent', d:'If the reading crosses a safety threshold, the RTOS on the motor controller (Ch. 4) preempts other tasks and immediately commands the H-bridge (Ch. 5) to brake \u2014 no round-trip to the high-level computer required.'},
+    {t:'Step 3 \u2014 Report over the bus', d:'The event is also published as a CAN message (Ch. 3), so other boards and the onboard computer become aware of what happened.'},
+    {t:'Step 4 \u2014 Think', d:'ROS2 nodes on the onboard computer (Ch. 8) receive the event, update the robot\u2019s internal map, and replan a path that avoids the obstacle \u2014 all fed by fused sensor estimates (Ch. 7) for a stable sense of the robot\u2019s own position.'},
+    {t:'Step 5 \u2014 Act again', d:'A new motion command flows back down to the motor controller, which uses its PID loop (Ch. 6) to smoothly drive toward the new target, and the whole loop repeats continuously.'},
+  ];
+  let idx=0;
+  const stepsEl = document.getElementById('ch8-steps');
+  function renderStep(){
+    const s = steps[idx];
+    stepsEl.innerHTML = `
+      <div style="font-family:var(--mono);font-size:11px;color:var(--text-faint);margin-bottom:6px;">${idx+1} / ${steps.length}</div>
+      <div style="font-family:var(--display);font-size:17px;font-weight:600;margin-bottom:8px;color:var(--ch8);">${s.t}</div>
+      <div style="font-size:14px;color:var(--text-dim);">${s.d}</div>
+    `;
+  }
+  renderStep();
+  window.ch8Next = function(){ idx=Math.min(idx+1, steps.length-1); renderStep(); };
+  window.ch8Prev = function(){ idx=Math.max(idx-1,0); renderStep(); };
+
+  const uni = document.getElementById('ch8-unified');
+  uni.innerHTML = `
+    <text x="340" y="24" text-anchor="middle" fill="#8fa085" font-size="12">everything you learned, as one system</text>
+    <rect x="40" y="50" width="600" height="70" rx="8" fill="#5cc8ff10" stroke="#5cc8ff"/>
+    <text x="60" y="74" fill="#5cc8ff" font-size="12" font-weight="600">CH 1\u20132 \u00b7 Hardware foundation</text>
+    <text x="60" y="96" fill="#8fa085" font-size="11.5">registers and memory-mapped I/O; ADC/PWM bridge the analog and digital worlds</text>
+
+    <rect x="40" y="135" width="600" height="70" rx="8" fill="#a78bfa10" stroke="#a78bfa"/>
+    <text x="60" y="159" fill="#a78bfa" font-size="12" font-weight="600">CH 3\u20134 \u00b7 Communication &amp; timing</text>
+    <text x="60" y="181" fill="#8fa085" font-size="11.5">protocols move data reliably; RTOS scheduling guarantees deterministic reactions</text>
+
+    <rect x="40" y="220" width="600" height="70" rx="8" fill="#ff9f5c10" stroke="#ff9f5c"/>
+    <text x="60" y="244" fill="#ff9f5c" font-size="12" font-weight="600">CH 5\u20137 \u00b7 Actuation &amp; perception</text>
+    <text x="60" y="266" fill="#8fa085" font-size="11.5">H-bridges drive motors under PID control; fused sensors give a stable state estimate</text>
+
+    <rect x="40" y="305" width="600" height="95" rx="8" fill="#ff616110" stroke="#ff6161"/>
+    <text x="60" y="329" fill="#ff6161" font-size="12" font-weight="600">CH 8 \u00b7 Coordination</text>
+    <text x="60" y="351" fill="#8fa085" font-size="11.5">ROS2 ties distributed boards into one behaving system, while safety-critical</text>
+    <text x="60" y="368" fill="#8fa085" font-size="11.5">reactions still happen at the fastest, most deterministic layer available</text>
+  `;
+
+  buildQuiz('ch8-quiz', [
+    {q:'Why does a safety-critical stop typically happen at the embedded layer rather than waiting for the ROS planning layer?', opts:[
+      {t:'ROS2 cannot process sensor data at all', correct:false, why:'ROS2 processes sensor data constantly \u2014 the issue is timing guarantees, not capability.'},
+      {t:'The embedded/RTOS layer offers deterministic, guaranteed-timing reactions that the higher-level planning layer cannot promise', correct:true, why:'exactly the real-time guarantee argument from Chapter 4, applied at system scale.'},
+      {t:'ROS2 only runs on Windows and is incompatible with real robots', correct:false, why:'ROS2 runs on Linux and is standard in real robotics \u2014 that\u2019s not the issue here.'},
+    ]},
+    {q:'A robot behaves erratically. Per this chapter\u2019s debugging rule of thumb, what should be checked first?', opts:[
+      {t:'Immediately rewrite the high-level path-planning algorithm', correct:false, why:'jumping to the planning layer first often misses an underlying embedded-layer fault.'},
+      {t:'Raw sensor values, controller output, and communication error rates at the embedded layer', correct:true, why:'most erratic-robot complaints trace back to embedded-layer issues, not planning logic.'},
+      {t:'The robot\u2019s WiFi signal strength only', correct:false, why:'WiFi is one possible factor but not the general first-check recommended here.'},
+    ]},
+  ]);
+
+  window.showCertificate = function(){
+    document.getElementById('cert-panel').style.display='block';
+    document.getElementById('cert-date').textContent = 'Completed ' + new Date().toLocaleDateString(undefined,{year:'numeric',month:'long',day:'numeric'});
+    document.getElementById('cert-panel').scrollIntoView({behavior:'smooth', block:'center'});
+    localStorage.setItem('embedded-course-complete','true');
+  };
+})();
+</script>
+</body>
+</html>

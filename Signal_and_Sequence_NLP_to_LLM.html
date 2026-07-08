@@ -1,0 +1,1196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Signal &amp; Sequence — NLP to LLMs</title>
+<style>
+:root{
+  --bg:#0a0e14;
+  --bg2:#0f1520;
+  --panel:#131a26;
+  --panel2:#161f2e;
+  --border:#22303f;
+  --text:#dbe4ee;
+  --dim:#7f92a8;
+  --accent:#5fd4c4;
+  --accent2:#e8a355;
+  --danger:#e8657a;
+  --good:#7fd88f;
+  --mono:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;
+  --serif:Georgia,'Iowan Old Style','Palatino Linotype',serif;
+}
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{
+  margin:0;background:radial-gradient(ellipse at top,#0d1420 0%,#080b11 60%,#060809 100%);
+  color:var(--text);font-family:var(--serif);line-height:1.65;
+  background-attachment:fixed;
+}
+body::before{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.35;
+  background-image:radial-gradient(1px 1px at 20% 30%, #ffffff22 50%, transparent 51%),
+    radial-gradient(1px 1px at 70% 60%, #ffffff18 50%, transparent 51%),
+    radial-gradient(1px 1px at 40% 80%, #ffffff15 50%, transparent 51%),
+    radial-gradient(1px 1px at 90% 20%, #ffffff20 50%, transparent 51%),
+    radial-gradient(1px 1px at 55% 10%, #ffffff12 50%, transparent 51%);
+  background-size:600px 600px;
+}
+a{color:var(--accent);}
+h1,h2,h3,h4{font-family:var(--serif);font-weight:600;letter-spacing:.2px;color:#f2f6fa;}
+code,.mono{font-family:var(--mono);}
+.wrap{display:flex;max-width:1400px;margin:0 auto;position:relative;z-index:1;}
+/* SIDEBAR */
+#sidebar{
+  position:sticky;top:0;height:100vh;width:290px;flex:0 0 290px;
+  background:linear-gradient(180deg,#0c111a,#0a0e15);
+  border-right:1px solid var(--border);overflow-y:auto;padding:22px 16px 60px;
+}
+#sidebar h1{font-size:1.15rem;margin:2px 0 2px;color:var(--accent);}
+#sidebar .sub{color:var(--dim);font-size:.78rem;margin-bottom:18px;font-family:var(--mono);}
+#progressBarOuter{height:6px;background:#1a2432;border-radius:4px;overflow:hidden;margin-bottom:18px;border:1px solid var(--border);}
+#progressBarInner{height:100%;width:0%;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .4s;}
+#progressLabel{font-size:.72rem;color:var(--dim);font-family:var(--mono);margin-bottom:16px;}
+nav ul{list-style:none;padding:0;margin:0;}
+nav li{margin:1px 0;}
+nav a{
+  display:flex;align-items:center;gap:8px;text-decoration:none;color:var(--dim);
+  font-size:.85rem;padding:7px 9px;border-radius:6px;transition:.15s;border-left:2px solid transparent;
+}
+nav a:hover{background:#131c29;color:var(--text);}
+nav a.active{background:#132029;color:var(--accent);border-left:2px solid var(--accent);}
+nav .chk{width:14px;height:14px;border-radius:50%;border:1.5px solid #33475e;flex:0 0 14px;}
+nav a.done .chk{background:var(--accent);border-color:var(--accent);}
+nav .part-label{font-size:.68rem;text-transform:uppercase;letter-spacing:1.4px;color:#4b5f74;margin:16px 0 4px 9px;font-family:var(--mono);}
+/* MAIN */
+main{flex:1;min-width:0;padding:0;}
+.hero{
+  padding:80px 60px 60px;border-bottom:1px solid var(--border);
+  background:linear-gradient(180deg,#0d1421 0%, transparent 100%);
+}
+.hero .eyebrow{font-family:var(--mono);color:var(--accent2);font-size:.8rem;letter-spacing:2px;text-transform:uppercase;}
+.hero h1{font-size:clamp(2rem,4vw,3.2rem);margin:10px 0 14px;line-height:1.1;}
+.hero p.lead{color:var(--dim);font-size:1.1rem;max-width:640px;}
+.chapter{padding:56px 60px;border-bottom:1px solid var(--border);max-width:980px;}
+.chapter h2{font-size:1.9rem;margin-bottom:6px;}
+.chapter .chapnum{font-family:var(--mono);color:var(--accent2);font-size:.85rem;letter-spacing:2px;}
+.chapter h3{font-size:1.25rem;margin-top:34px;color:var(--accent);}
+.chapter p{color:#c7d3e0;}
+.callout{
+  margin:20px 0;padding:16px 18px;border-radius:8px;border:1px solid var(--border);
+  background:var(--panel);position:relative;
+}
+.callout.misconception{border-color:#4a2b33;background:#1c1116;}
+.callout.misconception::before{content:"⚠ MISCONCEPTION";font-family:var(--mono);font-size:.68rem;color:var(--danger);letter-spacing:1.5px;display:block;margin-bottom:6px;}
+.callout.analogy{border-color:#2b3f45;background:#0f1c1e;}
+.callout.analogy::before{content:"◐ ANALOGY";font-family:var(--mono);font-size:.68rem;color:var(--accent);letter-spacing:1.5px;display:block;margin-bottom:6px;}
+.callout.explain{border-color:#3f3620;background:#1c1710;}
+.callout.explain::before{content:"✎ EXPLAIN IT BACK";font-family:var(--mono);font-size:.68rem;color:var(--accent2);letter-spacing:1.5px;display:block;margin-bottom:6px;}
+.callout textarea{width:100%;min-height:70px;background:#0a0e14;border:1px solid var(--border);color:var(--text);border-radius:6px;padding:10px;font-family:var(--serif);margin-top:8px;resize:vertical;}
+.demo{
+  margin:24px 0;border:1px solid var(--border);border-radius:10px;background:var(--panel);overflow:hidden;
+}
+.demo .demohead{padding:10px 16px;background:var(--panel2);border-bottom:1px solid var(--border);font-family:var(--mono);font-size:.72rem;color:var(--dim);letter-spacing:1px;text-transform:uppercase;display:flex;justify-content:space-between;}
+.demo .demobody{padding:18px;}
+.btn{
+  background:#182531;border:1px solid #2b3d4f;color:var(--text);padding:7px 14px;border-radius:6px;cursor:pointer;
+  font-family:var(--mono);font-size:.8rem;transition:.15s;
+}
+.btn:hover{background:#20323f;border-color:var(--accent);}
+.btn.primary{background:linear-gradient(180deg,#2c5f57,#1c3d38);border-color:var(--accent);color:#dffaf3;}
+input[type=text],input[type=range],select,textarea{
+  background:#0a0e14;border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:6px;font-family:var(--mono);font-size:.85rem;
+}
+table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:.82rem;margin:10px 0;}
+th,td{padding:7px 10px;border:1px solid var(--border);text-align:left;}
+th{background:var(--panel2);color:var(--accent2);}
+.tok{display:inline-block;padding:3px 7px;margin:2px;border-radius:5px;background:#182531;border:1px solid #2b3d4f;font-family:var(--mono);font-size:.82rem;}
+.quiz{margin:24px 0;padding:16px 18px;border:1px solid #2b3d4f;border-radius:8px;background:#0f1622;}
+.quiz .q{font-weight:600;margin-bottom:10px;color:#f2f6fa;}
+.quiz .opt{display:block;width:100%;text-align:left;background:#151f2c;border:1px solid var(--border);color:var(--text);padding:9px 12px;margin:6px 0;border-radius:6px;cursor:pointer;font-family:var(--serif);}
+.quiz .opt:hover{border-color:var(--accent);}
+.quiz .opt.correct{background:#123322;border-color:var(--good);}
+.quiz .opt.wrong{background:#331616;border-color:var(--danger);}
+.quiz .fb{margin-top:8px;font-size:.9rem;color:var(--dim);font-family:var(--mono);}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.badge{display:inline-block;font-family:var(--mono);font-size:.68rem;padding:2px 8px;border-radius:10px;background:#182531;border:1px solid #2b3d4f;color:var(--accent);margin-right:6px;}
+footer{padding:50px 60px;color:var(--dim);font-family:var(--mono);font-size:.8rem;}
+::-webkit-scrollbar{width:10px;}
+::-webkit-scrollbar-track{background:var(--bg);}
+::-webkit-scrollbar-thumb{background:#22303f;border-radius:5px;}
+.formula{font-family:var(--mono);background:#0a0e14;border:1px solid var(--border);padding:10px 14px;border-radius:6px;display:inline-block;margin:8px 0;color:var(--accent2);}
+canvas{max-width:100%;background:#0a0e14;border-radius:6px;}
+.slider-row{display:flex;align-items:center;gap:10px;margin:8px 0;font-family:var(--mono);font-size:.8rem;}
+.slider-row input[type=range]{flex:1;}
+@media(max-width:900px){#sidebar{display:none;}.chapter,.hero{padding:36px 22px;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<aside id="sidebar">
+  <h1>Signal &amp; Sequence</h1>
+  <div class="sub">NLP → RNN → LLM, from first principles</div>
+  <div id="progressBarOuter"><div id="progressBarInner"></div></div>
+  <div id="progressLabel">0 / 15 chapters read</div>
+  <nav id="navList"></nav>
+</aside>
+<main id="mainContent">
+
+<section class="hero">
+  <div class="eyebrow">A self-contained interactive course</div>
+  <h1>Signal &amp; Sequence</h1>
+  <p class="lead">How machines went from counting words to writing essays. This course builds the whole chain by hand — tokenization, embeddings, recurrent networks, attention, transformers, and the training recipe behind modern LLMs — with working demos you can poke at, not just diagrams to look at.</p>
+  <p style="color:var(--dim);font-size:.9rem;">15 chapters · interactive demos in every major section · quizzes to check understanding · progress is saved locally in your browser</p>
+</section>
+
+<section class="chapter" id="intro">
+  <div class="chapnum">CHAPTER 1</div>
+  <h2>What Is NLP, Really?</h2>
+  <p>Natural Language Processing is the project of getting a computer to do something useful with human language: text or speech that's messy, ambiguous, and full of context that lives outside the sentence itself. "Bank" means something different next to "river" than next to "loan." A computer sees neither meaning by default — it sees characters.</p>
+  <p>Every method in this course is an answer to one question, asked with increasing sophistication: <em>how do we turn a sequence of symbols into numbers that preserve meaning?</em> The history of NLP is a series of better and better answers:</p>
+  <ul style="color:#c7d3e0;">
+    <li><strong>Counting</strong> — treat text as a bag of word counts (Bag of Words, TF-IDF). Fast, but throws away word order and word meaning.</li>
+    <li><strong>Embedding</strong> — give every word a vector such that similar words land near each other (Word2Vec, GloVe). Captures meaning, still ignores order.</li>
+    <li><strong>Sequencing</strong> — process words one at a time, carrying a memory forward (RNN, LSTM). Captures order, but memory is a bottleneck.</li>
+    <li><strong>Attending</strong> — let every word look directly at every other word (Transformers). Captures order and long-range meaning, and it parallelizes.</li>
+    <li><strong>Scaling</strong> — train attention-based models on enormous text corpora to get LLMs, which don't just process language, they generate it.</li>
+  </ul>
+  <div class="callout analogy">
+    Think of it like learning to judge a photograph. First you count pixels of each color (Bag of Words). Then you learn that "sunset-orange" pixels tend to sit near "sky-blue" pixels (embeddings). Then you learn that the <em>order</em> pixels appear in a scan matters (sequence models). Finally you learn to look at the whole photo at once and let any region inform your reading of any other region (attention). Each stage keeps the earlier idea and fixes what it was blind to.
+  </div>
+  <div class="callout misconception">
+    "LLMs understand language the way humans do." An LLM is a function that predicts the next token given previous tokens, trained on next-token prediction at enormous scale. That objective turns out to require learning grammar, facts, and reasoning patterns as a side effect — but the model has no grounding in a physical world, no persistent self, and no goals besides the ones its training and prompting induce. Fluency is not proof of the same kind of understanding a human has.
+  </div>
+  <h3>The roadmap for this course</h3>
+  <p>We'll build each layer on the one before it. By the end you'll be able to explain, in your own words and with the actual mechanics, how a prompt you type becomes a stream of generated tokens.</p>
+</section>
+
+<section class="chapter" id="preprocess">
+  <div class="chapnum">CHAPTER 2</div>
+  <h2>Text Preprocessing</h2>
+  <p>Before any modeling happens, raw text has to become a sequence of discrete units — <strong>tokens</strong>. This single decision (how to tokenize) shapes everything downstream: vocabulary size, how well the model handles typos and rare words, even how many tokens a sentence costs you at inference time.</p>
+  <h3>Normalization</h3>
+  <p>Lowercasing, removing punctuation, expanding contractions ("don't" → "do not"), and stripping accents reduce surface variation so the model doesn't have to learn that "Cat", "cat", and "CAT." are the same thing three separate times. Modern LLM tokenizers mostly skip aggressive normalization — case and punctuation often carry real signal (the model can learn that on its own), but classical NLP pipelines lean on it heavily.</p>
+  <h3>Tokenization strategies</h3>
+  <ul style="color:#c7d3e0;">
+    <li><strong>Word-level</strong> — split on whitespace/punctuation. Simple, but "run", "runs", "running" become three unrelated vocabulary entries, and any unseen word is a dead end (out-of-vocabulary, OOV).</li>
+    <li><strong>Character-level</strong> — every character is a token. Never has OOV problems, but sequences get very long and the model has to learn "words" from scratch.</li>
+    <li><strong>Subword-level</strong> (Byte-Pair Encoding, WordPiece, SentencePiece) — the sweet spot modern LLMs use. Common words stay whole tokens; rare words get split into meaningful pieces ("unbelievable" → "un" + "believ" + "able"). We build this by hand in Chapter 11.</li>
+  </ul>
+  <h3>Stemming and lemmatization</h3>
+  <p>Both reduce a word to a base form, but differently. <strong>Stemming</strong> chops suffixes with crude rules — "studies" → "studi" — fast but sometimes produces non-words. <strong>Lemmatization</strong> uses vocabulary and grammar to find the true dictionary form — "studies" → "study", "better" → "good" — slower but linguistically correct.</p>
+  <h3>Stopword removal</h3>
+  <p>Words like "the", "is", "and" appear in almost every sentence and carry little topic-specific meaning, so classical bag-of-words pipelines often drop them to focus on content words. Sequence models and LLMs generally keep them — "the dog bit the man" and "the man bit the dog" differ only in function-word placement and word order, and stopwords help mark that structure.</p>
+
+  <div class="demo">
+    <div class="demohead"><span>Interactive · Tokenizer Playground</span><span>live</span></div>
+    <div class="demobody">
+      <input type="text" id="tokInput" value="Don't stop believing — running feels unbelievable!" style="width:100%;margin-bottom:10px;">
+      <div class="slider-row">
+        <label>Mode:</label>
+        <select id="tokMode">
+          <option value="word">Word-level</option>
+          <option value="char">Character-level</option>
+          <option value="norm">Normalized word-level (lowercase, strip punctuation)</option>
+        </select>
+        <button class="btn" id="tokRun">Tokenize</button>
+      </div>
+      <div id="tokOut" style="margin-top:12px;"></div>
+      <div id="tokStats" style="margin-top:10px;color:var(--dim);font-family:var(--mono);font-size:.8rem;"></div>
+    </div>
+  </div>
+
+  <div class="callout explain">
+    In your own words: why does subword tokenization solve the out-of-vocabulary problem that word-level tokenization has?
+    <textarea data-key="explain-preprocess" placeholder="Type your answer here — it's saved locally as you type."></textarea>
+  </div>
+
+  <div class="quiz" data-quiz="preprocess">
+    <div class="q">Which tokenization scheme never has an out-of-vocabulary problem, at the cost of much longer sequences?</div>
+    <button class="opt" data-correct="false">Word-level</button>
+    <button class="opt" data-correct="true">Character-level</button>
+    <button class="opt" data-correct="false">Sentence-level</button>
+    <div class="fb"></div>
+  </div>
+</section>
+
+<section class="chapter" id="repr">
+  <div class="chapnum">CHAPTER 3</div>
+  <h2>Bag of Words &amp; TF-IDF</h2>
+  <p>Once text is tokenized, we need numbers. The simplest approach: build a vocabulary of every word seen across a corpus, then represent each document as a vector of word counts. This is the <strong>Bag of Words</strong> (BoW) model — "bag" because word order is thrown away entirely. "Dog bites man" and "man bites dog" get identical vectors.</p>
+  <p>Raw counts have a problem: words like "the" dominate every document's vector without telling you anything about that document's topic. <strong>TF-IDF</strong> (Term Frequency–Inverse Document Frequency) fixes this by discounting words that appear in most documents and boosting words that are frequent in a document but rare across the corpus — exactly the words that make a document distinctive.</p>
+  <div class="formula">TF-IDF(t, d) = TF(t, d) × log( N / DF(t) )</div>
+  <p style="color:var(--dim);font-size:.88rem;">TF(t,d) = count of term t in document d. N = total number of documents. DF(t) = number of documents containing t. A word in every document gets log(N/N) = 0 → contributes nothing.</p>
+
+  <div class="demo">
+    <div class="demohead"><span>Interactive · TF-IDF Calculator</span><span>3-document toy corpus</span></div>
+    <div class="demobody">
+      <div class="grid2" style="grid-template-columns:1fr 1fr 1fr;">
+        <textarea id="doc0" style="height:70px;">the cat sat on the mat</textarea>
+        <textarea id="doc1" style="height:70px;">the dog sat on the log</textarea>
+        <textarea id="doc2" style="height:70px;">cats and dogs are friends</textarea>
+      </div>
+      <button class="btn primary" id="tfidfRun" style="margin-top:10px;">Compute TF-IDF</button>
+      <div id="tfidfOut" style="margin-top:14px;overflow-x:auto;"></div>
+    </div>
+  </div>
+
+  <div class="callout misconception">
+    "TF-IDF captures meaning." It captures <em>distinctiveness</em> of vocabulary, not meaning. "Great" and "excellent" get completely unrelated columns in a TF-IDF vector, even though they mean almost the same thing. Fixing that requires embeddings (Chapter 5).
+  </div>
+</section>
+
+<section class="chapter" id="ngram">
+  <div class="chapnum">CHAPTER 4</div>
+  <h2>N-gram Language Models</h2>
+  <p>A <strong>language model</strong> assigns a probability to a sequence of words, or equivalently, predicts the next word given the previous ones. The simplest version, an <strong>n-gram model</strong>, makes a bold simplifying assumption: the probability of the next word depends only on the previous <em>n−1</em> words, not the entire history.</p>
+  <div class="formula">P(w<sub>i</sub> | w<sub>1</sub>...w<sub>i-1</sub>) ≈ P(w<sub>i</sub> | w<sub>i-n+1</sub>...w<sub>i-1</sub>)</div>
+  <p>A <strong>bigram</strong> model (n=2) predicts each word from just the one before it. You estimate these probabilities by counting: how often does "coffee" follow "morning" versus how often does anything follow "morning", across a training corpus.</p>
+  <div class="formula">P(w<sub>i</sub> | w<sub>i-1</sub>) = count(w<sub>i-1</sub>, w<sub>i</sub>) / count(w<sub>i-1</sub>)</div>
+  <p>This is exactly the same objective every modern LLM is trained on — predict the next token — just with a drastically weaker way of using context. GPT-style models are, in a real sense, n-gram models where n is "the whole context window" and the counting table is replaced by a neural network.</p>
+
+  <div class="callout analogy">
+    An n-gram model is like predicting the next word in a text message using only your phone's autocomplete — it's seen millions of texts and knows "how are" is usually followed by "you", but it has no idea what the rest of your conversation was about ten messages ago. A transformer-based LLM is autocomplete that's actually read the whole conversation.
+  </div>
+
+  <div class="demo">
+    <div class="demohead"><span>Interactive · Bigram Model Trainer</span><span>type a corpus, generate text</span></div>
+    <div class="demobody">
+      <textarea id="ngramCorpus" style="width:100%;height:90px;">the cat sat on the mat the cat ate the fish the dog sat on the log the dog chased the cat the cat ran from the dog</textarea>
+      <div class="slider-row">
+        <button class="btn" id="ngramTrain">Train bigram model</button>
+        <button class="btn primary" id="ngramGen">Generate 12 words</button>
+      </div>
+      <div id="ngramOut" style="margin-top:10px;font-family:var(--mono);"></div>
+      <div id="ngramTable" style="margin-top:12px;overflow-x:auto;"></div>
+    </div>
+  </div>
+
+  <p>Notice the ceiling: even a perfect bigram model can't know that "it" three sentences ago referred to "the bridge" — it has a one-word memory. Fixing that memory problem is the whole motivation for the next three chapters.</p>
+
+  <div class="quiz" data-quiz="ngram">
+    <div class="q">What's the fundamental limitation of n-gram language models, regardless of how large n is?</div>
+    <button class="opt" data-correct="false">They can't be trained on large corpora</button>
+    <button class="opt" data-correct="true">Context is fixed at n−1 words — anything further back is invisible to the prediction</button>
+    <button class="opt" data-correct="false">They require labeled data</button>
+    <div class="fb"></div>
+  </div>
+</section>
+
+<section class="chapter" id="embed">
+  <div class="chapnum">CHAPTER 5</div>
+  <h2>Word Embeddings</h2>
+  <p>TF-IDF vectors are as long as the vocabulary and mostly zeros (sparse), and every word is equally "far" from every other word — there's no sense in which "cat" is closer to "dog" than to "bicycle". <strong>Word embeddings</strong> fix this by learning a short, dense vector (say, 100–300 numbers) per word such that words used in similar contexts end up with similar vectors.</p>
+  <p>The core idea, sometimes called the <strong>distributional hypothesis</strong>: "you shall know a word by the company it keeps." Words that tend to appear in similar surrounding contexts tend to have similar meaning.</p>
+  <h3>Word2Vec: two training setups</h3>
+  <ul style="color:#c7d3e0;">
+    <li><strong>CBOW</strong> (Continuous Bag of Words) — predict the center word from its surrounding context words. Faster, works well for frequent words.</li>
+    <li><strong>Skip-gram</strong> — predict the surrounding context words from the center word. Slower, but works better for rare words.</li>
+  </ul>
+  <p>Neither setup needs labeled data — the "label" is just the next word in the running text, so training is self-supervised on raw text, the same trick that later powers LLM pretraining.</p>
+  <h3>GloVe: a complementary view</h3>
+  <p>GloVe (Global Vectors) instead factorizes a giant word-by-word co-occurrence count matrix directly, rather than sliding a prediction window through the text. In practice the resulting vectors behave very similarly to Word2Vec's.</p>
+  <h3>The famous analogy trick</h3>
+  <p>Because the vector space encodes relationships as directions, simple vector arithmetic captures analogies:</p>
+  <div class="formula">vector("king") − vector("man") + vector("woman") ≈ vector("queen")</div>
+  <p>This works because "king" and "queen" differ from each other along roughly the same direction that "man" and "woman" differ — a "royalty" direction gets cancelled and a "gender" direction survives the subtraction and addition.</p>
+
+  <div class="demo">
+    <div class="demohead"><span>Interactive · Embedding Space (toy 2D projection)</span><span>vector arithmetic</span></div>
+    <div class="demobody">
+      <canvas id="embedCanvas" width="640" height="420"></canvas>
+      <div class="slider-row">
+        <button class="btn primary" id="analogyBtn">Run king − man + woman</button>
+        <button class="btn" id="resetEmbed">Reset</button>
+      </div>
+      <div id="embedNote" style="color:var(--dim);font-family:var(--mono);font-size:.8rem;margin-top:6px;"></div>
+    </div>
+  </div>
+
+  <div class="callout misconception">
+    "Embeddings capture what the word actually means." A single vector per word is a <strong>static</strong> embedding — "bank" has one vector no matter whether it's next to "river" or "loan". That's exactly what later contextual models (BERT, GPT) fix: they generate a fresh vector for "bank" on the fly depending on the sentence it's in.
+  </div>
+
+  <div class="callout explain">
+    In your own words: why does subtracting "man" from "king" and adding "woman" tend to land near "queen"?
+    <textarea data-key="explain-embed" placeholder="Type your answer here."></textarea>
+  </div>
+</section>
+
+<section class="chapter" id="rnn">
+  <div class="chapnum">CHAPTER 6</div>
+  <h2>Recurrent Neural Networks</h2>
+  <p>Embeddings solved "what does this word mean" but each word is still processed in isolation. Language is sequential — meaning accumulates. A <strong>Recurrent Neural Network</strong> processes a sequence one token at a time, and at every step it combines the new input with a running summary of everything it has seen so far, called the <strong>hidden state</strong>.</p>
+  <div class="formula">h<sub>t</sub> = tanh( W<sub>xh</sub>·x<sub>t</sub> + W<sub>hh</sub>·h<sub>t-1</sub> + b )</div>
+  <p style="color:var(--dim);font-size:.88rem;">x<sub>t</sub> is the embedding of the current token, h<sub>t-1</sub> is the hidden state carried in from the previous step, and W<sub>xh</sub>, W<sub>hh</sub> are weight matrices shared across every timestep — the same recurrence is applied again and again.</p>
+  <p>Crucially, the <em>same</em> weights are reused at every position, which is why RNNs generalize to sequences of any length: a sentence with 8 words and one with 80 words use the identical function, applied more or fewer times.</p>
+
+  <div class="callout analogy">
+    Reading a novel one sentence at a time while keeping a running mental summary is an RNN. You don't re-read the whole book at every new sentence — you update a compressed memory of "what has happened so far" and combine it with what you're reading right now. The hidden state is that mental summary; the tragedy, as Chapter 7 shows, is how much of that summary fades the longer the book gets.
+  </div>
+
+  <div class="demo">
+    <div class="demohead"><span>Interactive · RNN Unrolled Through Time</span><span>step through hidden states</span></div>
+    <div class="demobody">
+      <input type="text" id="rnnSentence" value="the cat sat on mat" style="width:100%;margin-bottom:10px;">
+      <div class="slider-row">
+        <button class="btn" id="rnnStep">Step forward</button>
+        <button class="btn" id="rnnReset">Reset</button>
+      </div>
+      <canvas id="rnnCanvas" width="900" height="260"></canvas>
+      <div id="rnnNote" style="color:var(--dim);font-family:var(--mono);font-size:.8rem;margin-top:6px;">Each box is the hidden state after reading one more word. Watch how earlier words' influence (the fill shade) dilutes at every step.</div>
+    </div>
+  </div>
+
+  <h3>What RNNs are used for</h3>
+  <p>Once you have hidden states, you can attach different "heads" for different jobs: a classification head on the final hidden state (sentiment analysis), a tag per timestep (part-of-speech tagging, named entity recognition), or feed hidden states into a decoder to generate a new sequence (translation — Chapter 9).</p>
+
+  <div class="quiz" data-quiz="rnn">
+    <div class="q">Why do RNNs use the exact same weight matrices at every timestep, instead of learning separate weights per position?</div>
+    <button class="opt" data-correct="false">To save GPU memory during training only</button>
+    <button class="opt" data-correct="true">So the model can handle sequences of any length and generalizes the same rule everywhere</button>
+    <button class="opt" data-correct="false">Because gradients can't be computed otherwise</button>
+    <div class="fb"></div>
+  </div>
+</section>
+
+<section class="chapter" id="vanish">
+  <div class="chapnum">CHAPTER 7</div>
+  <h2>The Vanishing Gradient Problem</h2>
+  <p>Training an RNN means running <strong>backpropagation through time</strong>: you unroll the recurrence into a long chain and push the error gradient backward through every timestep to update the shared weights. The trouble is that each step through the chain multiplies the gradient by another copy of the same weight matrix (and the derivative of the activation function).</p>
+  <div class="formula">∂L/∂h<sub>1</sub> = ∂L/∂h<sub>T</sub> × ∏<sub>t=2</sub><sup>T</sup> ∂h<sub>t</sub>/∂h<sub>t-1</sub></div>
+  <p>If those per-step factors are consistently less than 1 (very common with the tanh/sigmoid activations classic RNNs use), the product shrinks exponentially as it travels backward — the <strong>vanishing gradient</strong>. Words at the start of a long sequence get almost no learning signal from a mistake made at the end. If the factors are consistently greater than 1, the product explodes instead — the <strong>exploding gradient</strong>, usually fixed in practice by gradient clipping.</p>
+
+  <div class="demo">
+    <div class="demohead"><span>Interactive · Gradient Magnitude Over Distance</span><span>vanilla RNN vs LSTM</span></div>
+    <div class="demobody">
+      <div class="slider-row">
+        <label>Per-step multiplier for vanilla RNN:</label>
+        <input type="range" id="vgFactor" min="30" max="99" value="70">
+        <span id="vgFactorVal" class="mono">0.70</span>
+      </div>
+      <canvas id="vgCanvas" width="780" height="280"></canvas>
+      <div style="color:var(--dim);font-family:var(--mono);font-size:.8rem;">Amber = vanilla RNN gradient magnitude reaching back T steps. Teal = LSTM, whose gated "cell state" highway keeps the multiplier near 1 when the gate is open, so signal survives far longer.</div>
+    </div>
+  </div>
+
+  <div class="callout misconception">
+    "Vanishing gradients mean the RNN forgets old inputs during inference." No — vanishing gradients are a <em>training</em> problem: the network fails to learn how to use long-range dependencies in the first place, because the error signal that would teach it never arrives with meaningful strength. At inference time the (poorly trained) hidden state just keeps updating regardless.
+  </div>
+
+  <p>This one problem is the direct motivation for LSTMs, GRUs, and eventually attention: all three are, at their core, different ways of building a shorter, more direct path for gradients to travel between distant timesteps.</p>
+</section>
+
+<section class="chapter" id="lstm">
+  <div class="chapnum">CHAPTER 8</div>
+  <h2>LSTM &amp; GRU: Gated Memory</h2>
+  <p>The <strong>Long Short-Term Memory</strong> (LSTM) network fixes vanishing gradients by adding a second, more protected memory channel — the <strong>cell state</strong> — that information can travel along with very little transformation, plus three learned <strong>gates</strong> that decide what to keep, add, and output at every step.</p>
+  <ul style="color:#c7d3e0;">
+    <li><strong>Forget gate</strong> — decides what fraction of the old cell state to erase.</li>
+    <li><strong>Input gate</strong> — decides what new information to write into the cell state.</li>
+    <li><strong>Output gate</strong> — decides what part of the cell state to expose as the hidden state this step.</li>
+  </ul>
+  <div class="formula">
+    f<sub>t</sub> = σ(W<sub>f</sub>·[h<sub>t-1</sub>,x<sub>t</sub>]) &nbsp;·&nbsp; i<sub>t</sub> = σ(W<sub>i</sub>·[h<sub>t-1</sub>,x<sub>t</sub>]) &nbsp;·&nbsp; o<sub>t</sub> = σ(W<sub>o</sub>·[h<sub>t-1</sub>,x<sub>t</sub>])<br>
+    C<sub>t</sub> = f<sub>t</sub>⊙C<sub>t-1</sub> + i<sub>t</sub>⊙tanh(W<sub>c</sub>·[h<sub>t-1</sub>,x<sub>t</sub>]) &nbsp;·&nbsp; h<sub>t</sub> = o<sub>t</sub>⊙tanh(C<sub>t</sub>)
+  </div>
+  <p>Each gate outputs numbers between 0 and 1 via a sigmoid (σ) — think of it as a dial, not a switch. When the forget gate is near 1, the cell state at that position passes through almost untouched, giving gradients a near-direct highway back through time instead of a chain of shrinking multiplications.</p>
+  <p>The <strong>GRU</strong> (Gated Recurrent Unit) simplifies this to two gates (reset and update) and merges the cell state into the hidden state. It trains faster and often performs comparably, at the cost of slightly less expressive memory control.</p>
+
+  <div class="demo">
+    <div class="demohead"><span>Interactive · Gate Dials</span><span>see how gate values change what's remembered</span></div>
+    <div class="demobody">
+      <div class="slider-row"><label style="width:110px;">Forget gate</label><input type="range" id="gForget" min="0" max="100" value="90"><span id="gForgetVal" class="mono">0.90</span></div>
+      <div class="slider-row"><label style="width:110px;">Input gate</label><input type="range" id="gInput" min="0" max="100" value="40"><span id="gInputVal" class="mono">0.40</span></div>
+      <div class="slider-row"><label style="width:110px;">Output gate</label><input type="range" id="gOutput" min="0" max="100" value="70"><span id="gOutputVal" class="mono">0.70</span></div>
+      <canvas id="gateCanvas" width="700" height="180"></canvas>
+      <div id="gateNote" style="color:var(--dim);font-family:var(--mono);font-size:.8rem;"></div>
+    </div>
+  </div>
+
+  <div class="quiz" data-quiz="lstm">
+    <div class="q">What does an LSTM's forget gate being close to 1 accomplish?</div>
+    <button class="opt" data-correct="false">It erases the cell state completely at that step</button>
+    <button class="opt" data-correct="true">It preserves most of the old cell state, letting information and gradients pass through with little decay</button>
+    <button class="opt" data-correct="false">It increases the learning rate for that timestep</button>
+    <div class="fb"></div>
+  </div>
+</section>
+
+<section class="chapter" id="seq2seq">
+  <div class="chapnum">CHAPTER 9</div>
+  <h2>Seq2Seq and the Birth of Attention</h2>
+  <p>Tasks like translation map one sequence to a different, independently-lengthed sequence. The <strong>encoder–decoder</strong> (seq2seq) architecture handles this with two RNNs: an <strong>encoder</strong> reads the source sentence and compresses it into a final hidden state (the "context vector"), and a <strong>decoder</strong> RNN uses that single vector to generate the target sentence, one word at a time.</p>
+  <div class="callout misconception">
+    "A bigger context vector just fixes long-sentence translation." The real problem is structural: squeezing an entire sentence — 5 words or 50 — into one fixed-size vector is a bottleneck. Early words get diluted by the time the encoder reaches the end, exactly the vanishing-influence problem from Chapter 7, just now concentrated into a single handoff point.
+  </div>
+  <p>The fix, introduced in 2014–2015, is <strong>attention</strong>: instead of forcing the decoder to work from one compressed vector, let it look back at <em>every</em> encoder hidden state at every decoding step, and learn how much weight to place on each one for the word it's currently generating.</p>
+  <div class="formula">
+    score(h<sub>dec</sub>, h<sub>enc,i</sub>) = h<sub>dec</sub>·h<sub>enc,i</sub> &nbsp;·&nbsp;
+    α<sub>i</sub> = softmax(score)<sub>i</sub> &nbsp;·&nbsp;
+    context = Σ<sub>i</sub> α<sub>i</sub>·h<sub>enc,i</sub>
+  </div>
+  <p>The α weights are the "attention weights" — a probability distribution over source positions, learned entirely from data, telling the decoder where to look. Translating "the black cat" into French, the model learns to attend heavily to "black" while generating "noir", without anyone hand-coding that alignment.</p>
+
+  <div class="callout analogy">
+    Old seq2seq is translating a paragraph after reading it once and putting it away — you work from memory alone. Attention is translating with the source paragraph still open in front of you, glancing back at whichever phrase is relevant to the word you're writing right now.
+  </div>
+
+  <p>This attention mechanism is the single idea that, stripped of the surrounding RNNs entirely, becomes the engine of the Transformer in the next chapter.</p>
+</section>
+
+<section class="chapter" id="transformer">
+  <div class="chapnum">CHAPTER 10</div>
+  <h2>The Transformer</h2>
+  <p>The 2017 paper "Attention Is All You Need" asked: what if we throw away the recurrence entirely and build a model purely out of attention? Two problems disappear at once. Recurrence forces sequential, one-step-at-a-time processing that can't be parallelized on a GPU — attention over a whole sequence can be computed for every position simultaneously. And recurrence still has to route information through many steps to connect distant words — attention connects any two positions in a single hop.</p>
+
+  <h3>Self-attention</h3>
+  <p>In self-attention, every token compares itself against every other token in the same sequence. Each token's embedding is projected into three vectors:</p>
+  <div class="formula">Q = XW<sub>Q</sub> &nbsp;(Query) &nbsp;·&nbsp; K = XW<sub>K</sub> &nbsp;(Key) &nbsp;·&nbsp; V = XW<sub>V</sub> &nbsp;(Value)</div>
+  <p>A query asks "what am I looking for?", a key answers "what do I contain?", and a value carries "what information do I offer if attended to?" The attention score between two tokens is their query·key dot product, turned into a probability with softmax, then used to blend the values:</p>
+  <div class="formula">Attention(Q,K,V) = softmax( QK<sup>T</sup> / √d<sub>k</sub> ) V</div>
+  <p style="color:var(--dim);font-size:.88rem;">Dividing by √d<sub>k</sub> (the key dimension) keeps the dot products from growing too large and pushing softmax into regions with near-zero gradient.</p>
+
+  <div class="demo">
+    <div class="demohead"><span>Interactive · Self-Attention Heatmap</span><span>click a word to see what it attends to</span></div>
+    <div class="demobody">
+      <div id="attnWords" style="margin-bottom:12px;"></div>
+      <canvas id="attnCanvas" width="620" height="380"></canvas>
+      <div style="color:var(--dim);font-family:var(--mono);font-size:.8rem;margin-top:6px;">Toy weights, illustrative only — click any word above to see which words it attends to most, and how brighter connections mean higher attention weight.</div>
+    </div>
+  </div>
+
+  <h3>Multi-head attention</h3>
+  <p>One attention computation learns one notion of "relevance" — maybe syntax. Different relationships (coreference, syntax, topic) benefit from different attention patterns, so the Transformer runs several attention operations ("heads") in parallel, each with its own Q/K/V projections, then concatenates and combines their outputs. One head might learn to track subject–verb agreement, another might track "which pronoun refers to which noun."</p>
+
+  <h3>Positional encoding</h3>
+  <p>Self-attention treats the input as an unordered set — it has no built-in sense of order. Word order is added back in explicitly by adding a <strong>positional encoding</strong> vector to each token's embedding, often built from sine and cosine waves of different frequencies, so the model can learn to use both content and position.</p>
+
+  <h3>The full block</h3>
+  <p>A Transformer layer stacks multi-head self-attention with a per-token feed-forward network, wrapped in residual connections and layer normalization (both borrowed from the same fight against vanishing gradients, now applied to very deep stacks of layers rather than long time sequences). Stack a dozen to a hundred-plus of these layers, and you have the backbone of every modern LLM.</p>
+
+  <div class="callout misconception">
+    "Attention is fundamentally different from what RNNs do." Attention solves the exact same problem RNNs were built for — combining information across a sequence — it just replaces "carry a compressed summary forward step by step" with "let every position query every other position directly." Same goal, direct-connection solution instead of relayed-summary solution.
+  </div>
+
+  <div class="quiz" data-quiz="transformer">
+    <div class="q">Why does the Transformer need an explicit positional encoding, when RNNs never needed one?</div>
+    <button class="opt" data-correct="true">Self-attention processes all tokens in parallel with no inherent notion of sequence order</button>
+    <button class="opt" data-correct="false">Because Transformers don't use embeddings</button>
+    <button class="opt" data-correct="false">Positional encoding is only needed for translation tasks</button>
+    <div class="fb"></div>
+  </div>
+</section>
+
+<section class="chapter" id="bpe">
+  <div class="chapnum">CHAPTER 11</div>
+  <h2>Subword Tokenization: Byte-Pair Encoding</h2>
+  <p>Modern LLMs tokenize with algorithms like <strong>Byte-Pair Encoding</strong> (BPE), which builds a vocabulary bottom-up directly from data rather than from a hand-written word list. The core idea: start with every individual character as a token, then repeatedly merge the most frequent adjacent pair into a new single token, until you hit a target vocabulary size.</p>
+  <p>Common words end up as one token ("the", "and"), moderately common words become a couple of tokens, and rare or unseen words fall back to smaller, still-meaningful pieces — so there's never a true out-of-vocabulary word, unlike Chapter 2's word-level tokenizer.</p>
+
+  <div class="demo">
+    <div class="demohead"><span>Interactive · Byte-Pair Encoding, Step by Step</span><span>merge the most frequent pair</span></div>
+    <div class="demobody">
+      <input type="text" id="bpeCorpus" value="low lower lowest newer newest wider widest" style="width:100%;margin-bottom:10px;">
+      <div class="slider-row">
+        <button class="btn" id="bpeInit">Initialize (split into characters)</button>
+        <button class="btn primary" id="bpeMerge">Merge most frequent pair</button>
+        <button class="btn" id="bpeResetBtn">Reset</button>
+      </div>
+      <div id="bpeWords" style="margin-top:12px;font-family:var(--mono);"></div>
+      <div id="bpeMerges" style="margin-top:10px;color:var(--dim);font-family:var(--mono);font-size:.8rem;"></div>
+    </div>
+  </div>
+
+  <p>GPT-family models use a byte-level variant of BPE, which starts from raw UTF-8 bytes rather than characters — this guarantees any string in any language or emoji can be tokenized, since every possible byte value is already in the base vocabulary. WordPiece (BERT) and SentencePiece/Unigram (T5, LLaMA-family) are close cousins with different merge/selection criteria.</p>
+
+  <div class="callout misconception">
+    "Tokens are roughly words." In practice one English word averages around 1.3 tokens, but this varies wildly — common short words are a single token, rare technical terms or non-English text can cost several tokens per word. This is exactly why some languages are more expensive to prompt an LLM in than others, and why odd tokenization artifacts (a model struggling to spell a rare word, or count its letters) trace back to this chapter.
+  </div>
+</section>
+
+<section class="chapter" id="pretrain">
+  <div class="chapnum">CHAPTER 12</div>
+  <h2>Pretraining Objectives: BERT vs GPT</h2>
+  <p>A Transformer architecture is just a shape — what makes it a language model is the training objective you point it at. Two objectives split the Transformer world into two families.</p>
+
+  <h3>GPT: Causal (autoregressive) language modeling</h3>
+  <p>GPT-style models are trained to predict the next token given only the tokens before it, using a <strong>causal mask</strong> that prevents each position from attending to future positions during training — otherwise the model could "cheat" by peeking at the answer.</p>
+  <div class="formula">L = − Σ<sub>t</sub> log P(x<sub>t</sub> | x<sub>1</sub>...x<sub>t-1</sub>)</div>
+  <p>This objective naturally suits <strong>generation</strong> — the model has been trained to do exactly the thing you ask it to do at inference: keep producing the next plausible token. Every chat-style LLM you use today is fundamentally a GPT-style causal decoder.</p>
+
+  <h3>BERT: Masked language modeling</h3>
+  <p>BERT-style models instead see the full sentence with some tokens randomly replaced by a [MASK] placeholder, and are trained to predict the missing tokens using context from <em>both</em> directions — before and after the mask. This produces excellent contextual representations for understanding tasks (classification, extraction, search) but doesn't naturally support left-to-right generation, since it was never trained to produce text one token at a time without seeing the "future" of the sentence.</p>
+
+  <div class="callout analogy">
+    GPT is trained like someone playing a word-guessing game where they can only see the words said so far and must guess the next one. BERT is trained like someone doing a fill-in-the-blank worksheet where the whole passage is visible except for a few blanked-out words. The first skill transfers directly to writing; the second transfers directly to reading comprehension.
+  </div>
+
+  <table>
+    <tr><th></th><th>GPT (decoder-only)</th><th>BERT (encoder-only)</th></tr>
+    <tr><td>Attention</td><td>Causal — sees only the past</td><td>Bidirectional — sees full context</td></tr>
+    <tr><td>Objective</td><td>Predict next token</td><td>Predict masked tokens</td></tr>
+    <tr><td>Best at</td><td>Generation, chat, completion</td><td>Classification, embeddings, retrieval</td></tr>
+  </table>
+
+  <div class="quiz" data-quiz="pretrain">
+    <div class="q">Why can't a BERT-style masked language model be directly used to generate text left-to-right the way GPT can?</div>
+    <button class="opt" data-correct="false">BERT has too few parameters</button>
+    <button class="opt" data-correct="true">BERT was trained with full bidirectional context, so it was never taught to produce a token knowing only what comes before it</button>
+    <button class="opt" data-correct="false">BERT doesn't use a Transformer architecture</button>
+    <div class="fb"></div>
+  </div>
+</section>
+
+<section class="chapter" id="pipeline">
+  <div class="chapnum">CHAPTER 13</div>
+  <h2>How an LLM Is Actually Trained</h2>
+  <p>A model like the one you're chatting with today goes through several distinct training stages, each fixing a limitation of the one before it.</p>
+  <h3>1. Pretraining</h3>
+  <p>The causal language modeling objective from Chapter 12, run on a huge, broad corpus of text (web pages, books, code, and more) — often trillions of tokens. This stage is where the overwhelming majority of compute is spent, and it's where the model acquires grammar, world knowledge, and reasoning patterns as a byproduct of getting extremely good at next-token prediction. The result is a <strong>base model</strong>: fluent, knowledgeable, but not necessarily helpful — it will continue a prompt in whatever way is statistically plausible, which might mean completing a question with more questions instead of answering it.</p>
+  <h3>2. Supervised Fine-Tuning (SFT)</h3>
+  <p>The base model is fine-tuned on a smaller, curated dataset of (instruction, ideal response) pairs written or selected by humans. This teaches the model the "shape" of being an assistant — answering instead of continuing, following requested formats, refusing appropriately — without needing anywhere near pretraining-scale data, because the underlying language ability is already there.</p>
+  <h3>3. Preference Fine-Tuning (RLHF / DPO)</h3>
+  <p>Humans (or AI models trained to imitate human judgment) compare pairs of candidate responses and mark which one is better. This preference data trains a <strong>reward model</strong>, which then guides further fine-tuning of the language model — classically via reinforcement learning (<strong>RLHF</strong>, Reinforcement Learning from Human Feedback), or more directly via newer methods like <strong>DPO</strong> (Direct Preference Optimization) that skip the separate reward model. This stage is what pushes a merely-instruction-following model toward responses that are actually judged helpful, honest, and safe.</p>
+
+  <div class="callout misconception">
+    "Fine-tuning teaches the model new facts and skills the way pretraining does." Fine-tuning stages use orders of magnitude less data than pretraining and mostly reshape <em>how</em> the model uses knowledge and ability it already has — its behavior, format, and judgment — rather than installing large amounts of new knowledge. A model that never saw a topic during pretraining generally can't be taught it in any depth by fine-tuning alone.
+  </div>
+
+  <div class="demo">
+    <div class="demohead"><span>Reference · The Pipeline at a Glance</span><span>scale comparison</span></div>
+    <div class="demobody">
+      <table>
+        <tr><th>Stage</th><th>Data</th><th>Typical scale</th><th>What it installs</th></tr>
+        <tr><td>Pretraining</td><td>Raw web text, books, code</td><td>Trillions of tokens</td><td>Language, knowledge, reasoning patterns</td></tr>
+        <tr><td>SFT</td><td>Curated instruction/response pairs</td><td>Thousands – low millions of examples</td><td>Instruction-following behavior</td></tr>
+        <tr><td>RLHF / DPO</td><td>Human/AI preference comparisons</td><td>Tens – hundreds of thousands of comparisons</td><td>Helpfulness, honesty, safety alignment</td></tr>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section class="chapter" id="decode">
+  <div class="chapnum">CHAPTER 14</div>
+  <h2>Decoding: How Text Actually Gets Generated</h2>
+  <p>At every generation step, the model outputs a probability distribution over the entire vocabulary for "what token comes next." How you turn that distribution into an actual chosen token is a separate design decision called the <strong>decoding strategy</strong>, and it dramatically changes the character of the output even with the exact same trained model.</p>
+  <ul style="color:#c7d3e0;">
+    <li><strong>Greedy decoding</strong> — always pick the single highest-probability token. Deterministic, but repetitive and can get stuck in loops, since it never risks a slightly-lower-probability word that might lead to a much better sentence.</li>
+    <li><strong>Beam search</strong> — track the top-k most promising partial sequences at once instead of just one, keeping the overall best-scoring full sequence. Common in translation, less common for open-ended chat, where it tends to produce bland, "safe" text.</li>
+    <li><strong>Temperature sampling</strong> — sample randomly from the distribution, but first reshape it: temperature < 1 sharpens the distribution toward the top choices (more focused, less random), temperature > 1 flattens it (more diverse, more random).</li>
+    <li><strong>Top-k sampling</strong> — restrict sampling to only the k highest-probability tokens, discarding the long tail of implausible ones before sampling.</li>
+    <li><strong>Top-p (nucleus) sampling</strong> — restrict sampling to the smallest set of tokens whose cumulative probability exceeds p (e.g. 0.9), which adapts the candidate pool size to how confident the model is at each step — a narrow pool when the model is sure, a wide one when it's genuinely uncertain.</li>
+  </ul>
+  <div class="formula">P<sub>temp</sub>(x<sub>i</sub>) = exp(z<sub>i</sub>/T) / Σ<sub>j</sub> exp(z<sub>j</sub>/T)</div>
+
+  <div class="demo">
+    <div class="demohead"><span>Interactive · Decoding Strategy Comparison</span><span>toy next-token distribution</span></div>
+    <div class="demobody">
+      <div class="slider-row"><label style="width:110px;">Temperature</label><input type="range" id="tempSlider" min="10" max="200" value="100"><span id="tempVal" class="mono">1.00</span></div>
+      <canvas id="decodeCanvas" width="700" height="260"></canvas>
+      <button class="btn primary" id="sampleBtn">Draw a sample at this temperature</button>
+      <div id="sampleOut" style="margin-top:8px;font-family:var(--mono);color:var(--accent);"></div>
+    </div>
+  </div>
+
+  <div class="callout analogy">
+    Greedy decoding is always ordering the highest-rated dish on the menu — reliable, never surprising, occasionally boring. High-temperature sampling is closing your eyes and pointing — occasionally delightful, occasionally a disaster. Top-p sampling is "pick randomly, but only among the dishes that are actually good" — the sweet spot most chat systems tune toward.
+  </div>
+
+  <div class="quiz" data-quiz="decode">
+    <div class="q">What does raising the sampling temperature above 1 do to the next-token distribution?</div>
+    <button class="opt" data-correct="false">Sharpens it toward the single most likely token</button>
+    <button class="opt" data-correct="true">Flattens it, making lower-probability tokens relatively more likely to be chosen</button>
+    <button class="opt" data-correct="false">Has no effect on sampling, only on speed</button>
+    <div class="fb"></div>
+  </div>
+</section>
+
+<section class="chapter" id="scale">
+  <div class="chapnum">CHAPTER 15</div>
+  <h2>Scaling Laws &amp; Where LLMs Go From Here</h2>
+  <p>Empirically, a Transformer's test loss on next-token prediction improves smoothly and predictably as you scale up three things together: model parameters, training data, and compute. These relationships — <strong>scaling laws</strong> — are why the field bet so heavily on making models bigger: the returns from scale were shown to be remarkably predictable rather than a matter of luck, at least for the pretraining loss itself (downstream task performance and reasoning ability scale less smoothly, and can appear in sudden jumps).</p>
+  <h3>Context window</h3>
+  <p>The context window is the maximum number of tokens the model can attend to at once — everything outside it is simply invisible to that generation step. Because standard self-attention compares every token to every other token, naive compute cost grows quadratically with context length, which is why extending context windows efficiently has been its own major area of research (sparse attention, sliding windows, and other approximations).</p>
+  <h3>In-context learning</h3>
+  <p>A striking emergent behavior of large pretrained models: they can pick up a new task from a handful of examples placed directly in the prompt, with no weight updates at all — the "learning" happens purely through the forward pass, guided by patterns the model already carries from pretraining. This is the mechanism behind few-shot prompting.</p>
+  <h3>Retrieval-Augmented Generation (RAG)</h3>
+  <p>Since a model's knowledge is frozen at whatever it saw during pretraining, and its context window is finite, <strong>RAG</strong> systems retrieve relevant documents from an external store (often via embedding similarity search — a direct callback to Chapter 5) and insert them into the prompt before generation, letting the model answer using up-to-date or private information it was never trained on.</p>
+  <h3>Agentic use</h3>
+  <p>Chaining an LLM's generations with tool calls, external actions, and multi-step planning — letting the model decide to search the web, run code, or call an API as part of producing an answer — turns a next-token predictor into a system that can carry out tasks, not just describe them.</p>
+
+  <div class="callout misconception">
+    "A bigger context window means the model remembers everything you've told it perfectly." Attention over a long context is not the same as reliable recall — models can still under-weight information placed in the middle of a very long context (sometimes called "lost in the middle"), and a longer window costs more compute per generated token. Bigger is not the same as flawless.
+  </div>
+
+  <div class="callout explain">
+    Tie it together in your own words: starting from raw text, walk through every representation the model builds — tokens, embeddings, attention, and generated output — in one paragraph.
+    <textarea data-key="explain-final" placeholder="Type your synthesis here."></textarea>
+  </div>
+
+  <div class="quiz" data-quiz="scale">
+    <div class="q">What lets a large pretrained LLM perform a new task from just a few examples in the prompt, with no weight updates?</div>
+    <button class="opt" data-correct="true">In-context learning — the forward pass alone uses prompt examples as a pattern to follow</button>
+    <button class="opt" data-correct="false">A hidden fine-tuning step run automatically before each response</button>
+    <button class="opt" data-correct="false">RAG retrieval of similar past conversations</button>
+    <div class="fb"></div>
+  </div>
+</section>
+
+<footer>
+  Signal &amp; Sequence — a self-contained interactive course. Progress and free-text answers are stored only in your browser's local storage; nothing is sent anywhere. Reload any time — your place is saved.
+</footer>
+
+</main>
+</div>
+<script>
+(function(){
+'use strict';
+const CHAPTERS = [
+  {id:'intro',t:'What Is NLP, Really?'},
+  {id:'preprocess',t:'Text Preprocessing'},
+  {id:'repr',t:'Bag of Words & TF-IDF'},
+  {id:'ngram',t:'N-gram Language Models'},
+  {id:'embed',t:'Word Embeddings'},
+  {id:'rnn',t:'Recurrent Neural Networks'},
+  {id:'vanish',t:'Vanishing Gradients'},
+  {id:'lstm',t:'LSTM & GRU'},
+  {id:'seq2seq',t:'Seq2Seq & Attention'},
+  {id:'transformer',t:'The Transformer'},
+  {id:'bpe',t:'Byte-Pair Encoding'},
+  {id:'pretrain',t:'BERT vs GPT'},
+  {id:'pipeline',t:'Training Pipeline'},
+  {id:'decode',t:'Decoding Strategies'},
+  {id:'scale',t:'Scaling Laws & Beyond'}
+];
+const STORE_KEY = 'sns_nlp_course_progress_v1';
+let progress = {};
+try{ progress = JSON.parse(localStorage.getItem(STORE_KEY) || '{}'); }catch(e){ progress = {}; }
+function saveProgress(){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(progress)); }catch(e){} }
+
+// build nav
+const navList = document.getElementById('navList');
+const ul = document.createElement('ul');
+CHAPTERS.forEach((c,i)=>{
+  const li = document.createElement('li');
+  const a = document.createElement('a');
+  a.href = '#'+c.id;
+  a.dataset.id = c.id;
+  a.innerHTML = '<span class="chk"></span><span>'+(i+1)+'. '+c.t+'</span>';
+  if(progress[c.id]) a.classList.add('done');
+  li.appendChild(a);
+  ul.appendChild(li);
+});
+navList.appendChild(ul);
+
+function updateProgressBar(){
+  const done = CHAPTERS.filter(c=>progress[c.id]).length;
+  document.getElementById('progressBarInner').style.width = (done/CHAPTERS.length*100)+'%';
+  document.getElementById('progressLabel').textContent = done+' / '+CHAPTERS.length+' chapters read';
+}
+updateProgressBar();
+
+// mark read + active link via IntersectionObserver
+const sections = CHAPTERS.map(c=>document.getElementById(c.id)).filter(Boolean);
+const navLinks = {};
+document.querySelectorAll('#navList a').forEach(a=>navLinks[a.dataset.id]=a);
+// Active-link tracking: whichever section currently overlaps a thin band near
+// the top of the viewport is "active". This band-based approach works
+// correctly regardless of a section's height.
+const activeIO = new IntersectionObserver((entries)=>{
+  entries.forEach(entry=>{
+    const id = entry.target.id;
+    if(entry.isIntersecting){
+      Object.values(navLinks).forEach(a=>a.classList.remove('active'));
+      if(navLinks[id]) navLinks[id].classList.add('active');
+    }
+  });
+}, {threshold:0, rootMargin:'-15% 0px -75% 0px'});
+sections.forEach(s=>activeIO.observe(s));
+
+// Read tracking: mark a chapter as read once its bottom edge has scrolled
+// past a line near the top of the viewport, i.e. the reader has scrolled
+// all the way through it (works for sections of any length, unlike a
+// fixed intersection-ratio threshold, which never reaches 35% for a
+// section taller than the viewport).
+const readIO = new IntersectionObserver((entries)=>{
+  entries.forEach(entry=>{
+    const id = entry.target.id;
+    if(!entry.isIntersecting && entry.boundingClientRect.top < 0){
+      if(!progress[id]){ progress[id] = true; saveProgress(); updateProgressBar(); if(navLinks[id]) navLinks[id].classList.add('done'); }
+    }
+  });
+}, {threshold:0, rootMargin:'-8% 0px 0px 0px'});
+sections.forEach(s=>readIO.observe(s));
+// Mark the very last chapter as read once the reader reaches the footer.
+const footerEl = document.querySelector('footer');
+if(footerEl){
+  const footerIO = new IntersectionObserver((entries)=>{
+    entries.forEach(entry=>{
+      if(entry.isIntersecting){
+        const lastId = CHAPTERS[CHAPTERS.length-1].id;
+        if(!progress[lastId]){ progress[lastId] = true; saveProgress(); updateProgressBar(); if(navLinks[lastId]) navLinks[lastId].classList.add('done'); }
+      }
+    });
+  }, {threshold:0});
+  footerIO.observe(footerEl);
+}
+
+// explain-it-back textareas persist
+document.querySelectorAll('textarea[data-key]').forEach(ta=>{
+  const key = 'sns_nlp_'+ta.dataset.key;
+  try{ const v = localStorage.getItem(key); if(v) ta.value = v; }catch(e){}
+  ta.addEventListener('input', ()=>{ try{ localStorage.setItem(key, ta.value); }catch(e){} });
+});
+
+// quiz logic
+document.querySelectorAll('.quiz').forEach(q=>{
+  const opts = q.querySelectorAll('.opt');
+  const fb = q.querySelector('.fb');
+  opts.forEach(opt=>{
+    opt.addEventListener('click', ()=>{
+      if(opt.dataset.answered) return;
+      opts.forEach(o=>o.dataset.answered='1');
+      const correct = opt.dataset.correct === 'true';
+      opts.forEach(o=>{
+        if(o.dataset.correct === 'true') o.classList.add('correct');
+        else if(o===opt) o.classList.add('wrong');
+      });
+      fb.textContent = correct ? 'Correct.' : 'Not quite — the correct answer is highlighted.';
+    });
+  });
+});
+})();
+</script>
+<script>
+(function(){ // Chapter 2: tokenizer
+'use strict';
+const input = document.getElementById('tokInput');
+const modeSel = document.getElementById('tokMode');
+const out = document.getElementById('tokOut');
+const stats = document.getElementById('tokStats');
+function run(){
+  const text = input.value;
+  const mode = modeSel.value;
+  let toks = [];
+  if(mode==='char'){
+    toks = text.split('');
+  } else if(mode==='word'){
+    toks = text.split(/\s+/).filter(Boolean);
+  } else {
+    toks = text.toLowerCase().replace(/[^\w\s']/g,'').split(/\s+/).filter(Boolean);
+  }
+  out.innerHTML = toks.map(t=>'<span class="tok">'+(t===' '?'␣':escapeHtml(t))+'</span>').join('');
+  const vocab = new Set(toks);
+  stats.textContent = 'tokens: '+toks.length+'   unique vocabulary: '+vocab.size;
+}
+function escapeHtml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+document.getElementById('tokRun').addEventListener('click', run);
+run();
+})();
+
+(function(){ // Chapter 3: TF-IDF
+'use strict';
+function tokenize(s){ return s.toLowerCase().replace(/[^\w\s]/g,'').split(/\s+/).filter(Boolean); }
+document.getElementById('tfidfRun').addEventListener('click', ()=>{
+  const docs = [document.getElementById('doc0').value, document.getElementById('doc1').value, document.getElementById('doc2').value].map(tokenize);
+  const vocab = Array.from(new Set(docs.flat())).sort();
+  const N = docs.length;
+  const df = {};
+  vocab.forEach(w=>{ df[w] = docs.filter(d=>d.includes(w)).length; });
+  let html = '<table><tr><th>term</th>';
+  for(let i=0;i<N;i++) html += '<th>doc'+i+' TF-IDF</th>';
+  html += '</tr>';
+  vocab.forEach(w=>{
+    html += '<tr><td>'+w+'</td>';
+    docs.forEach(d=>{
+      const tf = d.filter(x=>x===w).length / d.length;
+      const idf = Math.log(N/df[w]);
+      const val = tf*idf;
+      html += '<td>'+val.toFixed(3)+'</td>';
+    });
+    html += '</tr>';
+  });
+  html += '</table>';
+  document.getElementById('tfidfOut').innerHTML = html;
+});
+document.getElementById('tfidfRun').click();
+})();
+
+(function(){ // Chapter 4: bigram model
+'use strict';
+let model = null;
+function tokenize(s){ return s.toLowerCase().replace(/[^\w\s]/g,'').split(/\s+/).filter(Boolean); }
+function train(){
+  const toks = tokenize(document.getElementById('ngramCorpus').value);
+  model = {};
+  for(let i=0;i<toks.length-1;i++){
+    const a = toks[i], b = toks[i+1];
+    model[a] = model[a] || {};
+    model[a][b] = (model[a][b]||0) + 1;
+  }
+  let rows = Object.keys(model).slice(0,10).map(a=>{
+    const total = Object.values(model[a]).reduce((x,y)=>x+y,0);
+    const next = Object.entries(model[a]).sort((x,y)=>y[1]-x[1]).map(([w,c])=>w+' ('+(c/total).toFixed(2)+')').join(', ');
+    return '<tr><td>'+a+'</td><td>'+next+'</td></tr>';
+  }).join('');
+  document.getElementById('ngramTable').innerHTML = '<table><tr><th>word</th><th>likely next words (P)</th></tr>'+rows+'</table>';
+  document.getElementById('ngramOut').textContent = 'Model trained on '+toks.length+' tokens, '+Object.keys(model).length+' unique contexts.';
+}
+function generate(){
+  if(!model){ train(); }
+  const words = Object.keys(model);
+  if(words.length===0) return;
+  let cur = words[Math.floor(Math.random()*words.length)];
+  let seq = [cur];
+  for(let i=0;i<11;i++){
+    const nexts = model[cur];
+    if(!nexts){ cur = words[Math.floor(Math.random()*words.length)]; seq.push(cur); continue; }
+    const entries = Object.entries(nexts);
+    const total = entries.reduce((s,e)=>s+e[1],0);
+    let r = Math.random()*total;
+    let chosen = entries[0][0];
+    for(const [w,c] of entries){ r -= c; if(r<=0){ chosen = w; break; } }
+    seq.push(chosen);
+    cur = chosen;
+  }
+  document.getElementById('ngramOut').innerHTML = '<strong style="color:var(--accent);">Generated:</strong> '+seq.join(' ');
+}
+document.getElementById('ngramTrain').addEventListener('click', train);
+document.getElementById('ngramGen').addEventListener('click', generate);
+train();
+})();
+</script>
+<script>
+(function(){ // Chapter 5: embedding space
+'use strict';
+const canvas = document.getElementById('embedCanvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+const pts = {
+  king:{x:420,y:120}, queen:{x:430,y:250}, man:{x:260,y:150}, woman:{x:270,y:280},
+  prince:{x:470,y:90}, princess:{x:480,y:220}, apple:{x:120,y:330}, banana:{x:90,y:370},
+  orange:{x:150,y:390}, car:{x:520,y:340}, truck:{x:560,y:370}
+};
+let ghost = null;
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  ctx.strokeStyle='#1a2432'; ctx.lineWidth=1;
+  for(let x=0;x<W;x+=40){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+  for(let y=0;y<H;y+=40){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+  Object.entries(pts).forEach(([w,p])=>{
+    ctx.fillStyle = '#5fd4c4';
+    ctx.beginPath(); ctx.arc(p.x,p.y,5,0,7); ctx.fill();
+    ctx.fillStyle = '#dbe4ee'; ctx.font='13px monospace';
+    ctx.fillText(w, p.x+8, p.y+4);
+  });
+  if(ghost){
+    ctx.strokeStyle='#e8a355'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(pts.king.x,pts.king.y); ctx.lineTo(pts.man.x,pts.man.y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(pts.man.x,pts.man.y); ctx.lineTo(pts.woman.x,pts.woman.y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(pts.woman.x,pts.woman.y); ctx.lineTo(ghost.x,ghost.y); ctx.stroke();
+    ctx.fillStyle = '#e8a355';
+    ctx.beginPath(); ctx.arc(ghost.x,ghost.y,7,0,7); ctx.fill();
+    ctx.font='13px monospace';
+    ctx.fillText('king - man + woman', ghost.x+10, ghost.y-6);
+  }
+}
+document.getElementById('analogyBtn').addEventListener('click', ()=>{
+  ghost = { x: pts.king.x - pts.man.x + pts.woman.x, y: pts.king.y - pts.man.y + pts.woman.y };
+  draw();
+  const dx = ghost.x-pts.queen.x, dy = ghost.y-pts.queen.y;
+  const dist = Math.sqrt(dx*dx+dy*dy).toFixed(0);
+  document.getElementById('embedNote').textContent = 'Resulting point lands '+dist+'px from "queen" — close, because the royalty→gender direction is roughly shared across both pairs.';
+});
+document.getElementById('resetEmbed').addEventListener('click', ()=>{ ghost=null; draw(); document.getElementById('embedNote').textContent=''; });
+draw();
+})();
+
+(function(){ // Chapter 6: RNN unroll
+'use strict';
+const canvas = document.getElementById('rnnCanvas');
+const ctx = canvas.getContext('2d');
+let words = [];
+let step = 0;
+function setup(){
+  words = document.getElementById('rnnSentence').value.trim().split(/\s+/).filter(Boolean);
+  step = 0;
+  draw();
+}
+function draw(){
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0,0,W,H);
+  const n = words.length;
+  const gap = Math.min(150, (W-80)/Math.max(n,1));
+  const y = 130;
+  for(let i=0;i<n;i++){
+    const x = 60 + i*gap;
+    // input box
+    ctx.strokeStyle = '#2b3d4f'; ctx.fillStyle = '#0f1622';
+    ctx.fillRect(x-30,y+70,60,30); ctx.strokeRect(x-30,y+70,60,30);
+    ctx.fillStyle = '#7f92a8'; ctx.font='12px monospace'; ctx.textAlign='center';
+    ctx.fillText(words[i], x, y+90);
+    // hidden state box
+    const active = i < step;
+    const shade = active ? Math.min(1, (i+1)/n) : 0;
+    ctx.fillStyle = active ? `rgba(95,212,196,${0.25+shade*0.6})` : '#131a26';
+    ctx.strokeStyle = active ? '#5fd4c4' : '#22303f';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(x,y,26,0,7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = active ? '#08120f' : '#4b5f74';
+    ctx.font='11px monospace';
+    ctx.fillText('h'+(i+1), x, y+4);
+    // arrows
+    if(i>0){
+      ctx.strokeStyle = i<=step ? '#5fd4c4' : '#22303f';
+      ctx.beginPath(); ctx.moveTo(x-gap+26,y); ctx.lineTo(x-26,y); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x-26,y); ctx.lineTo(x-34,y-5); ctx.lineTo(x-34,y+5); ctx.closePath();
+      ctx.fillStyle = i<=step ? '#5fd4c4' : '#22303f'; ctx.fill();
+    }
+    ctx.strokeStyle = active ? '#5fd4c4' : '#22303f';
+    ctx.beginPath(); ctx.moveTo(x,y+70); ctx.lineTo(x,y+26); ctx.stroke();
+  }
+  ctx.textAlign='left';
+}
+document.getElementById('rnnStep').addEventListener('click', ()=>{
+  if(step < words.length){ step++; draw(); }
+});
+document.getElementById('rnnReset').addEventListener('click', ()=>{ step=0; draw(); });
+document.getElementById('rnnSentence').addEventListener('change', setup);
+setup();
+})();
+</script>
+<script>
+(function(){ // Chapter 7: vanishing gradient chart
+'use strict';
+const canvas = document.getElementById('vgCanvas');
+const ctx = canvas.getContext('2d');
+const slider = document.getElementById('vgFactor');
+const valSpan = document.getElementById('vgFactorVal');
+function draw(){
+  const factor = slider.value/100;
+  valSpan.textContent = factor.toFixed(2);
+  const W = canvas.width, H = canvas.height, pad=40, T=20;
+  ctx.clearRect(0,0,W,H);
+  ctx.strokeStyle='#22303f'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(pad,10); ctx.lineTo(pad,H-pad); ctx.lineTo(W-10,H-pad); ctx.stroke();
+  ctx.fillStyle='#7f92a8'; ctx.font='11px monospace';
+  ctx.fillText('gradient magnitude', pad+5, 22);
+  ctx.fillText('steps back in time →', W-160, H-14);
+  const plot = (fn, color)=>{
+    ctx.strokeStyle = color; ctx.lineWidth=2; ctx.beginPath();
+    for(let t=0;t<=T;t++){
+      const val = fn(t);
+      const x = pad + (t/T)*(W-pad-20);
+      const y = (H-pad) - val*(H-pad-30);
+      if(t===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+  };
+  plot(t=>Math.pow(factor,t), '#e8a355');
+  plot(t=>Math.pow(0.97,t), '#5fd4c4'); // LSTM: gate mostly open, near-1 decay
+  ctx.fillStyle='#e8a355'; ctx.fillRect(W-170,40,10,10); ctx.fillStyle='#c7d3e0'; ctx.fillText('vanilla RNN (factor='+factor.toFixed(2)+')', W-155,49);
+  ctx.fillStyle='#5fd4c4'; ctx.fillRect(W-170,58,10,10); ctx.fillStyle='#c7d3e0'; ctx.fillText('LSTM (gate ≈ open, factor=0.97)', W-155,67);
+}
+slider.addEventListener('input', draw);
+draw();
+})();
+
+(function(){ // Chapter 8: gate dials
+'use strict';
+const canvas = document.getElementById('gateCanvas');
+const ctx = canvas.getContext('2d');
+const f = document.getElementById('gForget'), i = document.getElementById('gInput'), o = document.getElementById('gOutput');
+const fv = document.getElementById('gForgetVal'), iv = document.getElementById('gInputVal'), ov = document.getElementById('gOutputVal');
+let cellState = 0.6;
+function draw(){
+  const fg = f.value/100, ig = i.value/100, og = o.value/100;
+  fv.textContent = fg.toFixed(2); iv.textContent = ig.toFixed(2); ov.textContent = og.toFixed(2);
+  const newContribution = 0.8; // toy candidate value
+  cellState = fg*cellState + ig*newContribution;
+  const hidden = og*Math.tanh(cellState);
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0,0,W,H);
+  function bar(x,label,val,color){
+    ctx.fillStyle = '#131a26'; ctx.fillRect(x,20,50,120); ctx.strokeStyle='#22303f'; ctx.strokeRect(x,20,50,120);
+    const h = Math.max(2,val*120);
+    ctx.fillStyle = color; ctx.fillRect(x,140-h,50,h);
+    ctx.fillStyle='#c7d3e0'; ctx.font='12px monospace'; ctx.textAlign='center';
+    ctx.fillText(label, x+25, 155); ctx.fillText(val.toFixed(2), x+25, 170);
+    ctx.textAlign='left';
+  }
+  bar(40,'cell state', Math.min(1,Math.abs(cellState)), '#5fd4c4');
+  bar(140,'hidden out', Math.min(1,Math.abs(hidden)), '#e8a355');
+  document.getElementById('gateNote').textContent = 'cell state C_t = '+cellState.toFixed(3)+' · hidden h_t = '+hidden.toFixed(3)+' — try forget≈0 to watch memory reset every step, or forget≈1 to watch it persist.';
+}
+[f,i,o].forEach(el=>el.addEventListener('input', ()=>{ cellState = 0.6; draw(); }));
+draw();
+})();
+</script>
+<script>
+(function(){ // Chapter 10: attention heatmap
+'use strict';
+const words = ["The","animal","didn't","cross","the","street","because","it","was","tired"];
+const overrides = { 7: {1: 6.0, 8: 1.0, 9: 2.0} }; // "it" -> strongly attends "animal"
+function weightsFor(qi){
+  const raw = words.map((w,ki)=>{
+    if(overrides[qi] && overrides[qi][ki]!==undefined) return overrides[qi][ki];
+    const dist = Math.abs(qi-ki);
+    return Math.exp(-dist*0.5) + (ki===qi?0.5:0);
+  });
+  const max = Math.max(...raw);
+  const exps = raw.map(v=>Math.exp(v-max));
+  const sum = exps.reduce((a,b)=>a+b,0);
+  return exps.map(v=>v/sum);
+}
+let selected = 7;
+const wordDiv = document.getElementById('attnWords');
+words.forEach((w,idx)=>{
+  const span = document.createElement('span');
+  span.className = 'tok'; span.style.cursor='pointer'; span.textContent = w;
+  span.dataset.idx = idx;
+  span.addEventListener('click', ()=>{ selected = idx; draw(); });
+  wordDiv.appendChild(span);
+  wordDiv.appendChild(document.createTextNode(' '));
+});
+const canvas = document.getElementById('attnCanvas');
+const ctx = canvas.getContext('2d');
+function draw(){
+  Array.from(wordDiv.children).forEach(el=>{
+    if(el.dataset && Number(el.dataset.idx)===selected) el.style.borderColor='#5fd4c4', el.style.color='#5fd4c4';
+    else if(el.dataset) el.style.borderColor='#2b3d4f', el.style.color='#dbe4ee';
+  });
+  const w = weightsFor(selected);
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0,0,W,H);
+  const n = words.length;
+  const cellW = (W-40)/n;
+  words.forEach((word,i)=>{
+    const x = 20 + i*cellW;
+    const alpha = w[i];
+    ctx.fillStyle = `rgba(95,212,196,${Math.min(1,alpha*n*0.9)})`;
+    ctx.fillRect(x, 40, cellW-4, 60);
+    ctx.strokeStyle = '#22303f'; ctx.strokeRect(x,40,cellW-4,60);
+    ctx.save();
+    ctx.translate(x+cellW/2-2, 130);
+    ctx.rotate(-Math.PI/5);
+    ctx.fillStyle = '#c7d3e0'; ctx.font='11px monospace'; ctx.textAlign='right';
+    ctx.fillText(word, 0, 0);
+    ctx.restore();
+    ctx.fillStyle = '#0a0e14'; ctx.font='10px monospace'; ctx.textAlign='center';
+    ctx.fillText(alpha.toFixed(2), x+cellW/2-2, 74);
+  });
+  ctx.textAlign='left'; ctx.fillStyle='#7f92a8'; ctx.font='12px monospace';
+  ctx.fillText('Query: "'+words[selected]+'"  →  attention weight over every key word', 20, 200);
+}
+draw();
+})();
+
+(function(){ // Chapter 11: BPE
+'use strict';
+let wordFreqs = {};
+let symbolSeqs = {};
+let merges = [];
+function getFreqs(){
+  const text = document.getElementById('bpeCorpus').value.trim();
+  const words = text.split(/\s+/).filter(Boolean);
+  wordFreqs = {};
+  words.forEach(w=>{ wordFreqs[w]=(wordFreqs[w]||0)+1; });
+}
+function init(){
+  getFreqs();
+  symbolSeqs = {};
+  Object.keys(wordFreqs).forEach(w=>{ symbolSeqs[w] = w.split('').concat(['</w>']); });
+  merges = [];
+  render();
+}
+function getPairCounts(){
+  const counts = {};
+  Object.entries(symbolSeqs).forEach(([w,seq])=>{
+    const freq = wordFreqs[w];
+    for(let i=0;i<seq.length-1;i++){
+      const pair = seq[i]+' '+seq[i+1];
+      counts[pair] = (counts[pair]||0)+freq;
+    }
+  });
+  return counts;
+}
+function mergeMostFrequent(){
+  const counts = getPairCounts();
+  const entries = Object.entries(counts);
+  if(entries.length===0){ document.getElementById('bpeMerges').textContent = 'No more pairs to merge.'; return; }
+  entries.sort((a,b)=>b[1]-a[1]);
+  const [pair,count] = entries[0];
+  const [a,b] = pair.split(' ');
+  Object.keys(symbolSeqs).forEach(w=>{
+    const seq = symbolSeqs[w];
+    const newSeq = [];
+    let i=0;
+    while(i<seq.length){
+      if(i<seq.length-1 && seq[i]===a && seq[i+1]===b){ newSeq.push(a+b); i+=2; }
+      else { newSeq.push(seq[i]); i+=1; }
+    }
+    symbolSeqs[w] = newSeq;
+  });
+  merges.push(pair+' → '+a+b+'  (count '+count+')');
+  render();
+}
+function render(){
+  const html = Object.entries(symbolSeqs).map(([w,seq])=>
+    '<div><span style="color:var(--dim);">'+w+':</span> '+seq.map(s=>'<span class="tok">'+s+'</span>').join('')+'</div>'
+  ).join('');
+  document.getElementById('bpeWords').innerHTML = html;
+  document.getElementById('bpeMerges').innerHTML = 'Merges so far ('+merges.length+'):<br>'+merges.slice(-8).join('<br>');
+}
+document.getElementById('bpeInit').addEventListener('click', init);
+document.getElementById('bpeMerge').addEventListener('click', mergeMostFrequent);
+document.getElementById('bpeResetBtn').addEventListener('click', init);
+init();
+})();
+
+(function(){ // Chapter 14: decoding
+'use strict';
+const tokens = ['cat','dog','ocean','running','purple','democracy','xylophone'];
+const baseLogits = [3.2, 3.0, 1.1, 0.8, 0.3, -0.5, -1.8];
+const slider = document.getElementById('tempSlider');
+const val = document.getElementById('tempVal');
+const canvas = document.getElementById('decodeCanvas');
+const ctx = canvas.getContext('2d');
+function softmax(logits, T){
+  const z = logits.map(l=>l/T);
+  const max = Math.max(...z);
+  const exps = z.map(v=>Math.exp(v-max));
+  const sum = exps.reduce((a,b)=>a+b,0);
+  return exps.map(v=>v/sum);
+}
+function draw(){
+  const T = slider.value/100;
+  val.textContent = T.toFixed(2);
+  const probs = softmax(baseLogits, T);
+  const W = canvas.width, H = canvas.height, pad=40;
+  ctx.clearRect(0,0,W,H);
+  const barW = (W-pad-20)/tokens.length;
+  probs.forEach((p,i)=>{
+    const x = pad + i*barW;
+    const h = p*(H-70);
+    ctx.fillStyle = i<2 ? '#5fd4c4' : '#e8a355';
+    ctx.fillRect(x, H-40-h, barW-14, h);
+    ctx.fillStyle='#c7d3e0'; ctx.font='11px monospace'; ctx.textAlign='center';
+    ctx.save(); ctx.translate(x+barW/2-7, H-20); ctx.fillText(tokens[i],0,0); ctx.restore();
+    ctx.fillText((p*100).toFixed(1)+'%', x+barW/2-7, H-44-h);
+  });
+  ctx.textAlign='left';
+  canvas._probs = probs;
+}
+document.getElementById('sampleBtn').addEventListener('click', ()=>{
+  const probs = canvas._probs;
+  let r = Math.random(); let chosen = tokens[tokens.length-1];
+  for(let i=0;i<probs.length;i++){ r -= probs[i]; if(r<=0){ chosen = tokens[i]; break; } }
+  document.getElementById('sampleOut').textContent = 'Sampled token: "'+chosen+'"';
+});
+slider.addEventListener('input', draw);
+draw();
+})();
+</script>
+</body>
+</html>
