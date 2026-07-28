@@ -1,0 +1,2673 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Classification — A Visual Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0a0f;
+    --panel:rgba(255,255,255,0.025);
+    --panel-border:rgba(255,255,255,0.09);
+    --text:#e9e7f2;
+    --dim:#8b88a3;
+    --dimmer:#5f5c74;
+    --purple:#6c5ce7;
+    --purple-light:#a29bfe;
+    --pink:#fd79a8;
+    --classA:#7dd3fc;
+    --classB:#fd79a8;
+    --green:#55efc4;
+    --yellow:#ffd76a;
+    --red:#ff7675;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{
+    width:100%; height:100%; background:var(--bg); color:var(--text);
+    font-family:'Inter',sans-serif; overflow:hidden;
+  }
+  ::selection{ background:var(--purple); color:#fff; }
+
+  .app{ position:fixed; inset:0; }
+
+  .progress-track{
+    position:fixed; top:0; left:0; right:0; height:3px;
+    background:rgba(255,255,255,0.05); z-index:50;
+  }
+  .progress-fill{
+    height:100%; background:linear-gradient(90deg,var(--purple),var(--pink));
+    width:0%; transition:width .5s cubic-bezier(.65,0,.35,1);
+  }
+
+  .slide{
+    position:absolute; inset:0;
+    display:flex; flex-direction:column;
+    padding:52px 72px 88px 72px;
+    opacity:0; transform:translateY(14px) scale(0.99);
+    pointer-events:none;
+    transition:opacity .45s cubic-bezier(.22,.61,.36,1), transform .45s cubic-bezier(.22,.61,.36,1);
+  }
+  .slide.active{ opacity:1; transform:translateY(0) scale(1); pointer-events:auto; }
+
+  .eyebrow{
+    font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:2.5px;
+    color:var(--purple-light); text-transform:uppercase; margin-bottom:10px;
+    display:flex; align-items:center; gap:10px;
+  }
+  .eyebrow::before{ content:''; width:22px; height:1px; background:var(--purple-light); opacity:.6; }
+
+  .slide h1{
+    font-family:'Space Grotesk',sans-serif; font-weight:600;
+    font-size:38px; letter-spacing:-0.5px; line-height:1.15;
+    margin-bottom:6px;
+  }
+  .slide h1 .accent{ color:var(--purple-light); }
+  .slide .subtitle{ color:var(--dim); font-size:15px; max-width:720px; line-height:1.5; }
+
+  .slide-body{
+    flex:1; margin-top:26px; display:grid;
+    grid-template-columns:1.35fr 1fr; gap:36px; min-height:0;
+  }
+  .slide-body.single{ grid-template-columns:1fr; }
+  .slide-body.stacked{ grid-template-columns:1fr; grid-template-rows:auto 1fr; }
+
+  .canvas-wrap{
+    position:relative; background:var(--panel); border:1px solid var(--panel-border);
+    border-radius:14px; overflow:hidden; min-height:0;
+  }
+  canvas{ display:block; width:100%; height:100%; }
+
+  .side-panel{ display:flex; flex-direction:column; gap:18px; min-height:0; overflow:auto; padding-right:4px; }
+
+  .card{
+    background:var(--panel); border:1px solid var(--panel-border); border-radius:12px;
+    padding:16px 18px;
+  }
+  .card .label{
+    font-family:'JetBrains Mono',monospace; font-size:10.5px; letter-spacing:1.5px;
+    color:var(--dimmer); text-transform:uppercase; margin-bottom:8px;
+  }
+  .card p{ font-size:14px; line-height:1.6; color:var(--text); }
+  .card p + p{ margin-top:8px; }
+  .card .dim{ color:var(--dim); }
+
+  .formula{
+    font-family:'JetBrains Mono',monospace; font-size:15px; line-height:1.9;
+    color:var(--purple-light); letter-spacing:.3px;
+  }
+  .formula .v{ color:var(--pink); }
+  .formula .op{ color:var(--dim); }
+  .formula small{ display:block; font-family:'Inter'; font-size:11.5px; color:var(--dimmer); margin-top:6px; letter-spacing:.2px;}
+
+  .math-expand{ margin-top:12px; border-top:1px dashed rgba(255,255,255,0.1); padding-top:10px; }
+  .math-expand summary{
+    cursor:pointer; font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:1.2px;
+    color:var(--purple-light); text-transform:uppercase; list-style:none;
+    display:flex; align-items:center; gap:7px; user-select:none; outline:none;
+    transition:color .2s;
+  }
+  .math-expand summary:hover{ color:var(--pink); }
+  .math-expand summary::-webkit-details-marker{ display:none; }
+  .math-expand summary::before{
+    content:'▸'; font-size:10px; display:inline-block; color:var(--dimmer);
+    transition:transform .22s ease;
+  }
+  .math-expand[open] summary::before{ transform:rotate(90deg); color:var(--purple-light); }
+  .math-expand .expand-body{
+    margin-top:11px; font-size:12.5px; line-height:1.65; color:var(--dim);
+    padding-left:2px; border-left:2px solid rgba(108,92,231,0.25); padding-left:12px;
+  }
+  .math-expand .expand-body .why-label, .math-expand .expand-body .use-label{
+    font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:1px;
+    color:var(--dimmer); text-transform:uppercase; display:block; margin-bottom:3px;
+  }
+  .math-expand .expand-body .why{ margin-bottom:12px; }
+  .math-expand .expand-body b{ color:var(--text); }
+  .math-expand .expand-body .use-label{ color:var(--green); }
+  .math-expand .expand-body .why-label{ color:var(--purple-light); }
+
+  .legend{ display:flex; gap:16px; flex-wrap:wrap; }
+  .legend span{
+    display:inline-flex; align-items:center; gap:7px; font-size:12.5px; color:var(--dim);
+    font-family:'JetBrains Mono',monospace;
+  }
+  .dot{ width:9px; height:9px; border-radius:50%; display:inline-block; }
+
+  .feynman{
+    border-left:2px solid var(--purple); padding:4px 0 4px 16px; margin-top:auto;
+  }
+  .feynman .label{ color:var(--purple-light); }
+  .feynman p{ color:var(--dim); font-style:italic; font-size:13.5px; }
+
+  /* Nav */
+  .nav{
+    position:fixed; left:0; right:0; bottom:0; height:70px;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:0 40px; background:linear-gradient(to top, rgba(10,10,15,0.95), rgba(10,10,15,0));
+    z-index:40;
+  }
+  .nav-btn{
+    background:rgba(255,255,255,0.04); border:1px solid var(--panel-border);
+    color:var(--text); width:42px; height:42px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center; cursor:pointer;
+    font-size:16px; transition:.2s;
+  }
+  .nav-btn:hover{ background:rgba(255,255,255,0.09); border-color:var(--purple-light); }
+  .nav-btn:disabled{ opacity:.25; cursor:default; }
+  .nav-btn:disabled:hover{ background:rgba(255,255,255,0.04); border-color:var(--panel-border); }
+
+  .dots{ display:flex; gap:7px; align-items:center; }
+  .dots .d{
+    width:6px; height:6px; border-radius:50%; background:rgba(255,255,255,0.15);
+    cursor:pointer; transition:.25s;
+  }
+  .dots .d.on{ background:var(--purple-light); width:18px; border-radius:3px; }
+
+  .counter{
+    font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--dimmer); min-width:60px; text-align:right;
+  }
+  .counter b{ color:var(--dim); }
+
+  .hint{
+    position:fixed; bottom:80px; right:40px; font-family:'JetBrains Mono',monospace;
+    font-size:11px; color:var(--dimmer); opacity:0; transition:opacity .4s; z-index:30;
+  }
+  .hint.show{ opacity:1; }
+
+  @media (max-width:980px){
+    .slide-body{ grid-template-columns:1fr; grid-template-rows:1fr auto; }
+    .slide{ padding:36px 26px 88px 26px; }
+    .slide h1{ font-size:26px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+
+<div class="app" id="app">
+
+  <!-- 0: TITLE -->
+  <section class="slide">
+    <div class="slide-body single">
+      <div class="canvas-wrap"><canvas id="c0"></canvas></div>
+    </div>
+  </section>
+
+  <!-- 1: WHAT IS CLASSIFICATION -->
+  <section class="slide">
+    <div class="eyebrow">The Core Idea</div>
+    <h1>What is <span class="accent">classification</span>, really?</h1>
+    <p class="subtitle">Every example lives somewhere in feature space. The job is to find the shape that separates the groups.</p>
+    <div class="slide-body">
+      <div class="canvas-wrap"><canvas id="c1"></canvas></div>
+      <div class="side-panel">
+        <div class="card">
+          <div class="label">Definition</div>
+          <div class="formula">f : ℝ<span class="v">ⁿ</span> <span class="op">→</span> { 0, 1, ... , k }<small>Map a point's features to a class label</small></div>
+          <details class="math-expand">
+            <summary>Why this equation?</summary>
+            <div class="expand-body">
+              <div class="why"><span class="why-label">Why frame it this way</span>Treating classification as learning a function lets us reuse all of calculus and optimization — we can measure exactly how often f(x) disagrees with the truth, and adjust parameters to reduce it.</div>
+              <div class="use"><span class="use-label">Real-world use</span>Every "which bucket" decision fits this mold: spam vs. not spam, tumor malignant vs. benign, loan approve vs. deny.</div>
+            </div>
+          </details>
+        </div>
+        <div class="card">
+          <div class="label">Legend</div>
+          <div class="legend">
+            <span><span class="dot" style="background:var(--classA)"></span>class A</span>
+            <span><span class="dot" style="background:var(--classB)"></span>class B</span>
+            <span><span class="dot" style="background:var(--purple-light)"></span>boundary</span>
+          </div>
+        </div>
+        <div class="card">
+          <p><b>Binary</b> — 2 classes (spam / not spam).</p>
+          <p><b>Multi-class</b> — 1 label from k options (digit 0–9).</p>
+          <p class="dim"><b>Multi-label</b> — several labels at once (a movie can be both "comedy" and "romance").</p>
+        </div>
+        <div class="feynman">
+          <div class="label" style="font-family:'JetBrains Mono';font-size:11px;letter-spacing:1px;">FEYNMAN&nbsp;SAYS</div>
+          <p>"Sorting fruit by size and color? Draw one line. Left of it, apples. Right of it, oranges. Every algorithm ahead is just a cleverer way to draw that line — and a few slides on how to trust and score that line."</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 1b: BIAS-VARIANCE -->
+  <section class="slide">
+    <div class="eyebrow">Foundations · Model Complexity</div>
+    <h1>Underfit, <span class="accent">just right</span>, or overfit?</h1>
+    <p class="subtitle">The central tension in every model: too simple misses the pattern, too complex memorizes the noise.</p>
+    <div class="slide-body">
+      <div class="canvas-wrap"><canvas id="cBV"></canvas></div>
+      <div class="side-panel">
+        <div class="card">
+          <div class="label">The Math</div>
+          <div class="formula" style="font-size:13.5px">Err(x) = Bias² + Variance + σ²<small>Expected test error splits into three parts</small></div>
+          <details class="math-expand">
+            <summary>Why this equation?</summary>
+            <div class="expand-body">
+              <div class="why"><span class="why-label">Why it's built this way</span>Expand E[(y − f̂(x))²] algebraically and it splits exactly into these three non-negative terms — there's no way to make all three zero at once, which is why there's always a trade-off.</div>
+              <div class="use"><span class="use-label">Real-world use</span>Diagnoses whether a model needs more data (fixes variance) or a richer model (fixes bias) — the first question to ask when accuracy plateaus.</div>
+            </div>
+          </details>
+        </div>
+        <div class="card">
+          <p><b>Bias:</b> error from a model too simple to capture the pattern (underfit).</p>
+          <p><b>Variance:</b> error from a model so flexible it reacts to noise (overfit).</p>
+          <p class="dim"><b>σ² (irreducible):</b> noise no model can remove.</p>
+        </div>
+        <div class="card">
+          <p><b>High bias fix:</b> add features, use a more flexible model, lower regularization.</p>
+          <p class="dim"><b>High variance fix:</b> get more data, regularize, simplify the model, or ensemble (bagging).</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 1c: TRAIN/TEST SPLIT + CV -->
+  <section class="slide">
+    <div class="eyebrow">Foundations · Validation</div>
+    <h1>Train on some, <span class="accent">test</span> on the rest</h1>
+    <p class="subtitle">Never grade a model on the questions it already saw the answers to.</p>
+    <div class="slide-body">
+      <div class="canvas-wrap"><canvas id="cTT"></canvas></div>
+      <div class="side-panel">
+        <div class="card">
+          <div class="label">The Math</div>
+          <div class="formula" style="font-size:13.5px">CV error = (1/k) Σ error<span class="op">ᵢ</span><small>Average the held-out error across all k folds</small></div>
+          <details class="math-expand">
+            <summary>Why this equation?</summary>
+            <div class="expand-body">
+              <div class="why"><span class="why-label">Why it's built this way</span>One test score is a single noisy sample. Averaging k independent estimates shrinks that noise, the same way averaging k coin flips gives a steadier read on the true bias of the coin.</div>
+              <div class="use"><span class="use-label">Real-world use</span>Fairly comparing two models or hyperparameter settings before committing one to production.</div>
+            </div>
+          </details>
+        </div>
+        <div class="card">
+          <p>A single 80/20 split gives one noisy estimate. <b>k-fold CV</b> rotates the held-out slice k times and averages — a steadier read on generalization.</p>
+        </div>
+        <div class="card">
+          <p><b>Typical splits:</b> 70/30 or 80/20 train/test; k = 5 or 10 for cross-validation.</p>
+          <p class="dim"><b>Stratified split:</b> preserve each class's proportion in every fold — crucial when classes are imbalanced.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 1d: FEATURE SCALING -->
+  <section class="slide">
+    <div class="eyebrow">Foundations · Preprocessing</div>
+    <h1>Feature <span class="accent">scaling</span></h1>
+    <p class="subtitle">A feature measured in thousands can silently drown out one measured in single digits.</p>
+    <div class="slide-body">
+      <div class="canvas-wrap"><canvas id="cFS"></canvas></div>
+      <div class="side-panel">
+        <div class="card">
+          <div class="label">Standardize</div>
+          <div class="formula">x' = (x − μ) / σ<small>Zero mean, unit variance — the common default</small></div>
+          <details class="math-expand">
+            <summary>Why this equation?</summary>
+            <div class="expand-body">
+              <div class="why"><span class="why-label">Why it's built this way</span>Subtracting the mean centers the data at 0; dividing by the standard deviation rescales every feature to the same "1-unit" spread, so no feature dominates a distance or gradient calculation just because of its raw units.</div>
+              <div class="use"><span class="use-label">Real-world use</span>Preparing mixed-unit data — age in years next to income in dollars — before feeding it to KNN, SVM, or a neural net.</div>
+            </div>
+          </details>
+        </div>
+        <div class="card">
+          <p><b>Sensitive to scale:</b> KNN, SVM, Logistic/Linear models, Neural Nets, SGD — anything using distance or gradients.</p>
+          <p class="dim"><b>Doesn't care:</b> Decision Trees and everything built from them (Random Forest, boosting) — splits are scale-invariant.</p>
+        </div>
+        <div class="card">
+          <p><b>Standardization</b> (z-score): centers at 0, unit variance — best when data is roughly Gaussian.</p>
+          <p class="dim"><b>Min-Max normalization</b> x'=(x−min)/(max−min): rescales to [0,1] — better when you need bounded ranges.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2: LOGISTIC REGRESSION -->
+  <section class="slide">
+    <div class="eyebrow">Algorithm 01 · Linear &amp; Probabilistic</div>
+    <h1>Logistic <span class="accent">Regression</span></h1>
+    <p class="subtitle">A straight line underneath, squashed into a probability on top.</p>
+    <div class="slide-body">
+      <div class="canvas-wrap"><canvas id="c2"></canvas></div>
+      <div class="side-panel">
+        <div class="card">
+          <div class="label">The Math</div>
+          <div class="formula">z = <span class="v">w</span>·x + <span class="v">b</span><br>σ(z) = 1 / (1 + e<span class="op">⁻ᶻ</span>)<small>Predict class 1 when σ(z) ≥ 0.5</small></div>
+          <details class="math-expand">
+            <summary>Why this equation?</summary>
+            <div class="expand-body">
+              <div class="why"><span class="why-label">Why it's built this way</span>We want a probability, but wx+b ranges over all real numbers. The sigmoid is the inverse of the log-odds (logit) function — exactly the transform that turns an unbounded score into a valid 0–1 probability.</div>
+              <div class="use"><span class="use-label">Real-world use</span>Credit scoring and medical risk models, where you want a calibrated probability of default or disease — not just a yes/no label.</div>
+            </div>
+          </details>
+        </div>
+        <div class="card">
+          <p>The line score <span class="dim">z</span> can be any number. The <b>sigmoid</b> curve squeezes it into (0, 1) — a probability.</p>
+          <p class="dim">Where the surface reads exactly 50% is the decision boundary — still a straight line.</p>
+        </div>
+        <div class="card">
+          <p><b>Pros:</b> fast, interpretable coefficients, outputs calibrated probabilities.</p>
+          <p class="dim"><b>Cons:</b> only draws linear boundaries — needs engineered features for curved patterns.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3: KNN -->
+  <section class="slide">
+    <div class="eyebrow">Algorithm 02 · Instance-Based</div>
+    <h1>K-Nearest <span class="accent">Neighbors</span></h1>
+    <p class="subtitle">No training. Just ask the neighbors what they are.</p>
+    <div class="slide-body">
+      <div class="canvas-wrap"><canvas id="c3"></canvas></div>
+      <div class="side-panel">
+        <div class="card">
+          <div class="label">The Math</div>
+          <div class="formula">ŷ = mode { y<span class="op">ᵢ</span> : x<span class="op">ᵢ</span> ∈ N<span class="v">k</span>(x) }<small>Majority label among the k closest points</small></div>
+          <details class="math-expand">
+            <summary>Why this equation?</summary>
+            <div class="expand-body">
+              <div class="why"><span class="why-label">Why it's built this way</span>If nearby points in feature space tend to share a label — a reasonable assumption for most real data — then the label of your closest neighbors is the most direct evidence available with zero training.</div>
+              <div class="use"><span class="use-label">Real-world use</span>Recommender systems ("customers similar to you bought…") and quick prototyping when you don't have time to train a model.</div>
+            </div>
+          </details>
+        </div>
+        <div class="card">
+          <p>Store every training point. For a new point, find the <span class="v">k</span> closest ones and let them vote.</p>
+          <p class="dim">Lazy: all the "work" happens at prediction time, not training time.</p>
+        </div>
+        <div class="card">
+          <p><b>Choosing k:</b> small k → jagged, overfit boundary; large k → smoother, can underfit. Usually tuned via cross-validation.</p>
+          <p class="dim"><b>Curse of dimensionality:</b> distances stop being meaningful in very high-dimensional feature spaces.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4: SVM -->
+  <section class="slide">
+    <div class="eyebrow">Algorithm 03 · Margin-Based</div>
+    <h1>Support Vector <span class="accent">Machine</span></h1>
+    <p class="subtitle">Not just any separating line — the one furthest from both sides.</p>
+    <div class="slide-body">
+      <div class="canvas-wrap"><canvas id="c4"></canvas></div>
+      <div class="side-panel">
+        <div class="card">
+          <div class="label">The Math</div>
+          <div class="formula">min ½‖<span class="v">w</span>‖²<br><span class="op">s.t.</span> y<span class="op">ᵢ</span>(<span class="v">w</span>·x<span class="op">ᵢ</span>+<span class="v">b</span>) ≥ 1<small>Margin width = 2 / ‖w‖ — maximize it</small></div>
+          <details class="math-expand">
+            <summary>Why this equation?</summary>
+            <div class="expand-body">
+              <div class="why"><span class="why-label">Why it's built this way</span>The distance from a point to the hyperplane w·x+b=0 is proportional to 1/‖w‖. So minimizing ‖w‖ while still classifying every point correctly is mathematically identical to maximizing the margin.</div>
+              <div class="use"><span class="use-label">Real-world use</span>Text classification and bioinformatics, where the number of features is huge and a wide, robust margin matters.</div>
+            </div>
+          </details>
+        </div>
+        <div class="card">
+          <p>Only the closest points — the <b>support vectors</b> — decide the boundary. Everyone else is irrelevant.</p>
+          <p class="dim">Like parking exactly between two cars: equidistant from both.</p>
+        </div>
+        <div class="card">
+          <p><b>Kernel trick:</b> swap the dot product for one computed in a higher-dimensional space (RBF, polynomial) — lets SVM draw curved boundaries without ever visiting that space explicitly.</p>
+          <p class="dim"><b>C</b> controls the margin/violations trade-off: small C → wider margin, more tolerance for mistakes.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5: DECISION TREE -->
+  <section class="slide">
+    <div class="eyebrow">Algorithm 04 · Tree-Based</div>
+    <h1>Decision <span class="accent">Tree</span></h1>
+    <p class="subtitle">Ask one yes/no question at a time, and slice the space into boxes.</p>
+    <div class="slide-body">
+      <div class="canvas-wrap"><canvas id="c5"></canvas></div>
+      <div class="side-panel">
+        <div class="card">
+          <div class="label">The Rule</div>
+          <div class="formula" style="font-size:13.5px">if x<span class="op">₁</span> &lt; t: <span class="v">left</span><br>else: <span class="v">right</span><small>Repeat recursively on each half</small></div>
+        </div>
+        <div class="card">
+          <div class="label">How A Split Is Scored</div>
+          <div class="formula" style="font-size:13.5px">Gini = 1 − Σ p<span class="op">ᵢ</span>²<small>p&nbsp;=&nbsp;fraction of each class in a box · 0&nbsp;=&nbsp;pure, 0.5&nbsp;=&nbsp;maximally mixed</small></div>
+          <details class="math-expand">
+            <summary>Why this equation?</summary>
+            <div class="expand-body">
+              <div class="why"><span class="why-label">Why it's built this way</span>If you picked a random point from a box and guessed its label using the box's own class proportions, Gini is the probability you'd be wrong. It's exactly zero when a box holds only one class.</div>
+              <div class="use"><span class="use-label">Real-world use</span>Building interpretable rule systems — loan-approval or triage rules a human can read line by line and audit.</div>
+            </div>
+          </details>
+        </div>
+        <div class="card">
+          <p>Try every feature and every threshold <span class="dim">t</span>; keep whichever split drops the weighted Gini (or entropy) the most.</p>
+          <p class="dim">The boundary ends up axis-aligned — a staircase, not a diagonal.</p>
+        </div>
+        <div class="card">
+          <p><b>Pros:</b> interpretable — you can read the rules — and needs no feature scaling.</p>
+          <p class="dim"><b>Cons:</b> grows deep enough to memorize training data. Control it with <b>max_depth</b>, <b>min_samples_split</b>, or post-hoc pruning.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6: RANDOM FOREST / EXTRA TREES -->
+  <section class="slide">
+    <div class="eyebrow">Algorithm 05–06 · Bagged Ensembles</div>
+    <h1>Random Forest &amp; <span class="accent">Extra Trees</span></h1>
+    <p class="subtitle">One tree overfits. A crowd of slightly-different trees generalizes.</p>
+    <div class="slide-body">
+      <div class="canvas-wrap"><canvas id="c6"></canvas></div>
+      <div class="side-panel">
+        <div class="card">
+          <div class="label">The Math</div>
+          <div class="formula">ŷ = majority_vote( T<span class="op">₁</span>(x), ..., T<span class="op">ₙ</span>(x) )<small>Each tree sees random rows &amp; random features</small></div>
+          <details class="math-expand">
+            <summary>Why this equation?</summary>
+            <div class="expand-body">
+              <div class="why"><span class="why-label">Why it's built this way</span>Averaging many noisy, independent estimators cancels out uncorrelated errors — the same reason polling many people gives a more stable read than asking just one.</div>
+              <div class="use"><span class="use-label">Real-world use</span>Tabular business data — churn prediction, fraud scoring — where you need a strong, low-effort baseline fast.</div>
+            </div>
+          </details>
+        </div>
+        <div class="card">
+          <p><b>Random Forest:</b> random data samples + random feature subsets per split.</p>
+          <p class="dim"><b>Extra Trees:</b> also randomizes the split thresholds themselves — faster, even more diverse.</p>
+        </div>
+        <div class="card">
+          <p><b>Out-of-bag (OOB) error:</b> since each tree skips ~1/3 of the data, that held-out slice gives a free validation estimate.</p>
+          <p class="dim">Also yields <b>feature importance</b> — how much each feature improves purity across all trees.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7: NAIVE BAYES -->
+  <section class="slide">
+    <div class="eyebrow">Algorithm 07–09 · Probabilistic</div>
+    <h1>Naive <span class="accent">Bayes</span></h1>
+    <p class="subtitle">Assume every feature votes independently — naive, but often right.</p>
+    <div class="slide-body">
+      <div class="canvas-wrap"><canvas id="c7"></canvas></div>
+      <div class="side-panel">
+        <div class="card">
+          <div class="label">Bayes' Rule</div>
+          <div class="formula">P(y|x) = <span class="op">[</span>P(x|y)·P(y)<span class="op">]</span> / P(x)<small>Pick the class y with the highest posterior</small></div>
+          <details class="math-expand">
+            <summary>Why this equation?</summary>
+            <div class="expand-body">
+              <div class="why"><span class="why-label">Why it's built this way</span>Bayes' theorem is just algebra for "flipping" a conditional probability — we know how likely certain words are given "spam," but what we actually want is how likely "spam" is given the words we just saw.</div>
+              <div class="use"><span class="use-label">Real-world use</span>Spam filters and sentiment classifiers, where you have a huge vocabulary and want a fast, easily-updated score.</div>
+            </div>
+          </details>
+        </div>
+        <div class="card">
+          <p><b>Gaussian NB</b> — continuous features (bell curves)</p>
+          <p><b>Multinomial NB</b> — counts, e.g. word frequency</p>
+          <p><b>Bernoulli NB</b> — binary presence / absence</p>
+        </div>
+        <div class="card">
+          <p><b>Why it still works:</b> even when features aren't truly independent, NB usually gets the <i>ranking</i> of classes right, which is all classification needs.</p>
+          <p class="dim">Extremely fast, needs little data, a strong baseline for text/spam classification.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 8: LDA / QDA -->
+  <section class="slide">
+    <div class="eyebrow">Algorithm 10–11 · Generative Linear Models</div>
+    <h1>LDA <span class="accent">vs</span> QDA</h1>
+    <p class="subtitle">Model each class as a cloud. Same-shaped clouds → straight line. Different-shaped → a curve.</p>
+    <div class="slide-body">
+      <div class="canvas-wrap"><canvas id="c8"></canvas></div>
+      <div class="side-panel">
+        <div class="card">
+          <div class="label">The Math</div>
+          <div class="formula" style="font-size:12.5px">δ<span class="op">ₖ</span>(x) = −½(x−μ<span class="op">ₖ</span>)ᵀΣ<span class="op">ₖ</span>⁻¹(x−μ<span class="op">ₖ</span>) − ½log|Σ<span class="op">ₖ</span>| + logπ<span class="op">ₖ</span><small>Predict the class k with the largest δₖ(x)</small></div>
+          <details class="math-expand">
+            <summary>Why this equation?</summary>
+            <div class="expand-body">
+              <div class="why"><span class="why-label">Why it's built this way</span>Under a Gaussian assumption, the class with the highest posterior probability is exactly the one with the largest δₖ(x) — this formula is just the log of the Gaussian density plus the log of that class's prior probability, with constants dropped.</div>
+              <div class="use"><span class="use-label">Real-world use</span>Face recognition (Fisherfaces) and small-sample settings where a low-variance, probabilistic linear model beats logistic regression.</div>
+            </div>
+          </details>
+        </div>
+        <div class="card">
+          <p><b>LDA</b> assumes both classes share one covariance Σ → the quadratic terms cancel out → the boundary is a straight line.</p>
+          <p><b>QDA</b> lets each class keep its own Σ<span class="op">ₖ</span> → the quadratic term survives → the boundary can curve.</p>
+        </div>
+        <div class="card dim">
+          <p class="dim">More flexibility (QDA) needs more data to estimate safely — classic bias / variance trade.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 9: PERCEPTRON -->
+  <section class="slide">
+    <div class="eyebrow">Algorithm 12 · The Original Neuron</div>
+    <h1><span class="accent">Perceptron</span></h1>
+    <p class="subtitle">Guess. If wrong, nudge the line toward the mistake. Repeat.</p>
+    <div class="slide-body">
+      <div class="canvas-wrap"><canvas id="c9"></canvas></div>
+      <div class="side-panel">
+        <div class="card">
+          <div class="label">The Update Rule</div>
+          <div class="formula"><span class="v">w</span> ← <span class="v">w</span> + η(y − ŷ)x<small>Only fires when the prediction is wrong</small></div>
+          <details class="math-expand">
+            <summary>Why this equation?</summary>
+            <div class="expand-body">
+              <div class="why"><span class="why-label">Why it's built this way</span>When the prediction is correct, y−ŷ = 0 and nothing changes. When it's wrong, this rule nudges w in the direction of x — the smallest possible adjustment that would have fixed this exact mistake.</div>
+              <div class="use"><span class="use-label">Real-world use</span>Mostly historical/pedagogical today — but it's the literal conceptual building block for how a single artificial neuron learns.</div>
+            </div>
+          </details>
+        </div>
+        <div class="card">
+          <p>1957's answer to "can a machine learn a boundary?" Guaranteed to converge if the data is linearly separable.</p>
+        </div>
+        <div class="card">
+          <p><b>Limitation:</b> can't learn XOR or any non-linearly-separable pattern — a single line is all it has.</p>
+          <p class="dim">Stacking many perceptrons in layers is exactly what fixes this — see the next slide.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 10: NEURAL NETWORK -->
+  <section class="slide">
+    <div class="eyebrow">Algorithm 13 · Stacked Neurons</div>
+    <h1>Neural Network <span class="accent">(MLP)</span></h1>
+    <p class="subtitle">Stack perceptron-like units in layers, and straight lines learn to bend.</p>
+    <div class="slide-body">
+      <div class="canvas-wrap"><canvas id="c10"></canvas></div>
+      <div class="side-panel">
+        <div class="card">
+          <div class="label">The Math</div>
+          <div class="formula">h = φ(<span class="v">W₁</span>x+<span class="v">b₁</span>)<br>ŷ = φ(<span class="v">W₂</span>h+<span class="v">b₂</span>)<small>φ = nonlinear activation (sigmoid, ReLU, ...)</small></div>
+          <details class="math-expand">
+            <summary>Why this equation?</summary>
+            <div class="expand-body">
+              <div class="why"><span class="why-label">Why it's built this way</span>Stacking two purely linear layers is still just one linear layer — matrix multiplications compose into another matrix. The nonlinearity φ is what stops the layers from collapsing and lets the network represent curves.</div>
+              <div class="use"><span class="use-label">Real-world use</span>Image recognition, speech-to-text — anywhere the true boundary between classes is highly non-linear.</div>
+            </div>
+          </details>
+        </div>
+        <div class="card">
+          <p>Each hidden neuron is its own tiny linear boundary. Combined and bent by nonlinearity, they trace almost any shape.</p>
+        </div>
+        <div class="card">
+          <p><b>Trained via backpropagation:</b> the chain rule pushes the error gradient backward, layer by layer, to update every weight.</p>
+          <p class="dim">Flexible enough to overfit fast — <b>dropout</b>, weight decay, and early stopping keep it in check.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 11: GRADIENT BOOSTING -->
+  <section class="slide">
+    <div class="eyebrow">Algorithm 14 · Sequential Ensemble</div>
+    <h1>Gradient <span class="accent">Boosting</span></h1>
+    <p class="subtitle">Build one small model. Then build another that fixes its mistakes. Repeat.</p>
+    <div class="slide-body">
+      <div class="canvas-wrap"><canvas id="c11"></canvas></div>
+      <div class="side-panel">
+        <div class="card">
+          <div class="label">The Math</div>
+          <div class="formula">F<span class="op">ₘ</span>(x) = F<span class="op">ₘ₋₁</span>(x) + ν·h<span class="op">ₘ</span>(x)<small>Each new tree targets the current residual error</small></div>
+          <details class="math-expand">
+            <summary>Why this equation?</summary>
+            <div class="expand-body">
+              <div class="why"><span class="why-label">Why it's built this way</span>This is gradient descent performed in "function space" instead of parameter space — each new tree hₘ is fit to point in the direction that most reduces the loss, and ν controls how big a step to take.</div>
+              <div class="use"><span class="use-label">Real-world use</span>Search-result ranking and insurance risk pricing — tasks where squeezing out extra accuracy is worth the extra training time.</div>
+            </div>
+          </details>
+        </div>
+        <div class="card">
+          <p>Unlike a forest (parallel, independent trees), boosting trees are built one after another — each correcting the last.</p>
+        </div>
+        <div class="card">
+          <p><b>Key knobs:</b> learning rate ν (smaller = slower but steadier), number of trees, tree depth.</p>
+          <p class="dim">Powerful but sequential — can't parallelize across trees, and too many rounds will overfit.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 12: ADABOOST -->
+  <section class="slide">
+    <div class="eyebrow">Algorithm 15 · Reweighted Ensemble</div>
+    <h1><span class="accent">AdaBoost</span></h1>
+    <p class="subtitle">Get a point wrong? It gets heavier — and harder to ignore next round.</p>
+    <div class="slide-body">
+      <div class="canvas-wrap"><canvas id="c12"></canvas></div>
+      <div class="side-panel">
+        <div class="card">
+          <div class="label">The Math</div>
+          <div class="formula">α<span class="op">ₘ</span> = ½ ln( (1−err<span class="op">ₘ</span>) / err<span class="op">ₘ</span> )<br>ŷ = sign( Σ α<span class="op">ₘ</span>h<span class="op">ₘ</span>(x) )<small>Point size = sample weight; grows on mistakes</small></div>
+          <details class="math-expand">
+            <summary>Why this equation?</summary>
+            <div class="expand-body">
+              <div class="why"><span class="why-label">Why it's built this way</span>αₘ falls out of minimizing exponential loss — it's exactly the log-odds of a learner being right vs. wrong, so more accurate learners automatically earn more say in the final vote.</div>
+              <div class="use"><span class="use-label">Real-world use</span>Early real-time face detection (the Viola-Jones algorithm) — a cascade of simple weak classifiers combined exactly this way.</div>
+            </div>
+          </details>
+        </div>
+        <div class="card">
+          <p>Weak learners (often 1-split "stumps") are combined, weighted by how accurate each one was.</p>
+        </div>
+        <div class="card">
+          <p><b>Watch out:</b> outliers and mislabeled points keep getting heavier weight — AdaBoost can overfit to noisy data.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 13: XGBOOST / LIGHTGBM / CATBOOST -->
+  <section class="slide">
+    <div class="eyebrow">Algorithm 16–18 · Boosting, Industrialized</div>
+    <h1>XGBoost · LightGBM · <span class="accent">CatBoost</span></h1>
+    <p class="subtitle">Same core idea as gradient boosting — different engineering trade-offs.</p>
+    <div class="slide-body">
+      <div class="canvas-wrap"><canvas id="c13"></canvas></div>
+      <div class="side-panel">
+        <div class="card">
+          <div class="label">XGBoost's Added Term</div>
+          <div class="formula" style="font-size:12.5px">Obj = Σ l(y<span class="op">ᵢ</span>,ŷ<span class="op">ᵢ</span>) + Σ Ω(f<span class="op">ₖ</span>)<br>Ω(f) = γT + ½λΣw<span class="op">ⱼ</span>²<small>T = leaves, w = leaf weights — penalizes complexity directly in the loss</small></div>
+          <details class="math-expand">
+            <summary>Why this equation?</summary>
+            <div class="expand-body">
+              <div class="why"><span class="why-label">Why it's built this way</span>Adding Ω(f) to the objective means the optimizer pays a price for building an unnecessarily complex tree, even if it fits the training data slightly better — Occam's razor baked directly into training.</div>
+              <div class="use"><span class="use-label">Real-world use</span>The dominant algorithm in tabular-data Kaggle competitions and click-through-rate prediction at scale.</div>
+            </div>
+          </details>
+        </div>
+        <div class="card">
+          <p>Plain gradient boosting only minimizes error. XGBoost adds Ω(f) to the objective itself, so every tree is fit to be accurate <i>and</i> simple.</p>
+          <p class="dim">LightGBM and CatBoost keep this same regularized-objective idea, and mainly change <i>how</i> the trees are grown.</p>
+        </div>
+        <div class="card">
+          <p><b>XGBoost:</b> the reliable all-rounder. <b>LightGBM:</b> fastest on huge tabular datasets. <b>CatBoost:</b> best out-of-the-box with categorical columns.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 14: SGD -->
+  <section class="slide">
+    <div class="eyebrow">Algorithm 19 · Optimization Strategy</div>
+    <h1>Stochastic Gradient Descent <span class="accent">Classifier</span></h1>
+    <p class="subtitle">Don't wait to see all the data — take a noisy step after every sample.</p>
+    <div class="slide-body">
+      <div class="canvas-wrap"><canvas id="c14"></canvas></div>
+      <div class="side-panel">
+        <div class="card">
+          <div class="label">The Math</div>
+          <div class="formula"><span class="v">w</span> ← <span class="v">w</span> − η∇L(<span class="v">w</span>; x<span class="op">ᵢ</span>, y<span class="op">ᵢ</span>)<small>Gradient from one sample (or mini-batch), not all of it</small></div>
+          <details class="math-expand">
+            <summary>Why this equation?</summary>
+            <div class="expand-body">
+              <div class="why"><span class="why-label">Why it's built this way</span>Computing the exact gradient over millions of rows is expensive. A single sample (or mini-batch) gives a noisy but unbiased estimate of that same gradient — on average, it still points downhill.</div>
+              <div class="use"><span class="use-label">Real-world use</span>Training on streaming or web-scale data, where the full dataset never fits in memory at once.</div>
+            </div>
+          </details>
+        </div>
+        <div class="card">
+          <p>The path zig-zags — noisier than full-batch descent — but each step is cheap, so it scales to huge datasets.</p>
+          <p class="dim">It's a training strategy, not a boundary shape — pairs with a linear model (logistic loss, hinge loss, ...).</p>
+        </div>
+        <div class="card">
+          <p><b>Needs scaled features</b> and a well-tuned learning rate — too high overshoots, too low crawls.</p>
+          <p class="dim">Learning-rate <b>schedules</b> (start high, decay over time) usually work better than a fixed rate.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 14b: REGULARIZATION -->
+  <section class="slide">
+    <div class="eyebrow">Cross-Cutting Concept · Regularization</div>
+    <h1>L1 <span class="accent">vs</span> L2 regularization</h1>
+    <p class="subtitle">Penalize complexity itself, and the boundary calms back down.</p>
+    <div class="slide-body">
+      <div class="canvas-wrap"><canvas id="cREG"></canvas></div>
+      <div class="side-panel">
+        <div class="card">
+          <div class="label">The Math</div>
+          <div class="formula">L1: loss + λΣ|w<span class="op">ᵢ</span>|<br>L2: loss + λΣw<span class="op">ᵢ</span>²<small>λ trades fit for simplicity</small></div>
+          <details class="math-expand">
+            <summary>Why this equation?</summary>
+            <div class="expand-body">
+              <div class="why"><span class="why-label">Why it's built this way</span>Both add a penalty proportional to weight size, so the optimizer must "pay" to keep a large weight. L1's sharp corner at zero makes it cheapest to snap unneeded weights to exactly 0; L2's smooth bowl only ever shrinks them.</div>
+              <div class="use"><span class="use-label">Real-world use</span>Genomics (Lasso isolates a handful of relevant genes from thousands) and economics (Ridge stabilizes correlated predictors).</div>
+            </div>
+          </details>
+        </div>
+        <div class="card">
+          <p><b>L2 (Ridge):</b> shrinks every weight smoothly toward zero.</p>
+          <p><b>L1 (Lasso):</b> pushes weak weights to exactly zero — automatic feature selection.</p>
+        </div>
+        <div class="card">
+          <p><b>Elastic Net</b> blends both: λ₁Σ|wᵢ| + λ₂Σwᵢ² — sparse like L1, stable like L2.</p>
+          <p class="dim">Too much λ underfits; too little brings back overfitting — tune it via cross-validation.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 14c: MULTI-CLASS STRATEGIES -->
+  <section class="slide">
+    <div class="eyebrow">Cross-Cutting Concept · Beyond Two Classes</div>
+    <h1>One-vs-Rest <span class="accent">vs</span> One-vs-One</h1>
+    <p class="subtitle">Most classifiers only know how to draw one line. Here's how they handle three classes or more.</p>
+    <div class="slide-body">
+      <div class="canvas-wrap"><canvas id="cMC"></canvas></div>
+      <div class="side-panel">
+        <div class="card">
+          <div class="label">The Math</div>
+          <div class="formula" style="font-size:13.5px">OvR: k classifiers<br>OvO: k(k−1)/2 classifiers<small>k = number of classes</small></div>
+          <details class="math-expand">
+            <summary>Why this equation?</summary>
+            <div class="expand-body">
+              <div class="why"><span class="why-label">Why it's built this way</span>Every classifier covered so far only knows how to separate two groups. These formulas just count how many two-group problems are needed to reconstruct a k-group decision — k single-vs-rest splits, or every pairwise combination.</div>
+              <div class="use"><span class="use-label">Real-world use</span>Handwritten digit recognition (10 classes) or product categorization (hundreds of categories) using an inherently binary model like SVM.</div>
+            </div>
+          </details>
+        </div>
+        <div class="card">
+          <p><b>One-vs-Rest:</b> train k binary classifiers, one per class against everyone else. Predict = highest confidence.</p>
+          <p><b>One-vs-One:</b> train a classifier for every pair of classes, let them vote.</p>
+        </div>
+        <div class="card">
+          <p>OvR trains fewer models but each sees an imbalanced problem (1 class vs. all others combined).</p>
+          <p class="dim">OvO trains more models, but each one only sees two classes — often cleaner boundaries.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 14d: CONFUSION MATRIX -->
+  <section class="slide">
+    <div class="eyebrow">Evaluation · Scoring The Line</div>
+    <h1>Confusion <span class="accent">matrix</span></h1>
+    <p class="subtitle">Four ways a prediction can land — everything else is built from these four numbers.</p>
+    <div class="slide-body">
+      <div class="canvas-wrap"><canvas id="cCM"></canvas></div>
+      <div class="side-panel">
+        <div class="card">
+          <div class="label">The Math</div>
+          <div class="formula" style="font-size:13px">Precision = TP/(TP+FP)<br>Recall = TP/(TP+FN)<br>F1 = 2·P·R/(P+R)<small>Accuracy alone lies when classes are imbalanced</small></div>
+          <details class="math-expand">
+            <summary>Why this equation?</summary>
+            <div class="expand-body">
+              <div class="why"><span class="why-label">Why it's built this way</span>F1 uses the harmonic mean, not the average, of precision and recall — the harmonic mean punishes a big imbalance between the two, so a model can't hide terrible recall behind great precision.</div>
+              <div class="use"><span class="use-label">Real-world use</span>Medical screening tests, where you must explicitly trade off false alarms (precision) against missed cases (recall).</div>
+            </div>
+          </details>
+        </div>
+        <div class="card">
+          <p><b>Precision:</b> of what I flagged positive, how much was right?</p>
+          <p><b>Recall:</b> of everything actually positive, how much did I catch?</p>
+        </div>
+        <div class="card">
+          <p><b>Accuracy paradox:</b> Accuracy = (TP+TN)/total looks great even at 99% if positives are rare — a model that always says "no" can still score high.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 14e: ROC / AUC -->
+  <section class="slide">
+    <div class="eyebrow">Evaluation · Threshold Sweep</div>
+    <h1>ROC curve &amp; <span class="accent">AUC</span></h1>
+    <p class="subtitle">Slide the decision threshold from strict to lenient, and trace the trade-off.</p>
+    <div class="slide-body">
+      <div class="canvas-wrap"><canvas id="cROC"></canvas></div>
+      <div class="side-panel">
+        <div class="card">
+          <div class="label">The Math</div>
+          <div class="formula" style="font-size:13.5px">TPR = TP/(TP+FN)<br>FPR = FP/(FP+TN)<small>Plot TPR (y) against FPR (x) at every threshold</small></div>
+          <details class="math-expand">
+            <summary>Why this equation?</summary>
+            <div class="expand-body">
+              <div class="why"><span class="why-label">Why it's built this way</span>Sweeping the decision threshold from 1 down to 0 and plotting TPR vs. FPR at every point shows performance across all possible cutoffs at once, instead of committing to a single one.</div>
+              <div class="use"><span class="use-label">Real-world use</span>Comparing fraud-detection or medical-test models independent of where you'll eventually set the alert threshold.</div>
+            </div>
+          </details>
+        </div>
+        <div class="card">
+          <p>The diagonal is a coin flip. The further the curve bows toward the top-left, the better the ranking — <b>AUC</b> is the area under it, one number for "how separable."</p>
+        </div>
+        <div class="card">
+          <p class="dim">Under heavy class imbalance, ROC can look overly optimistic — a <b>Precision-Recall curve</b> is usually more honest there.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 15: SUMMARY -->
+  <section class="slide">
+    <div class="eyebrow">Putting It Together</div>
+    <h1>Every classifier asks <span class="accent">one question</span></h1>
+    <p class="subtitle">Which side of the line are you on? The art is choosing how to draw the line.</p>
+    <div class="slide-body single">
+      <div class="canvas-wrap"><canvas id="c15"></canvas></div>
+    </div>
+  </section>
+
+</div>
+
+<div class="hint" id="hint">↑ ↓ / ← → · SPACE · click dots</div>
+
+<div class="nav">
+  <button class="nav-btn" id="prevBtn" aria-label="Previous">‹</button>
+  <div class="dots" id="dots"></div>
+  <div style="display:flex; align-items:center; gap:18px;">
+    <div class="counter" id="counter"><b>01</b> / 23</div>
+    <button class="nav-btn" id="nextBtn" aria-label="Next">›</button>
+  </div>
+</div>
+
+<script>
+/* ============================= UTILITIES ============================= */
+const COLORS = {
+  bg:'#0a0a0f', text:'#e9e7f2', dim:'#8b88a3', dimmer:'#5f5c74',
+  purple:'#6c5ce7', purpleLight:'#a29bfe', pink:'#fd79a8',
+  classA:'#7dd3fc', classB:'#fd79a8', green:'#55efc4', yellow:'#ffd76a', red:'#ff7675',
+  grid:'rgba(255,255,255,0.045)'
+};
+
+function ease(t){ return t<0.5 ? 4*t*t*t : 1-Math.pow(-2*t+2,3)/2; }
+function easeOut(t){ return 1-Math.pow(1-t,3); }
+function lerp(a,b,t){ return a+(b-a)*t; }
+function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
+
+let currentGen = 0;
+let activeRafs = new Set();
+function clearRafs(){ activeRafs.forEach(id=>cancelAnimationFrame(id)); activeRafs.clear(); }
+
+function tween(duration, onFrame, gen){
+  return new Promise(resolve=>{
+    let start=null;
+    function step(ts){
+      if(gen!==currentGen){ resolve(); return; }
+      if(start===null) start=ts;
+      let t=clamp((ts-start)/duration,0,1);
+      onFrame(t);
+      if(t<1){ let id=requestAnimationFrame(step); activeRafs.add(id); }
+      else resolve();
+    }
+    let id=requestAnimationFrame(step); activeRafs.add(id);
+  });
+}
+function wait(ms, gen){ return tween(ms, ()=>{}, gen); }
+
+function setupCanvas(canvas){
+  const dpr = window.devicePixelRatio||1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = Math.max(1,Math.round(rect.width*dpr));
+  canvas.height = Math.max(1,Math.round(rect.height*dpr));
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  return {ctx, w:rect.width, h:rect.height};
+}
+
+/* shared dataset (normalized 0..1). classA lives near the bottom-left,
+   classB near the top-right; boundary ~ x + y = 1.02 */
+const classA = [[0.15,0.20],[0.20,0.35],[0.10,0.55],[0.30,0.15],[0.25,0.50],[0.40,0.30],
+                 [0.15,0.70],[0.35,0.45],[0.45,0.20],[0.20,0.65],[0.50,0.35],[0.30,0.60],[0.55,0.42]];
+const classB = [[0.85,0.80],[0.80,0.65],[0.90,0.55],[0.70,0.85],[0.75,0.70],[0.60,0.80],
+                 [0.65,0.60],[0.55,0.75],[0.90,0.75],[0.70,0.55],[0.85,0.45],[0.60,0.65],[0.58,0.50]];
+
+function plotArea(w,h){ const pad = Math.min(w,h)*0.13; return {pad, x0:pad, y0:pad, x1:w-pad, y1:h-pad, w:w-2*pad, h:h-2*pad}; }
+function toPx(nx,ny,area){ return [area.x0+nx*area.w, area.y0+(1-ny)*area.h]; }
+
+function drawGrid(ctx,area){
+  ctx.save();
+  ctx.strokeStyle = COLORS.grid; ctx.lineWidth=1;
+  for(let i=0;i<=6;i++){
+    const nx=i/6;
+    const [x0,y0]=toPx(nx,0,area), [,y1]=toPx(nx,1,area);
+    ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(x0,y1); ctx.stroke();
+    const [x0b,y0b]=toPx(0,nx,area), [x1b]=toPx(1,nx,area);
+    ctx.beginPath(); ctx.moveTo(x0b,y0b); ctx.lineTo(x1b,y0b); ctx.stroke();
+  }
+  ctx.strokeStyle='rgba(255,255,255,0.14)';
+  ctx.strokeRect(area.x0,area.y0,area.w,area.h);
+  ctx.restore();
+}
+
+function drawPoint(ctx,px,py,color,r,glow){
+  ctx.save();
+  if(glow){ ctx.shadowColor=color; ctx.shadowBlur=glow; }
+  ctx.fillStyle=color;
+  ctx.beginPath(); ctx.arc(px,py,r,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+}
+
+function drawDataset(ctx,area,opts){
+  opts = opts||{};
+  const reveal = opts.reveal===undefined?1:opts.reveal;
+  const r = opts.r||5.2;
+  const glow = opts.glow===undefined?4:opts.glow;
+  const highlight = opts.highlight||null; // {idx set for classA/classB} not used broadly
+  const dim = opts.dim||false;
+  const all = [...classA.map(p=>({p,c:COLORS.classA})), ...classB.map(p=>({p,c:COLORS.classB}))];
+  const n = Math.ceil(all.length*reveal);
+  for(let i=0;i<n;i++){
+    const {p,c} = all[i];
+    const localT = clamp((reveal*all.length - i),0,1);
+    const rr = r*easeOut(localT);
+    const [px,py] = toPx(p[0],p[1],area);
+    drawPoint(ctx,px,py, dim? 'rgba(255,255,255,0.18)':c, rr, dim?0:glow*0.5);
+  }
+}
+
+function textAt(ctx, str, x, y, opts){
+  opts=opts||{};
+  ctx.save();
+  ctx.font = (opts.weight||'500')+' '+(opts.size||13)+'px '+(opts.mono?"'JetBrains Mono'":"'Inter'")+',sans-serif';
+  ctx.fillStyle = opts.color||COLORS.dim;
+  ctx.textAlign = opts.align||'left';
+  ctx.textBaseline = opts.baseline||'alphabetic';
+  ctx.globalAlpha = opts.alpha===undefined?1:opts.alpha;
+  ctx.fillText(str,x,y);
+  ctx.restore();
+}
+
+/* ============================ SLIDE 0 — TITLE ============================ */
+async function slide0(gen){
+  const {ctx,w,h} = setupCanvas(document.getElementById('c0'));
+  const particles = Array.from({length:46}, (_,i)=>({
+    x:Math.random()*w, y:Math.random()*h,
+    vx:(Math.random()-0.5)*0.12, vy:(Math.random()-0.5)*0.12,
+    cls: i%2===0?'A':'B', r: 1.6+Math.random()*1.8,
+    phase: Math.random()*Math.PI*2
+  }));
+  let tGlobal = 0;
+  let titleReveal = 0, subReveal = 0, hintReveal=0;
+
+  function frame(){
+    ctx.clearRect(0,0,w,h);
+    tGlobal += 1;
+    particles.forEach(p=>{
+      p.x += p.vx; p.y += p.vy;
+      if(p.x<0||p.x>w) p.vx*=-1;
+      if(p.y<0||p.y>h) p.vy*=-1;
+      const c = p.cls==='A'?COLORS.classA:COLORS.classB;
+      const pulse = 0.6+0.4*Math.sin(tGlobal*0.02+p.phase);
+      drawPoint(ctx,p.x,p.y,c,p.r*pulse, 5);
+    });
+    // faint diagonal boundary sweep
+    ctx.save();
+    ctx.globalAlpha = 0.14;
+    ctx.strokeStyle = COLORS.purpleLight;
+    ctx.lineWidth=1.4;
+    ctx.setLineDash([2,7]);
+    ctx.beginPath(); ctx.moveTo(0,h*0.15); ctx.lineTo(w,h*0.85); ctx.stroke();
+    ctx.restore();
+
+    ctx.save();
+    ctx.textAlign='center';
+    ctx.globalAlpha = titleReveal;
+    const grad = ctx.createLinearGradient(w/2-190,0,w/2+190,0);
+    grad.addColorStop(0,COLORS.purpleLight); grad.addColorStop(1,COLORS.pink);
+    ctx.fillStyle = grad;
+    ctx.font = "600 68px 'Space Grotesk', sans-serif";
+    ctx.fillText('Classification', w/2, h/2 - 6);
+    ctx.restore();
+
+    ctx.save();
+    ctx.textAlign='center';
+    ctx.globalAlpha = subReveal;
+    ctx.fillStyle = COLORS.dim;
+    ctx.font = "500 16px 'Inter', sans-serif";
+    ctx.fillText('A visual, first-principles tour of how machines draw the line', w/2, h/2 + 34);
+    ctx.restore();
+
+    ctx.save();
+    ctx.textAlign='center';
+    ctx.globalAlpha = hintReveal * (0.5+0.5*Math.sin(tGlobal*0.05));
+    ctx.fillStyle = COLORS.dimmer;
+    ctx.font = "500 12px 'JetBrains Mono', monospace";
+    ctx.fillText('→  press next to begin', w/2, h/2 + 74);
+    ctx.restore();
+
+    if(gen===currentGen){ const id=requestAnimationFrame(frame); activeRafs.add(id); }
+  }
+  frame();
+  await tween(700, t=>{ titleReveal = ease(t); }, gen);
+  await tween(500, t=>{ subReveal = ease(t); }, gen);
+  await tween(500, t=>{ hintReveal = t; }, gen);
+}
+
+/* ============================ SLIDE 1 — CONCEPT ============================ */
+async function slide1(gen){
+  const {ctx,w,h} = setupCanvas(document.getElementById('c1'));
+  const area = plotArea(w,h);
+  let reveal=0, colorReveal=0, lineReveal=0, shadeReveal=0;
+
+  function draw(){
+    ctx.clearRect(0,0,w,h);
+    drawGrid(ctx,area);
+    if(shadeReveal>0){
+      ctx.save();
+      ctx.globalAlpha = 0.10*shadeReveal;
+      ctx.fillStyle = COLORS.classA;
+      ctx.beginPath();
+      ctx.moveTo(...toPx(0,0,area)); ctx.lineTo(...toPx(1.02,0,area)); ctx.lineTo(...toPx(0,1.02,area));
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = COLORS.classB;
+      ctx.beginPath();
+      ctx.moveTo(...toPx(1,1,area)); ctx.lineTo(...toPx(1.02,0,area)); ctx.lineTo(...toPx(0,1.02,area));
+      ctx.closePath(); ctx.fill();
+      ctx.restore();
+    }
+    const all = [...classA.map(p=>[p,'A']), ...classB.map(p=>[p,'B'])];
+    const n = Math.ceil(all.length*reveal);
+    for(let i=0;i<n;i++){
+      const [p,cls] = all[i];
+      const localT = clamp(reveal*all.length-i,0,1);
+      const gray = 'rgba(255,255,255,0.5)';
+      const target = cls==='A'?COLORS.classA:COLORS.classB;
+      const [px,py] = toPx(p[0],p[1],area);
+      const col = colorReveal<=0? gray : target;
+      drawPoint(ctx,px,py, col, 5*easeOut(localT), colorReveal>0?4:0);
+    }
+    if(lineReveal>0){
+      ctx.save();
+      ctx.globalAlpha = lineReveal;
+      ctx.strokeStyle = COLORS.purpleLight;
+      ctx.lineWidth=2;
+      const [x0,y0]=toPx(0.02,1,area), [x1,y1]=toPx(1,0.02,area);
+      const cx = lerp(x0,x1,lineReveal), cy = lerp(y0,y1,lineReveal);
+      ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(cx,cy); ctx.stroke();
+      ctx.restore();
+    }
+    textAt(ctx,'feature x₁',area.x1, area.y1+22,{align:'right',size:11,mono:true,color:COLORS.dimmer});
+    textAt(ctx,'feature x₂',area.x0-6, area.y0-10,{align:'left',size:11,mono:true,color:COLORS.dimmer});
+  }
+  function loop(){ draw(); if(gen===currentGen){ const id=requestAnimationFrame(loop); activeRafs.add(id);} }
+  loop();
+  await tween(1100, t=>{ reveal=ease(t); }, gen);
+  await wait(150,gen);
+  await tween(500, t=>{ colorReveal=t; shadeReveal=t; }, gen);
+  await wait(250,gen);
+  await tween(700, t=>{ lineReveal=ease(t); }, gen);
+}
+
+/* ============================ SLIDE 1b — BIAS/VARIANCE ============================ */
+async function slideBiasVariance(gen){
+  const {ctx,w,h} = setupCanvas(document.getElementById('cBV'));
+  const panelW = w/3, panelH = h*0.5;
+  const chartY0 = panelH+34, chartH = h-chartY0-28;
+  let panelReveal=[0,0,0], chartReveal=0, markerReveal=0;
+
+  function miniBoundary(px0,py0,pw,ph,kind,t){
+    const a = plotArea(pw,ph); a.x0+=px0; a.x1+=px0; a.y0+=py0; a.y1+=py0;
+    ctx.save(); ctx.globalAlpha=t;
+    ctx.strokeStyle='rgba(255,255,255,0.14)'; ctx.strokeRect(a.x0,a.y0,a.w,a.h);
+    ctx.restore();
+    [...classA,...classB].forEach((p,idx)=>{
+      const cls = idx<classA.length?'A':'B';
+      const [px,py]=toPx(p[0],p[1],a);
+      drawPoint(ctx,px,py, cls==='A'?COLORS.classA:COLORS.classB, 3.4*easeOut(t), 0);
+    });
+    ctx.save();
+    ctx.globalAlpha=t;
+    ctx.strokeStyle=COLORS.purpleLight; ctx.lineWidth=2;
+    ctx.beginPath();
+    const N=40;
+    for(let i=0;i<=N;i++){
+      const nx=i/N;
+      let ny;
+      if(kind==='under') ny = clamp(0.92-nx*0.12,0,1);
+      else if(kind==='good') ny = clamp(1.02-nx,0,1);
+      else ny = clamp(1.02-nx+0.16*Math.sin(nx*Math.PI*7),0,1);
+      const [px,py]=toPx(nx,ny,a);
+      if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,w,h);
+    const labels=[['Underfit','too simple'],['Just Right','generalizes'],['Overfit','memorizes noise']];
+    const cols=[COLORS.dim, COLORS.green, COLORS.red];
+    const kinds=['under','good','over'];
+    for(let i=0;i<3;i++){
+      const t=panelReveal[i];
+      if(t<=0) continue;
+      miniBoundary(i*panelW+14, 14, panelW-28, panelH-40, kinds[i], t);
+      textAt(ctx, labels[i][0], i*panelW+panelW/2, panelH-16, {align:'center', size:12.5, color:cols[i], weight:'600', alpha:t});
+      textAt(ctx, labels[i][1], i*panelW+panelW/2, panelH-2, {align:'center', size:10.5, mono:true, color:COLORS.dimmer, alpha:t});
+    }
+    if(chartReveal>0){
+      const cx0=w*0.08, cx1=w*0.92, cy0=chartY0, cy1=chartY0+chartH;
+      ctx.save(); ctx.globalAlpha=chartReveal;
+      ctx.strokeStyle='rgba(255,255,255,0.14)'; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(cx0,cy0); ctx.lineTo(cx0,cy1); ctx.lineTo(cx1,cy1); ctx.stroke();
+      ctx.restore();
+      textAt(ctx,'model complexity →', (cx0+cx1)/2, cy1+16, {align:'center', size:10.5, mono:true, color:COLORS.dimmer, alpha:chartReveal});
+      textAt(ctx,'error', cx0-6, cy0+2, {align:'right', size:10.5, mono:true, color:COLORS.dimmer, alpha:chartReveal});
+
+      const trainErr = x => 0.85*Math.exp(-4*x)+0.045;
+      const testErr = x => trainErr(x) + 0.55*Math.pow(x-0.38,2);
+      [ [trainErr, COLORS.purpleLight, 'train error'], [testErr, COLORS.pink, 'test error'] ].forEach(([fn,color,label],li)=>{
+        ctx.save(); ctx.globalAlpha=chartReveal; ctx.strokeStyle=color; ctx.lineWidth=2.2;
+        ctx.beginPath();
+        const N=60, n=Math.ceil(N*chartReveal);
+        for(let i=0;i<=n;i++){
+          const x=i/N;
+          const y = fn(x);
+          const px = lerp(cx0,cx1,x), py = lerp(cy1-4, cy0+6, clamp(y/0.9,0,1));
+          if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+        }
+        ctx.stroke();
+        ctx.restore();
+        if(chartReveal>0.95) textAt(ctx,label, cx1-4, cy0+16+li*15, {align:'right', size:10.5, mono:true, color});
+      });
+      if(markerReveal>0){
+        const sweetX = 0.38;
+        const px = lerp(cx0,cx1,sweetX);
+        ctx.save();
+        ctx.globalAlpha = markerReveal;
+        ctx.strokeStyle = COLORS.yellow; ctx.setLineDash([3,3]); ctx.lineWidth=1.4;
+        ctx.beginPath(); ctx.moveTo(px,cy0); ctx.lineTo(px,cy1); ctx.stroke();
+        ctx.restore();
+        textAt(ctx,'sweet spot', px, cy0-6, {align:'center', size:10.5, mono:true, color:COLORS.yellow, alpha:markerReveal});
+      }
+    }
+  }
+  function loop(){ draw(); if(gen===currentGen){ const id=requestAnimationFrame(loop); activeRafs.add(id);} }
+  loop();
+  await tween(500, t=>{ panelReveal[0]=t; }, gen);
+  await tween(500, t=>{ panelReveal[1]=t; }, gen);
+  await tween(500, t=>{ panelReveal[2]=t; }, gen);
+  await wait(150,gen);
+  await tween(900, t=>{ chartReveal=ease(t); }, gen);
+  await tween(400, t=>{ markerReveal=t; }, gen);
+}
+
+/* ============================ SLIDE 1c — TRAIN/TEST SPLIT + CV ============================ */
+async function slideTrainTest(gen){
+  const {ctx,w,h} = setupCanvas(document.getElementById('cTT'));
+  const area = plotArea(w, h*0.62);
+  const testIdx = new Set(['A11','A12','B11','B12']); // borderline + a couple more held out
+
+  const stripY0 = h*0.66, stripH = h*0.16;
+  let scatterReveal=0, splitReveal=0, stripReveal=0, foldT=0;
+  const folds=5;
+
+  function draw(){
+    ctx.clearRect(0,0,w,h);
+    drawGrid(ctx,area);
+    const all=[...classA.map((p,i)=>({p,cls:'A',i})), ...classB.map((p,i)=>({p,cls:'B',i}))];
+    const n=Math.ceil(all.length*scatterReveal);
+    for(let idx=0; idx<n; idx++){
+      const o=all[idx];
+      const key=o.cls+o.i;
+      const isTest = testIdx.has(key);
+      const [px,py]=toPx(o.p[0],o.p[1],area);
+      const baseCol = o.cls==='A'?COLORS.classA:COLORS.classB;
+      if(isTest && splitReveal>0){
+        ctx.save();
+        ctx.globalAlpha=splitReveal;
+        ctx.strokeStyle=baseCol; ctx.lineWidth=1.6;
+        ctx.beginPath(); ctx.arc(px,py,5.5,0,Math.PI*2); ctx.stroke();
+        ctx.restore();
+      } else {
+        drawPoint(ctx,px,py,baseCol,5,4);
+      }
+    }
+    ctx.save();
+    ctx.globalAlpha = splitReveal;
+    textAt(ctx,'solid = train', area.x0+4, area.y0+16, {size:11, mono:true, color:COLORS.dim});
+    textAt(ctx,'ring = held-out test', area.x1-4, area.y0+16, {size:11, mono:true, color:COLORS.dim, align:'right'});
+    ctx.restore();
+
+    if(stripReveal>0){
+      const sx0=w*0.08, sx1=w*0.92, sw=(sx1-sx0)/folds;
+      ctx.save(); ctx.globalAlpha=stripReveal;
+      const activeFold = Math.floor(clamp(foldT,0,0.999)*folds);
+      for(let f=0; f<folds; f++){
+        const isActive = f===activeFold;
+        ctx.fillStyle = isActive? COLORS.pink : 'rgba(108,92,231,0.35)';
+        roundRect(ctx, sx0+f*sw+3, stripY0, sw-6, stripH, 6); ctx.fill();
+        textAt(ctx, isActive? 'test' : 'train', sx0+f*sw+sw/2, stripY0+stripH/2+4, {align:'center', size:10.5, mono:true, color: isActive? '#1a1a1a':'rgba(255,255,255,0.6)', weight:'600'});
+      }
+      ctx.restore();
+      textAt(ctx, '5-fold cross-validation  ·  fold '+(activeFold+1)+' / '+folds+' held out', w/2, stripY0+stripH+22, {align:'center', size:11.5, mono:true, color:COLORS.dimmer, alpha:stripReveal});
+    }
+  }
+  function loop(){ draw(); if(gen===currentGen){ const id=requestAnimationFrame(loop); activeRafs.add(id);} }
+  loop();
+  await tween(700, t=>{ scatterReveal=ease(t); }, gen);
+  await tween(500, t=>{ splitReveal=t; }, gen);
+  await wait(200,gen);
+  await tween(400, t=>{ stripReveal=t; }, gen);
+  for(let f=0; f<folds; f++){
+    await tween(420, t=>{ foldT=f+t; }, gen);
+  }
+}
+
+/* ============================ SLIDE 1d — FEATURE SCALING ============================ */
+async function slideFeatureScaling(gen){
+  const {ctx,w,h} = setupCanvas(document.getElementById('cFS'));
+  const panelW = w*0.46, gap=w-panelW*2;
+  const areaL = plotArea(panelW, h*0.86); 
+  const areaR = plotArea(panelW, h*0.86); areaR.x0+=panelW+gap; areaR.x1+=panelW+gap;
+  let revealL=0, revealR=0, wrongReveal=0, rightReveal=0;
+
+  // synthetic 2-feature points where feature-2 has a much bigger raw range (simulated by squashing y visually before scaling)
+  const pts = [...classA.map(p=>({p,cls:'A'})), ...classB.map(p=>({p,cls:'B'}))];
+  const query = {p:[0.5,0.46], cls:'?'};
+
+  function panel(area,label,squash,t,markReveal, tag){
+    ctx.save(); ctx.globalAlpha=t;
+    ctx.fillStyle='rgba(255,255,255,0.03)'; ctx.strokeStyle='rgba(255,255,255,0.1)';
+    roundRect(ctx, area.x0-14, area.y0-14, area.w+28, area.h+42, 10); ctx.fill(); ctx.stroke();
+    ctx.restore();
+    drawGrid(ctx,area);
+    pts.forEach(o=>{
+      const ny = squash? 0.5+(o.p[1]-0.5)*0.22 : o.p[1];
+      const [px,py]=toPx(o.p[0], ny, area);
+      drawPoint(ctx,px,py, o.cls==='A'?COLORS.classA:COLORS.classB, 4.6*easeOut(t), 0);
+    });
+    const qny = squash? 0.5+(query.p[1]-0.5)*0.22 : query.p[1];
+    const [qx,qy]=toPx(query.p[0], qny, area);
+    drawPoint(ctx,qx,qy,'#ffffff',6*easeOut(t),8);
+    if(markReveal>0){
+      // nearest point in *displayed pixel* space
+      let best=null, bd=Infinity;
+      pts.forEach(o=>{
+        const ny = squash? 0.5+(o.p[1]-0.5)*0.22 : o.p[1];
+        const [px,py]=toPx(o.p[0],ny,area);
+        const d=Math.hypot(px-qx,py-qy);
+        if(d<bd){bd=d; best={o,px,py};}
+      });
+      ctx.save();
+      ctx.globalAlpha=markReveal;
+      ctx.strokeStyle = squash? COLORS.red : COLORS.green; ctx.lineWidth=1.8;
+      ctx.beginPath(); ctx.moveTo(qx,qy); ctx.lineTo(best.px,best.py); ctx.stroke();
+      ctx.beginPath(); ctx.arc(best.px,best.py,9,0,Math.PI*2); ctx.stroke();
+      ctx.restore();
+      textAt(ctx, squash? 'wrong neighbor picked' : 'correct neighbor picked', area.x0+area.w/2, area.y1+30, {align:'center', size:11.5, mono:true, color: squash? COLORS.red:COLORS.green, alpha:markReveal});
+    }
+    textAt(ctx,label, area.x0+area.w/2, area.y0-20, {align:'center', size:12.5, color:COLORS.text, weight:'600', alpha:t});
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,w,h);
+    panel(areaL,'raw features (x₂ range ≫ x₁)', true, revealL, wrongReveal);
+    panel(areaR,'after standardizing both features', false, revealR, rightReveal);
+  }
+  function loop(){ draw(); if(gen===currentGen){ const id=requestAnimationFrame(loop); activeRafs.add(id);} }
+  loop();
+  await tween(700, t=>{ revealL=ease(t); }, gen);
+  await tween(450, t=>{ wrongReveal=t; }, gen);
+  await wait(200,gen);
+  await tween(700, t=>{ revealR=ease(t); }, gen);
+  await tween(450, t=>{ rightReveal=t; }, gen);
+}
+
+/* ============================ SLIDE 2 — LOGISTIC REGRESSION ============================ */
+async function slide2(gen){
+  const canvas = document.getElementById('c2');
+  const {ctx,w,h} = setupCanvas(canvas);
+  const sigH = h*0.34;
+  const plotY0 = sigH + 14;
+  const area = plotArea(w, h-plotY0);
+  area.y0 += plotY0; area.y1 += plotY0;
+
+  let sigmoidT=0, scatterReveal=0, lineReveal=0, heatReveal=0;
+
+  function drawSigmoid(){
+    const sx0=area.x0, sx1=area.x1, sy0=14, sy1=sigH-6;
+    ctx.save();
+    ctx.strokeStyle='rgba(255,255,255,0.12)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(sx0,(sy0+sy1)/2); ctx.lineTo(sx1,(sy0+sy1)/2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(sx0,sy0); ctx.lineTo(sx0,sy1); ctx.stroke();
+    textAt(ctx,'σ(z)',sx0-4,sy0+2,{align:'right',size:10.5,mono:true,color:COLORS.dimmer});
+    ctx.restore();
+
+    ctx.save();
+    ctx.strokeStyle = COLORS.purpleLight; ctx.lineWidth=2.4;
+    ctx.beginPath();
+    const N=80, n=Math.ceil(N*sigmoidT);
+    for(let i=0;i<=n;i++){
+      const z = lerp(-6,6,i/N);
+      const s = 1/(1+Math.exp(-z));
+      const px = lerp(sx0,sx1,i/N);
+      const py = lerp(sy1,sy0,s);
+      if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+    }
+    ctx.stroke();
+    ctx.restore();
+    if(sigmoidT>0.98){
+      const px=lerp(sx0,sx1,0.5), py=(sy0+sy1)/2;
+      ctx.save(); ctx.strokeStyle=COLORS.pink; ctx.setLineDash([3,3]); ctx.globalAlpha=0.6;
+      ctx.beginPath(); ctx.moveTo(sx0,py); ctx.lineTo(sx1,py); ctx.stroke();
+      ctx.restore();
+      textAt(ctx,'0.5 threshold',sx1,py-6,{align:'right',size:10.5,mono:true,color:COLORS.pink});
+    }
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,w,h);
+    drawSigmoid();
+    drawGrid(ctx,area);
+    if(heatReveal>0){
+      ctx.save();
+      const steps=26;
+      for(let i=0;i<steps;i++){
+        for(let j=0;j<steps;j++){
+          const nx=i/steps, ny=j/steps;
+          const z = (nx+ny-1.02)*4.2;
+          const s = 1/(1+Math.exp(-z));
+          const col = s>0.5? COLORS.classB:COLORS.classA;
+          ctx.globalAlpha = heatReveal*0.11*Math.abs(s-0.5)*2;
+          const [px,py]=toPx(nx,ny,area);
+          ctx.fillStyle=col;
+          ctx.fillRect(px-area.w/steps/2,py-area.h/steps/2, area.w/steps+1, area.h/steps+1);
+        }
+      }
+      ctx.restore();
+    }
+    drawDataset(ctx,area,{reveal:scatterReveal});
+    if(lineReveal>0){
+      ctx.save();
+      ctx.globalAlpha=lineReveal;
+      ctx.strokeStyle=COLORS.purpleLight; ctx.lineWidth=2;
+      const [x0,y0]=toPx(0.02,1,area), [x1,y1]=toPx(1,0.02,area);
+      const cx=lerp(x0,x1,lineReveal), cy=lerp(y0,y1,lineReveal);
+      ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(cx,cy); ctx.stroke();
+      ctx.restore();
+    }
+  }
+  function loop(){ draw(); if(gen===currentGen){ const id=requestAnimationFrame(loop); activeRafs.add(id);} }
+  loop();
+  await tween(900, t=>{ sigmoidT=ease(t); }, gen);
+  await wait(150,gen);
+  await tween(700, t=>{ scatterReveal=ease(t); }, gen);
+  await tween(650, t=>{ lineReveal=ease(t); }, gen);
+  await tween(550, t=>{ heatReveal=t; }, gen);
+}
+
+/* ============================ SLIDE 3 — KNN ============================ */
+async function slide3(gen){
+  const {ctx,w,h} = setupCanvas(document.getElementById('c3'));
+  const area = plotArea(w,h);
+  const query = [0.47,0.58];
+  let scatterReveal=0, queryReveal=0, circleR=0, voteReveal=0, colorFlip=0;
+
+  const dists = [...classA.map(p=>({p,cls:'A'})), ...classB.map(p=>({p,cls:'B'}))]
+    .map(o=>({...o, d:Math.hypot(o.p[0]-query[0],o.p[1]-query[1])}))
+    .sort((a,b)=>a.d-b.d);
+  const k=3;
+  const neighbors = dists.slice(0,k);
+  const votesA = neighbors.filter(n=>n.cls==='A').length;
+  const votesB = k-votesA;
+  const winner = votesB>votesA? 'B':'A';
+  const maxD = neighbors[neighbors.length-1].d;
+
+  function draw(){
+    ctx.clearRect(0,0,w,h);
+    drawGrid(ctx,area);
+    drawDataset(ctx,area,{reveal:scatterReveal});
+    const [qx,qy] = toPx(query[0],query[1],area);
+
+    if(circleR>0){
+      ctx.save();
+      ctx.strokeStyle = COLORS.purpleLight; ctx.globalAlpha=0.5; ctx.lineWidth=1.6; ctx.setLineDash([4,4]);
+      const rPx = circleR*maxD*Math.min(area.w,area.h);
+      ctx.beginPath(); ctx.arc(qx,qy,rPx,0,Math.PI*2); ctx.stroke();
+      ctx.restore();
+    }
+    if(circleR>=0.98){
+      neighbors.forEach(nb=>{
+        const [nx,ny] = toPx(nb.p[0],nb.p[1],area);
+        ctx.save();
+        ctx.strokeStyle='rgba(255,255,255,0.3)'; ctx.lineWidth=1;
+        ctx.beginPath(); ctx.moveTo(qx,qy); ctx.lineTo(nx,ny); ctx.stroke();
+        ctx.strokeStyle=COLORS.yellow; ctx.lineWidth=1.6;
+        ctx.beginPath(); ctx.arc(nx,ny,9,0,Math.PI*2); ctx.stroke();
+        ctx.restore();
+      });
+    }
+    if(queryReveal>0){
+      const col = colorFlip>0 ? (winner==='A'?COLORS.classA:COLORS.classB) : '#ffffff';
+      drawPoint(ctx,qx,qy,col,7*queryReveal,8);
+      ctx.save();
+      ctx.strokeStyle='#fff'; ctx.globalAlpha=queryReveal*0.8; ctx.lineWidth=1.6;
+      ctx.beginPath(); ctx.arc(qx,qy,10*queryReveal,0,Math.PI*2); ctx.stroke();
+      ctx.restore();
+      textAt(ctx,'?',qx,qy-16,{align:'center',size:13,mono:true,color:'#fff',alpha:queryReveal*(1-colorFlip)});
+    }
+    if(voteReveal>0){
+      const boxX=area.x1-118, boxY=area.y0+14;
+      ctx.save();
+      ctx.globalAlpha=voteReveal;
+      ctx.fillStyle='rgba(255,255,255,0.04)';
+      ctx.strokeStyle='rgba(255,255,255,0.12)';
+      roundRect(ctx,boxX,boxY,108,58,8); ctx.fill(); ctx.stroke();
+      textAt(ctx,'k = 3 vote',boxX+10,boxY+18,{size:11,mono:true,color:COLORS.dim});
+      textAt(ctx,'A: '+votesA,boxX+10,boxY+36,{size:12,mono:true,color:COLORS.classA});
+      textAt(ctx,'B: '+votesB,boxX+58,boxY+36,{size:12,mono:true,color:COLORS.classB});
+      textAt(ctx,'→ '+winner,boxX+10,boxY+52,{size:11.5,mono:true,color:COLORS.yellow});
+      ctx.restore();
+    }
+  }
+  function loop(){ draw(); if(gen===currentGen){ const id=requestAnimationFrame(loop); activeRafs.add(id);} }
+  loop();
+  await tween(800, t=>{ scatterReveal=ease(t); }, gen);
+  await tween(400, t=>{ queryReveal=ease(t); }, gen);
+  await wait(200,gen);
+  await tween(750, t=>{ circleR=ease(t); }, gen);
+  await wait(150,gen);
+  await tween(450, t=>{ voteReveal=t; }, gen);
+  await wait(150,gen);
+  await tween(400, t=>{ colorFlip=t; }, gen);
+}
+
+function roundRect(ctx,x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);
+  ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();
+}
+
+/* ============================ SLIDE 4 — SVM ============================ */
+async function slide4(gen){
+  const {ctx,w,h} = setupCanvas(document.getElementById('c4'));
+  const area = plotArea(w,h);
+  let scatterReveal=0, searchT=0, lockT=0, marginT=0, svReveal=0;
+
+  // candidate wobble lines during "search" -> converge to the true separator (0.02,1)-(1,0.02)
+  const target = {a:[0.02,1], b:[1,0.02]};
+
+  const supportVectors = [ [0.55,0.42], [0.58,0.50], [0.50,0.35] ];
+
+  function draw(){
+    ctx.clearRect(0,0,w,h);
+    drawGrid(ctx,area);
+    drawDataset(ctx,area,{reveal:scatterReveal});
+
+    if(searchT>0 && lockT<1){
+      // a few oscillating candidate lines
+      for(let k=0;k<3;k++){
+        const wob = Math.sin(searchT*14 + k*2.1)*0.14*(1-lockT);
+        ctx.save();
+        ctx.globalAlpha = 0.16;
+        ctx.strokeStyle = COLORS.dim;
+        ctx.lineWidth=1.2;
+        const [x0,y0]=toPx(0.02, clamp(1+wob,0,1), area);
+        const [x1,y1]=toPx(1, clamp(0.02-wob,0,1), area);
+        ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(x1,y1); ctx.stroke();
+        ctx.restore();
+      }
+    }
+    if(lockT>0){
+      const [x0,y0]=toPx(target.a[0],target.a[1],area);
+      const [x1,y1]=toPx(target.b[0],target.b[1],area);
+      ctx.save();
+      ctx.globalAlpha=lockT;
+      ctx.strokeStyle=COLORS.purpleLight; ctx.lineWidth=2.2;
+      ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(x1,y1); ctx.stroke();
+      ctx.restore();
+
+      if(marginT>0){
+        const off = 0.085*marginT;
+        [off,-off].forEach(o=>{
+          ctx.save();
+          ctx.globalAlpha = marginT*0.6;
+          ctx.strokeStyle = COLORS.purple; ctx.setLineDash([5,5]); ctx.lineWidth=1.4;
+          const [mx0,my0]=toPx(target.a[0]+o,target.a[1]+o,area);
+          const [mx1,my1]=toPx(target.b[0]+o,target.b[1]+o,area);
+          ctx.beginPath(); ctx.moveTo(mx0,my0); ctx.lineTo(mx1,my1); ctx.stroke();
+          ctx.restore();
+        });
+      }
+    }
+    if(svReveal>0){
+      supportVectors.forEach(p=>{
+        const [px,py]=toPx(p[0],p[1],area);
+        ctx.save();
+        ctx.globalAlpha=svReveal;
+        ctx.strokeStyle=COLORS.yellow; ctx.lineWidth=1.8;
+        ctx.beginPath(); ctx.arc(px,py,10,0,Math.PI*2); ctx.stroke();
+        ctx.restore();
+      });
+      textAt(ctx,'support vectors', area.x0+4, area.y1-8, {size:11,mono:true,color:COLORS.yellow, alpha:svReveal});
+    }
+  }
+  function loop(){ draw(); if(gen===currentGen){ const id=requestAnimationFrame(loop); activeRafs.add(id);} }
+  loop();
+  await tween(750, t=>{ scatterReveal=ease(t); }, gen);
+  await tween(1100, t=>{ searchT=t; }, gen);
+  await tween(650, t=>{ lockT=ease(t); }, gen);
+  await tween(550, t=>{ marginT=ease(t); }, gen);
+  await tween(450, t=>{ svReveal=t; }, gen);
+}
+
+/* ============================ SLIDE 5 — DECISION TREE ============================ */
+async function slide5(gen){
+  const {ctx,w,h} = setupCanvas(document.getElementById('c5'));
+  const plotW = w*0.56;
+  const area = plotArea(plotW, h);
+  const treeX0 = plotW+24, treeW = w-plotW-24;
+
+  // manual split sequence approximating the diagonal with axis-aligned boxes
+  const splits = [
+    {type:'v', at:0.52, range:[0,1,0,1], reveal:0}, // vertical split at x=0.52
+    {type:'h', at:0.55, range:[0,0.52,0,1], reveal:0}, // within left box, split y
+    {type:'h', at:0.47, range:[0.52,1,0,1], reveal:0},
+  ];
+  let scatterReveal=0;
+  const nodeReveal=[0,0,0,0];
+
+  function drawTree(){
+    const nodes = [
+      {x:treeX0+treeW*0.5, y:26, label:'x₁<0.52?', t:nodeReveal[0]},
+      {x:treeX0+treeW*0.22, y:110, label:'x₂<0.55?', t:nodeReveal[1]},
+      {x:treeX0+treeW*0.78, y:110, label:'x₂<0.47?', t:nodeReveal[2]},
+      {x:treeX0+treeW*0.06, y:196, label:'A', leaf:true, c:COLORS.classA, t:nodeReveal[3]},
+      {x:treeX0+treeW*0.38, y:196, label:'B', leaf:true, c:COLORS.classB, t:nodeReveal[3]},
+      {x:treeX0+treeW*0.62, y:196, label:'A', leaf:true, c:COLORS.classA, t:nodeReveal[3]},
+      {x:treeX0+treeW*0.94, y:196, label:'B', leaf:true, c:COLORS.classB, t:nodeReveal[3]},
+    ];
+    const edges = [[0,1],[0,2],[1,3],[1,4],[2,5],[2,6]];
+    ctx.save();
+    edges.forEach(([a,b])=>{
+      const A=nodes[a],B=nodes[b];
+      const t = Math.min(A.t,B.t>0?1:0)*Math.min(1,A.t);
+      if(A.t<=0) return;
+      const eAlpha = Math.min(A.t, B.t*1.6);
+      ctx.globalAlpha = clamp(eAlpha,0,1)*0.5;
+      ctx.strokeStyle='rgba(255,255,255,0.4)'; ctx.lineWidth=1.2;
+      ctx.beginPath(); ctx.moveTo(A.x,A.y+10); ctx.lineTo(B.x,B.y-10); ctx.stroke();
+    });
+    ctx.restore();
+    nodes.forEach(n=>{
+      if(n.t<=0) return;
+      ctx.save();
+      ctx.globalAlpha = n.t;
+      if(n.leaf){
+        ctx.fillStyle = n.c; ctx.globalAlpha = n.t*0.85;
+        ctx.beginPath(); ctx.arc(n.x,n.y,10*easeOut(n.t),0,Math.PI*2); ctx.fill();
+        ctx.globalAlpha=n.t;
+        textAt(ctx,n.label,n.x,n.y+4,{align:'center',size:10,mono:true,color:'#0a0a0f',weight:'700'});
+      } else {
+        ctx.strokeStyle='rgba(255,255,255,0.18)'; ctx.fillStyle='rgba(255,255,255,0.04)';
+        roundRect(ctx,n.x-46,n.y-13,92,26,7); ctx.fill(); ctx.stroke();
+        textAt(ctx,n.label,n.x,n.y+4,{align:'center',size:10.5,mono:true,color:COLORS.text});
+      }
+      ctx.restore();
+    });
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,w,h);
+    drawGrid(ctx,area);
+    drawDataset(ctx,area,{reveal:scatterReveal});
+    splits.forEach(s=>{
+      if(s.reveal<=0) return;
+      ctx.save();
+      ctx.globalAlpha = s.reveal;
+      ctx.strokeStyle = COLORS.purpleLight; ctx.lineWidth=2;
+      if(s.type==='v'){
+        const [x0,y0]=toPx(s.at,s.range[2],area);
+        const [x1,y1]=toPx(s.at,lerp(s.range[2],s.range[3],s.reveal),area);
+        ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(x1,y1); ctx.stroke();
+      } else {
+        const [x0,y0]=toPx(s.range[0],s.at,area);
+        const [x1,y1]=toPx(lerp(s.range[0],s.range[1],s.reveal),s.at,area);
+        ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(x1,y1); ctx.stroke();
+      }
+      ctx.restore();
+    });
+    ctx.save();
+    ctx.strokeStyle='rgba(255,255,255,0.1)'; ctx.setLineDash([3,3]);
+    ctx.beginPath(); ctx.moveTo(treeX0-12,10); ctx.lineTo(treeX0-12,h-10); ctx.stroke();
+    ctx.restore();
+    drawTree();
+  }
+  function loop(){ draw(); if(gen===currentGen){ const id=requestAnimationFrame(loop); activeRafs.add(id);} }
+  loop();
+  await tween(750, t=>{ scatterReveal=ease(t); }, gen);
+  await wait(150,gen);
+  await tween(500, t=>{ splits[0].reveal=ease(t); nodeReveal[0]=t; }, gen);
+  await tween(500, t=>{ splits[1].reveal=ease(t); splits[2].reveal=ease(t); nodeReveal[1]=t; nodeReveal[2]=t; }, gen);
+  await tween(400, t=>{ nodeReveal[3]=t; }, gen);
+}
+
+/* ============================ SLIDE 6 — RANDOM FOREST / EXTRA TREES ============================ */
+async function slide6(gen){
+  const {ctx,w,h} = setupCanvas(document.getElementById('c6'));
+  const cols=3, rows=2;
+  const cellW = w*0.5/cols, cellH = h/rows;
+  const bigArea = plotArea(w*0.5, h); bigArea.x0+=w*0.5; bigArea.x1+=w*0.5;
+
+  const seeds = [0.02,-0.05,0.08,-0.03,0.1,-0.08];
+  let miniReveal=0, arrowReveal=0, bigReveal=0, voteShade=0;
+
+  function miniTree(cx0,cy0,cw,ch,seed,reveal){
+    const a = plotArea(cw,ch); a.x0+=cx0; a.x1+=cx0; a.y0+=cy0; a.y1+=cy0;
+    ctx.save();
+    ctx.globalAlpha=reveal;
+    ctx.strokeStyle='rgba(255,255,255,0.1)';
+    ctx.strokeRect(a.x0,a.y0,a.w,a.h);
+    // staircase-ish boundary with jitter
+    ctx.strokeStyle=COLORS.purpleLight; ctx.lineWidth=1.4;
+    ctx.beginPath();
+    const steps=5;
+    for(let i=0;i<=steps;i++){
+      const nx=i/steps;
+      const ny = clamp(1.02-nx+seed*Math.sin(i*1.7),0,1);
+      const [px,py]=toPx(nx,ny,a);
+      if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+    }
+    ctx.stroke();
+    // faint points
+    [...classA,...classB].forEach((p,idx)=>{
+      const cls = idx<classA.length?'A':'B';
+      const [px,py]=toPx(p[0],p[1],a);
+      drawPoint(ctx,px,py, cls==='A'?COLORS.classA:COLORS.classB, 2.2,0);
+    });
+    ctx.restore();
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,w,h);
+    for(let r=0;r<rows;r++){
+      for(let c=0;c<cols;c++){
+        const idx=r*cols+c;
+        miniTree(c*cellW, r*cellH, cellW-8, cellH-8, seeds[idx], miniReveal);
+      }
+    }
+    ctx.save();
+    ctx.strokeStyle='rgba(255,255,255,0.08)';
+    ctx.beginPath(); ctx.moveTo(w*0.5,8); ctx.lineTo(w*0.5,h-8); ctx.stroke();
+    ctx.restore();
+
+    if(arrowReveal>0){
+      ctx.save();
+      ctx.globalAlpha=arrowReveal*0.7;
+      ctx.strokeStyle=COLORS.purple; ctx.lineWidth=1.6;
+      for(let r=0;r<rows;r++){ for(let c=0;c<cols;c++){
+        const sx=c*cellW+cellW/2-4, sy=r*cellH+cellH/2;
+        ctx.beginPath(); ctx.moveTo(sx,sy); ctx.lineTo(bigArea.x0-14, h/2); ctx.stroke();
+      }}
+      ctx.restore();
+    }
+    drawGrid(ctx,bigArea);
+    if(bigReveal>0){
+      drawDataset(ctx,bigArea,{reveal:1});
+      ctx.save();
+      ctx.globalAlpha=bigReveal;
+      ctx.strokeStyle=COLORS.purpleLight; ctx.lineWidth=2.4;
+      ctx.beginPath();
+      const steps=24;
+      for(let i=0;i<=steps;i++){
+        const nx=i/steps;
+        // average of jittered seeds -> smoother
+        let avg=0; seeds.forEach(s=>avg+=Math.sin(i*1.7*(steps/5))*s);
+        const ny = clamp(1.02-nx,0,1);
+        const [px,py]=toPx(nx,ny,bigArea);
+        if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+      }
+      ctx.stroke();
+      ctx.restore();
+      textAt(ctx,'ensemble vote',bigArea.x0+4,bigArea.y0+16,{size:11,mono:true,color:COLORS.purpleLight,alpha:bigReveal});
+    }
+  }
+  function loop(){ draw(); if(gen===currentGen){ const id=requestAnimationFrame(loop); activeRafs.add(id);} }
+  loop();
+  await tween(900, t=>{ miniReveal=ease(t); }, gen);
+  await wait(200,gen);
+  await tween(500, t=>{ arrowReveal=t; }, gen);
+  await tween(700, t=>{ bigReveal=ease(t); }, gen);
+}
+
+/* ============================ SLIDE 7 — NAIVE BAYES ============================ */
+async function slide7(gen){
+  const {ctx,w,h} = setupCanvas(document.getElementById('c7'));
+  let formulaReveal=0, cardReveal=[0,0,0];
+
+  function bellCurve(cx,cy,cw,ch,t){
+    ctx.save();
+    ctx.strokeStyle=COLORS.classA; ctx.lineWidth=1.8; ctx.globalAlpha=t;
+    ctx.beginPath();
+    const N=40;
+    for(let i=0;i<=N;i++){
+      const x = i/N;
+      const y = Math.exp(-Math.pow((x-0.5)*4.2,2)/2);
+      const px = cx+x*cw, py = cy+ch-y*ch*0.85;
+      if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+  function histogram(cx,cy,cw,ch,t){
+    ctx.save(); ctx.globalAlpha=t;
+    const vals=[0.3,0.7,0.45,0.85,0.55,0.25];
+    const bw = cw/vals.length;
+    vals.forEach((v,i)=>{
+      ctx.fillStyle=COLORS.purpleLight; ctx.globalAlpha=t*0.85;
+      const bh = v*ch*easeOut(t);
+      ctx.fillRect(cx+i*bw+3, cy+ch-bh, bw-6, bh);
+    });
+    ctx.restore();
+  }
+  function toggles(cx,cy,cw,ch,t){
+    ctx.save(); ctx.globalAlpha=t;
+    const vals=[1,0,1,1,0];
+    const bw = cw/vals.length;
+    vals.forEach((v,i)=>{
+      const x=cx+i*bw+bw/2, y=cy+ch/2;
+      ctx.strokeStyle='rgba(255,255,255,0.25)'; ctx.lineWidth=1.4;
+      ctx.beginPath(); ctx.arc(x,y,10,0,Math.PI*2); ctx.stroke();
+      if(v){ ctx.fillStyle=COLORS.pink; ctx.beginPath(); ctx.arc(x,y,5*easeOut(t),0,Math.PI*2); ctx.fill(); }
+    });
+    ctx.restore();
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,w,h);
+    ctx.save();
+    ctx.globalAlpha=formulaReveal;
+    ctx.textAlign='center';
+    ctx.fillStyle=COLORS.purpleLight;
+    ctx.font="600 26px 'JetBrains Mono', monospace";
+    ctx.fillText('P(y | x)  ∝  P(x | y) · P(y)', w/2, h*0.24);
+    ctx.restore();
+    textAt(ctx,'"naive": every feature is assumed independent given the class', w/2, h*0.24+26, {align:'center', size:12, color:COLORS.dimmer, alpha:formulaReveal});
+
+    const cardW = w*0.28, cardH = h*0.42, gap=(w-cardW*3)/4;
+    const cy = h*0.42;
+    const titles=['Gaussian NB','Multinomial NB','Bernoulli NB'];
+    const subs=['continuous features','count / frequency data','binary presence'];
+    for(let i=0;i<3;i++){
+      const cx = gap+i*(cardW+gap);
+      const t = cardReveal[i];
+      if(t<=0) continue;
+      ctx.save();
+      ctx.globalAlpha = t;
+      ctx.fillStyle='rgba(255,255,255,0.03)';
+      ctx.strokeStyle='rgba(255,255,255,0.1)';
+      roundRect(ctx,cx,cy,cardW,cardH,10); ctx.fill(); ctx.stroke();
+      ctx.restore();
+      textAt(ctx,titles[i],cx+16,cy+24,{size:13,color:COLORS.text,weight:'600',alpha:t});
+      textAt(ctx,subs[i],cx+16,cy+42,{size:11,mono:true,color:COLORS.dimmer,alpha:t});
+      const innerY=cy+58, innerH=cardH-76;
+      if(i===0) bellCurve(cx+16,innerY,cardW-32,innerH,t);
+      if(i===1) histogram(cx+16,innerY,cardW-32,innerH,t);
+      if(i===2) toggles(cx+16,innerY,cardW-32,innerH,t);
+    }
+  }
+  function loop(){ draw(); if(gen===currentGen){ const id=requestAnimationFrame(loop); activeRafs.add(id);} }
+  loop();
+  await tween(700, t=>{ formulaReveal=ease(t); }, gen);
+  await wait(150,gen);
+  await tween(400, t=>{ cardReveal[0]=t; }, gen);
+  await tween(400, t=>{ cardReveal[1]=t; }, gen);
+  await tween(400, t=>{ cardReveal[2]=t; }, gen);
+}
+
+/* ============================ SLIDE 8 — LDA / QDA ============================ */
+async function slide8(gen){
+  const {ctx,w,h} = setupCanvas(document.getElementById('c8'));
+  const area = plotArea(w,h);
+  let scatterReveal=0, ellipseReveal=0, morphT=0, labelT=0;
+
+  function ellipse(cx,cy,rx,ry,rot,color,alpha){
+    ctx.save();
+    ctx.translate(cx,cy); ctx.rotate(rot);
+    ctx.strokeStyle=color; ctx.globalAlpha=alpha; ctx.lineWidth=1.6;
+    ctx.beginPath(); ctx.ellipse(0,0,rx,ry,0,0,Math.PI*2); ctx.stroke();
+    ctx.restore();
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,w,h);
+    drawGrid(ctx,area);
+    drawDataset(ctx,area,{reveal:scatterReveal});
+
+    const [acx,acy] = toPx(0.27,0.42,area);
+    const [bcx,bcy] = toPx(0.73,0.66,area);
+    const rx0 = area.w*0.15, ry0=area.h*0.14;
+    // shared shape (LDA) -> different shape (QDA) via morphT
+    const rxA = rx0, ryA = lerp(ry0, ry0*1.5, morphT);
+    const rotA = lerp(0, -0.5, morphT);
+    const rxB = rx0, ryB = lerp(ry0, ry0*0.6, morphT);
+    const rotB = lerp(0, 0.6, morphT);
+    if(ellipseReveal>0){
+      ellipse(acx,acy,rxA,ryA,rotA,COLORS.classA,ellipseReveal*0.8);
+      ellipse(bcx,bcy,rxB,ryB,rotB,COLORS.classB,ellipseReveal*0.8);
+    }
+    if(ellipseReveal>0){
+      ctx.save();
+      ctx.globalAlpha=ellipseReveal;
+      ctx.strokeStyle=COLORS.purpleLight; ctx.lineWidth=2.2;
+      ctx.beginPath();
+      const N=40;
+      for(let i=0;i<=N;i++){
+        const nx=i/N;
+        // straight at morphT=0, curved as morphT->1
+        const curve = 0.09*Math.sin(nx*Math.PI)*morphT;
+        const ny = clamp(1.02-nx+curve,0,1);
+        const [px,py]=toPx(nx,ny,area);
+        if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+      }
+      ctx.stroke();
+      ctx.restore();
+    }
+    ctx.save();
+    ctx.globalAlpha = labelT;
+    const label = morphT<0.5 ? 'LDA — shared covariance → straight boundary' : 'QDA — separate covariance → curved boundary';
+    textAt(ctx,label, area.x0+4, area.y0+18, {size:12, mono:true, color: morphT<0.5?COLORS.purpleLight:COLORS.pink});
+    ctx.restore();
+  }
+  function loop(){ draw(); if(gen===currentGen){ const id=requestAnimationFrame(loop); activeRafs.add(id);} }
+  loop();
+  await tween(700, t=>{ scatterReveal=ease(t); }, gen);
+  await tween(600, t=>{ ellipseReveal=ease(t); }, gen);
+  await tween(400, t=>{ labelT=t; }, gen);
+  await wait(700,gen);
+  await tween(1200, t=>{ morphT=ease(t); }, gen);
+}
+
+/* ============================ SLIDE 9 — PERCEPTRON ============================ */
+async function slide9(gen){
+  const {ctx,w,h} = setupCanvas(document.getElementById('c9'));
+  const area = plotArea(w,h);
+  let scatterReveal=0;
+  // sequence of angles converging to final separator
+  const stages = [ -0.15, 0.35, 0.05, 0.02 ]; // slope-ish param in normalized terms (offset of line)
+  let stageT = 0, curStage = 0, wrongReveal=0;
+
+  function lineAt(off){
+    const [x0,y0]=toPx(0.02, clamp(1+off,0,1), area);
+    const [x1,y1]=toPx(1, clamp(0.02-off,0,1), area);
+    return [x0,y0,x1,y1];
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,w,h);
+    drawGrid(ctx,area);
+    drawDataset(ctx,area,{reveal:scatterReveal});
+    const from = stages[curStage];
+    const to = stages[Math.min(curStage+1,stages.length-1)];
+    const off = lerp(from,to,stageT);
+    const [x0,y0,x1,y1] = lineAt(off);
+    ctx.save();
+    ctx.strokeStyle=COLORS.purpleLight; ctx.lineWidth=2.2;
+    ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(x1,y1); ctx.stroke();
+    ctx.restore();
+    if(wrongReveal>0){
+      const [px,py]=toPx(0.55,0.42,area);
+      ctx.save();
+      ctx.globalAlpha=wrongReveal;
+      ctx.strokeStyle=COLORS.red; ctx.lineWidth=1.8;
+      ctx.beginPath(); ctx.arc(px,py,11,0,Math.PI*2); ctx.stroke();
+      textAt(ctx,'misclassified → nudge', px, py-18, {align:'center', size:10.5, mono:true, color:COLORS.red});
+      ctx.restore();
+    }
+    textAt(ctx, 'w update  ·  step '+Math.min(curStage+1,stages.length-1)+' / '+(stages.length-1), area.x0+4, area.y1-8, {size:11, mono:true, color:COLORS.dimmer});
+  }
+  function loop(){ draw(); if(gen===currentGen){ const id=requestAnimationFrame(loop); activeRafs.add(id);} }
+  loop();
+  await tween(700, t=>{ scatterReveal=ease(t); }, gen);
+  for(let i=0;i<stages.length-1;i++){
+    curStage=i; stageT=0;
+    await tween(250, t=>{ wrongReveal=1-t; }, gen);
+    await tween(550, t=>{ stageT=ease(t); }, gen);
+    wrongReveal=0;
+    await wait(120,gen);
+  }
+}
+
+/* ============================ SLIDE 10 — NEURAL NETWORK ============================ */
+async function slide10(gen){
+  const canvas = document.getElementById('c10');
+  const {ctx,w,h} = setupCanvas(canvas);
+  const netW = w*0.58;
+  const layers = [2,4,3,1];
+  const layerX = layers.map((_,i)=> 40 + i*(netW-80)/(layers.length-1));
+  const nodePos = layers.map((n,li)=> Array.from({length:n},(_,i)=>({
+    x: layerX[li], y: (h/(n+1))*(i+1)
+  })));
+  let nodeReveal=0, pulseT=0, pulseLoops=0, boundaryReveal=0;
+  const area = plotArea(w-netW-20,h); area.x0+=netW+20; area.x1+=netW+20;
+
+  function draw(){
+    ctx.clearRect(0,0,w,h);
+    // edges
+    for(let li=0; li<layers.length-1; li++){
+      nodePos[li].forEach(a=>{
+        nodePos[li+1].forEach(b=>{
+          ctx.save();
+          ctx.globalAlpha = nodeReveal*0.18;
+          ctx.strokeStyle='#fff'; ctx.lineWidth=1;
+          ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+          ctx.restore();
+        });
+      });
+    }
+    // pulses
+    if(pulseT>0){
+      for(let li=0; li<layers.length-1; li++){
+        const segT = clamp(pulseT*(layers.length-1) - li, 0, 1);
+        if(segT<=0 || segT>=1) continue;
+        nodePos[li].forEach(a=>{
+          nodePos[li+1].forEach(b=>{
+            const px = lerp(a.x,b.x,segT), py = lerp(a.y,b.y,segT);
+            drawPoint(ctx,px,py,COLORS.pink,2.4,6);
+          });
+        });
+      }
+    }
+    nodePos.forEach((layer,li)=>{
+      layer.forEach(n=>{
+        ctx.save();
+        ctx.globalAlpha=nodeReveal;
+        ctx.fillStyle= li===0? COLORS.classA : (li===layers.length-1? COLORS.pink : COLORS.purpleLight);
+        ctx.beginPath(); ctx.arc(n.x,n.y,9*easeOut(nodeReveal),0,Math.PI*2); ctx.fill();
+        ctx.strokeStyle='rgba(0,0,0,0.3)'; ctx.stroke();
+        ctx.restore();
+      });
+    });
+    textAt(ctx,'input',layerX[0],h-8,{align:'center',size:10.5,mono:true,color:COLORS.dimmer,alpha:nodeReveal});
+    textAt(ctx,'hidden',(layerX[1]+layerX[2])/2,h-8,{align:'center',size:10.5,mono:true,color:COLORS.dimmer,alpha:nodeReveal});
+    textAt(ctx,'output',layerX[3],h-8,{align:'center',size:10.5,mono:true,color:COLORS.dimmer,alpha:nodeReveal});
+
+    ctx.save();
+    ctx.strokeStyle='rgba(255,255,255,0.08)';
+    ctx.beginPath(); ctx.moveTo(netW+10,10); ctx.lineTo(netW+10,h-10); ctx.stroke();
+    ctx.restore();
+
+    if(boundaryReveal>0){
+      drawGrid(ctx,area);
+      drawDataset(ctx,area,{reveal:1});
+      ctx.save();
+      ctx.globalAlpha=boundaryReveal;
+      ctx.strokeStyle=COLORS.pink; ctx.lineWidth=2.2;
+      ctx.beginPath();
+      const N=50;
+      for(let i=0;i<=N;i++){
+        const nx=i/N;
+        const ny = clamp(1.02-nx+0.06*Math.sin(nx*Math.PI*2.2), 0, 1);
+        const [px,py]=toPx(nx,ny,area);
+        if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+      }
+      ctx.stroke();
+      ctx.restore();
+      textAt(ctx,'nonlinear boundary', area.x0+4, area.y0+16, {size:11, mono:true, color:COLORS.pink, alpha:boundaryReveal});
+    }
+  }
+  function loop(){ draw(); if(gen===currentGen){ const id=requestAnimationFrame(loop); activeRafs.add(id);} }
+  loop();
+  await tween(700, t=>{ nodeReveal=ease(t); }, gen);
+  await tween(1000, t=>{ pulseT=t; }, gen);
+  await wait(100,gen);
+  pulseT=0;
+  await tween(1000, t=>{ pulseT=t; }, gen);
+  await tween(700, t=>{ boundaryReveal=ease(t); }, gen);
+}
+
+/* ============================ SLIDE 11 — GRADIENT BOOSTING ============================ */
+async function slide11(gen){
+  const {ctx,w,h} = setupCanvas(document.getElementById('c11'));
+  const area = plotArea(w,h);
+  let scatterReveal=0, stage=0, stageT=0, errReveal=0;
+
+  const roughness = [0.30, 0.16, 0.03]; // curve amplitude shrinking across 3 boosting rounds
+  const misclassified = [ [0.55,0.42], [0.58,0.50], [0.30,0.60] ];
+
+  function boundaryY(nx, amp){
+    return clamp(1.02-nx+amp*Math.sin(nx*Math.PI*2.4), 0, 1);
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,w,h);
+    drawGrid(ctx,area);
+    drawDataset(ctx,area,{reveal:scatterReveal});
+    const amp = lerp(roughness[stage], roughness[Math.min(stage+1,2)], stageT);
+    ctx.save();
+    ctx.strokeStyle=COLORS.purpleLight; ctx.lineWidth=2.2;
+    ctx.beginPath();
+    const N=50;
+    for(let i=0;i<=N;i++){
+      const nx=i/N, ny=boundaryY(nx,amp);
+      const [px,py]=toPx(nx,ny,area);
+      if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+    }
+    ctx.stroke();
+    ctx.restore();
+    textAt(ctx,'round '+(stage+1)+' / 3  ·  F'+(stage+1)+' = F'+stage+' + ν·h'+(stage+1), area.x0+4, area.y0+16, {size:11.5, mono:true, color:COLORS.dim});
+    if(errReveal>0){
+      misclassified.forEach(p=>{
+        const [px,py]=toPx(p[0],p[1],area);
+        ctx.save();
+        ctx.globalAlpha=errReveal;
+        ctx.strokeStyle=COLORS.red; ctx.lineWidth=1.6;
+        ctx.beginPath(); ctx.arc(px,py,9,0,Math.PI*2); ctx.stroke();
+        ctx.restore();
+      });
+    }
+  }
+  function loop(){ draw(); if(gen===currentGen){ const id=requestAnimationFrame(loop); activeRafs.add(id);} }
+  loop();
+  await tween(700, t=>{ scatterReveal=ease(t); }, gen);
+  for(let s=0;s<2;s++){
+    stage=s; stageT=0;
+    await tween(350, t=>{ errReveal=t; }, gen);
+    await wait(250,gen);
+    await tween(650, t=>{ stageT=ease(t); }, gen);
+    errReveal=0;
+    await wait(150,gen);
+  }
+  stage=2; stageT=1;
+}
+
+/* ============================ SLIDE 12 — ADABOOST ============================ */
+async function slide12(gen){
+  const {ctx,w,h} = setupCanvas(document.getElementById('c12'));
+  const area = plotArea(w,h);
+  const weights = {}; // key "A#i" / "B#i"
+  [...classA].forEach((_,i)=> weights['A'+i]=1);
+  [...classB].forEach((_,i)=> weights['B'+i]=1);
+  const misIdx = [{cls:'A',i:12},{cls:'B',i:12}]; // the two borderline points grow
+
+  let scatterReveal=0, round=0, weightT=0, stumpReveal=0;
+
+  function draw(){
+    ctx.clearRect(0,0,w,h);
+    drawGrid(ctx,area);
+    const all=[...classA.map((p,i)=>({p,cls:'A',i})), ...classB.map((p,i)=>({p,cls:'B',i}))];
+    const n=Math.ceil(all.length*scatterReveal);
+    for(let idx=0; idx<n; idx++){
+      const o = all[idx];
+      const key=o.cls+o.i;
+      const wgt = weights[key];
+      const [px,py]=toPx(o.p[0],o.p[1],area);
+      const r = 4 + (wgt-1)*3.2;
+      drawPoint(ctx, px,py, o.cls==='A'?COLORS.classA:COLORS.classB, r, 3);
+    }
+    // stumps overlay (a couple of near-vertical/horizontal weak lines)
+    if(stumpReveal>0){
+      const stumps = [ {type:'v', at:0.5}, {type:'h', at:0.55} ];
+      stumps.forEach((s,k)=>{
+        ctx.save();
+        ctx.globalAlpha = stumpReveal*0.5;
+        ctx.strokeStyle = COLORS.yellow; ctx.lineWidth = 1+ k*0.6;
+        if(s.type==='v'){
+          const [x0,y0]=toPx(s.at,0,area), [x1,y1]=toPx(s.at,1,area);
+          ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(x1,y1); ctx.stroke();
+        } else {
+          const [x0,y0]=toPx(0,s.at,area), [x1,y1]=toPx(1,s.at,area);
+          ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(x1,y1); ctx.stroke();
+        }
+        ctx.restore();
+      });
+    }
+    textAt(ctx,'point size ∝ sample weight',area.x0+4,area.y1-8,{size:11,mono:true,color:COLORS.dimmer,alpha:scatterReveal});
+    textAt(ctx,'round '+(round+1),area.x1-70,area.y0+16,{size:11,mono:true,color:COLORS.dim,alpha:scatterReveal});
+  }
+  function loop(){ draw(); if(gen===currentGen){ const id=requestAnimationFrame(loop); activeRafs.add(id);} }
+  loop();
+  await tween(700, t=>{ scatterReveal=ease(t); }, gen);
+  await tween(400, t=>{ stumpReveal=t; }, gen);
+  for(let r=0;r<2;r++){
+    round=r;
+    await tween(650, t=>{
+      misIdx.forEach(m=>{ weights[m.cls+m.i] = 1 + 1.6*(r+1)*t; });
+    }, gen);
+    await wait(200,gen);
+  }
+}
+
+/* ============================ SLIDE 13 — XGB/LGBM/CATBOOST ============================ */
+async function slide13(gen){
+  const {ctx,w,h} = setupCanvas(document.getElementById('c13'));
+  let cardReveal=[0,0,0];
+  const cardW = w*0.28, cardH=h*0.62, gap=(w-cardW*3)/4;
+  const cy = h*0.16;
+  const data = [
+    {title:'XGBoost', sub:'regularized · depth-wise', note:'Adds an explicit regularization term to the loss — controls tree complexity directly.'},
+    {title:'LightGBM', sub:'leaf-wise · histogram', note:'Grows the single most-improving leaf first, and bins features into histograms for speed on huge data.'},
+    {title:'CatBoost', sub:'ordered boosting', note:'Handles categorical features natively and reduces target leakage with an ordering trick.'},
+  ];
+  function growingLeaf(cx,cy,cw,ch,t,mode){
+    ctx.save(); ctx.globalAlpha=t; ctx.strokeStyle=COLORS.purpleLight; ctx.lineWidth=1.6;
+    const midx=cx+cw/2, topy=cy+14;
+    ctx.beginPath(); ctx.arc(midx,topy,7,0,Math.PI*2); ctx.stroke();
+    if(mode==='depth'){
+      [-1,1].forEach(s=>{
+        const x2=midx+s*cw*0.22, y2=topy+38;
+        ctx.beginPath(); ctx.moveTo(midx,topy+7); ctx.lineTo(x2,y2-7); ctx.stroke();
+        ctx.beginPath(); ctx.arc(x2,y2,6,0,Math.PI*2); ctx.stroke();
+        if(t>0.6){
+          [-1,1].forEach(s2=>{
+            const x3=x2+s2*cw*0.12, y3=y2+34;
+            ctx.beginPath(); ctx.moveTo(x2,y2+6); ctx.lineTo(x3,y3-6); ctx.stroke();
+            ctx.beginPath(); ctx.arc(x3,y3,5,0,Math.PI*2); ctx.stroke();
+          });
+        }
+      });
+    } else if(mode==='leaf'){
+      const x2=midx-cw*0.2, y2=topy+38;
+      ctx.beginPath(); ctx.moveTo(midx,topy+7); ctx.lineTo(x2,y2-6); ctx.stroke();
+      ctx.beginPath(); ctx.arc(x2,y2,6,0,Math.PI*2); ctx.stroke();
+      const x3=midx+cw*0.2, y3=topy+38;
+      ctx.beginPath(); ctx.moveTo(midx,topy+7); ctx.lineTo(x3,y3-6); ctx.stroke();
+      ctx.beginPath(); ctx.arc(x3,y3,6,0,Math.PI*2); ctx.stroke();
+      if(t>0.6){
+        const x4=x3+cw*0.14, y4=y3+34;
+        ctx.beginPath(); ctx.moveTo(x3,y3+6); ctx.lineTo(x4,y4-6); ctx.stroke();
+        ctx.beginPath(); ctx.arc(x4,y4,5,0,Math.PI*2); ctx.stroke();
+      }
+    } else {
+      // categorical: small colored chips
+      const cats=['A','B','C','D'];
+      cats.forEach((c,i)=>{
+        const x=cx+18+i*((cw-36)/(cats.length-1)), y=topy+40;
+        ctx.fillStyle=[COLORS.classA,COLORS.classB,COLORS.yellow,COLORS.green][i];
+        ctx.globalAlpha=t*0.9;
+        roundRect(ctx,x-12,y-10,24,20,5); ctx.fill();
+        ctx.globalAlpha=t;
+        ctx.fillStyle='#0a0a0f'; ctx.font="600 10px 'JetBrains Mono'"; ctx.textAlign='center';
+        ctx.fillText(c,x,y+4);
+      });
+    }
+    ctx.restore();
+  }
+  function draw(){
+    ctx.clearRect(0,0,w,h);
+    textAt(ctx,'Same recipe — build trees that fix the previous ensemble\'s residuals', w/2, 26, {align:'center', size:13, color:COLORS.dim});
+    const modes=['depth','leaf','cat'];
+    for(let i=0;i<3;i++){
+      const cx=gap+i*(cardW+gap), t=cardReveal[i];
+      if(t<=0) continue;
+      ctx.save();
+      ctx.globalAlpha=t;
+      ctx.fillStyle='rgba(255,255,255,0.03)'; ctx.strokeStyle='rgba(255,255,255,0.1)';
+      roundRect(ctx,cx,cy,cardW,cardH,10); ctx.fill(); ctx.stroke();
+      ctx.restore();
+      growingLeaf(cx,cy+16,cardW,cardH*0.5,t,modes[i]);
+      textAt(ctx,data[i].title,cx+16,cy+cardH*0.62,{size:14,color:COLORS.text,weight:'600',alpha:t});
+      textAt(ctx,data[i].sub,cx+16,cy+cardH*0.62+18,{size:11,mono:true,color:COLORS.purpleLight,alpha:t});
+      wrapText(ctx,data[i].note,cx+16,cy+cardH*0.62+38,cardW-32,14,t);
+    }
+  }
+  function wrapText(ctx,text,x,y,maxW,lh,alpha){
+    ctx.save(); ctx.globalAlpha=alpha; ctx.fillStyle=COLORS.dim; ctx.font="400 11.5px 'Inter'"; ctx.textAlign='left';
+    const words=text.split(' '); let line=''; let yy=y;
+    words.forEach(word=>{
+      const test=line+word+' ';
+      if(ctx.measureText(test).width>maxW && line!==''){ ctx.fillText(line,x,yy); line=word+' '; yy+=lh; }
+      else line=test;
+    });
+    ctx.fillText(line,x,yy);
+    ctx.restore();
+  }
+  function loop(){ draw(); if(gen===currentGen){ const id=requestAnimationFrame(loop); activeRafs.add(id);} }
+  loop();
+  await tween(500, t=>{ cardReveal[0]=t; }, gen);
+  await tween(500, t=>{ cardReveal[1]=t; }, gen);
+  await tween(500, t=>{ cardReveal[2]=t; }, gen);
+}
+
+/* ============================ SLIDE 14 — SGD ============================ */
+async function slide14(gen){
+  const {ctx,w,h} = setupCanvas(document.getElementById('c14'));
+  const cx=w/2, cy=h/2;
+  const R = Math.min(w,h)*0.42;
+  let ringReveal=0, ballT=0, ballT2=0;
+
+  // contour rings (elliptical loss bowl)
+  function drawRings(t){
+    ctx.save();
+    ctx.globalAlpha=t;
+    for(let i=1;i<=5;i++){
+      ctx.strokeStyle='rgba(255,255,255,'+(0.16-i*0.018)+')';
+      ctx.lineWidth=1;
+      ctx.beginPath();
+      ctx.ellipse(cx,cy,R*i/5, R*0.66*i/5, 0.35, 0, Math.PI*2);
+      ctx.stroke();
+    }
+    ctx.restore();
+    drawPoint(ctx,cx,cy,COLORS.green,4,6);
+  }
+
+  function pathPoint(t, noisy){
+    // spiral inward with noise
+    const angle = -0.35 + t*10.5;
+    const rad = R*(1-t)*0.92;
+    let x = cx + Math.cos(angle)*rad;
+    let y = cy + Math.sin(angle)*rad*0.66;
+    if(noisy){
+      x += Math.sin(t*40)*10*(1-t);
+      y += Math.cos(t*33)*8*(1-t);
+    }
+    return [x,y];
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,w,h);
+    drawRings(ringReveal);
+    if(ballT>0){
+      ctx.save();
+      ctx.strokeStyle=COLORS.pink; ctx.globalAlpha=0.55; ctx.lineWidth=1.6;
+      ctx.beginPath();
+      const N=90, n=Math.ceil(N*ballT);
+      for(let i=0;i<=n;i++){ const [px,py]=pathPoint(i/N,true); if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py); }
+      ctx.stroke();
+      ctx.restore();
+      const [bx,by] = pathPoint(ballT,true);
+      drawPoint(ctx,bx,by,COLORS.pink,6,8);
+      textAt(ctx,'SGD (noisy, cheap steps)', cx-R-6, cy-R*0.66-14, {size:11.5, mono:true, color:COLORS.pink, align:'left', alpha:ringReveal});
+    }
+    if(ballT2>0){
+      ctx.save();
+      ctx.strokeStyle=COLORS.purpleLight; ctx.globalAlpha=0.55; ctx.lineWidth=1.6; ctx.setLineDash([4,4]);
+      ctx.beginPath();
+      const N=90, n=Math.ceil(N*ballT2);
+      for(let i=0;i<=n;i++){ const [px,py]=pathPoint(i/N,false); if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py); }
+      ctx.stroke();
+      ctx.restore();
+      const [bx,by] = pathPoint(ballT2,false);
+      drawPoint(ctx,bx,by,COLORS.purpleLight,6,8);
+      textAt(ctx,'full-batch (smooth, expensive)', cx-R-6, cy-R*0.66+2, {size:11.5, mono:true, color:COLORS.purpleLight, align:'left', alpha:ringReveal});
+    }
+  }
+  function loop(){ draw(); if(gen===currentGen){ const id=requestAnimationFrame(loop); activeRafs.add(id);} }
+  loop();
+  await tween(600, t=>{ ringReveal=ease(t); }, gen);
+  await Promise.all([
+    tween(2200, t=>{ ballT=ease(t); }, gen),
+    (async()=>{ await wait(250,gen); await tween(2200, t=>{ ballT2=ease(t); }, gen); })()
+  ]);
+}
+
+/* ============================ SLIDE 14b — REGULARIZATION ============================ */
+async function slideRegularization(gen){
+  const {ctx,w,h} = setupCanvas(document.getElementById('cREG'));
+  const area = plotArea(w, h*0.62);
+  const barY0 = h*0.68, barH = h*0.24;
+  let scatterReveal=0, wiggleT=1, lambdaT=0, barsReveal=0;
+  const coefs = [0.8, -0.6, 0.45, 0.25, -0.15]; // toy coefficient magnitudes
+
+  function draw(){
+    ctx.clearRect(0,0,w,h);
+    drawGrid(ctx,area);
+    drawDataset(ctx,area,{reveal:scatterReveal});
+    ctx.save();
+    ctx.globalAlpha=scatterReveal;
+    ctx.strokeStyle=COLORS.purpleLight; ctx.lineWidth=2.2;
+    ctx.beginPath();
+    const N=60;
+    const amp = 0.16*wiggleT;
+    for(let i=0;i<=N;i++){
+      const nx=i/N;
+      const ny = clamp(1.02-nx+amp*Math.sin(nx*Math.PI*7),0,1);
+      const [px,py]=toPx(nx,ny,area);
+      if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+    }
+    ctx.stroke();
+    ctx.restore();
+    textAt(ctx,'λ = '+lambdaT.toFixed(2)+'  (regularization strength)', area.x0+4, area.y0+16, {size:11.5, mono:true, color:COLORS.dim, alpha:scatterReveal});
+
+    if(barsReveal>0){
+      const bw = (w-80)/coefs.length/2 - 6;
+      const midY = barY0+barH/2;
+      ctx.save(); ctx.globalAlpha=barsReveal;
+      textAt(ctx,'L2 (Ridge)', 60, barY0-10, {size:11, mono:true, color:COLORS.purpleLight});
+      textAt(ctx,'L1 (Lasso)', w/2+40, barY0-10, {size:11, mono:true, color:COLORS.pink});
+      coefs.forEach((c,i)=>{
+        const l2v = c*(1-0.7*lambdaT);
+        const l1v = Math.sign(c)*Math.max(0, Math.abs(c)-1.1*lambdaT);
+        const x1 = 60+i*(bw+6);
+        ctx.fillStyle = c>0? COLORS.purpleLight : COLORS.dim;
+        ctx.fillRect(x1, midY-Math.max(0,l2v)*barH*0.5, bw, Math.abs(l2v)*barH*0.5);
+        const x2 = w/2+40+i*(bw+6);
+        ctx.fillStyle = c>0? COLORS.pink : COLORS.dim;
+        ctx.fillRect(x2, midY-Math.max(0,l1v)*barH*0.5, bw, Math.abs(l1v)*barH*0.5);
+      });
+      ctx.strokeStyle='rgba(255,255,255,0.15)';
+      ctx.beginPath(); ctx.moveTo(50,midY); ctx.lineTo(w/2-10,midY); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(w/2+30,midY); ctx.lineTo(w-40,midY); ctx.stroke();
+      ctx.restore();
+    }
+  }
+  function loop(){ draw(); if(gen===currentGen){ const id=requestAnimationFrame(loop); activeRafs.add(id);} }
+  loop();
+  await tween(700, t=>{ scatterReveal=ease(t); }, gen);
+  await wait(150,gen);
+  await tween(500, t=>{ barsReveal=t; }, gen);
+  await tween(1400, t=>{ lambdaT=ease(t); wiggleT=1-ease(t); }, gen);
+}
+
+/* ============================ SLIDE 14c — MULTI-CLASS ============================ */
+async function slideMulticlass(gen){
+  const {ctx,w,h} = setupCanvas(document.getElementById('cMC'));
+  const panelW = w*0.46, gap=w-panelW*2;
+  const areaL = plotArea(panelW, h*0.8);
+  const areaR = plotArea(panelW, h*0.8); areaR.x0+=panelW+gap; areaR.x1+=panelW+gap;
+  const classC = [0.5,0.85]; // a third class near the top, isolated
+  let revealL=0, revealR=0, ovrLines=0, ovoLines=0;
+
+  function threeClassScatter(area,t){
+    [...classA.map(p=>[p,'A']),...classB.map(p=>[p,'B'])].forEach(([p,cls])=>{
+      const [px,py]=toPx(p[0],p[1]*0.72,area); // compress to leave room for class C at top
+      drawPoint(ctx,px,py, cls==='A'?COLORS.classA:COLORS.classB, 4*easeOut(t), 0);
+    });
+    const cPts = [[0.35,0.92],[0.5,0.97],[0.62,0.9],[0.45,0.85],[0.58,0.8]];
+    cPts.forEach(p=>{
+      const [px,py]=toPx(p[0],p[1],area);
+      drawPoint(ctx,px,py,COLORS.green,4*easeOut(t),0);
+    });
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,w,h);
+    ctx.save(); ctx.globalAlpha=revealL;
+    ctx.fillStyle='rgba(255,255,255,0.03)'; ctx.strokeStyle='rgba(255,255,255,0.1)';
+    roundRect(ctx,areaL.x0-14,areaL.y0-30,areaL.w+28,areaL.h+52,10); ctx.fill(); ctx.stroke();
+    ctx.restore();
+    textAt(ctx,'One-vs-Rest', areaL.x0+areaL.w/2, areaL.y0-12, {align:'center', size:13, color:COLORS.text, weight:'600', alpha:revealL});
+    drawGrid(ctx,areaL);
+    threeClassScatter(areaL,revealL);
+    if(ovrLines>0){
+      // coordinates already in areaL's compressed space, chosen directly (no extra scaling)
+      const lines=[ [[0.02,0.50],[1.0,0.04],COLORS.classA], [[0.30,0.50],[1.0,0.16],COLORS.classB], [[0.05,0.66],[0.95,0.66],COLORS.green] ];
+      lines.forEach(([p0,p1,color],i)=>{
+        const t=clamp(ovrLines*3-i,0,1);
+        if(t<=0) return;
+        const [x0,y0]=toPx(p0[0],p0[1],areaL);
+        const [x1b,y1b]=toPx(p1[0],p1[1],areaL);
+        ctx.save(); ctx.globalAlpha=t*0.85; ctx.strokeStyle=color; ctx.lineWidth=1.8; ctx.setLineDash([5,4]);
+        ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(x1b,y1b); ctx.stroke();
+        ctx.restore();
+      });
+      textAt(ctx,'3 lines: each class vs. everyone else', areaL.x0+areaL.w/2, areaL.y1+30, {align:'center', size:11, mono:true, color:COLORS.dimmer, alpha:ovrLines});
+    }
+
+    ctx.save(); ctx.globalAlpha=revealR;
+    ctx.fillStyle='rgba(255,255,255,0.03)'; ctx.strokeStyle='rgba(255,255,255,0.1)';
+    roundRect(ctx,areaR.x0-14,areaR.y0-30,areaR.w+28,areaR.h+52,10); ctx.fill(); ctx.stroke();
+    ctx.restore();
+    textAt(ctx,'One-vs-One', areaR.x0+areaR.w/2, areaR.y0-12, {align:'center', size:13, color:COLORS.text, weight:'600', alpha:revealR});
+    drawGrid(ctx,areaR);
+    threeClassScatter(areaR,revealR);
+    if(ovoLines>0){
+      const lines=[ [[0.02,0.42],[1,0.42],COLORS.purpleLight], [[0.25,1],[0.55,0.55],COLORS.pink], [[0.6,1],[0.85,0.5],COLORS.yellow] ];
+      lines.forEach(([p0,p1,color],i)=>{
+        const t=clamp(ovoLines*3-i,0,1);
+        if(t<=0) return;
+        const [x0,y0]=toPx(p0[0],p0[1],areaR);
+        const [x1b,y1b]=toPx(p1[0],p1[1],areaR);
+        ctx.save(); ctx.globalAlpha=t*0.85; ctx.strokeStyle=color; ctx.lineWidth=1.8; ctx.setLineDash([5,4]);
+        ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(x1b,y1b); ctx.stroke();
+        ctx.restore();
+      });
+      textAt(ctx,'3 lines: every pair of classes votes', areaR.x0+areaR.w/2, areaR.y1+30, {align:'center', size:11, mono:true, color:COLORS.dimmer, alpha:ovoLines});
+    }
+  }
+  function loop(){ draw(); if(gen===currentGen){ const id=requestAnimationFrame(loop); activeRafs.add(id);} }
+  loop();
+  await tween(600, t=>{ revealL=ease(t); }, gen);
+  await tween(500, t=>{ ovrLines=t; }, gen);
+  await wait(150,gen);
+  await tween(600, t=>{ revealR=ease(t); }, gen);
+  await tween(500, t=>{ ovoLines=t; }, gen);
+}
+
+/* ============================ SLIDE 14d — CONFUSION MATRIX ============================ */
+async function slideConfusionMatrix(gen){
+  const {ctx,w,h} = setupCanvas(document.getElementById('cCM'));
+  const gridSize = Math.min(w*0.5, h*0.72);
+  const gx0 = w*0.5-gridSize/2-30, gy0 = h/2-gridSize/2;
+  const cell = gridSize/2;
+  let cellReveal=[0,0,0,0], numReveal=0, formulaReveal=0;
+  const vals = [ ['TP',42,COLORS.green], ['FN',8,COLORS.red], ['FP',6,COLORS.red], ['TN',44,COLORS.green] ];
+
+  function draw(){
+    ctx.clearRect(0,0,w,h);
+    textAt(ctx,'predicted →', gx0+gridSize/2, gy0-30, {align:'center', size:11.5, mono:true, color:COLORS.dimmer});
+    textAt(ctx,'positive', gx0+cell/2, gy0-12, {align:'center', size:10.5, mono:true, color:COLORS.dim});
+    textAt(ctx,'negative', gx0+cell*1.5, gy0-12, {align:'center', size:10.5, mono:true, color:COLORS.dim});
+    ctx.save(); ctx.translate(gx0-38, gy0+gridSize/2); ctx.rotate(-Math.PI/2);
+    textAt(ctx,'actual ↓', 0,0,{align:'center', size:11.5, mono:true, color:COLORS.dimmer});
+    ctx.restore();
+    textAt(ctx,'positive', gx0-14, gy0+cell/2+4, {align:'right', size:10.5, mono:true, color:COLORS.dim});
+    textAt(ctx,'negative', gx0-14, gy0+cell*1.5+4, {align:'right', size:10.5, mono:true, color:COLORS.dim});
+
+    for(let r=0;r<2;r++){ for(let c=0;c<2;c++){
+      const i=r*2+c;
+      const t=cellReveal[i];
+      if(t<=0) continue;
+      const [label,val,color]=vals[i];
+      const x=gx0+c*cell, y=gy0+r*cell;
+      ctx.save();
+      ctx.globalAlpha=t*0.16;
+      ctx.fillStyle=color;
+      ctx.fillRect(x+2,y+2,cell-4,cell-4);
+      ctx.restore();
+      ctx.save();
+      ctx.globalAlpha=t;
+      ctx.strokeStyle='rgba(255,255,255,0.15)';
+      ctx.strokeRect(x+2,y+2,cell-4,cell-4);
+      ctx.restore();
+      textAt(ctx,label, x+cell/2, y+cell/2-6, {align:'center', size:15, mono:true, color, weight:'600', alpha:t});
+      if(numReveal>0) textAt(ctx, Math.round(val*numReveal), x+cell/2, y+cell/2+20, {align:'center', size:20, color:COLORS.text, weight:'600', alpha:numReveal});
+    }}
+
+    if(formulaReveal>0){
+      const fx = gx0+gridSize+70, fy=gy0+30;
+      const P = vals[0][1]/(vals[0][1]+vals[2][1]);
+      const R = vals[0][1]/(vals[0][1]+vals[1][1]);
+      const F1 = 2*P*R/(P+R);
+      ctx.save(); ctx.globalAlpha=formulaReveal;
+      ctx.textAlign='left';
+      ctx.font="600 15px 'JetBrains Mono', monospace"; ctx.fillStyle=COLORS.purpleLight;
+      ctx.fillText('Precision = '+P.toFixed(2), fx, fy);
+      ctx.fillText('Recall    = '+R.toFixed(2), fx, fy+30);
+      ctx.fillStyle=COLORS.pink;
+      ctx.fillText('F1        = '+F1.toFixed(2), fx, fy+60);
+      ctx.restore();
+    }
+  }
+  function loop(){ draw(); if(gen===currentGen){ const id=requestAnimationFrame(loop); activeRafs.add(id);} }
+  loop();
+  for(let i=0;i<4;i++){ await tween(280, t=>{ cellReveal[i]=ease(t); }, gen); }
+  await tween(600, t=>{ numReveal=ease(t); }, gen);
+  await wait(150,gen);
+  await tween(600, t=>{ formulaReveal=t; }, gen);
+}
+
+/* ============================ SLIDE 14e — ROC / AUC ============================ */
+async function slideROC(gen){
+  const {ctx,w,h} = setupCanvas(document.getElementById('cROC'));
+  const pad = Math.min(w,h)*0.14;
+  const x0=pad, y0=pad, x1=w-pad, y1=h-pad*1.4;
+  let axesReveal=0, diagReveal=0, curveT=0, aucReveal=0, dotReveal=0;
+
+  // toy ROC curve: FPR in [0,1] -> TPR via a concave function
+  function tprAt(fpr){ return Math.pow(fpr, 0.35); }
+
+  function draw(){
+    ctx.clearRect(0,0,w,h);
+    ctx.save(); ctx.globalAlpha=axesReveal;
+    ctx.strokeStyle='rgba(255,255,255,0.16)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(x0,y1); ctx.lineTo(x1,y1); ctx.stroke();
+    ctx.restore();
+    textAt(ctx,'False Positive Rate →', (x0+x1)/2, y1+26, {align:'center', size:11, mono:true, color:COLORS.dimmer, alpha:axesReveal});
+    ctx.save(); ctx.translate(x0-32,(y0+y1)/2); ctx.rotate(-Math.PI/2);
+    textAt(ctx,'True Positive Rate →',0,0,{align:'center', size:11, mono:true, color:COLORS.dimmer, alpha:axesReveal});
+    ctx.restore();
+
+    if(diagReveal>0){
+      ctx.save(); ctx.globalAlpha=diagReveal*0.5; ctx.strokeStyle=COLORS.dim; ctx.setLineDash([4,4]); ctx.lineWidth=1.2;
+      ctx.beginPath(); ctx.moveTo(x0,y1); ctx.lineTo(x1,y0); ctx.stroke();
+      ctx.restore();
+      textAt(ctx,'random guess', x1-4, y0+16, {align:'right', size:10.5, mono:true, color:COLORS.dimmer, alpha:diagReveal});
+    }
+
+    if(curveT>0){
+      const N=60, n=Math.ceil(N*curveT);
+      ctx.save(); ctx.globalAlpha=1;
+      if(aucReveal>0){
+        ctx.beginPath(); ctx.moveTo(x0,y1);
+        for(let i=0;i<=n;i++){ const fx=i/N; const tp=tprAt(fx); ctx.lineTo(lerp(x0,x1,fx), lerp(y1,y0,tp)); }
+        ctx.lineTo(lerp(x0,x1,n/N), y1); ctx.closePath();
+        ctx.fillStyle=COLORS.purple; ctx.globalAlpha=aucReveal*0.18; ctx.fill();
+      }
+      ctx.globalAlpha=1;
+      ctx.strokeStyle=COLORS.pink; ctx.lineWidth=2.4;
+      ctx.beginPath();
+      for(let i=0;i<=n;i++){
+        const fx=i/N, tp=tprAt(fx);
+        const px=lerp(x0,x1,fx), py=lerp(y1,y0,tp);
+        if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+      }
+      ctx.stroke();
+      ctx.restore();
+      if(dotReveal>0){
+        const fx=n/N, tp=tprAt(fx);
+        drawPoint(ctx, lerp(x0,x1,fx), lerp(y1,y0,tp), '#ffffff', 5, 8);
+      }
+    }
+    if(aucReveal>0){
+      textAt(ctx,'AUC = 0.87', x1-6, y0+40, {align:'right', size:14, mono:true, color:COLORS.purpleLight, weight:'600', alpha:aucReveal});
+    }
+  }
+  function loop(){ draw(); if(gen===currentGen){ const id=requestAnimationFrame(loop); activeRafs.add(id);} }
+  loop();
+  await tween(500, t=>{ axesReveal=t; }, gen);
+  await tween(400, t=>{ diagReveal=t; }, gen);
+  dotReveal=1;
+  await tween(1300, t=>{ curveT=ease(t); }, gen);
+  await tween(500, t=>{ aucReveal=t; }, gen);
+}
+
+/* ============================ SLIDE 15 — SUMMARY ============================ */
+async function slide15(gen){
+  const {ctx,w,h} = setupCanvas(document.getElementById('c15'));
+  const rows = [
+    {group:'Linear', items:'Logistic Regression · Perceptron · LDA · SGD'},
+    {group:'Instance-based', items:'K-Nearest Neighbors'},
+    {group:'Margin-based', items:'Support Vector Machine'},
+    {group:'Tree-based', items:'Decision Tree · Random Forest · Extra Trees'},
+    {group:'Probabilistic', items:'Naive Bayes · QDA'},
+    {group:'Boosted ensembles', items:'Gradient Boosting · AdaBoost · XGBoost · LightGBM · CatBoost'},
+    {group:'Neural', items:'MLP'},
+    {group:'Foundations & evaluation', items:'Bias-Variance · Train/Test & CV · Scaling · Regularization · Multi-Class · Confusion Matrix · ROC/AUC'},
+  ];
+  let rowReveal = rows.map(()=>0);
+  let quoteReveal=0;
+
+  function draw(){
+    ctx.clearRect(0,0,w,h);
+    const top=30, rh=(h*0.72-top)/rows.length;
+    rows.forEach((r,i)=>{
+      const t=rowReveal[i];
+      if(t<=0) return;
+      const y = top+i*rh;
+      ctx.save();
+      ctx.globalAlpha=t;
+      ctx.fillStyle='rgba(255,255,255,0.03)';
+      roundRect(ctx,w*0.06, y, w*0.88*easeOut(t), rh-10, 8); ctx.fill();
+      ctx.restore();
+      textAt(ctx, r.group, w*0.09, y+rh*0.4, {size:12.5, mono:true, color:COLORS.purpleLight, alpha:t, weight:'600'});
+      textAt(ctx, r.items, w*0.09, y+rh*0.72, {size:12.5, color:COLORS.text, alpha:t*0.9});
+    });
+    ctx.save();
+    ctx.globalAlpha=quoteReveal;
+    ctx.textAlign='center';
+    ctx.fillStyle=COLORS.dim;
+    ctx.font="italic 500 15px 'Inter'";
+    ctx.fillText('"Every classifier is a different way of asking: which side of the line are you on?"', w/2, h*0.9);
+    ctx.restore();
+  }
+  function loop(){ draw(); if(gen===currentGen){ const id=requestAnimationFrame(loop); activeRafs.add(id);} }
+  loop();
+  for(let i=0;i<rows.length;i++){
+    await tween(260, t=>{ rowReveal[i]=ease(t); }, gen);
+  }
+  await wait(200,gen);
+  await tween(700, t=>{ quoteReveal=t; }, gen);
+}
+
+/* ============================= SLIDE MANAGER ============================= */
+const initFns = [
+  slide0, slide1, slideBiasVariance, slideTrainTest, slideFeatureScaling,
+  slide2, slide3, slide4, slide5, slide6, slide7, slide8, slide9, slide10,
+  slide11, slide12, slide13, slide14,
+  slideRegularization, slideMulticlass, slideConfusionMatrix, slideROC,
+  slide15
+];
+const slideEls = Array.from(document.querySelectorAll('.slide'));
+const total = slideEls.length;
+let idx = 0;
+
+const dotsEl = document.getElementById('dots');
+slideEls.forEach((_,i)=>{
+  const d=document.createElement('div');
+  d.className='d'+(i===0?' on':'');
+  d.addEventListener('click', ()=>goTo(i));
+  dotsEl.appendChild(d);
+});
+
+function updateChrome(){
+  document.getElementById('progressFill').style.width = ((idx+1)/total*100)+'%';
+  document.getElementById('counter').innerHTML = '<b>'+String(idx+1).padStart(2,'0')+'</b> / '+total;
+  document.getElementById('prevBtn').disabled = idx===0;
+  document.getElementById('nextBtn').disabled = idx===total-1;
+  Array.from(dotsEl.children).forEach((d,i)=> d.classList.toggle('on', i===idx));
+}
+
+function goTo(newIdx){
+  if(newIdx<0 || newIdx>=total || newIdx===idx && slideEls[idx].classList.contains('active')) {
+    if(newIdx<0||newIdx>=total) return;
+  }
+  slideEls[idx].classList.remove('active');
+  idx = newIdx;
+  slideEls[idx].classList.add('active');
+  updateChrome();
+  currentGen++; clearRafs();
+  const gen = currentGen;
+  requestAnimationFrame(()=>{ initFns[idx](gen); });
+}
+
+document.getElementById('prevBtn').addEventListener('click', ()=>goTo(idx-1));
+document.getElementById('nextBtn').addEventListener('click', ()=>goTo(idx+1));
+window.addEventListener('keydown', e=>{
+  if(['ArrowRight','ArrowDown',' '].includes(e.key)){ e.preventDefault(); goTo(idx+1); }
+  else if(['ArrowLeft','ArrowUp'].includes(e.key)){ e.preventDefault(); goTo(idx-1); }
+});
+let resizeTimer;
+window.addEventListener('resize', ()=>{
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(()=>{ currentGen++; clearRafs(); const gen=currentGen; initFns[idx](gen); }, 150);
+});
+
+// init
+slideEls[0].classList.add('active');
+updateChrome();
+requestAnimationFrame(()=>{ initFns[0](currentGen); });
+setTimeout(()=>{ document.getElementById('hint').classList.add('show'); }, 1200);
+setTimeout(()=>{ document.getElementById('hint').classList.remove('show'); }, 6000);
+</script>
+</body>
+</html>

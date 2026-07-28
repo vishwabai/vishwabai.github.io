@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Probability — The Math, Derived</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#07070b; --panel:#0d0d15; --panel2:#101019; --ink:#eef0f7; --dim:#888ca0; --dim2:#4c4f60;
+  --accent:#b98bff; --accent2:#5fc9d8; --warn:#ff8fa1; --good:#7fdba0; --amber:#ffcf7a; --line:#1b1b26; --line2:#242433;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;background:#000;overflow:hidden;font-family:'Inter',system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased;}
+#viewport{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 40%, #0c0c14 0%, #000 72%);}
+#stage{position:relative;width:1280px;height:720px;background:var(--bg);border-radius:6px;overflow:hidden;box-shadow:0 0 0 1px var(--line), 0 40px 120px rgba(0,0,0,0.7);transform-origin:center center;}
+canvas#gfx{position:absolute;top:0;left:0;width:1280px;height:720px;z-index:1;}
+#slides{position:absolute;inset:0;z-index:2;}
+.slide{position:absolute;inset:0;opacity:0;pointer-events:none;}
+.slide.active{opacity:1;pointer-events:auto;transition:opacity .45s ease;}
+
+.header{position:absolute;top:50px;left:90px;right:90px;}
+.eyebrow{position:relative;font-size:12.5px;letter-spacing:3.2px;text-transform:uppercase;color:var(--accent2);font-weight:700;opacity:0;transform:translateY(8px);transition:opacity .55s ease, transform .55s ease;margin-bottom:13px;}
+.slide.active .eyebrow{opacity:.9;transform:translateY(0);transition-delay:.04s;}
+.htitle{position:relative;font-size:29px;font-weight:800;color:var(--ink);letter-spacing:-0.3px;line-height:1.28;opacity:0;transform:translateY(10px);transition:opacity .55s ease, transform .55s ease;margin-bottom:11px;}
+.slide.active .htitle{opacity:1;transform:translateY(0);transition-delay:.09s;}
+.hsub{position:relative;max-width:900px;font-size:15px;color:var(--dim);line-height:1.5;opacity:0;transform:translateY(8px);transition:opacity .55s ease, transform .55s ease;}
+.slide.active .hsub{opacity:1;transform:translateY(0);transition-delay:.14s;}
+
+/* title slide */
+.titleWrap{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;}
+.kicker{font-size:13px;letter-spacing:5px;color:var(--accent2);text-transform:uppercase;font-weight:700;opacity:0;transform:translateY(10px);transition:all .7s ease;}
+.slide.active .kicker{opacity:.9;transform:translateY(0);transition-delay:.1s;}
+.bigtitle{font-size:72px;font-weight:800;color:var(--ink);letter-spacing:-2px;margin-top:14px;opacity:0;transform:translateY(16px);transition:all .8s cubic-bezier(.2,.8,.2,1);}
+.slide.active .bigtitle{opacity:1;transform:translateY(0);transition-delay:.18s;}
+.bigsub{margin-top:18px;font-size:18px;color:var(--dim);max-width:760px;opacity:0;transform:translateY(10px);transition:all .7s ease;}
+.slide.active .bigsub{opacity:1;transform:translateY(0);transition-delay:.3s;}
+.startHint{margin-top:56px;font-size:13px;color:var(--dim2);letter-spacing:1px;opacity:0;transition:opacity .7s ease;transition-delay:.6s;}
+.slide.active .startHint{opacity:1;}
+
+/* roadmap */
+.roadmap{position:absolute;top:224px;left:90px;right:90px;bottom:56px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px 44px;align-content:start;}
+.rmItem{display:flex;align-items:baseline;gap:12px;padding:7px 0;border-bottom:1px solid var(--line);opacity:0;transform:translateX(-10px);transition:opacity .5s ease, transform .5s ease;}
+.slide.active .rmItem{opacity:1;transform:translateX(0);}
+.rmNum{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--dim2);width:20px;}
+.rmName{font-size:15px;color:var(--ink);font-weight:500;}
+.rmDot{width:6px;height:6px;border-radius:50%;background:var(--accent);flex-shrink:0;}
+
+/* step / derivation cards */
+.stepsWrap{position:absolute;top:180px;left:96px;right:96px;bottom:34px;overflow-y:auto;overflow-x:hidden;padding-right:10px;}
+.stepsWrap::-webkit-scrollbar{width:5px;}
+.stepsWrap::-webkit-scrollbar-track{background:transparent;}
+.stepsWrap::-webkit-scrollbar-thumb{background:#2a2a38;border-radius:3px;}
+.step{display:flex;gap:16px;align-items:flex-start;padding:11px 0;border-bottom:1px solid var(--line);opacity:0;transform:translateY(10px);transition:opacity .5s ease, transform .5s ease;}
+.slide.active .step{opacity:1;transform:translateY(0);}
+.stepNum{width:26px;height:26px;border-radius:50%;background:var(--panel2);border:1px solid var(--line2);color:var(--accent);font-family:'JetBrains Mono',monospace;font-size:11.5px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:3px;}
+.stepBody{flex:1;min-width:0;}
+.stepTag{font-size:10px;letter-spacing:2px;color:var(--accent2);font-weight:700;margin-bottom:5px;}
+.stepFormula{font-family:Georgia,'Times New Roman',serif;font-style:italic;font-size:17.5px;color:var(--ink);margin-bottom:5px;line-height:1.4;}
+.stepFormula sup{font-size:.65em;} .stepFormula sub{font-size:.65em;}
+.stepFrac{display:inline-flex;flex-direction:column;vertical-align:middle;text-align:center;margin:0 6px;font-size:.82em;position:relative;top:.1em;}
+.stepFrac .fu{border-bottom:1.2px solid currentColor;padding:0 4px 2px;}
+.stepFrac .fd{padding:2px 4px 0;}
+.stepNote{font-size:12.5px;color:var(--dim);line-height:1.5;}
+.finalBox{margin-top:14px;padding:18px 24px;border:1.5px solid var(--accent);border-radius:12px;background:linear-gradient(135deg, rgba(185,139,255,0.10), rgba(95,201,216,0.05));text-align:center;opacity:0;transform:scale(0.96);transition:opacity .6s ease, transform .6s ease;}
+.slide.active .finalBox{opacity:1;transform:scale(1);}
+.finalTag{font-size:10.5px;letter-spacing:2px;color:var(--accent);font-weight:700;margin-bottom:9px;}
+.finalFormula{font-family:Georgia,'Times New Roman',serif;font-style:italic;font-size:23px;color:var(--ink);line-height:1.4;}
+.finalFormula sup{font-size:.65em;} .finalFormula sub{font-size:.65em;}
+.finalNote{margin-top:10px;font-size:12.5px;color:var(--dim);}
+
+/* chrome */
+#chrome{position:fixed;inset:0;pointer-events:none;z-index:50;}
+#topbar{position:absolute;top:0;left:0;right:0;height:3px;background:#131319;}
+#progressFill{height:100%;width:0%;background:linear-gradient(90deg,var(--accent2),var(--accent));transition:width .4s ease;}
+#chapChip{position:fixed;top:22px;right:34px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--dim);letter-spacing:1px;pointer-events:none;}
+#chapChip b{color:var(--ink);}
+#counter{position:fixed;bottom:22px;right:34px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--dim2);letter-spacing:1px;pointer-events:none;}
+.navbtn{position:fixed;top:50%;transform:translateY(-50%);width:46px;height:46px;border-radius:50%;background:#0f0f17;border:1px solid var(--line2);color:var(--dim);font-size:20px;cursor:pointer;pointer-events:auto;display:flex;align-items:center;justify-content:center;transition:all .2s ease;z-index:60;}
+.navbtn:hover{background:#16161f;color:var(--ink);border-color:var(--accent);}
+.navbtn:disabled{opacity:.25;cursor:default;}
+.navbtn:disabled:hover{background:#0f0f17;color:var(--dim);border-color:var(--line2);}
+#btnPrev{left:26px;} #btnNext{right:26px;}
+#hint{position:fixed;bottom:22px;left:34px;font-size:12px;color:var(--dim2);letter-spacing:.5px;pointer-events:none;font-family:'JetBrains Mono',monospace;}
+#clickzones{position:fixed;inset:0;z-index:40;pointer-events:none;}
+.cz{position:absolute;top:0;bottom:0;width:5.5%;cursor:pointer;pointer-events:auto;}
+.cz.left{left:0;} .cz.right{right:0;}
+
+/* stage badge (BUILD IT / SOLVE IT) */
+.modeBadge{position:absolute;top:50px;right:0;font-size:11px;letter-spacing:2px;font-weight:800;padding:6px 14px;border-radius:20px;opacity:0;transition:opacity .5s ease;transition-delay:.2s;}
+.slide.active .modeBadge{opacity:1;}
+.modeBadge.build{background:rgba(185,139,255,0.12);color:var(--accent);border:1px solid rgba(185,139,255,0.35);}
+.modeBadge.solve{background:rgba(95,201,216,0.12);color:var(--accent2);border:1px solid rgba(95,201,216,0.35);}
+</style>
+</head>
+<body>
+<div id="viewport">
+  <div id="stage">
+    <canvas id="gfx"></canvas>
+    <div id="slides"></div>
+  </div>
+</div>
+<div id="chrome">
+  <div id="topbar"><div id="progressFill"></div></div>
+  <div id="chapChip"></div>
+  <div id="counter"></div>
+  <button class="navbtn" id="btnPrev">‹</button>
+  <button class="navbtn" id="btnNext">›</button>
+  <div id="hint">← → to navigate · space to advance</div>
+</div>
+<div id="clickzones"><div class="cz left"></div><div class="cz right"></div></div>
+
+<script>
+/* ============================= UTIL ============================= */
+const COL = {bg:'#07070b',ink:'#eef0f7',dim:'#888ca0',dim2:'#4c4f60',accent:'#b98bff',accent2:'#5fc9d8',warn:'#ff8fa1',good:'#7fdba0',amber:'#ffcf7a'};
+function clamp01(t){return Math.max(0,Math.min(1,t));}
+function eo3(t){t=clamp01(t);return 1-Math.pow(1-t,3);}
+function ph(ms,start,len){return eo3((ms-start)/len);}
+function dot(ctx,x,y,r,color,alpha=1){ctx.save();ctx.globalAlpha=alpha;ctx.fillStyle=color;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();ctx.restore();}
+function mulberry32(seed){return function(){seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function scatterCircle(n,rnd,cx,cy,R){const pts=[];for(let i=0;i<n;i++){const a=rnd()*Math.PI*2,r=Math.sqrt(rnd())*R;pts.push([cx+Math.cos(a)*r,cy+Math.sin(a)*r]);}return pts;}
+function frac(u,d){return `<span class="stepFrac"><span class="fu">${u}</span><span class="fd">${d}</span></span>`;}
+
+const rndBg = mulberry32(2024);
+const bgDots = scatterCircle(60,rndBg,640,600,760);
+function ambientDots(ctx,ms){
+  bgDots.forEach((p,i)=>{
+    const drift=Math.sin(ms/2200+i)*5;
+    const tw=(Math.sin(ms/1100+i*3)+1)/2;
+    dot(ctx,p[0],p[1]+drift,1.3+tw*0.9,i%5===0?COL.accent:(i%7===0?COL.accent2:COL.dim2),0.05+tw*0.08);
+  });
+}
+
+/* ============================= SLIDES DATA ============================= */
+const SLIDES=[];
+function chapterTag(n,name){return `CHAPTER ${String(n).padStart(2,'0')} — ${name}`;}
+
+/* ---------- TITLE ---------- */
+SLIDES.push({
+  kind:'title', dur:1, loop:true,
+  html:`<div class="titleWrap">
+    <div class="kicker">A beginner-first math companion</div>
+    <div class="bigtitle">The Math, Derived</div>
+    <div class="bigsub">Every formula built from a base principle to its final form — then solved, number by number.</div>
+    <div class="startHint">PRESS → OR CLICK TO BEGIN</div>
+  </div>`,
+  draw(ctx,ms){ ambientDots(ctx,ms); }
+});
+
+/* ---------- ROADMAP ---------- */
+const TOPICS=['Events','Sample Space','Random Variables','PMF','PDF','CDF','Conditional Probability','Bayes\u2019 Rule','Gaussian Distribution','Bernoulli','Binomial','Poisson','Exponential','Uniform','Independence','Expectation','Variance & Std. Dev.','Law of Large Numbers','Central Limit Theorem','Covariance & Correlation'];
+SLIDES.push({
+  kind:'roadmap', dur:900,
+  html:`<div class="header"><div class="eyebrow">THE ROUTE</div>
+  <div class="htitle">Twenty formulas, built and solved</div>
+  <div class="hsub">Every chapter has two stops: <b style="color:var(--ink)">Build it</b> — derive the formula from a basic idea, one piece at a time — and <b style="color:var(--ink)">Solve it</b> — plug in real numbers and watch the answer unfold.</div></div>
+  <div class="roadmap">${TOPICS.map((t,i)=>`<div class="rmItem" style="transition-delay:${0.035*i}s"><span class="rmNum">${String(i+1).padStart(2,'0')}</span><span class="rmDot"></span><span class="rmName">${t}</span></div>`).join('')}</div>`,
+  draw(ctx,ms){ ambientDots(ctx,ms); }
+});
+
+/* ================= helper to push a 2-slide topic block ================= */
+let chNum=0;
+function stepRow(i,s){
+  return `<div class="step" style="transition-delay:${0.06+i*0.09}s">
+    <span class="stepNum">${i+1}</span>
+    <div class="stepBody">
+      <div class="stepTag">${s.tag}</div>
+      <div class="stepFormula">${s.formula}</div>
+      <div class="stepNote">${s.note}</div>
+    </div>
+  </div>`;
+}
+function pushMathTopic({name, build, solve}){
+  chNum++;
+  const buildDelay = 0.06+build.steps.length*0.09+0.15;
+  SLIDES.push({
+    kind:'build', dur:900, chap:chNum,
+    html:`<div class="header"><div class="eyebrow">${chapterTag(chNum,name)}</div><div class="htitle">${build.title}</div><div class="hsub">${build.sub}</div></div>
+    <div class="modeBadge build">BUILD IT</div>
+    <div class="stepsWrap">
+      ${build.steps.map((s,i)=>stepRow(i,s)).join('')}
+      <div class="finalBox" style="transition-delay:${buildDelay}s">
+        <div class="finalTag">THE FORMULA</div>
+        <div class="finalFormula">${build.final}</div>
+        ${build.finalNote?`<div class="finalNote">${build.finalNote}</div>`:''}
+      </div>
+    </div>`,
+    draw(ctx,ms){ ambientDots(ctx,ms); }
+  });
+  const solveDelay = 0.06+solve.steps.length*0.09+0.15;
+  SLIDES.push({
+    kind:'solve', dur:900, chap:chNum,
+    html:`<div class="header"><div class="eyebrow">${chapterTag(chNum,name)}</div><div class="htitle">${solve.title}</div><div class="hsub">${solve.sub}</div></div>
+    <div class="modeBadge solve">SOLVE IT</div>
+    <div class="stepsWrap">
+      ${solve.steps.map((s,i)=>stepRow(i,s)).join('')}
+      <div class="finalBox" style="transition-delay:${solveDelay}s">
+        <div class="finalTag">RESULT</div>
+        <div class="finalFormula">${solve.final}</div>
+        ${solve.finalNote?`<div class="finalNote">${solve.finalNote}</div>`:''}
+      </div>
+    </div>`,
+    draw(ctx,ms){ ambientDots(ctx,ms); }
+  });
+}
+
+/* ===================================================================== */
+/* 1. EVENTS */
+pushMathTopic({name:'Events',
+  build:{
+    title:'From "equally likely" to a fraction',
+    sub:'We start from one assumption and watch the counting formula fall out of it.',
+    steps:[
+      {tag:'START', formula:'Assume every outcome in &Omega; is equally likely.', note:'This is the ONE assumption that lets us use plain counting as probability.'},
+      {tag:'STEP 1', formula:'Total certainty is 1, spread evenly: P(one outcome) = 1 &divide; |&Omega;|', note:'If all outcomes are equally likely, each one gets an identical, equal share of the total probability 1.'},
+      {tag:'STEP 2', formula:'An event E is just a chosen group of outcomes.', note:'E could be "rolled even" = {2, 4, 6} — a subset of &Omega;, nothing more exotic.'},
+      {tag:'STEP 3', formula:`P(E) = |E| &times; ${frac('1','|&Omega;|')}`, note:'Add up the equal share of probability for every outcome that belongs to E.'}
+    ],
+    final:`P(E) = ${frac('|E|','|\u03a9|')}`,
+    finalNote:'Favorable outcomes over total outcomes — but only because every outcome started out equally likely.'
+  },
+  solve:{
+    title:'Solving P(rolling an even number)',
+    sub:'Same formula, now with real numbers substituted in, one line at a time.',
+    steps:[
+      {tag:'GIVEN', formula:'&Omega; = {1, 2, 3, 4, 5, 6}', note:'A standard six-sided die — this is the full sample space.'},
+      {tag:'GIVEN', formula:'|&Omega;| = 6', note:'Just count how many outcomes are listed.'},
+      {tag:'DEFINE', formula:'E = {2, 4, 6}', note:'The event we care about: "the roll is even."'},
+      {tag:'COUNT', formula:'|E| = 3', note:'Three of the six faces are even.'},
+      {tag:'SUBSTITUTE', formula:`P(E) = ${frac('3','6')}`, note:'Plug both counts into the formula from the Build It slide.'}
+    ],
+    final:'P(E) = 0.5',
+    finalNote:'A 50% chance — exactly what intuition says a fair die\u2019s "even" should be.'
+  }
+});
+
+/* 2. SAMPLE SPACE */
+pushMathTopic({name:'Sample Space',
+  build:{
+    title:'From one choice to many, multiplied',
+    sub:'The multiplication rule isn\u2019t assumed — it comes from literally listing outcomes out.',
+    steps:[
+      {tag:'START', formula:'Step 1 has n\u2081 possible results.', note:'Imagine listing them: result A, result B, result C, \u2026 up to n\u2081 of them.'},
+      {tag:'STEP 1', formula:'For EACH of those, step 2 independently offers n\u2082 results.', note:'No matter which step-1 result occurred, step 2 always has the same n\u2082 options available.'},
+      {tag:'STEP 2', formula:'So pairing gives n\u2081 groups of n\u2082 outcomes each.', note:'That\u2019s n\u2081 rows of n\u2082 items — exactly what multiplication counts.'},
+      {tag:'STEP 3', formula:'Extend the same reasoning to k independent steps.', note:'Each new step just multiplies the running total by its own number of options.'}
+    ],
+    final:'|\u03a9| = n\u2081 \u00d7 n\u2082 \u00d7 \u22ef \u00d7 n\u2096',
+    finalNote:'Addition would only apply if you picked step 1 OR step 2 \u2014 never both at once.'
+  },
+  solve:{
+    title:'Solving |\u03a9| for two dice',
+    sub:'Two independent steps, multiplied together.',
+    steps:[
+      {tag:'GIVEN', formula:'die 1 has n\u2081 = 6 faces', note:'The first die, rolled on its own, has 6 equally likely outcomes.'},
+      {tag:'GIVEN', formula:'die 2 has n\u2082 = 6 faces, independent of die 1', note:'Whatever die 1 shows, die 2 still has all 6 faces available.'},
+      {tag:'MULTIPLY', formula:'|\u03a9| = 6 \u00d7 6', note:'Apply the rule from the Build It slide directly.'}
+    ],
+    final:'|\u03a9| = 36',
+    finalNote:'36 equally likely (die 1, die 2) pairs \u2014 the full sample space we\u2019ve used throughout this deck.'
+  }
+});
+
+/* 3. RANDOM VARIABLES */
+pushMathTopic({name:'Random Variables',
+  build:{
+    title:'From "not a number" to a rule that assigns one',
+    sub:'Why we insist X be an actual function, not just a label.',
+    steps:[
+      {tag:'START', formula:'Outcomes like "heads" or a die face aren\u2019t numbers.', note:'You can\u2019t add "heads" to "tails" \u2014 there\u2019s no arithmetic on raw outcomes.'},
+      {tag:'STEP 1', formula:'Define a rule that assigns exactly one number to every outcome.', note:'No exceptions, no ambiguity: each &omega; in &Omega; gets one, and only one, number.'},
+      {tag:'STEP 2', formula:'That rule is, by definition, a function \u2014 call it X.', note:'A function just means "one specific output for every possible input."'}
+    ],
+    final:'X : \u03a9 \u2192 \u211d',
+    finalNote:'X reads "outcomes map to real numbers" \u2014 that mapping is what unlocks all the arithmetic that follows.'
+  },
+  solve:{
+    title:'Solving X(4) for our chosen rule',
+    sub:'Applying the function to one specific outcome.',
+    steps:[
+      {tag:'GIVEN', formula:'rule: X(outcome) = outcome \u00d7 10', note:'We chose this rule ourselves \u2014 any consistent rule would work.'},
+      {tag:'GIVEN', formula:'outcome \u03c9 = 4', note:'The die landed on 4.'},
+      {tag:'APPLY', formula:'X(4) = 4 \u00d7 10', note:'Substitute the outcome directly into the rule.'}
+    ],
+    final:'X(4) = 40',
+    finalNote:'One outcome, one number \u2014 exactly what a function guarantees.'
+  }
+});
+
+/* 4. PMF */
+pushMathTopic({name:'PMF',
+  build:{
+    title:'From "X lands somewhere" to piles that sum to 1',
+    sub:'Why every discrete PMF is forced to add up to exactly one.',
+    steps:[
+      {tag:'START', formula:'X can only take specific values: x\u2081, x\u2082, x\u2083, \u2026', note:'For a discrete variable, list every value it could possibly land on.'},
+      {tag:'STEP 1', formula:'Each value gets its own slice of probability: p(x) = P(X=x)', note:'Some values are more likely, so their slice (pile) is bigger.'},
+      {tag:'STEP 2', formula:'X is guaranteed to take SOME value: P(X takes any value) = 1', note:'That\u2019s just P(&Omega;) = 1 \u2014 certainty, restated.'},
+      {tag:'STEP 3', formula:'So all the individual piles, added up, must equal that same 1.', note:'You can\u2019t have leftover probability, and you can\u2019t have more than all of it.'}
+    ],
+    final:'P(X = x) = p(x), &nbsp;&nbsp; \u03a3\u2093 p(x) = 1',
+    finalNote:'A PMF is just certainty (1), sliced up and handed out across the possible values.'
+  },
+  solve:{
+    title:'Solving P(X=7) for two dice',
+    sub:'Count the favorable pairs, then divide by the full sample space.',
+    steps:[
+      {tag:'GIVEN', formula:'|\u03a9| = 36 equally likely (i, j) pairs', note:'From the Sample Space chapter.'},
+      {tag:'COUNT', formula:'pairs summing to 7: (1,6) (2,5) (3,4) (4,3) (5,2) (6,1)', note:'List every pair whose two faces add to 7.'},
+      {tag:'COUNT', formula:'6 favorable pairs', note:'Just tally the list above.'},
+      {tag:'SUBSTITUTE', formula:`P(X=7) = ${frac('6','36')}`, note:'Favorable pairs over total pairs \u2014 same logic as chapter 1, applied to a sum.'}
+    ],
+    final:'P(X=7) \u2248 0.167',
+    finalNote:'The single most likely dice-sum \u2014 which is why 7 wins at craps tables.'
+  }
+});
+
+/* 5. PDF */
+pushMathTopic({name:'PDF',
+  build:{
+    title:'From "infinite points" to area under a curve',
+    sub:'Why a single exact value can never hold probability once X is continuous.',
+    steps:[
+      {tag:'START', formula:'X can take any value in a continuum \u2014 infinitely many.', note:'Unlike a die, a height measurement can be 170, 170.001, 170.0001, \u2026 without end.'},
+      {tag:'STEP 1', formula:'If one exact point had positive probability p &gt; 0\u2026', note:'\u2026and there are infinitely many such points, they\u2019d sum to infinity.'},
+      {tag:'STEP 2', formula:'But total probability can\u2019t exceed 1 \u2014 contradiction.', note:'So the assumption must be false: no single point can carry positive probability.'},
+      {tag:'STEP 3', formula:'Every exact point must carry exactly zero probability.', note:'Probability can only accumulate over a stretch of values, never at one point.'},
+      {tag:'STEP 4', formula:'The tool for accumulating something over a stretch is the integral.', note:'Area under a curve f(x), between two bounds a and b.'}
+    ],
+    final:'P(a &lt; X &lt; b) = \u222b<sub>a</sub><sup>b</sup> f(x) dx',
+    finalNote:'f(x) is a density (can exceed 1); only its area over an interval is an actual probability.'
+  },
+  solve:{
+    title:'Solving P(167 &lt; X &lt; 173) for heights',
+    sub:'Setting up the integral, then reading off the answer via the standard normal table.',
+    steps:[
+      {tag:'GIVEN', formula:'X ~ Normal(&mu;=170, &sigma;=3.2)', note:'Adult heights, modeled as Gaussian (see chapter 9).'},
+      {tag:'SET UP', formula:'P(167 &lt; X &lt; 173) = \u222b<sub>167</sub><sup>173</sup> f(x) dx', note:'Directly from the Build It formula, with a=167, b=173.'},
+      {tag:'STANDARDIZE', formula:'z\u2081 = (167&minus;170)/3.2 = &minus;0.9375, &nbsp; z\u2082 = (173&minus;170)/3.2 = 0.9375', note:'Converting to "how many &sigma; away from &mu;" lets us reuse one universal table.'},
+      {tag:'LOOK UP', formula:'\u03a6(0.9375) &minus; \u03a6(&minus;0.9375)', note:'\u03a6 is the standard normal CDF \u2014 tables (or software) give its values directly.'}
+    ],
+    final:'P(167 &lt; X &lt; 173) \u2248 0.6515',
+    finalNote:'About 65% of people in this model fall within 3 cm of average height.'
+  }
+});
+
+/* 6. CDF */
+pushMathTopic({name:'CDF',
+  build:{
+    title:'From "area so far" to a running total',
+    sub:'The CDF isn\u2019t a new idea \u2014 it\u2019s the PDF\u2019s area, just swept from the far left.',
+    steps:[
+      {tag:'START', formula:'We already know: area under f between two points is probability.', note:'That was the whole point of the PDF chapter.'},
+      {tag:'STEP 1', formula:'What if the LEFT boundary is always &minus;&infin;?', note:'Instead of picking two bounds a and b each time, fix a = &minus;&infin; permanently.'},
+      {tag:'STEP 2', formula:'Then we\u2019re accumulating ALL area from the far left up to some x.', note:'A single number x now determines the whole calculation.'},
+      {tag:'STEP 3', formula:'Give that running total a name: F(x).', note:'F(x) = "the probability of landing at or below x."'}
+    ],
+    final:'F(x) = P(X \u2264 x) = \u222b<sub>&minus;&infin;</sub><sup>x</sup> f(t) dt',
+    finalNote:'Since f(t) is never negative, this running total can only climb as x increases \u2014 never fall.'
+  },
+  solve:{
+    title:'Solving F(1.0) for the standard normal',
+    sub:'Reading the cumulative area up to a specific point.',
+    steps:[
+      {tag:'GIVEN', formula:'X ~ Normal(0, 1) \u2014 the standard normal', note:'Mean 0, standard deviation 1, the "universal" bell curve.'},
+      {tag:'SET UP', formula:'F(1) = \u222b<sub>&minus;&infin;</sub><sup>1</sup> f(t) dt', note:'Directly substitute x=1 into the Build It formula.'},
+      {tag:'LOOK UP', formula:'\u03a6(1.0)', note:'This exact integral has no simple closed form \u2014 it\u2019s tabulated (or computed numerically) once and reused forever.'}
+    ],
+    final:'F(1.0) \u2248 0.841',
+    finalNote:'About 84% of the standard normal\u2019s area lies at or below one standard deviation above the mean.'
+  }
+});
+
+/* 7. CONDITIONAL PROBABILITY */
+pushMathTopic({name:'Conditional Probability',
+  build:{
+    title:'From "B definitely happened" to a rescaled fraction',
+    sub:'Conditioning is just re-measuring against a smaller universe.',
+    steps:[
+      {tag:'START', formula:'Suppose we\u2019re told event B definitely happened.', note:'Not "might happen" \u2014 we now know it did.'},
+      {tag:'STEP 1', formula:'Every outcome outside B becomes impossible.', note:'B is now the entire universe we\u2019re allowed to consider.'},
+      {tag:'STEP 2', formula:'Question: what fraction of this NEW universe is also in A?', note:'We want P(A), but measured only within B, not within the old &Omega;.'},
+      {tag:'STEP 3', formula:'Outcomes in both A and B are exactly A \u2229 B.', note:'That intersection is the "favorable" region now.'},
+      {tag:'STEP 4', formula:`Express A \u2229 B as a fraction of the new whole, B: ${frac('P(A \u2229 B)','P(B)')}`, note:'Same favorable-over-total logic as chapter 1, just with a smaller "total."'}
+    ],
+    final:`P(A | B) = ${frac('P(A \u2229 B)','P(B)')}`,
+    finalNote:'Dividing by P(B) is exactly the rescaling that turns "part of the old world" into "part of the new, smaller world."'
+  },
+  solve:{
+    title:'Solving P(rain | cloudy)',
+    sub:'Two given probabilities, one division.',
+    steps:[
+      {tag:'GIVEN', formula:'P(rain \u2229 cloudy) = 0.18', note:'The chance it\u2019s both cloudy AND raining, out of all possible days.'},
+      {tag:'GIVEN', formula:'P(cloudy) = 0.42', note:'The chance any given day is cloudy at all.'},
+      {tag:'SUBSTITUTE', formula:`P(rain | cloudy) = ${frac('0.18','0.42')}`, note:'Plug both numbers into the Build It formula.'}
+    ],
+    final:'P(rain | cloudy) \u2248 0.4285',
+    finalNote:'Once you know it\u2019s cloudy, the chance of rain jumps well above its overall average.'
+  }
+});
+
+/* 8. BAYES */
+pushMathTopic({name:'Bayes\u2019 Rule',
+  build:{
+    title:'From one identity, written two ways',
+    sub:'Bayes\u2019 rule isn\u2019t a new law \u2014 it\u2019s algebra on the conditional-probability definition.',
+    steps:[
+      {tag:'START', formula:'P(A \u2229 B) = P(A|B) \u00b7 P(B)', note:'The conditional-probability definition, conditioning on B (chapter 7), rearranged.'},
+      {tag:'STEP 1', formula:'P(A \u2229 B) = P(B|A) \u00b7 P(A)', note:'The SAME quantity, but now conditioning on A instead \u2014 equally valid.'},
+      {tag:'STEP 2', formula:'P(A|B) \u00b7 P(B) = P(B|A) \u00b7 P(A)', note:'Both expressions equal P(A \u2229 B), so set them equal to each other.'},
+      {tag:'STEP 3', formula:'Divide both sides by P(B).', note:'Isolate P(A|B) \u2014 the quantity we actually want to compute.'}
+    ],
+    final:`P(A | B) = ${frac('P(B | A) \u00b7 P(A)','P(B)')}`,
+    finalNote:'Prior \u00d7 likelihood \u00f7 evidence \u2014 the whole structure falls out of one rearrangement.'
+  },
+  solve:{
+    title:'Solving a medical test example',
+    sub:'Prior, sensitivity, and false-positive rate, combined step by step.',
+    steps:[
+      {tag:'GIVEN', formula:'P(A) = 0.01 (prior: 1% have the disease)', note:'How rare the condition is in the population, before any test.'},
+      {tag:'GIVEN', formula:'P(B|A) = 0.90 (sensitivity)', note:'If you truly have the disease, a 90% chance the test says positive.'},
+      {tag:'GIVEN', formula:'P(B|not A) = 0.05 (false-positive rate)', note:'If you\u2019re healthy, still a 5% chance the test wrongly says positive.'},
+      {tag:'COMPUTE', formula:'P(B) = 0.90(0.01) + 0.05(0.99) = 0.009 + 0.0495', note:'Total chance of a positive result, healthy or not \u2014 the denominator we need.'},
+      {tag:'SUBSTITUTE', formula:`P(A|B) = ${frac('0.90 \u00d7 0.01','0.0585')}`, note:'Plug prior, likelihood, and evidence into the Build It formula.'}
+    ],
+    final:'P(sick | positive) \u2248 0.1538',
+    finalNote:'Even with a 90%-accurate test, a positive result still means only ~15% chance of actually being sick \u2014 because the disease itself is rare.'
+  }
+});
+
+/* 9. GAUSSIAN */
+pushMathTopic({name:'Gaussian Distribution',
+  build:{
+    title:'From "a bump shape" to the bell-curve formula',
+    sub:'Building the pieces one at a time: a peak, a symmetric penalty, a controllable width, and a scale that makes it a true density.',
+    steps:[
+      {tag:'START', formula:'We want a bump: peak at &mu;, falling off symmetrically.', note:'Whatever shape we build, it should be centered and symmetric.'},
+      {tag:'STEP 1', formula:'(x&minus;&mu;)\u00b2', note:'Squaring the distance from &mu; makes it symmetric \u2014 direction no longer matters.'},
+      {tag:'STEP 2', formula:'e<sup>&minus;(x&minus;&mu;)\u00b2</sup>', note:'Feeding the penalty through e\u207b\u02e3 turns "bigger distance" into "smaller value" \u2014 a falloff, not a growth.'},
+      {tag:'STEP 3', formula:'e<sup>&minus;(x&minus;&mu;)\u00b2/(2\u03c3\u00b2)</sup>', note:'Dividing by 2\u03c3\u00b2 lets \u03c3 control HOW FAST the bump narrows or widens.'},
+      {tag:'STEP 4', formula:`${frac('1','\u03c3\u221a(2\u03c0)')} \u00b7 e<sup>&minus;(x&minus;&mu;)\u00b2/(2\u03c3\u00b2)</sup>`, note:'Scale the whole curve by the one constant that makes its total area equal exactly 1 (a classical calculus result).'}
+    ],
+    final:`f(x) = ${frac('1','\u03c3\u221a(2\u03c0)')} \u00b7 e<sup>&minus;(x&minus;&mu;)\u00b2/(2\u03c3\u00b2)</sup>`,
+    finalNote:'Every piece has a job: the exponent shapes the bump, the constant out front makes it a valid density.'
+  },
+  solve:{
+    title:'Solving f(170) for heights',
+    sub:'Evaluating the peak of the density at its own mean.',
+    steps:[
+      {tag:'GIVEN', formula:'\u03bc = 170, \u03c3 = 3.2, x = 170', note:'We\u2019re evaluating the density exactly at its center.'},
+      {tag:'EXPONENT', formula:'&minus;(170&minus;170)\u00b2 / (2 \u00d7 3.2\u00b2) = 0', note:'At x=\u03bc, the numerator is exactly zero.'},
+      {tag:'SIMPLIFY', formula:'e\u2070 = 1', note:'Anything to the power 0 is 1 \u2014 no falloff at the very center.'},
+      {tag:'CONSTANT', formula:`${frac('1','3.2 \u00d7 \u221a(2\u03c0)')} \u2248 ${frac('1','8.025')}`, note:'\u221a(2\u03c0) \u2248 2.5066, so the constant is 1 / (3.2 \u00d7 2.5066).'}
+    ],
+    final:'f(170) \u2248 0.125',
+    finalNote:'The tallest point on the curve \u2014 density, not probability (it can exceed 1 for small enough \u03c3).'
+  }
+});
+
+/* 10. BERNOULLI */
+pushMathTopic({name:'Bernoulli',
+  build:{
+    title:'From "two cases" to one switching formula',
+    sub:'A small exponent trick that covers success and failure with a single expression.',
+    steps:[
+      {tag:'START', formula:'One trial: success (k=1) with probability p, failure (k=0) with probability 1&minus;p.', note:'The simplest possible random experiment.'},
+      {tag:'STEP 1', formula:'Try p<sup>k</sup>.', note:'When k=1, this is just p. When k=0, this is p\u2070 = 1.'},
+      {tag:'STEP 2', formula:'Multiply by (1&minus;p)<sup>1&minus;k</sup>.', note:'When k=1, the exponent is 0, so this factor is 1, leaving just p.'},
+      {tag:'STEP 3', formula:'Check k=0: first factor is p\u2070=1, second is (1&minus;p)\u00b9 = 1&minus;p.', note:'The same single expression now correctly gives 1&minus;p instead.'}
+    ],
+    final:'P(X=k) = p<sup>k</sup>(1&minus;p)<sup>1&minus;k</sup>, &nbsp; k \u2208 {0,1}',
+    finalNote:'No if/else needed \u2014 exponent rules silently pick the right branch depending on k.'
+  },
+  solve:{
+    title:'Solving P(X=1) for a fair coin',
+    sub:'One substitution, one simplification.',
+    steps:[
+      {tag:'GIVEN', formula:'p = 0.5, k = 1', note:'A fair coin, asking for the probability of heads.'},
+      {tag:'SUBSTITUTE', formula:'P(X=1) = 0.5\u00b9 \u00d7 0.5\u2070', note:'Plug directly into the Build It formula.'},
+      {tag:'SIMPLIFY', formula:'0.5\u00b9 = 0.5, &nbsp; 0.5\u2070 = 1', note:'Evaluate each power separately.'}
+    ],
+    final:'P(X=1) = 0.5',
+    finalNote:'Exactly what we\u2019d expect for a fair coin \u2014 the formula just confirms it formally.'
+  }
+});
+
+/* 11. BINOMIAL */
+pushMathTopic({name:'Binomial',
+  build:{
+    title:'From "one ordering" to "how many orderings"',
+    sub:'Independent Bernoullis multiply; counting the orderings is the missing piece.',
+    steps:[
+      {tag:'START', formula:'n independent Bernoulli(p) trials.', note:'Flip the same biased coin n times, independently.'},
+      {tag:'STEP 1', formula:'One SPECIFIC sequence with k successes: p<sup>k</sup>(1&minus;p)<sup>n&minus;k</sup>', note:'E.g. success-success-fail-success \u2014 independence means we just multiply the individual probabilities.'},
+      {tag:'STEP 2', formula:'But many different orderings also give exactly k successes.', note:'success-fail-success-success has the same count, different arrangement \u2014 equally probable.'},
+      {tag:'STEP 3', formula:'Count how many such orderings exist: C(n,k) = n! / (k!(n&minus;k)!)', note:'The number of ways to choose WHICH k of the n trials succeed.'},
+      {tag:'STEP 4', formula:'Multiply the one-sequence probability by how many sequences there are.', note:'Add up all the equally-probable ways of reaching the same total k.'}
+    ],
+    final:'P(X=k) = C(n,k) \u00b7 p<sup>k</sup>(1&minus;p)<sup>n&minus;k</sup>',
+    finalNote:'A counting term (how many ways) times a probability term (how likely any one way is).'
+  },
+  solve:{
+    title:'Solving P(X=5) for 10 fair coin flips',
+    sub:'Compute the count, compute the probability, multiply.',
+    steps:[
+      {tag:'GIVEN', formula:'n = 10, p = 0.5, k = 5', note:'Ten flips, want exactly five heads.'},
+      {tag:'COUNT', formula:'C(10,5) = 10! / (5!5!) = 252', note:'There are 252 different orderings of 5 heads among 10 flips.'},
+      {tag:'PROBABILITY', formula:'0.5\u2075 \u00d7 0.5\u2075 = 0.5\u00b9\u2070 \u2248 0.000977', note:'Any one specific ordering of 5 heads, 5 tails has this probability.'},
+      {tag:'MULTIPLY', formula:'252 \u00d7 0.000977', note:'Combine the count and the per-ordering probability.'}
+    ],
+    final:'P(X=5) \u2248 0.246',
+    finalNote:'The single most likely outcome when flipping a fair coin 10 times \u2014 but still under 25%.'
+  }
+});
+
+/* 12. POISSON */
+pushMathTopic({name:'Poisson',
+  build:{
+    title:'From Binomial, taken to its limit',
+    sub:'Chop time into infinitely many infinitesimally-likely sub-trials, and watch a new formula emerge.',
+    steps:[
+      {tag:'START', formula:'Start from Binomial(n, p), and let n \u2192 &infin; while p \u2192 0.', note:'Imagine slicing an hour into a huge number of tiny instants, each with a tiny chance of an event.'},
+      {tag:'STEP 1', formula:'Keep the AVERAGE fixed: n \u00b7 p = \u03bb', note:'So as n grows, p must shrink proportionally \u2014 p = \u03bb/n.'},
+      {tag:'STEP 2', formula:'C(n,k) p<sup>k</sup> \u2192 \u03bb<sup>k</sup>/k!', note:'A classical limit: the n\u2019s in the combinatorial term cancel against the shrinking p\u2019s.'},
+      {tag:'STEP 3', formula:'(1&minus;p)<sup>n&minus;k</sup> \u2192 e<sup>&minus;\u03bb</sup>', note:'Another classical limit: (1 &minus; \u03bb/n)<sup>n</sup> approaches e<sup>&minus;\u03bb</sup> as n \u2192 &infin;.'}
+    ],
+    final:`P(X=k) = ${frac('\u03bb<sup>k</sup> e<sup>&minus;\u03bb</sup>','k!')}`,
+    finalNote:'No visible n \u2014 it\u2019s already baked into \u03bb, the average rate.'
+  },
+  solve:{
+    title:'Solving P(X=6) for \u03bb=4 calls/hour',
+    sub:'Three pieces, computed separately, then combined.',
+    steps:[
+      {tag:'GIVEN', formula:'\u03bb = 4, k = 6', note:'Average 4 calls per hour; asking for the chance of exactly 6.'},
+      {tag:'COMPUTE', formula:'\u03bb<sup>k</sup> = 4\u2076 = 4096', note:'Raise the rate to the power of the count we want.'},
+      {tag:'COMPUTE', formula:'e<sup>&minus;4</sup> \u2248 0.0183', note:'The decay factor \u2014 same e<sup>&minus;\u03bb</sup> from the Build It slide.'},
+      {tag:'COMPUTE', formula:'k! = 6! = 720', note:'Accounts for the orderings of the 6 arrivals.'},
+      {tag:'SUBSTITUTE', formula:`P(X=6) = ${frac('4096 \u00d7 0.0183','720')}`, note:'Combine all three pieces.'}
+    ],
+    final:'P(X=6) \u2248 0.1042',
+    finalNote:'About a 10% chance of exactly 6 calls in an hour when 4 is the average.'
+  }
+});
+
+/* 13. EXPONENTIAL */
+pushMathTopic({name:'Exponential',
+  build:{
+    title:'From "zero arrivals" to a waiting-time density',
+    sub:'Derived directly from the Poisson process, by asking one clever question.',
+    steps:[
+      {tag:'START', formula:'Poisson process: events arrive at rate \u03bb per unit time.', note:'Same setup as the previous chapter.'},
+      {tag:'STEP 1', formula:'Ask: P(wait &gt; t) = P(zero events occur in [0, t])', note:'Waiting more than t is exactly the same event as nothing happening yet.'},
+      {tag:'STEP 2', formula:'Plug k=0 into the Poisson formula (with rate \u03bbt over the interval): P = e<sup>&minus;\u03bbt</sup>', note:'The Poisson chapter\u2019s formula, evaluated at k=0.'},
+      {tag:'STEP 3', formula:'So the survival function is P(wait &gt; t) = e<sup>&minus;\u03bbt</sup>.', note:'This describes the chance of waiting AT LEAST t.'},
+      {tag:'STEP 4', formula:'The density is minus the derivative of survival: f(t) = &minus;d/dt[e<sup>&minus;\u03bbt</sup>] = \u03bbe<sup>&minus;\u03bbt</sup>', note:'Standard calculus move: density is the (negative) rate of change of "surviving past t."'}
+    ],
+    final:'f(x) = \u03bb e<sup>&minus;\u03bbx</sup>, &nbsp; x \u2265 0',
+    finalNote:'The same \u03bb from Poisson reappears here \u2014 waiting time and event count are two views of one process.'
+  },
+  solve:{
+    title:'Solving P(wait &lt; 1) for \u03bb=1.2/min',
+    sub:'Using the survival function, then flipping it around.',
+    steps:[
+      {tag:'GIVEN', formula:'\u03bb = 1.2 per minute', note:'Events (e.g. customer arrivals) happen at this average rate.'},
+      {tag:'SET UP', formula:'P(wait &lt; 1) = 1 &minus; P(wait &gt; 1) = 1 &minus; e<sup>&minus;1.2</sup>', note:'"Less than 1 minute" is the complement of "more than 1 minute."'},
+      {tag:'COMPUTE', formula:'e<sup>&minus;1.2</sup> \u2248 0.301', note:'Evaluate the decay factor from the Build It slide.'}
+    ],
+    final:'P(wait &lt; 1) \u2248 0.699',
+    finalNote:'About a 70% chance the next arrival comes within one minute.'
+  }
+});
+
+/* 14. UNIFORM */
+pushMathTopic({name:'Uniform',
+  build:{
+    title:'From "no preference" to a flat constant',
+    sub:'Turning the idea of "total ignorance" into precise math.',
+    steps:[
+      {tag:'START', formula:'Assume no reason to prefer any point in [a, b] over any other.', note:'Total ignorance about where X will land, beyond knowing the range.'},
+      {tag:'STEP 1', formula:'Any two equal-length sub-intervals must get equal probability.', note:'That\u2019s the mathematical meaning of "no preference."'},
+      {tag:'STEP 2', formula:'The only shape with that property is a flat constant height c.', note:'Any bump or slope would favor some sub-intervals over others.'},
+      {tag:'STEP 3', formula:'Total area must equal 1: c \u00d7 (b&minus;a) = 1', note:'A rectangle\u2019s area is base \u00d7 height \u2014 base is (b&minus;a), height is c.'},
+      {tag:'STEP 4', formula:'Solve for c.', note:'Divide both sides by (b&minus;a).'}
+    ],
+    final:`f(x) = ${frac('1','b\u2212a')}, &nbsp; a \u2264 x \u2264 b`,
+    finalNote:'The flattest, simplest density there is \u2014 literally "maximum ignorance," made precise.'
+  },
+  solve:{
+    title:'Solving f(x) for a=0, b=10',
+    sub:'One substitution into the formula we just derived.',
+    steps:[
+      {tag:'GIVEN', formula:'a = 0, b = 10', note:'The interval we\u2019re sampling uniformly from.'},
+      {tag:'SUBSTITUTE', formula:`f(x) = ${frac('1','10 \u2212 0')}`, note:'Plug a and b into the Build It formula.'}
+    ],
+    final:'f(x) = 0.1 for all x in [0, 10]',
+    finalNote:'Constant density \u2014 every point in the interval is exactly as likely as any other.'
+  }
+});
+
+/* 15. INDEPENDENCE */
+pushMathTopic({name:'Independence',
+  build:{
+    title:'From "no influence" to a product rule',
+    sub:'The multiplication rule is what "learning B changes nothing about A" looks like in algebra.',
+    steps:[
+      {tag:'START', formula:'"Independent" means: P(A|B) = P(A)', note:'Learning that B happened doesn\u2019t move your belief about A at all.'},
+      {tag:'STEP 1', formula:`Recall: P(A|B) = ${frac('P(A \u2229 B)','P(B)')}`, note:'The conditional-probability definition from chapter 7.'},
+      {tag:'STEP 2', formula:`Substitute P(A|B)=P(A): P(A) = ${frac('P(A \u2229 B)','P(B)')}`, note:'Replace the left-hand side using the independence assumption.'},
+      {tag:'STEP 3', formula:'Multiply both sides by P(B).', note:'Isolate P(A \u2229 B) on one side.'}
+    ],
+    final:'P(A \u2229 B) = P(A) \u00b7 P(B)',
+    finalNote:'Not a separate assumption \u2014 it\u2019s exactly what "no influence" requires once you do the algebra.'
+  },
+  solve:{
+    title:'Solving P(HH) for two fair coins',
+    sub:'Two independent probabilities, multiplied.',
+    steps:[
+      {tag:'GIVEN', formula:'P(heads on coin 1) = 0.5', note:'A fair coin, considered on its own.'},
+      {tag:'GIVEN', formula:'P(heads on coin 2) = 0.5, independent of coin 1', note:'The two coins don\u2019t influence each other.'},
+      {tag:'SUBSTITUTE', formula:'P(HH) = 0.5 \u00d7 0.5', note:'Apply the Build It formula directly.'}
+    ],
+    final:'P(HH) = 0.25',
+    finalNote:'One quarter of the time, both coins land heads \u2014 matching simple intuition.'
+  }
+});
+
+/* 16. EXPECTATION */
+pushMathTopic({name:'Expectation',
+  build:{
+    title:'From "plain average" to a weighted one',
+    sub:'Why some values need to count more than others.',
+    steps:[
+      {tag:'START', formula:'We want one number summarizing "what X tends to be."', note:'A single representative value for the whole distribution.'},
+      {tag:'STEP 1', formula:'A plain average treats every value equally.', note:'But some values of X are far more likely than others \u2014 that should matter.'},
+      {tag:'STEP 2', formula:'Weight each value x by how often it happens: x \u00b7 P(x)', note:'More likely values should pull the summary number toward themselves harder.'},
+      {tag:'STEP 3', formula:'Add up all those weighted values, across every possible x.', note:'Combine every value\u2019s contribution into one total.'}
+    ],
+    final:'E[X] = \u03a3 x \u00b7 P(x)',
+    finalNote:'The same math as a center of mass \u2014 probability plays the role of weight.'
+  },
+  solve:{
+    title:'Solving E[X] for the sum of two dice',
+    sub:'Weight every value from 2 to 12 by its own probability.',
+    steps:[
+      {tag:'GIVEN', formula:'values 2..12 with PMF from chapter 4', note:'P(X=2)=1/36, P(X=3)=2/36, \u2026, P(X=7)=6/36, \u2026, P(X=12)=1/36'},
+      {tag:'WEIGHT', formula:'2(1/36) + 3(2/36) + 4(3/36) + \u22ef + 12(1/36)', note:'Multiply every value by its own probability.'},
+      {tag:'SUM', formula:'all eleven weighted terms added together', note:'Each term contributes according to how likely its value is.'}
+    ],
+    final:'E[X] = 7',
+    finalNote:'Notice 7 is also the single most likely value \u2014 a coincidence of this particular symmetric distribution, not a general rule.'
+  }
+});
+
+/* 17. VARIANCE */
+pushMathTopic({name:'Variance & Std. Dev.',
+  build:{
+    title:'From "deviations cancel" to squaring them first',
+    sub:'Why we can\u2019t just average the raw distances from the mean.',
+    steps:[
+      {tag:'START', formula:'We want a number measuring how spread out X is around \u03bc.', note:'How far, typically, do values wander from the mean?'},
+      {tag:'STEP 1', formula:'Try averaging raw deviations: E[X&minus;\u03bc]', note:'This ALWAYS equals exactly zero \u2014 positive and negative deviations cancel perfectly, by the very definition of the mean.'},
+      {tag:'STEP 2', formula:'Square the deviations first: (X&minus;\u03bc)\u00b2', note:'Now every deviation contributes positively, regardless of direction.'},
+      {tag:'STEP 3', formula:'Average the squared deviations: E[(X&minus;\u03bc)\u00b2]', note:'This, by definition, is the variance.'},
+      {tag:'STEP 4', formula:'Expand: (X&minus;\u03bc)\u00b2 = X\u00b2 &minus; 2\u03bcX + \u03bc\u00b2, then take E[ ] of each term.', note:'E[X\u00b2] &minus; 2\u03bcE[X] + \u03bc\u00b2 \u2014 just distributing expectation over a sum.'},
+      {tag:'STEP 5', formula:'Since \u03bc = E[X], this simplifies to E[X\u00b2] &minus; \u03bc\u00b2.', note:'A convenient algebraic shortcut for computing the same quantity.'}
+    ],
+    final:'Var(X) = E[(X&minus;\u03bc)\u00b2] = E[X\u00b2] &minus; (E[X])\u00b2',
+    finalNote:'Squaring is the trick that stops positive and negative deviations from canceling each other out.'
+  },
+  solve:{
+    title:'Solving Var(X) for a small dataset',
+    sub:'Compute the mean, then average the squared deviations from it.',
+    steps:[
+      {tag:'GIVEN', formula:'x = [2, 4, 4, 4, 5, 5, 7, 9]', note:'Eight data points.'},
+      {tag:'MEAN', formula:'\u03bc = (2+4+4+4+5+5+7+9) / 8 = 5', note:'The plain average of all eight values.'},
+      {tag:'SQUARE', formula:'(2&minus;5)\u00b2=9, (4&minus;5)\u00b2=1 (\u00d73), (5&minus;5)\u00b2=0 (\u00d72), (7&minus;5)\u00b2=4, (9&minus;5)\u00b2=16', note:'Squared distance of each point from the mean.'},
+      {tag:'AVERAGE', formula:'(9 + 1 + 1 + 1 + 0 + 0 + 4 + 16) / 8 = 32 / 8', note:'Sum all the squared deviations, divide by the count.'}
+    ],
+    final:'Var(X) = 4.0, &nbsp; &sigma; = 2.0',
+    finalNote:'Standard deviation is just \u221aVariance \u2014 bringing the units back to match the original data.'
+  }
+});
+
+/* 18. LAW OF LARGE NUMBERS */
+pushMathTopic({name:'Law of Large Numbers',
+  build:{
+    title:'From shrinking variance to a guaranteed limit',
+    sub:'Why the average of many trials has nowhere left to go but the true mean.',
+    steps:[
+      {tag:'START', formula:'Average n independent copies of X: X&#772;\u2099 = (1/n) \u03a3 X\u1d62', note:'The sample mean of n draws.'},
+      {tag:'STEP 1', formula:'Var(X&#772;\u2099) = Var(\u03a3 X\u1d62) / n\u00b2 = [n \u00b7 Var(X)] / n\u00b2', note:'Independence means variances of a sum just add \u2014 that\u2019s why n appears in the numerator.'},
+      {tag:'STEP 2', formula:'Var(X&#772;\u2099) = Var(X) / n', note:'The n\u00b2 in the denominator cancels one factor of n from the numerator.'},
+      {tag:'STEP 3', formula:'As n \u2192 &infin;, Var(X)/n \u2192 0.', note:'The average\u2019s spread shrinks toward nothing as more data comes in.'},
+      {tag:'STEP 4', formula:'A quantity with vanishing variance can only converge to one fixed value.', note:'That fixed value has to be its own mean, \u03bc \u2014 there\u2019s nowhere else for it to settle.'}
+    ],
+    final:'(1/n) \u03a3 X\u1d62 &nbsp; \u2192 &nbsp; \u03bc &nbsp;&nbsp; as n \u2192 &infin;',
+    finalNote:'Random per trial, but the average becomes essentially deterministic once n is large enough.'
+  },
+  solve:{
+    title:'Solving the running average of coin flips',
+    sub:'Watching the wobble shrink as n grows, using the true p=0.5.',
+    steps:[
+      {tag:'GIVEN', formula:'fair coin, p = 0.5', note:'Simulate flips and track the running average.'},
+      {tag:'AT n=10', formula:'sample mean \u2248 0.60', note:'With so few flips, random wobble dominates.'},
+      {tag:'AT n=1,000', formula:'sample mean \u2248 0.507', note:'Already much closer to the true value.'},
+      {tag:'AT n=10,000', formula:'sample mean \u2248 0.4998', note:'Var(X)/n is now tiny \u2014 the average has essentially locked on.'}
+    ],
+    final:'sample mean \u2192 0.5',
+    finalNote:'Exactly the convergence the Build It slide predicted \u2014 no magic, just shrinking variance.'
+  }
+});
+
+/* 19. CENTRAL LIMIT THEOREM */
+pushMathTopic({name:'Central Limit Theorem',
+  build:{
+    title:'From a standardized average to a universal shape',
+    sub:'Why the ORIGINAL shape of X stops mattering once you average enough of it.',
+    steps:[
+      {tag:'START', formula:'Take the sample mean X&#772;\u2099 of n i.i.d. draws.', note:'We already know (chapter 18) it has mean \u03bc and variance \u03c3\u00b2/n.'},
+      {tag:'STEP 1', formula:`Standardize it: ${frac('X&#772;\u2099 &minus; \u03bc','\u03c3/\u221an')}`, note:'Subtract the mean, divide by its own standard deviation \u2014 this always gives mean 0, variance 1.'},
+      {tag:'STEP 2', formula:'However skewed X is, a SUM of many independent draws spreads its randomness across many small, roughly-equal contributions.', note:'No single draw can dominate the total once there are enough of them.'},
+      {tag:'STEP 3', formula:'That symmetric piling-up of many small nudges produces a Gaussian shape.', note:'The same mechanism we saw building the bell curve in chapter 9 \u2014 here applied to a sum instead of independent walks.'}
+    ],
+    final:`${frac('X&#772;\u2099 &minus; \u03bc','\u03c3/\u221an')} &nbsp; \u2192 &nbsp; N(0,1)`,
+    finalNote:'Remarkably, this works no matter what distribution X started from.'
+  },
+  solve:{
+    title:'Solving the standard error for n=30 exponential draws',
+    sub:'Computing how tight the batch-mean distribution should be.',
+    steps:[
+      {tag:'GIVEN', formula:'Exponential(1): \u03bc = 1, \u03c3 = 1', note:'A skewed source distribution \u2014 nothing like a bell curve on its own.'},
+      {tag:'GIVEN', formula:'n = 30 draws per batch', note:'We average 30 independent exponential draws together.'},
+      {tag:'COMPUTE', formula:`${frac('\u03c3','\u221an')} = ${frac('1','\u221a30')}`, note:'The standard error formula from the Build It slide.'}
+    ],
+    final:'standard error \u2248 0.183',
+    finalNote:'Simulating this in the notebook gives batch means with std \u2248 0.182 \u2014 matching almost exactly, and looking bell-shaped despite the skewed source.'
+  }
+});
+
+/* 20. COVARIANCE & CORRELATION */
+pushMathTopic({name:'Covariance & Correlation',
+  build:{
+    title:'From matching signs to a bounded score',
+    sub:'Multiplying deviations detects a shared trend; dividing by spreads makes it comparable.',
+    steps:[
+      {tag:'START', formula:'We want a number: positive if X, Y move together, negative if opposite, zero if unrelated.', note:'A single statistic capturing the direction of a relationship.'},
+      {tag:'STEP 1', formula:'Look at deviations from each mean: (X&minus;\u03bc\u2093) and (Y&minus;\u03bc\u1d67)', note:'How far each variable sits from its own average, at the same moment.'},
+      {tag:'STEP 2', formula:'Multiply them: (X&minus;\u03bc\u2093)(Y&minus;\u03bc\u1d67)', note:'Same sign on both \u2192 positive product. Opposite signs \u2192 negative product.'},
+      {tag:'STEP 3', formula:'Average that product across all the data: Cov(X,Y) = E[(X&minus;\u03bc\u2093)(Y&minus;\u03bc\u1d67)]', note:'If X,Y tend to move together, most products are positive, and the average stays positive.'},
+      {tag:'STEP 4', formula:'This raw number depends on the units of X and Y \u2014 divide by \u03c3\u2093\u03c3\u1d67 to fix that.', note:'Rescaling turns an arbitrary-unit number into something comparable across any pair of variables.'}
+    ],
+    final:`\u03c1 = ${frac('Cov(X,Y)','\u03c3\u2093 \u03c3\u1d67')}`,
+    finalNote:'Always between &minus;1 and 1 \u2014 a unit-free measure of how tightly two variables move together.'
+  },
+  solve:{
+    title:'Solving \u03c1 for CPU load vs. latency',
+    sub:'Combining the covariance and the two standard deviations.',
+    steps:[
+      {tag:'GIVEN', formula:'7 paired (CPU%, latency ms) measurements', note:'Both variables measured together across 7 different moments.'},
+      {tag:'COMPUTE', formula:'Cov(CPU, latency) \u2248 379.6', note:'Average product of deviations from each variable\u2019s own mean.'},
+      {tag:'COMPUTE', formula:'\u03c3<sub>CPU</sub> \u2248 24.4, &nbsp; \u03c3<sub>latency</sub> \u2248 15.6', note:'The individual spreads of each variable.'},
+      {tag:'SUBSTITUTE', formula:`\u03c1 = ${frac('379.6','24.4 \u00d7 15.6')}`, note:'Plug into the Build It formula.'}
+    ],
+    final:'\u03c1 \u2248 0.997',
+    finalNote:'Near-perfect positive correlation \u2014 as CPU load rises, latency rises right along with it.'
+  }
+});
+
+/* ---------- OUTRO ---------- */
+SLIDES.push({
+  kind:'outro', dur:900,
+  html:`<div class="header"><div class="eyebrow">THE END, AND THE BEGINNING</div>
+  <div class="htitle">Every formula was built, never handed down</div>
+  <div class="hsub" style="max-width:900px;">Twenty equations, each built from a base idea and solved with real numbers. The trick to math not feeling like magic: never accept a formula you can\u2019t rebuild yourself.</div></div>
+  <div class="stepsWrap"><div class="finalBox" style="transition-delay:.3s;">
+    <div class="finalTag">GO FURTHER</div>
+    <div class="finalFormula" style="font-size:18px;">Re-open any chapter, hide the final box, and try rebuilding the formula yourself first.</div>
+  </div></div>`,
+  draw(ctx,ms){ ambientDots(ctx,ms); }
+});
+
+/* ============================= ENGINE ============================= */
+const dpr=Math.min(window.devicePixelRatio||1,2);
+const canvas=document.getElementById('gfx'), ctx=canvas.getContext('2d');
+function fitCanvas(){canvas.width=1280*dpr;canvas.height=720*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);}
+fitCanvas();
+
+const slidesRoot=document.getElementById('slides');
+SLIDES.forEach((s,i)=>{
+  const div=document.createElement('div');
+  div.className='slide';
+  div.dataset.i=i;
+  div.innerHTML=s.html||'';
+  slidesRoot.appendChild(div);
+  s.el=div;
+});
+
+let current=0, raf=null, slideStart=0;
+const totalChapters=20;
+
+function frame(now){
+  const s=SLIDES[current];
+  const ms=now-slideStart;
+  ctx.clearRect(0,0,1280,720);
+  try{ s.draw && s.draw(ctx,ms); }catch(e){ console.error(e); }
+  if(ms<s.dur || s.loop){ raf=requestAnimationFrame(frame); }
+  else { raf=null; }
+}
+function startAnim(){
+  if(raf) cancelAnimationFrame(raf);
+  slideStart=performance.now();
+  raf=requestAnimationFrame(frame);
+}
+function updateChrome(){
+  document.getElementById('progressFill').style.width=((current+1)/SLIDES.length*100)+'%';
+  document.getElementById('counter').textContent=(current+1)+' / '+SLIDES.length;
+  const s=SLIDES[current];
+  document.getElementById('chapChip').innerHTML = s.chap? `<b>${String(s.chap).padStart(2,'0')}</b> / ${totalChapters}` : '';
+  document.getElementById('btnPrev').disabled = current===0;
+  document.getElementById('btnNext').disabled = current===SLIDES.length-1;
+}
+function goTo(i){
+  i=Math.max(0,Math.min(SLIDES.length-1,i));
+  if(i===current) return;
+  SLIDES[current].el.classList.remove('active');
+  current=i;
+  SLIDES[current].el.classList.add('active');
+  startAnim();
+  updateChrome();
+}
+function next(){goTo(current+1);}
+function prev(){goTo(current-1);}
+
+SLIDES[0].el.classList.add('active');
+startAnim();
+updateChrome();
+
+document.getElementById('btnNext').addEventListener('click',next);
+document.getElementById('btnPrev').addEventListener('click',prev);
+document.querySelector('.cz.left').addEventListener('click',prev);
+document.querySelector('.cz.right').addEventListener('click',next);
+window.addEventListener('keydown',(e)=>{
+  if(['ArrowRight','PageDown',' '].includes(e.key)){e.preventDefault();next();}
+  else if(['ArrowLeft','PageUp'].includes(e.key)){e.preventDefault();prev();}
+  else if(e.key==='Home'){goTo(0);}
+  else if(e.key==='End'){goTo(SLIDES.length-1);}
+});
+let touchX=null;
+window.addEventListener('touchstart',(e)=>{touchX=e.touches[0].clientX;});
+window.addEventListener('touchend',(e)=>{
+  if(touchX===null)return;
+  const dx=e.changedTouches[0].clientX-touchX;
+  if(Math.abs(dx)>50){ dx<0? next(): prev(); }
+  touchX=null;
+});
+
+function resize(){
+  const vw=window.innerWidth, vh=window.innerHeight;
+  const scale=Math.min(vw/1280, vh/720)*0.96;
+  document.getElementById('stage').style.transform=`scale(${scale})`;
+}
+window.addEventListener('resize',resize); resize();
+</script>
+
+</body>
+</html>

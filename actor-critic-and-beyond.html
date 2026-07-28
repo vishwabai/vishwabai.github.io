@@ -1,0 +1,2242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Actor–Critic & Beyond — A Visual Derivation</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap');
+
+  :root{
+    --bg:#07070b;
+    --bg2:#0b0b12;
+    --teal:#5fd0c3;
+    --amber:#e8a765;
+    --blue:#6fa8dc;
+    --pink:#e08a9c;
+    --purple:#a98fd2;
+    --green:#7cc48f;
+    --text:#e9e8f0;
+    --dim:#8b8a9a;
+    --hair:#232230;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0;padding:0;background:var(--bg);color:var(--text);
+    height:100%;overflow:hidden;
+    font-family:'Inter',sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  #deck{position:relative;width:100vw;height:100vh;}
+  #slide-container{position:absolute;inset:0;}
+  canvas#scene{position:absolute;inset:0;width:100%;height:100%;display:block;}
+
+  #overlay{position:absolute;inset:0;pointer-events:none;display:flex;flex-direction:column;justify-content:space-between;}
+
+  #headerBlock{
+    padding:38px 64px 0 64px;
+    background:linear-gradient(to bottom, rgba(7,7,11,0.92) 0%, rgba(7,7,11,0.55) 70%, rgba(7,7,11,0) 100%);
+    padding-bottom:34px;
+  }
+  #eyebrow{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12.5px;letter-spacing:3px;text-transform:uppercase;
+    color:var(--dim); margin-bottom:10px;
+    opacity:0; transform:translateY(-6px);
+    transition:opacity .5s ease, transform .5s ease;
+  }
+  #slideTitle{
+    font-family:'Source Serif 4',serif;
+    font-weight:600;
+    font-size:clamp(26px,3.4vw,44px);
+    margin:0;
+    letter-spacing:0.2px;
+    opacity:0; transform:translateY(-8px);
+    transition:opacity .55s ease .05s, transform .55s ease .05s;
+  }
+  #headerBlock.show #eyebrow, #headerBlock.show #slideTitle{opacity:1; transform:translateY(0);}
+
+  #footerBlock{
+    padding:0 64px 40px 64px;
+    background:linear-gradient(to top, rgba(7,7,11,0.94) 0%, rgba(7,7,11,0.6) 65%, rgba(7,7,11,0) 100%);
+    padding-top:40px;
+  }
+  #slideText{
+    font-size:clamp(14px,1.25vw,18px);
+    line-height:1.55;
+    color:var(--text);
+    max-width:760px;
+    opacity:0; transform:translateY(8px);
+    transition:opacity .5s ease .12s, transform .5s ease .12s;
+  }
+  #formula{
+    margin-top:14px;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:clamp(13px,1.15vw,17px);
+    color:var(--teal);
+    letter-spacing:0.3px;
+    padding:10px 16px;
+    display:inline-block;
+    border:1px solid var(--hair);
+    border-radius:8px;
+    background:rgba(95,208,195,0.045);
+    opacity:0; transform:translateY(8px);
+    transition:opacity .5s ease .2s, transform .5s ease .2s;
+  }
+  #formula:empty{display:none;}
+  #footerBlock.show #slideText, #footerBlock.show #formula{opacity:1; transform:translateY(0);}
+  #formula sub{font-size:0.72em;}
+  #formula sup{font-size:0.72em;}
+
+  #controls{
+    position:absolute; left:0; right:0; bottom:0;
+    height:0px;
+  }
+  #navBar{
+    position:absolute; bottom:16px; left:50%; transform:translateX(-50%);
+    display:flex; align-items:center; gap:16px;
+    background:rgba(14,14,20,0.75);
+    border:1px solid var(--hair);
+    padding:9px 16px; border-radius:30px;
+    backdrop-filter:blur(8px);
+    pointer-events:auto;
+    z-index:20;
+  }
+  .navBtn{
+    background:none;border:1px solid var(--hair); color:var(--text);
+    width:34px;height:34px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    cursor:pointer; font-size:16px; transition:background .2s, border-color .2s, transform .15s;
+  }
+  .navBtn:hover{background:rgba(95,208,195,0.12); border-color:var(--teal); transform:scale(1.06);}
+  .navBtn:active{transform:scale(0.94);}
+  #counter{font-family:'IBM Plex Mono',monospace; font-size:12.5px; color:var(--dim); min-width:58px; text-align:center;}
+  #progressWrap{
+    position:absolute; top:0; left:0; right:0; height:3px; background:rgba(255,255,255,0.05); z-index:20;
+  }
+  #progressBar{height:100%; width:0%; background:linear-gradient(90deg,var(--teal),var(--blue)); transition:width .4s ease;}
+
+  #sectionTag{
+    position:absolute; top:22px; right:28px;
+    font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:2px;
+    color:var(--dim); text-transform:uppercase;
+    border:1px solid var(--hair); padding:6px 12px; border-radius:20px;
+    background:rgba(255,255,255,0.02);
+    z-index:15;
+  }
+  .kbd-hint{
+    position:absolute; bottom:16px; right:24px;
+    font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--dim);
+    opacity:0.55; pointer-events:none; z-index:5;
+  }
+  @media (max-width:700px){
+    #headerBlock{padding:26px 22px 24px 22px;}
+    #footerBlock{padding:0 22px 84px 22px;}
+    .kbd-hint{display:none;}
+  }
+</style>
+</head>
+<body>
+<div id="deck">
+  <div id="progressWrap"><div id="progressBar"></div></div>
+  <div id="sectionTag">Section</div>
+  <div id="slide-container">
+    <canvas id="scene"></canvas>
+    <div id="overlay">
+      <div id="headerBlock">
+        <div id="eyebrow"></div>
+        <h1 id="slideTitle"></h1>
+      </div>
+      <div id="footerBlock">
+        <div id="slideText"></div>
+        <div id="formula"></div>
+      </div>
+    </div>
+  </div>
+  <span class="kbd-hint">← → or space to advance · r to replay</span>
+  <div id="navBar">
+    <button class="navBtn" id="prevBtn" title="Previous">‹</button>
+    <span id="counter">01 / 21</span>
+    <button class="navBtn" id="replayBtn" title="Replay animation">↺</button>
+    <button class="navBtn" id="nextBtn" title="Next">›</button>
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   CORE ANIMATION UTILITIES  (manim-inspired, canvas 2D)
+========================================================= */
+const TAU = Math.PI*2;
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const lerp=(a,b,t)=>a+(b-a)*t;
+const easeOutCubic=t=>{t=clamp(t,0,1);return 1-Math.pow(1-t,3);};
+const easeInCubic=t=>{t=clamp(t,0,1);return t*t*t;};
+const easeInOutCubic=t=>{t=clamp(t,0,1);return t<0.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;};
+const easeOutBack=t=>{t=clamp(t,0,1);const c1=1.70158,c3=c1+1;return 1+c3*Math.pow(t-1,3)+c1*Math.pow(t-1,2);};
+const smoothstep=t=>{t=clamp(t,0,1);return t*t*(3-2*t);};
+const pulse=(t,period)=> (Math.sin((t/period)*TAU-Math.PI/2)+1)/2;
+const segT=(t,start,dur)=> clamp((t-start)/dur,0,1); // local progress of a timed segment
+
+function roundRect(ctx,x,y,w,h,r){
+  r=Math.min(r,w/2,h/2);
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);
+  ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();
+}
+
+function box(ctx,x,y,w,h,opt={}){
+  const {fill='rgba(95,208,195,0.06)',stroke='#5fd0c3',lw=1.6,r=14,alpha=1,dashed=false}=opt;
+  ctx.save();
+  ctx.globalAlpha=alpha;
+  if(dashed) ctx.setLineDash([5,5]);
+  roundRect(ctx,x-w/2,y-h/2,w,h,r);
+  ctx.fillStyle=fill; ctx.fill();
+  ctx.lineWidth=lw; ctx.strokeStyle=stroke; ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+
+function label(ctx,x,y,text,opt={}){
+  const {size=17,color='#e9e8f0',align='center',baseline='middle',weight='500',font="'Inter',sans-serif",alpha=1,spacing=0}=opt;
+  ctx.save();
+  ctx.globalAlpha=alpha;
+  ctx.fillStyle=color;
+  ctx.font=`${weight} ${size}px ${font}`;
+  ctx.textAlign=align;
+  ctx.textBaseline=baseline;
+  if(spacing){
+    // manual letter spacing
+    let total=0;
+    for(const ch of text) total+=ctx.measureText(ch).width+spacing;
+    let sx = align==='center'? x-total/2 : (align==='right'? x-total : x);
+    for(const ch of text){ ctx.textAlign='left'; ctx.fillText(ch,sx,y); sx+=ctx.measureText(ch).width+spacing; }
+  } else {
+    ctx.fillText(text,x,y);
+  }
+  ctx.restore();
+}
+
+function arrow(ctx,x1,y1,x2,y2,opt={}){
+  const {color='#e9e8f0',lw=2,progress=1,dashed=false,headSize=8,alpha=1}=opt;
+  const p=clamp(progress,0,1);
+  const ex=lerp(x1,x2,p), ey=lerp(y1,y2,p);
+  ctx.save();
+  ctx.globalAlpha=alpha;
+  ctx.strokeStyle=color; ctx.fillStyle=color; ctx.lineWidth=lw;
+  if(dashed) ctx.setLineDash([6,6]);
+  ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(ex,ey); ctx.stroke();
+  ctx.setLineDash([]);
+  if(p>0.02){
+    const ang=Math.atan2(ey-y1,ex-x1);
+    ctx.beginPath();
+    ctx.moveTo(ex,ey);
+    ctx.lineTo(ex-headSize*Math.cos(ang-0.4), ey-headSize*Math.sin(ang-0.4));
+    ctx.lineTo(ex-headSize*Math.cos(ang+0.4), ey-headSize*Math.sin(ang+0.4));
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+  return {x:ex,y:ey};
+}
+
+// quadratic curved arrow; returns control point (for reuse) and end point
+function curvedArrow(ctx,x1,y1,x2,y2,curvature,opt={}){
+  const {color='#e9e8f0',lw=2,progress=1,alpha=1,headSize=8}=opt;
+  const mx=(x1+x2)/2, my=(y1+y2)/2;
+  const dx=x2-x1, dy=y2-y1;
+  const len=Math.hypot(dx,dy)||1;
+  const nx=-dy/len, ny=dx/len;
+  const cx=mx+nx*curvature, cy=my+ny*curvature;
+  const p=clamp(progress,0,1);
+  ctx.save(); ctx.globalAlpha=alpha; ctx.strokeStyle=color; ctx.fillStyle=color; ctx.lineWidth=lw;
+  const steps=36;
+  let lastX=x1,lastY=y1, tx=0,ty=0;
+  ctx.beginPath(); ctx.moveTo(x1,y1);
+  const n=Math.max(1,Math.round(steps*p));
+  for(let i=1;i<=n;i++){
+    const s=i/steps;
+    const xx=(1-s)*(1-s)*x1+2*(1-s)*s*cx+s*s*x2;
+    const yy=(1-s)*(1-s)*y1+2*(1-s)*s*cy+s*s*y2;
+    ctx.lineTo(xx,yy);
+    lastX=xx; lastY=yy;
+    tx=2*(1-s)*(cx-x1)+2*s*(x2-cx);
+    ty=2*(1-s)*(cy-y1)+2*s*(y2-cy);
+  }
+  ctx.stroke();
+  if(p>0.05){
+    const ang=Math.atan2(ty,tx);
+    ctx.beginPath();
+    ctx.moveTo(lastX,lastY);
+    ctx.lineTo(lastX-headSize*Math.cos(ang-0.4), lastY-headSize*Math.sin(ang-0.4));
+    ctx.lineTo(lastX-headSize*Math.cos(ang+0.4), lastY-headSize*Math.sin(ang+0.4));
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+  return {x:lastX,y:lastY,cx,cy};
+}
+
+function dotOnLine(ctx,x1,y1,x2,y2,t,opt={}){
+  const {color='#e8a765',r=5,alpha=1,glow=0}=opt;
+  const x=lerp(x1,x2,t), y=lerp(y1,y2,t);
+  ctx.save(); ctx.globalAlpha=alpha;
+  if(glow){ ctx.shadowColor=color; ctx.shadowBlur=glow; }
+  ctx.fillStyle=color;
+  ctx.beginPath(); ctx.arc(x,y,r,0,TAU); ctx.fill();
+  ctx.restore();
+  return {x,y};
+}
+
+function dotOnQuad(x1,y1,cx,cy,x2,y2,t){
+  const s=t;
+  const x=(1-s)*(1-s)*x1+2*(1-s)*s*cx+s*s*x2;
+  const y=(1-s)*(1-s)*y1+2*(1-s)*s*cy+s*s*y2;
+  return {x,y};
+}
+
+function miniNet(ctx,cx,cy,scale=1,color='#6fa8dc',activity=0){
+  const layers=[2,3,2];
+  const layerGap=24*scale, nodeGap=16*scale;
+  const positions=[];
+  layers.forEach((n,li)=>{
+    const x=cx+(li-1)*layerGap; const arr=[];
+    for(let i=0;i<n;i++) arr.push({x,y:cy+(i-(n-1)/2)*nodeGap});
+    positions.push(arr);
+  });
+  ctx.save();
+  for(let li=0;li<positions.length-1;li++){
+    positions[li].forEach(p1=>positions[li+1].forEach(p2=>{
+      ctx.strokeStyle=`rgba(255,255,255,${0.07+0.18*activity})`;
+      ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y); ctx.stroke();
+    }));
+  }
+  positions.flat().forEach(p=>{
+    ctx.beginPath(); ctx.arc(p.x,p.y,3*scale,0,TAU);
+    ctx.fillStyle=color; ctx.fill();
+  });
+  ctx.restore();
+}
+
+function fadeAlpha(t,start,dur){ return smoothstep(segT(t,start,dur)); }
+
+/* =========================================================
+   CANVAS + BACKGROUND
+========================================================= */
+const canvas=document.getElementById('scene');
+const ctx=canvas.getContext('2d');
+let W=0,H=0;
+let stars=[];
+function makeStars(){
+  stars=[];
+  const n=Math.floor((window.innerWidth*window.innerHeight)/26000);
+  for(let i=0;i<n;i++){
+    stars.push({x:Math.random(),y:Math.random(),r:Math.random()*1.2+0.3,phase:Math.random()*10});
+  }
+}
+function resize(){
+  const dpr=window.devicePixelRatio||1;
+  W=window.innerWidth; H=window.innerHeight;
+  canvas.width=Math.floor(W*dpr); canvas.height=Math.floor(H*dpr);
+  canvas.style.width=W+'px'; canvas.style.height=H+'px';
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  makeStars();
+}
+window.addEventListener('resize',resize);
+resize();
+
+function drawBackground(t){
+  ctx.fillStyle='#07070b';
+  ctx.fillRect(0,0,W,H);
+  ctx.save();
+  stars.forEach(s=>{
+    const tw=0.35+0.5*pulse(t+s.phase,4);
+    ctx.globalAlpha=tw*0.5;
+    ctx.fillStyle='#ffffff';
+    ctx.beginPath(); ctx.arc(s.x*W,s.y*H,s.r,0,TAU); ctx.fill();
+  });
+  ctx.restore();
+  // faint horizon line grid for spatial grounding
+  ctx.save();
+  ctx.globalAlpha=0.05;
+  ctx.strokeStyle='#5fd0c3';
+  ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(0,H*0.88); ctx.lineTo(W,H*0.88); ctx.stroke();
+  ctx.restore();
+}
+
+/* geometry helpers common across slides */
+function safeZone(){
+  return {top:H*0.30, bottom:H*0.80, midY:H*0.545, cx:W/2};
+}
+
+/* =========================================================
+   SLIDE 0 — TITLE
+========================================================= */
+function renderTitle(ctx,W,H,t){
+  const cx=W/2, cy=H*0.56;
+  for(let i=0;i<3;i++){
+    const p=((t*0.12)+i/3)%1;
+    const r=30+p*320;
+    ctx.beginPath();
+    ctx.arc(cx,cy,r,0,TAU);
+    ctx.strokeStyle=`rgba(95,208,195,${(1-p)*0.22})`;
+    ctx.lineWidth=1.4;
+    ctx.stroke();
+  }
+  miniNet(ctx,cx,cy,3.4,'#6fa8dc', pulse(t,2.4));
+  const words=['ACTOR','CRITIC','PLAN','IMAGINE','COORDINATE'];
+  words.forEach((w,i)=>{
+    const ang = t*0.15 + i*(TAU/words.length);
+    const r = 210;
+    const x = cx+Math.cos(ang)*r, y=cy+Math.sin(ang)*r*0.45;
+    const a = 0.35+0.25*pulse(t+i,3);
+    label(ctx,x,y,w,{size:12,color:'rgba(139,138,154,'+a+')',weight:'600',font:"'IBM Plex Mono',monospace",spacing:2});
+  });
+}
+
+/* =========================================================
+   SLIDE 1 — THE RL LOOP
+========================================================= */
+function renderLoop(ctx,W,H,t){
+  const {midY,cx}=safeZone();
+  const ax=W*0.28, ex=W*0.72;
+  const topY=midY-46, botY=midY+46;
+
+  const introA = smoothstep(segT(t,0,0.6));
+  box(ctx,ax,midY,190,116,{stroke:'#5fd0c3',fill:'rgba(95,208,195,0.06)',alpha:introA});
+  label(ctx,ax,midY-14,'AGENT',{size:19,color:'#5fd0c3',weight:'700',alpha:introA,spacing:1});
+  label(ctx,ax,midY+16,'policy π(a|s)',{size:13.5,color:'#a9e2da',font:"'IBM Plex Mono',monospace",alpha:introA});
+
+  const introB = smoothstep(segT(t,0.15,0.6));
+  box(ctx,ex,midY,190,116,{stroke:'#e8a765',fill:'rgba(232,167,101,0.06)',alpha:introB});
+  label(ctx,ex,midY-14,'ENVIRONMENT',{size:17.5,color:'#e8a765',weight:'700',alpha:introB,spacing:1});
+  label(ctx,ex,midY+16,'dynamics p(s′|s,a)',{size:13.5,color:'#f0cda0',font:"'IBM Plex Mono',monospace",alpha:introB});
+
+  if(t<0.9) return;
+  const lt = t-0.9;
+  const cycle=4.2; const p = (lt%cycle)/cycle;
+  const x1=ax+95, x2=ex-95;
+  if(p<0.48){
+    const q=easeInOutCubic(p/0.48);
+    arrow(ctx,x1,topY,x2,topY,{color:'#5fd0c3',progress:1,lw:1.6});
+    label(ctx,(x1+x2)/2,topY-16,'action  aₜ',{size:13,color:'#a9e2da',font:"'IBM Plex Mono',monospace"});
+    dotOnLine(ctx,x1,topY,x2,topY,q,{color:'#5fd0c3',glow:10});
+  } else if(p<0.5){
+    // brief pause / impact pulse on env box
+  } else {
+    const q=easeInOutCubic((p-0.5)/0.48);
+    arrow(ctx,x2,botY,x1,botY,{color:'#e8a765',progress:1,lw:1.6});
+    label(ctx,(x1+x2)/2,botY+22,'state sₜ₊₁, reward rₜ₊₁',{size:13,color:'#f0cda0',font:"'IBM Plex Mono',monospace"});
+    dotOnLine(ctx,x2,botY,x1,botY,q,{color:'#e8a765',glow:10});
+  }
+}
+
+/* =========================================================
+   SLIDE 2 — ACTOR-CRITIC CORE IDEA
+========================================================= */
+function renderActorCriticCore(ctx,W,H,t){
+  const {midY}=safeZone();
+  const sx=W*0.14, mx=W*0.45, ex=W*0.80;
+  const actorY=midY-72, criticY=midY+72;
+
+  const inState = smoothstep(segT(t,0,0.5));
+  box(ctx,sx,midY,120,70,{stroke:'#8b8a9a',fill:'rgba(255,255,255,0.03)',alpha:inState});
+  label(ctx,sx,midY-4,'state',{size:14,color:'#cfcfda',alpha:inState});
+  label(ctx,sx,midY+16,'s',{size:15,color:'#cfcfda',font:"'IBM Plex Mono',monospace",alpha:inState});
+
+  const inActor = smoothstep(segT(t,0.5,0.6));
+  box(ctx,mx,actorY,190,92,{stroke:'#5fd0c3',fill:'rgba(95,208,195,0.06)',alpha:inActor});
+  label(ctx,mx,actorY-12,'ACTOR',{size:17,color:'#5fd0c3',weight:'700',alpha:inActor,spacing:1});
+  label(ctx,mx,actorY+14,'πθ(a|s)  — chooses',{size:12.5,color:'#a9e2da',font:"'IBM Plex Mono',monospace",alpha:inActor});
+
+  const inCritic = smoothstep(segT(t,0.7,0.6));
+  box(ctx,mx,criticY,190,92,{stroke:'#e08a9c',fill:'rgba(224,138,156,0.06)',alpha:inCritic});
+  label(ctx,mx,criticY-12,'CRITIC',{size:17,color:'#e08a9c',weight:'700',alpha:inCritic,spacing:1});
+  label(ctx,mx,criticY+14,'Vw(s)  — evaluates',{size:12.5,color:'#f0bcc8',font:"'IBM Plex Mono',monospace",alpha:inCritic});
+
+  const inEnv = smoothstep(segT(t,0.95,0.5));
+  box(ctx,ex,midY,140,84,{stroke:'#e8a765',fill:'rgba(232,167,101,0.06)',alpha:inEnv});
+  label(ctx,ex,midY-4,'ENV',{size:15,color:'#e8a765',weight:'700',alpha:inEnv,spacing:1});
+  label(ctx,ex,midY+16,'r, s′',{size:13,color:'#f0cda0',font:"'IBM Plex Mono',monospace",alpha:inEnv});
+
+  if(inState>0.9){
+    arrow(ctx,sx+62,midY-8,mx-97,actorY+4,{color:'#8b8a9a',alpha:inActor*0.9,lw:1.3});
+    arrow(ctx,sx+62,midY+8,mx-97,criticY-4,{color:'#8b8a9a',alpha:inCritic*0.9,lw:1.3});
+  }
+
+  const t2 = t-1.5;
+  if(t2<0) return;
+  const introArrow2 = smoothstep(segT(t2,0,0.5));
+  arrow(ctx,mx+97,actorY,ex-72,midY-18,{color:'#5fd0c3',progress:introArrow2,lw:1.8});
+  label(ctx,mx+150,actorY-20,'action a',{size:12.5,color:'#a9e2da',font:"'IBM Plex Mono',monospace",alpha:introArrow2});
+
+  const t3=t2-0.6;
+  if(t3<0) return;
+  const introArrow3=smoothstep(segT(t3,0,0.5));
+  arrow(ctx,ex-72,midY+18,mx+97,criticY,{color:'#e8a765',progress:introArrow3,lw:1.8,dashed:true});
+  label(ctx,mx+150,criticY+22,'reward r',{size:12.5,color:'#f0cda0',font:"'IBM Plex Mono',monospace",alpha:introArrow3});
+
+  const t4=t3-0.7;
+  if(t4<0) return;
+  curvedArrow(ctx,mx-40,criticY-38,mx-40,actorY+38,-70,{color:'#e08a9c',progress:smoothstep(segT(t4,0,0.7)),lw:2});
+  const flabel = fadeAlpha(t4,0.5,0.5);
+  label(ctx,mx-150,midY,'TD-error δ',{size:13,color:'#f0bcc8',font:"'IBM Plex Mono',monospace",alpha:flabel,align:'center'});
+  label(ctx,mx-150,midY+18,'improves the actor',{size:11.5,color:'#8b8a9a',alpha:flabel});
+
+  const t5=t4-1.0;
+  if(t5>0){
+    const a=smoothstep(segT(t5,0,0.5));
+    label(ctx,mx-150,midY-22,'2 + 0.9(9) − 10 = 0.1',{size:13,color:'#e08a9c',font:"'IBM Plex Mono',monospace",weight:'600',alpha:a});
+  }
+}
+
+/* =========================================================
+   SLIDE 3 — A2C (synchronous)
+========================================================= */
+function renderA2C(ctx,W,H,t){
+  const {midY}=safeZone();
+  const wx=W*0.19, sx=W*0.50, nx=W*0.80;
+  const n=4;
+  const ys=[]; for(let i=0;i<n;i++) ys.push(midY+(i-(n-1)/2)*60);
+
+  ys.forEach((y,i)=>{
+    const a=smoothstep(segT(t,i*0.08,0.45));
+    box(ctx,wx,y,132,44,{stroke:'#5fd0c3',fill:'rgba(95,208,195,0.06)',alpha:a,r:9});
+    label(ctx,wx,y,'env '+(i+1),{size:12.5,color:'#a9e2da',alpha:a,font:"'IBM Plex Mono',monospace"});
+  });
+
+  const introSync=smoothstep(segT(t,0.5,0.4));
+  ctx.save(); ctx.globalAlpha=introSync*0.7; ctx.strokeStyle='#8b8a9a'; ctx.setLineDash([5,6]); ctx.lineWidth=1.3;
+  ctx.beginPath(); ctx.moveTo(sx,midY-150); ctx.lineTo(sx,midY+150); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
+  label(ctx,sx,midY-170,'SYNC BARRIER',{size:11.5,color:'#8b8a9a',alpha:introSync,spacing:2,font:"'IBM Plex Mono',monospace"});
+
+  const introNet=smoothstep(segT(t,0.7,0.5));
+  box(ctx,nx,midY,170,110,{stroke:'#6fa8dc',fill:'rgba(111,168,220,0.06)',alpha:introNet,r:12});
+  label(ctx,nx,midY-30,'GLOBAL',{size:15,color:'#6fa8dc',weight:'700',alpha:introNet,spacing:1});
+  label(ctx,nx,midY-12,'NETWORK',{size:15,color:'#6fa8dc',weight:'700',alpha:introNet,spacing:1});
+
+  const t2=t-1.3;
+  if(t2<0){ if(introNet>0.9) miniNet(ctx,nx,midY+30,1.6,'#6fa8dc',0); return; }
+  const cycle=3.2;
+  const p=(t2%cycle)/cycle;
+  let netPulse=0;
+  if(p<0.45){
+    const q=easeInOutCubic(p/0.45);
+    ys.forEach(y=>{
+      arrow(ctx,wx+68,y,sx-14,y,{color:'#5fd0c3',progress:1,lw:1.3,alpha:0.35});
+      dotOnLine(ctx,wx+68,y,sx-14,y,q,{color:'#5fd0c3',r:4.5,glow:8});
+    });
+  } else if(p<0.55){
+    const flash=1-((p-0.45)/0.1);
+    ctx.save(); ctx.globalAlpha=flash*0.8; ctx.strokeStyle='#e9e8f0'; ctx.lineWidth=2.4;
+    ctx.beginPath(); ctx.moveTo(sx,midY-150); ctx.lineTo(sx,midY+150); ctx.stroke(); ctx.restore();
+  } else if(p<0.85){
+    const q=easeInOutCubic((p-0.55)/0.3);
+    arrow(ctx,sx+14,midY,nx-90,midY,{color:'#f6c98a',progress:1,lw:2});
+    dotOnLine(ctx,sx+14,midY,nx-90,midY,q,{color:'#e8a765',r:6,glow:12});
+    label(ctx,(sx+nx)/2-6,midY-24,'mean advantage  Â',{size:12,color:'#f0cda0',font:"'IBM Plex Mono',monospace"});
+    if(q>0.95) netPulse=1;
+  } else {
+    netPulse = 1-((p-0.85)/0.15);
+  }
+  miniNet(ctx,nx,midY+30,1.6+0.4*netPulse,'#6fa8dc',netPulse);
+}
+
+/* =========================================================
+   SLIDE 4 — A3C (asynchronous)
+========================================================= */
+function renderA3C(ctx,W,H,t){
+  const {midY}=safeZone();
+  const gx=W*0.78, gy=midY;
+  const wx=W*0.22;
+  const ys=[midY-110, midY, midY+110];
+  const curv=[-80,0,80];
+  const periods=[2.6,3.4,2.1];
+  const phase=[0,0.5,0.2];
+  let pulseMax=0;
+
+  const introG=smoothstep(segT(t,0,0.5));
+  box(ctx,gx,gy,190,130,{stroke:'#6fa8dc',fill:'rgba(111,168,220,0.06)',alpha:introG,r:14});
+  label(ctx,gx,gy-40,'GLOBAL NETWORK',{size:14,color:'#6fa8dc',weight:'700',alpha:introG,spacing:1});
+
+  ys.forEach((y,i)=>{
+    const a=smoothstep(segT(t,0.2+i*0.15,0.5));
+    box(ctx,wx,y,150,70,{stroke:'#a98fd2',fill:'rgba(169,143,210,0.06)',alpha:a,r:11});
+    label(ctx,wx,y-13,'worker '+(i+1),{size:12.5,color:'#cdb8ea',alpha:a,font:"'IBM Plex Mono',monospace"});
+    label(ctx,wx,y+12,'local copy θᵢ',{size:11,color:'#8b8a9a',alpha:a});
+
+    const t2=t-1.0-phase[i]*periods[i];
+    if(t2<0) return;
+    const p=(t2%periods[i])/periods[i];
+    if(p<0.7){
+      const q=easeInOutCubic(p/0.7);
+      curvedArrow(ctx,wx+78,y,gx-100,gy+(i-1)*22,curv[i],{color:'#a98fd2',progress:q,lw:1.6,alpha:0.85});
+    } else {
+      const decay=1-((p-0.7)/0.3);
+      pulseMax=Math.max(pulseMax,decay);
+    }
+  });
+
+  miniNet(ctx,gx,gy+34,1.8+0.5*pulseMax,'#6fa8dc',pulseMax);
+  if(introG>0.9){
+    label(ctx,gx,gy+74,'no barrier — each worker updates on its own clock',{size:11.5,color:'#8b8a9a'});
+  }
+}
+
+/* =========================================================
+   SLIDE 5 — PPO (clipped surrogate objective)
+========================================================= */
+function renderPPO(ctx,W,H,t){
+  const {midY}=safeZone();
+  const baseline=midY+90;
+  const x0=W*0.20, x1=W*0.80;
+  const eps=0.2, cap=1+eps;
+  const rMax=1.9;
+  const mapX = r => x0 + (r/rMax)*(x1-x0);
+  const H_UNIT=95;
+  const curveY = r => baseline - Math.min(r,cap)*H_UNIT;
+
+  const a1=smoothstep(segT(t,0,0.5));
+  ctx.save(); ctx.globalAlpha=a1*0.6;
+  ctx.strokeStyle='#8b8a9a'; ctx.lineWidth=1.3;
+  ctx.beginPath(); ctx.moveTo(x0-10,baseline); ctx.lineTo(x1+10,baseline); ctx.stroke();
+  ctx.restore();
+  label(ctx,W/2,baseline+30,'probability ratio  r(θ) = πθ(a|s) / π_old(a|s)',{size:12.5,color:'#8b8a9a',alpha:a1,font:"'IBM Plex Mono',monospace"});
+
+  [1-eps,1,1+eps].forEach((r,i)=>{
+    const x=mapX(r);
+    ctx.save(); ctx.globalAlpha=a1*0.55; ctx.strokeStyle='#5fd0c3'; ctx.setLineDash([3,4]); ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(x,baseline+6); ctx.lineTo(x,baseline-H_UNIT*cap-16); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
+    const txt = i===0?'1−ε': i===1?'1':'1+ε';
+    label(ctx,x,baseline+18,txt,{size:11.5,color:'#5fd0c3',alpha:a1,font:"'IBM Plex Mono',monospace"});
+  });
+
+  const t2=t-0.6;
+  if(t2<0) return;
+  const a2=smoothstep(segT(t2,0,0.7));
+  ctx.save(); ctx.globalAlpha=a2; ctx.beginPath();
+  for(let r=0; r<=rMax; r+=0.02){
+    const x=mapX(r), y=curveY(r);
+    if(r===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+  }
+  ctx.strokeStyle='#e8a765'; ctx.lineWidth=2.4; ctx.stroke(); ctx.restore();
+  label(ctx,mapX(rMax)+40,curveY(cap),'clipped flat',{size:11.5,color:'#f0cda0',alpha:a2,align:'left'});
+
+  const t3=t2-0.6;
+  if(t3<0) return;
+  const cyc=4.0;
+  const p=(t3%cyc)/cyc;
+  const r = 0.15 + (rMax-0.15) * (0.5+0.5*Math.sin(p*TAU-Math.PI/2));
+  const bx=mapX(r), by=curveY(r);
+  const clipped = r>cap;
+  ctx.save();
+  ctx.fillStyle = clipped ? '#e8a765' : '#5fd0c3';
+  ctx.shadowColor= ctx.fillStyle; ctx.shadowBlur=10;
+  ctx.beginPath(); ctx.arc(bx,by,7,0,TAU); ctx.fill();
+  ctx.restore();
+  label(ctx,bx, by-22, clipped? 'gradient ≈ 0 (blocked)':'learning normally', {size:12, color: clipped?'#f0cda0':'#a9e2da', font:"'IBM Plex Mono',monospace"});
+}
+
+/* =========================================================
+   SLIDE 6 — TRPO (trust region)
+========================================================= */
+function renderTRPO(ctx,W,H,t){
+  const {midY}=safeZone();
+  const cx=W*0.40, cy=midY;
+  const R=115;
+
+  const c1=smoothstep(segT(t,0,0.5));
+  ctx.save(); ctx.globalAlpha=c1;
+  ctx.beginPath(); ctx.arc(cx,cy,R,0,TAU);
+  ctx.strokeStyle='#6fa8dc'; ctx.lineWidth=1.8; ctx.stroke();
+  ctx.fillStyle='rgba(111,168,220,0.05)'; ctx.fill();
+  ctx.restore();
+  label(ctx,cx,cy-R-24,'trust region:  KL(π_old ‖ πθ) ≤ δ',{size:12.5,color:'#9dc1e8',alpha:c1,font:"'IBM Plex Mono',monospace"});
+
+  ctx.save(); ctx.globalAlpha=c1; ctx.fillStyle='#e9e8f0';
+  ctx.beginPath(); ctx.arc(cx,cy,4,0,TAU); ctx.fill(); ctx.restore();
+  label(ctx,cx,cy+24,'θ_old',{size:12.5,color:'#e9e8f0',alpha:c1,font:"'IBM Plex Mono',monospace"});
+
+  const angle = -0.62 + 0.1*Math.sin(t*0.4);
+  const desiredLen=190;
+  const dx=Math.cos(angle), dy=Math.sin(angle);
+
+  const t2=t-0.6;
+  if(t2<0) return;
+  const growP = smoothstep(segT(t2,0,0.8));
+  const len = desiredLen*growP;
+  const ex=cx+dx*len, ey=cy+dy*len;
+  const beyond = len>R;
+  arrow(ctx,cx,cy,ex,ey,{color: beyond?'#8b8a9a':'#e8a765', progress:1, lw:1.6, dashed:beyond, alpha:0.9});
+  if(growP>=0.98){
+    label(ctx,cx+dx*(desiredLen+70),cy+dy*(desiredLen+70),'unconstrained step — too far',{size:11,color:'#8b8a9a'});
+  }
+
+  const t3=t2-1.0;
+  if(t3<0) return;
+  const clipP=smoothstep(segT(t3,0,0.6));
+  const bx=cx+dx*R*clipP, by=cy+dy*R*clipP;
+  arrow(ctx,cx,cy,bx,by,{color:'#e8a765',progress:1,lw:3});
+  if(clipP>0.9){
+    ctx.save(); ctx.fillStyle='#e8a765'; ctx.beginPath(); ctx.arc(cx+dx*R,cy+dy*R,5,0,TAU); ctx.fill(); ctx.restore();
+    label(ctx,cx+dx*R+(dx>0?20:-20), cy+dy*R-16,'θ_new',{size:12.5,color:'#f6c98a',align:dx>0?'left':'right',font:"'IBM Plex Mono',monospace"});
+  }
+}
+
+/* =========================================================
+   SLIDE 7 — DDPG (deterministic policy gradient)
+========================================================= */
+function renderDDPG(ctx,W,H,t){
+  const {midY}=safeZone();
+  const ax=W*0.28, qx=W*0.70;
+  const dialY=midY+6;
+
+  const a1=smoothstep(segT(t,0,0.5));
+  box(ctx,ax,midY,200,150,{stroke:'#5fd0c3',fill:'rgba(95,208,195,0.06)',alpha:a1,r:14});
+  label(ctx,ax,midY-58,'ACTOR  μθ(s)',{size:15,color:'#5fd0c3',weight:'700',alpha:a1,spacing:1});
+
+  const a2=smoothstep(segT(t,0.3,0.5));
+  box(ctx,qx,midY,200,150,{stroke:'#e08a9c',fill:'rgba(224,138,156,0.06)',alpha:a2,r:14});
+  label(ctx,qx,midY-58,'CRITIC  Q(s,a)',{size:15,color:'#e08a9c',weight:'700',alpha:a2,spacing:1});
+
+  const target = -0.35;
+  const conv = smoothstep(segT(t,1.0,3.0));
+  const wobble = 0.12*Math.sin(t*2.3)*(1-conv*0.8);
+  const angle = lerp(-1.9, target, conv) + wobble;
+  ctx.save(); ctx.globalAlpha=a1;
+  ctx.beginPath(); ctx.arc(ax,dialY+14,34,0,TAU);
+  ctx.strokeStyle='rgba(255,255,255,0.18)'; ctx.lineWidth=2; ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(ax,dialY+14);
+  ctx.lineTo(ax+Math.cos(angle)*30, dialY+14+Math.sin(angle)*30);
+  ctx.strokeStyle='#5fd0c3'; ctx.lineWidth=3; ctx.stroke();
+  ctx.restore();
+  label(ctx,ax,dialY+62,'a = μθ(s)   (a single number)',{size:12,color:'#a9e2da',alpha:a1,font:"'IBM Plex Mono',monospace"});
+
+  const qh = 20+70*conv;
+  ctx.save(); ctx.globalAlpha=a2;
+  ctx.fillStyle='rgba(224,138,156,0.18)';
+  ctx.fillRect(qx-16, dialY+44-qh, 32, qh);
+  ctx.strokeStyle='#e08a9c'; ctx.lineWidth=1.6;
+  ctx.strokeRect(qx-16, dialY+44-qh, 32, qh);
+  ctx.restore();
+  label(ctx,qx,dialY+64,'Q(s,a) rising',{size:11.5,color:'#f0bcc8',alpha:a2*conv});
+
+  const t2=t-0.7;
+  if(t2>0){
+    const ap=smoothstep(segT(t2,0,0.5));
+    arrow(ctx,ax+100,midY+10,qx-100,midY+10,{color:'#5fd0c3',progress:ap,lw:1.8});
+    label(ctx,(ax+qx)/2,midY-6,'a',{size:13,color:'#a9e2da',font:"'IBM Plex Mono',monospace",alpha:ap});
+  }
+  const t3=t2-0.8;
+  if(t3>0){
+    const bp=smoothstep(segT(t3,0,0.6));
+    curvedArrow(ctx,qx-100,midY+40,ax+100,midY+40,60,{color:'#f0bcc8',progress:bp,lw:1.8});
+    label(ctx,(ax+qx)/2,midY+68,'∂Q/∂a → ∂Q/∂θ   (chain rule, no sampling)',{size:11.5,color:'#f0bcc8',alpha:bp,font:"'IBM Plex Mono',monospace"});
+  }
+}
+
+/* =========================================================
+   SLIDE 8 — TD3 (twin critics + delayed updates)
+========================================================= */
+function renderTD3(ctx,W,H,t){
+  const {midY}=safeZone();
+  const ax=W*0.20, qx=W*0.53, gx=W*0.80;
+  const q1y=midY-90, q2y=midY+90;
+
+  const a1=smoothstep(segT(t,0,0.5));
+  box(ctx,ax,midY,150,110,{stroke:'#5fd0c3',fill:'rgba(95,208,195,0.06)',alpha:a1,r:12});
+  label(ctx,ax,midY-8,'ACTOR',{size:15,color:'#5fd0c3',weight:'700',alpha:a1,spacing:1});
+  label(ctx,ax,midY+16,'μθ(s)',{size:12.5,color:'#a9e2da',alpha:a1,font:"'IBM Plex Mono',monospace"});
+
+  const a2=smoothstep(segT(t,0.3,0.5));
+  box(ctx,qx,q1y,150,80,{stroke:'#e08a9c',fill:'rgba(224,138,156,0.06)',alpha:a2,r:10});
+  label(ctx,qx,q1y,'Q1(s,a)',{size:14,color:'#e08a9c',weight:'700',alpha:a2,font:"'IBM Plex Mono',monospace"});
+
+  const a3=smoothstep(segT(t,0.45,0.5));
+  box(ctx,qx,q2y,150,80,{stroke:'#e08a9c',fill:'rgba(224,138,156,0.06)',alpha:a3,r:10});
+  label(ctx,qx,q2y,'Q2(s,a)',{size:14,color:'#e08a9c',weight:'700',alpha:a3,font:"'IBM Plex Mono',monospace"});
+
+  const a4=smoothstep(segT(t,0.7,0.5));
+  ctx.save(); ctx.globalAlpha=a4;
+  roundRect(ctx,gx-55,midY-35,110,70,12);
+  ctx.fillStyle='rgba(232,167,101,0.08)'; ctx.fill();
+  ctx.strokeStyle='#e8a765'; ctx.lineWidth=1.8; ctx.stroke();
+  ctx.restore();
+  label(ctx,gx,midY,'min(Q1,Q2)',{size:12.5,color:'#e8a765',weight:'700',alpha:a4,font:"'IBM Plex Mono',monospace"});
+
+  if(a1>0.9 && a2>0.9) arrow(ctx,ax+76,midY-26,qx-76,q1y,{color:'#8b8a9a',progress:1,lw:1.3,alpha:0.6});
+  if(a1>0.9 && a3>0.9) arrow(ctx,ax+76,midY+26,qx-76,q2y,{color:'#8b8a9a',progress:1,lw:1.3,alpha:0.6});
+  if(a2>0.9) arrow(ctx,qx+76,q1y,gx-56,midY-18,{color:'#e08a9c',progress:1,lw:1.4,alpha:0.7});
+  if(a3>0.9) arrow(ctx,qx+76,q2y,gx-56,midY+18,{color:'#e08a9c',progress:1,lw:1.4,alpha:0.7});
+
+  const t2=t-1.6;
+  if(t2<0) return;
+  const fp=smoothstep(segT(t2,0,0.7));
+  curvedArrow(ctx,gx-56,midY-40,ax,midY-58,-90,{color:'#e8a765',progress:fp,lw:1.8});
+  label(ctx,W*0.5,midY-135,'take the SMALLER estimate — curbs overestimation',{size:12.5,color:'#f0cda0',alpha:fp,font:"'IBM Plex Mono',monospace"});
+
+  const t3=t2-0.6;
+  if(t3<0) return;
+  const cAlpha=smoothstep(segT(t3,0,0.5));
+  const clockX=ax, clockY=midY+72;
+  ctx.save(); ctx.globalAlpha=cAlpha;
+  ctx.beginPath(); ctx.arc(clockX,clockY,15,0,TAU);
+  ctx.strokeStyle='#8b8a9a'; ctx.lineWidth=1.6; ctx.stroke();
+  const hAngle=(t3*1.2)%TAU;
+  ctx.beginPath(); ctx.moveTo(clockX,clockY); ctx.lineTo(clockX+Math.cos(hAngle)*10, clockY+Math.sin(hAngle)*10);
+  ctx.strokeStyle='#e9e8f0'; ctx.lineWidth=1.6; ctx.stroke();
+  ctx.restore();
+  label(ctx,clockX+38,clockY,'actor updates every d steps',{size:11,color:'#8b8a9a',align:'left',alpha:cAlpha});
+}
+
+/* =========================================================
+   SLIDE 9 — SAC (maximum entropy)
+========================================================= */
+function renderSAC(ctx,W,H,t){
+  const {midY}=safeZone();
+  const cx=W*0.5, baseY=midY+80;
+
+  const a1=smoothstep(segT(t,0,0.5));
+  ctx.save(); ctx.globalAlpha=a1*0.5;
+  ctx.strokeStyle='#8b8a9a'; ctx.lineWidth=1.3;
+  ctx.beginPath(); ctx.moveTo(cx-260,baseY); ctx.lineTo(cx+260,baseY); ctx.stroke();
+  ctx.restore();
+  label(ctx,cx,baseY+26,'action a',{size:12.5,color:'#8b8a9a',alpha:a1});
+
+  const t2=t-0.4;
+  if(t2<0) return;
+  const grow=smoothstep(segT(t2,0,0.8));
+  const sigma=(26+18*Math.sin(t2*0.7))*grow+4;
+  const peak=115*grow;
+
+  ctx.save(); ctx.globalAlpha=grow;
+  ctx.beginPath();
+  for(let x=-260;x<=260;x+=4){
+    const y=baseY-peak*Math.exp(-(x*x)/(2*sigma*sigma));
+    if(x===-260) ctx.moveTo(cx+x,y); else ctx.lineTo(cx+x,y);
+  }
+  ctx.strokeStyle='#a98fd2'; ctx.lineWidth=2.2; ctx.stroke();
+  ctx.lineTo(cx+260,baseY); ctx.lineTo(cx-260,baseY); ctx.closePath();
+  ctx.fillStyle='rgba(169,143,210,0.08)'; ctx.fill();
+  ctx.restore();
+
+  label(ctx,cx,baseY-peak-24,'π(a|s) stays wide  →  keeps exploring',{size:12.5,color:'#cdb8ea',alpha:grow,font:"'IBM Plex Mono',monospace"});
+
+  const t3=t2-1.0;
+  if(t3>0){
+    const bAlpha=smoothstep(segT(t3,0,0.5));
+    label(ctx,cx,baseY+56,'reward objective  +  α · entropy bonus',{size:12.5,color:'#e8a765',alpha:bAlpha,font:"'IBM Plex Mono',monospace"});
+  }
+}
+
+/* =========================================================
+   SLIDE 2b — MATH FOUNDATIONS (derivation, Feynman-style)
+========================================================= */
+function renderMathFoundations(ctx,W,H,t){
+  const {top}=safeZone();
+  const cx=W*0.5;
+  const lines=[
+    {eq:'J(θ) = 𝔼 [ Σₜ γᵗ rₜ ]', note:'the objective: expected discounted return', color:'#e9e8f0'},
+    {eq:'∇θJ(θ) = 𝔼[ ∇θ log πθ(a|s) · Qπ(s,a) ]', note:'policy-gradient theorem — push up log-probability, weighted by Q', color:'#5fd0c3'},
+    {eq:'Aπ(s,a) = Qπ(s,a) − V(s)', note:'subtract a baseline V(s) → same gradient, far less variance', color:'#e08a9c'},
+    {eq:'δ = r + γV(s′) − V(s)   ≈  Aπ(s,a)', note:'the critic estimates advantage with one number: the TD-error', color:'#e8a765'},
+    {eq:'∇θJ(θ) ≈ 𝔼[ ∇θ log πθ(a|s) · δ ]', note:'the actor–critic gradient — everything below builds on this', color:'#a98fd2'}
+  ];
+  const startY=top+58, gap=58;
+  lines.forEach((ln,i)=>{
+    const t0=i*1.05;
+    const a=smoothstep(segT(t,t0,0.55));
+    if(a<=0) return;
+    const y=startY+i*gap;
+    const dy=(1-a)*14;
+    const active = t>=t0 && t<t0+1.55;
+    if(active){
+      const pulseA=0.10+0.09*pulse(t-t0,1.4);
+      ctx.save(); ctx.globalAlpha=a*0.9;
+      roundRect(ctx,cx-340,y-dy-24,680,44,10);
+      ctx.fillStyle=`rgba(255,255,255,${pulseA})`; ctx.fill();
+      ctx.restore();
+    }
+    const dim = active?1:0.5;
+    label(ctx,cx,y-dy,ln.eq,{size:16.5,color:ln.color,font:"'IBM Plex Mono',monospace",weight:'600',alpha:a*dim});
+    label(ctx,cx,y-dy+20,ln.note,{size:11,color:'#8b8a9a',alpha:a*dim*0.95});
+  });
+}
+
+/* =========================================================
+   SLIDE 10 — MODEL-BASED RL: THE BIG IDEA
+========================================================= */
+function renderModelBasedIntro(ctx,W,H,t){
+  const {midY,top,bottom}=safeZone();
+  const lx=W*0.27, rx=W*0.73;
+  const ly=midY;
+
+  const a1=smoothstep(segT(t,0,0.5));
+  label(ctx,lx,top+20,'MODEL-FREE',{size:14,color:'#e08a9c',weight:'700',alpha:a1,spacing:1.5});
+  box(ctx,lx,ly-10,190,110,{stroke:'#e08a9c',fill:'rgba(224,138,156,0.06)',alpha:a1,r:12});
+  label(ctx,lx,ly-24,'Agent ⇄ Environment',{size:12.5,color:'#f0bcc8',alpha:a1});
+  const cyc=2.4; const p=(t%cyc)/cyc;
+  if(a1>0.9){
+    const x1=lx-60,x2=lx+60;
+    if(p<0.5){ const q=easeInOutCubic(p/0.5); dotOnLine(ctx,x1,ly+18,x2,ly+18,q,{color:'#e08a9c',r:4}); }
+    else { const q=easeInOutCubic((p-0.5)/0.5); dotOnLine(ctx,x2,ly+30,x1,ly+30,q,{color:'#e08a9c',r:4}); }
+  }
+  label(ctx,lx,ly+58,'learns purely from real trial & error',{size:11.5,color:'#8b8a9a',alpha:a1});
+
+  const a2=smoothstep(segT(t,0.4,0.5));
+  label(ctx,rx,top+20,'MODEL-BASED',{size:14,color:'#5fd0c3',weight:'700',alpha:a2,spacing:1.5});
+  box(ctx,rx,ly-10,190,110,{stroke:'#5fd0c3',fill:'rgba(95,208,195,0.06)',alpha:a2,r:12});
+  label(ctx,rx,ly-24,'Agent ⇄ Learned Model',{size:12.5,color:'#a9e2da',alpha:a2});
+  if(a2>0.9){
+    const q=(Math.sin(t*2)+1)/2;
+    ctx.save(); ctx.globalAlpha=0.5+0.3*q; ctx.strokeStyle='#5fd0c3'; ctx.setLineDash([4,4]);
+    ctx.beginPath(); ctx.arc(rx,ly+8,46,0,TAU*q); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
+  }
+  label(ctx,rx,ly+58,'plans by "imagining" ahead',{size:11.5,color:'#8b8a9a',alpha:a2});
+
+  const a3=smoothstep(segT(t,1.0,0.6));
+  label(ctx,W/2,bottom-18,'model:  f_φ(s,a) ≈ (s′, r)   learned by supervised regression on real transitions',{size:12,color:'#f0cda0',alpha:a3,font:"'IBM Plex Mono',monospace"});
+}
+
+/* =========================================================
+   SLIDE 11 — DYNA-Q
+========================================================= */
+function renderDynaQ(ctx,W,H,t){
+  const {midY,top}=safeZone();
+  const ex=W*0.20, mx=W*0.5, qx=W*0.80;
+
+  const a1=smoothstep(segT(t,0,0.5));
+  box(ctx,ex,midY,150,90,{stroke:'#e8a765',fill:'rgba(232,167,101,0.06)',alpha:a1,r:11});
+  label(ctx,ex,midY-8,'REAL',{size:14,color:'#e8a765',weight:'700',alpha:a1,spacing:1});
+  label(ctx,ex,midY+14,'experience',{size:12,color:'#f0cda0',alpha:a1});
+
+  const a2=smoothstep(segT(t,0.3,0.5));
+  box(ctx,mx,midY-95,150,74,{stroke:'#5fd0c3',fill:'rgba(95,208,195,0.06)',alpha:a2,r:10});
+  label(ctx,mx,midY-95,'MODEL',{size:13.5,color:'#5fd0c3',weight:'700',alpha:a2,spacing:1});
+
+  const a3=smoothstep(segT(t,0.5,0.5));
+  box(ctx,qx,midY,150,90,{stroke:'#6fa8dc',fill:'rgba(111,168,220,0.06)',alpha:a3,r:11});
+  label(ctx,qx,midY-8,'Q-TABLE',{size:14,color:'#6fa8dc',weight:'700',alpha:a3,spacing:1});
+  label(ctx,qx,midY+14,'Q(s,a)',{size:12,color:'#9dc1e8',alpha:a3,font:"'IBM Plex Mono',monospace"});
+
+  if(a1>0.9 && a3>0.9) arrow(ctx,ex+76,midY-20,qx-76,midY-20,{color:'#e8a765',progress:1,lw:2});
+  if(a1>0.9 && a2>0.9) arrow(ctx,ex+50,midY-40,mx-76,midY-90,{color:'#e8a765',progress:1,lw:1.4,alpha:0.7});
+  label(ctx,(ex+qx)/2,midY-42,'real update (1 per step)',{size:11,color:'#f0cda0',alpha:a1*a3});
+
+  const t2=t-1.1;
+  if(t2<0) return;
+  const cyc=1.0;
+  for(let k=0;k<5;k++){
+    const off=k*0.16;
+    const p=((t2-off)%cyc)/cyc;
+    if(p<0 || p>0.6) continue;
+    const q=easeInOutCubic(p/0.6);
+    arrow(ctx,mx+70,midY-95,qx-40,midY+18+k*4,{color:'#5fd0c3',progress:1,lw:1,alpha:0.22,dashed:true});
+    dotOnLine(ctx,mx+70,midY-95,qx-40,midY+18+k*4,q,{color:'#5fd0c3',r:3.4,glow:6});
+  }
+  label(ctx,mx,midY+45,'n simulated ("imagined") updates per real step',{size:11.5,color:'#a9e2da',font:"'IBM Plex Mono',monospace"});
+  label(ctx,W/2,top+18,'Q(s,a) ← Q(s,a) + α[ r + γ·maxₐ′Q(s′,a′) − Q(s,a) ]',{size:12.5,color:'#e9e8f0',font:"'IBM Plex Mono',monospace"});
+}
+
+/* =========================================================
+   SLIDE 12 — MONTE CARLO TREE SEARCH
+========================================================= */
+function renderMCTS(ctx,W,H,t){
+  const {top,bottom}=safeZone();
+  const cx=W*0.5;
+  const topY=top+55, botY=bottom-35, midY=(topY+botY)/2;
+  const pos=[
+    {x:cx,y:topY},
+    {x:cx-200,y:midY},{x:cx-67,y:midY},{x:cx+67,y:midY},{x:cx+200,y:midY},
+    {x:cx-67,y:botY}
+  ];
+  const parents=[-1,0,0,0,0,2];
+
+  const revealed = t<0.6 ? 1 : clamp(Math.floor((t-0.6)/3.6)+2,1,6);
+  const activeIdx = clamp(revealed-1,1,5);
+  const tphase = t>0.6 ? ((t-0.6)%3.6) : -1;
+
+  for(let i=1;i<revealed;i++){
+    if(i===activeIdx && tphase>=0 && tphase<2.6) continue;
+    const p=pos[i], pp=pos[parents[i]];
+    ctx.save(); ctx.globalAlpha=0.5; ctx.strokeStyle='#6fa8dc'; ctx.lineWidth=1.4;
+    ctx.beginPath(); ctx.moveTo(pp.x,pp.y); ctx.lineTo(p.x,p.y); ctx.stroke(); ctx.restore();
+  }
+
+  function drawNode(i,alpha,glow){
+    const p=pos[i];
+    ctx.save(); ctx.globalAlpha=alpha;
+    ctx.beginPath(); ctx.arc(p.x,p.y,22,0,TAU);
+    ctx.fillStyle='rgba(111,168,220,0.10)'; ctx.fill();
+    ctx.lineWidth = glow? 2.6:1.6;
+    ctx.strokeStyle = glow? '#e8a765':'#6fa8dc';
+    if(glow){ ctx.shadowColor='#e8a765'; ctx.shadowBlur=10; }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  for(let i=0;i<revealed;i++){
+    if(i===activeIdx && tphase>=0 && tphase<2.6) continue;
+    drawNode(i,1,false);
+    label(ctx,pos[i].x,pos[i].y,'n'+i,{size:11,color:'#cfe2f5',font:"'IBM Plex Mono',monospace"});
+  }
+  if(tphase<0) return;
+
+  const pp = pos[parents[activeIdx]] || pos[0];
+  const p = pos[activeIdx];
+
+  if(tphase<0.8){
+    const q=easeInOutCubic(tphase/0.8);
+    arrow(ctx,pp.x,pp.y,lerp(pp.x,p.x,q),lerp(pp.y,p.y,q),{color:'#e8a765',progress:1,lw:2.4});
+    label(ctx,cx,top+16,'SELECTION — follow UCB to a promising leaf',{size:12.5,color:'#f0cda0',font:"'IBM Plex Mono',monospace"});
+  } else if(tphase<1.4){
+    const q=easeOutBack(segT(tphase,0.8,0.5));
+    arrow(ctx,pp.x,pp.y,p.x,p.y,{color:'#6fa8dc',progress:1,lw:1.6,alpha:0.6});
+    drawNode(activeIdx,q,true);
+    label(ctx,cx,top+16,'EXPANSION — add a new child node',{size:12.5,color:'#9dc1e8',font:"'IBM Plex Mono',monospace"});
+  } else if(tphase<2.0){
+    drawNode(activeIdx,1,true);
+    const q=easeOutCubic(segT(tphase,1.4,0.5));
+    const simX=p.x, simY=p.y+70*q;
+    arrow(ctx,p.x,p.y,simX,simY,{color:'#a98fd2',progress:1,lw:1.6,dashed:true});
+    if(q>0.7) label(ctx,simX,simY+16,'rollout → reward',{size:11,color:'#cdb8ea'});
+    label(ctx,cx,top+16,'SIMULATION — random rollout estimates the value',{size:12.5,color:'#cdb8ea',font:"'IBM Plex Mono',monospace"});
+  } else {
+    drawNode(activeIdx,1,true);
+    const q=easeInOutCubic(segT(tphase,2.0,0.6));
+    let cur=activeIdx; const chain=[activeIdx];
+    while(parents[cur]!==-1){ cur=parents[cur]; chain.push(cur); }
+    const seg=(chain.length-1)*q;
+    for(let k=0;k<chain.length-1;k++){
+      const from=pos[chain[k]], to=pos[chain[k+1]];
+      const local=clamp(seg-k,0,1);
+      if(local>0) dotOnLine(ctx,from.x,from.y,to.x,to.y,local,{color:'#e08a9c',r:5,glow:8});
+    }
+    label(ctx,cx,top+16,'BACKPROPAGATION — carry the value back up the path',{size:12.5,color:'#f0bcc8',font:"'IBM Plex Mono',monospace"});
+  }
+  label(ctx,cx,bottom-14,'UCB(s,a) = Q(s,a) + c·√( ln N(s) / N(s,a) )',{size:12,color:'#8b8a9a',font:"'IBM Plex Mono',monospace"});
+}
+
+/* =========================================================
+   SLIDE 13 — ALPHAZERO
+========================================================= */
+function renderAlphaZero(ctx,W,H,t){
+  const {midY,top,bottom}=safeZone();
+  const nx=W*0.22, rx=W*0.62;
+
+  const a1=smoothstep(segT(t,0,0.5));
+  box(ctx,nx,midY-30,170,110,{stroke:'#6fa8dc',fill:'rgba(111,168,220,0.06)',alpha:a1,r:12});
+  label(ctx,nx,midY-70,'NEURAL NET',{size:13,color:'#6fa8dc',weight:'700',alpha:a1,spacing:1});
+  if(a1>0.9) miniNet(ctx,nx,midY-30,1.5,'#6fa8dc',0.3);
+  label(ctx,nx,midY+38,'outputs P(a|s), V(s)',{size:11.5,color:'#9dc1e8',alpha:a1,font:"'IBM Plex Mono',monospace"});
+
+  const a2=smoothstep(segT(t,0.4,0.5));
+  const root={x:rx,y:midY-70};
+  const kids=[0,1,2].map(i=>({x:rx+(i-1)*95,y:midY+30}));
+  ctx.save(); ctx.globalAlpha=a2;
+  ctx.beginPath(); ctx.arc(root.x,root.y,18,0,TAU);
+  ctx.strokeStyle='#e8a765'; ctx.lineWidth=1.8; ctx.fillStyle='rgba(232,167,101,0.1)'; ctx.fill(); ctx.stroke();
+  ctx.restore();
+  const priors=[0.55,0.30,0.15];
+  kids.forEach((k,i)=>{
+    arrow(ctx,root.x,root.y,k.x,k.y,{color:'#e8a765',progress:a2,lw:1.5,alpha:0.8});
+    ctx.save(); ctx.globalAlpha=a2;
+    ctx.beginPath(); ctx.arc(k.x,k.y,15,0,TAU);
+    ctx.strokeStyle='#e8a765'; ctx.lineWidth=1.4; ctx.fillStyle='rgba(232,167,101,0.08)'; ctx.fill(); ctx.stroke();
+    ctx.restore();
+    label(ctx,k.x,k.y+30,'p='+priors[i].toFixed(2),{size:10.5,color:'#f0cda0',alpha:a2,font:"'IBM Plex Mono',monospace"});
+  });
+
+  if(a1>0.9 && a2>0.9){
+    arrow(ctx,nx+90,midY-30,root.x-24,root.y+10,{color:'#8b8a9a',progress:1,lw:1.3,alpha:0.5,dashed:true});
+  }
+
+  const a3=smoothstep(segT(t,1.2,0.5));
+  label(ctx,W/2,bottom-40,'PUCT(s,a) = Q(s,a) + c·P(s,a)·√(ΣN) / (1+N(s,a))',{size:12.5,color:'#e9e8f0',alpha:a3,font:"'IBM Plex Mono',monospace"});
+
+  const a4=smoothstep(segT(t,1.8,0.6));
+  label(ctx,W/2,bottom-16,'self-play  →  game data  →  train network  →  stronger tree  →  repeat',{size:11.5,color:'#8b8a9a',alpha:a4});
+}
+
+/* =========================================================
+   SLIDE 14 — MUZERO
+========================================================= */
+function renderMuZero(ctx,W,H,t){
+  const {midY,top}=safeZone();
+  const ox=W*0.12;
+  const s0x=W*0.32, s1x=W*0.55, s2x=W*0.78;
+  const y=midY-20;
+
+  const a1=smoothstep(segT(t,0,0.5));
+  box(ctx,ox,y,110,70,{stroke:'#8b8a9a',fill:'rgba(255,255,255,0.03)',alpha:a1,r:10});
+  label(ctx,ox,y,'obs oₜ',{size:12.5,color:'#cfcfda',alpha:a1,font:"'IBM Plex Mono',monospace"});
+
+  const a2=smoothstep(segT(t,0.4,0.5));
+  arrow(ctx,ox+56,y,s0x-30,y,{color:'#6fa8dc',progress:a2,lw:1.6});
+  label(ctx,(ox+s0x)/2,y-16,'h (represent)',{size:10.5,color:'#9dc1e8',alpha:a2,font:"'IBM Plex Mono',monospace"});
+
+  const states=[s0x,s1x,s2x];
+  states.forEach((sx,i)=>{
+    const a=smoothstep(segT(t,0.7+i*0.5,0.5));
+    ctx.save(); ctx.globalAlpha=a;
+    ctx.beginPath(); ctx.arc(sx,y,26,0,TAU);
+    ctx.strokeStyle='#5fd0c3'; ctx.lineWidth=1.8; ctx.fillStyle='rgba(95,208,195,0.08)'; ctx.fill(); ctx.stroke();
+    ctx.restore();
+    label(ctx,sx,y,'s'+i,{size:13,color:'#a9e2da',alpha:a,font:"'IBM Plex Mono',monospace"});
+    if(i<states.length-1){
+      const a3=smoothstep(segT(t,0.9+i*0.5,0.5));
+      arrow(ctx,sx+30,y,states[i+1]-30,y,{color:'#5fd0c3',progress:a3,lw:1.6});
+      label(ctx,(sx+states[i+1])/2,y-16,'g (dynamics), aᵢ',{size:10,color:'#a9e2da',alpha:a3,font:"'IBM Plex Mono',monospace"});
+    }
+    const a4=smoothstep(segT(t,1.1+i*0.5,0.5));
+    arrow(ctx,sx,y+30,sx,y+70,{color:'#e08a9c',progress:a4,lw:1.4,dashed:true});
+    label(ctx,sx,y+92,'f: pᵢ, vᵢ',{size:11,color:'#f0bcc8',alpha:a4,font:"'IBM Plex Mono',monospace"});
+  });
+
+  const a5=smoothstep(segT(t,2.6,0.6));
+  label(ctx,W/2,top+20,'entirely in a learned latent space — no access to real environment rules',{size:12,color:'#8b8a9a',alpha:a5});
+}
+
+/* =========================================================
+   SLIDE 15 — DREAMER
+========================================================= */
+function renderDreamer(ctx,W,H,t){
+  const {midY,top}=safeZone();
+  const rx=W*0.14, wmX=W*0.32;
+  const chainStartX=W*0.48, chainGap=76;
+  const y=midY;
+
+  const a1=smoothstep(segT(t,0,0.5));
+  box(ctx,rx,y-70,130,64,{stroke:'#e8a765',fill:'rgba(232,167,101,0.06)',alpha:a1,r:10});
+  label(ctx,rx,y-70,'REAL ENV',{size:11.5,color:'#e8a765',weight:'700',alpha:a1,spacing:1});
+
+  const a2=smoothstep(segT(t,0.3,0.5));
+  box(ctx,wmX,y,150,90,{stroke:'#6fa8dc',fill:'rgba(111,168,220,0.06)',alpha:a2,r:11});
+  label(ctx,wmX,y-10,'WORLD MODEL',{size:12.5,color:'#6fa8dc',weight:'700',alpha:a2,spacing:0.5});
+  label(ctx,wmX,y+14,'learns latent dynamics',{size:10.5,color:'#9dc1e8',alpha:a2});
+
+  if(a1>0.9 && a2>0.9){
+    arrow(ctx,rx,y-38,wmX-40,y-40,{color:'#e8a765',progress:1,lw:1.4,alpha:0.7});
+    label(ctx,(rx+wmX)/2,y-56,'occasional real step',{size:10,color:'#f0cda0'});
+  }
+
+  const t2=t-0.9;
+  if(t2<0) return;
+  const n=4;
+  for(let i=0;i<n;i++){
+    const a=smoothstep(segT(t2,i*0.35,0.5));
+    if(a<=0) continue;
+    const x=chainStartX+i*chainGap;
+    const hue=260+i*15;
+    const col=`hsl(${hue},55%,72%)`;
+    const glow=0.5+0.5*pulse(t2+i,2.2);
+    ctx.save(); ctx.globalAlpha=a;
+    ctx.beginPath(); ctx.arc(x,y,20,0,TAU);
+    ctx.strokeStyle=col; ctx.lineWidth=1.6+glow*0.8;
+    ctx.fillStyle=`hsla(${hue},55%,55%,0.12)`; ctx.fill(); ctx.stroke();
+    ctx.restore();
+    label(ctx,x,y,'ŝ'+i,{size:12,color:col,alpha:a,font:"'IBM Plex Mono',monospace"});
+    if(i>0){
+      const prevX=chainStartX+(i-1)*chainGap;
+      arrow(ctx,prevX+24,y,x-24,y,{color:col,progress:a,lw:1.4,dashed:true,alpha:0.7});
+    }
+  }
+  const a3=smoothstep(segT(t2,1.6,0.5));
+  label(ctx,chainStartX+1.5*chainGap,y+50,'"imagined" rollout — trained entirely inside the model',{size:11.5,color:'#cdb8ea',alpha:a3});
+
+  const a4=smoothstep(segT(t2,2.1,0.5));
+  curvedArrow(ctx,chainStartX+1.5*chainGap,y-40,wmX,y-46,-60,{color:'#a98fd2',progress:a4,lw:1.5});
+  label(ctx,W/2,top+20,'policy improves from imagined experience, not just real steps',{size:12,color:'#8b8a9a',alpha:a4});
+}
+
+/* =========================================================
+   SLIDE 16 — MULTI-AGENT RL: NON-STATIONARITY
+========================================================= */
+function renderMultiAgentIntro(ctx,W,H,t){
+  const {midY}=safeZone();
+  const cx=W/2, cy=midY-10;
+  const R=80;
+
+  const a1=smoothstep(segT(t,0,0.5));
+  ctx.save(); ctx.globalAlpha=a1;
+  ctx.beginPath(); ctx.arc(cx,cy,R,0,TAU);
+  ctx.strokeStyle='#e8a765'; ctx.lineWidth=1.8; ctx.fillStyle='rgba(232,167,101,0.06)'; ctx.fill(); ctx.stroke();
+  ctx.restore();
+  label(ctx,cx,cy,'ENV',{size:14,color:'#e8a765',weight:'700',alpha:a1,spacing:1});
+
+  const n=3;
+  const cols=['#5fd0c3','#6fa8dc','#e08a9c'];
+  for(let i=0;i<n;i++){
+    const a=smoothstep(segT(t,0.3+i*0.2,0.5));
+    const ang=-Math.PI/2+i*(TAU/n);
+    const ax=cx+Math.cos(ang)*220, ay=cy+Math.sin(ang)*145;
+    box(ctx,ax,ay,120,64,{stroke:cols[i],fill:'rgba(255,255,255,0.03)',alpha:a,r:10});
+    label(ctx,ax,ay,'agent '+(i+1),{size:12,color:cols[i],weight:'700',alpha:a});
+    if(a>0.9){
+      arrow(ctx,ax,ay,cx,cy,{color:cols[i],progress:1,lw:1.2,alpha:0.4,dashed:true});
+    }
+  }
+  const a2=smoothstep(segT(t,1.4,0.6));
+  label(ctx,cx,cy+R+56,'to each agent, the others look like a shifting part of the environment',{size:12,color:'#8b8a9a',alpha:a2});
+  label(ctx,cx,cy+R+78,'— this is "non-stationarity"',{size:12,color:'#8b8a9a',alpha:a2});
+}
+
+/* =========================================================
+   SLIDE 17 — MADDPG
+========================================================= */
+function renderMADDPG(ctx,W,H,t){
+  const {midY,bottom}=safeZone();
+  const n=3;
+  const cols=['#5fd0c3','#6fa8dc','#e08a9c'];
+  const ax0=W*0.22, gap=W*0.24;
+  const actorY=midY+70;
+  const criticX=W*0.5, criticY=midY-90;
+
+  const a1=smoothstep(segT(t,0,0.5));
+  ctx.save(); ctx.globalAlpha=a1*0.7;
+  roundRect(ctx,W*0.20,criticY-70,W*0.60,140,16);
+  ctx.setLineDash([5,5]); ctx.strokeStyle='#8b8a9a'; ctx.lineWidth=1.2; ctx.stroke(); ctx.setLineDash([]);
+  ctx.restore();
+  label(ctx,W*0.5,criticY-88,'TRAINING ONLY',{size:11,color:'#8b8a9a',alpha:a1,spacing:2});
+
+  box(ctx,criticX,criticY,190,90,{stroke:'#e8a765',fill:'rgba(232,167,101,0.07)',alpha:a1,r:12});
+  label(ctx,criticX,criticY-10,'CENTRALIZED CRITIC',{size:12.5,color:'#e8a765',weight:'700',alpha:a1,spacing:0.5});
+  label(ctx,criticX,criticY+14,'Q(s₁,s₂,s₃,a₁,a₂,a₃)',{size:11,color:'#f0cda0',alpha:a1,font:"'IBM Plex Mono',monospace"});
+
+  for(let i=0;i<n;i++){
+    const a=smoothstep(segT(t,0.3+i*0.2,0.5));
+    const ax=ax0+i*gap;
+    box(ctx,ax,actorY,130,64,{stroke:cols[i],fill:'rgba(255,255,255,0.03)',alpha:a,r:10});
+    label(ctx,ax,actorY-6,'actor '+(i+1),{size:12,color:cols[i],weight:'700',alpha:a});
+    label(ctx,ax,actorY+14,'sees only oᵢ',{size:10,color:'#8b8a9a',alpha:a});
+    if(a1>0.9 && a>0.9){
+      arrow(ctx,ax,actorY-32,criticX+(i-1)*60,criticY+40,{color:cols[i],progress:1,lw:1.3,alpha:0.55});
+    }
+  }
+  const a3=smoothstep(segT(t,1.5,0.6));
+  label(ctx,W*0.5,bottom-20,'execution: critic is discarded — each actor acts alone from its own observation',{size:12,color:'#8b8a9a',alpha:a3});
+}
+
+/* =========================================================
+   SLIDE 18 — QMIX
+========================================================= */
+function renderQMIX(ctx,W,H,t){
+  const {midY,top}=safeZone();
+  const n=3;
+  const cols=['#5fd0c3','#6fa8dc','#e08a9c'];
+  const qx0=W*0.28, gap=140;
+  const y1=midY-90;
+  const mixY=midY+10, mixX=W*0.5;
+  const totY=midY+110;
+
+  const qs=[0.4,0.65,0.5];
+  const t2=Math.max(0,t-2.2);
+  const wob=0.15*Math.sin(t2*1.3);
+  const qsAnim=qs.map((q,i)=>clamp(q+(i===0?wob:0),0.1,0.95));
+
+  for(let i=0;i<n;i++){
+    const a=smoothstep(segT(t,i*0.2,0.5));
+    const x=qx0+i*gap;
+    box(ctx,x,y1,110,60,{stroke:cols[i],fill:'rgba(255,255,255,0.03)',alpha:a,r:9});
+    label(ctx,x,y1-4,'Q'+(i+1),{size:13,color:cols[i],weight:'700',alpha:a,font:"'IBM Plex Mono',monospace"});
+    label(ctx,x,y1+14,qsAnim[i].toFixed(2),{size:11,color:'#cfcfda',alpha:a,font:"'IBM Plex Mono',monospace"});
+    const a2=smoothstep(segT(t,0.6+i*0.2,0.5));
+    arrow(ctx,x,y1+30,mixX+(i-1)*40,mixY-34,{color:cols[i],progress:a2,lw:1.5,alpha:0.7});
+  }
+
+  const a3=smoothstep(segT(t,1.0,0.5));
+  box(ctx,mixX,mixY,190,80,{stroke:'#a98fd2',fill:'rgba(169,143,210,0.07)',alpha:a3,r:12});
+  label(ctx,mixX,mixY-10,'MIXING NETWORK',{size:12,color:'#a98fd2',weight:'700',alpha:a3,spacing:0.5});
+  label(ctx,mixX,mixY+14,'weights constrained ≥ 0',{size:10.5,color:'#cdb8ea',alpha:a3,font:"'IBM Plex Mono',monospace"});
+
+  const a4=smoothstep(segT(t,1.4,0.5));
+  arrow(ctx,mixX,mixY+40,mixX,totY-24,{color:'#a98fd2',progress:a4,lw:1.8});
+  const qtot=qsAnim.reduce((s,v)=>s+v,0)/3+0.3;
+  const barW=140, barH=40+qtot*70;
+  ctx.save(); ctx.globalAlpha=a4;
+  ctx.fillStyle='rgba(169,143,210,0.15)';
+  ctx.fillRect(mixX-barW/2, totY+30-barH, barW, barH);
+  ctx.strokeStyle='#a98fd2'; ctx.lineWidth=1.6;
+  ctx.strokeRect(mixX-barW/2, totY+30-barH, barW, barH);
+  ctx.restore();
+  label(ctx,mixX,totY+52,'Qtot',{size:13,color:'#cdb8ea',alpha:a4,font:"'IBM Plex Mono',monospace"});
+
+  const a5=smoothstep(segT(t,1.8,0.5));
+  label(ctx,W*0.5,top+20,'∂Qtot / ∂Qᵢ ≥ 0  for every agent i   (monotonic mixing)',{size:12.5,color:'#e9e8f0',alpha:a5,font:"'IBM Plex Mono',monospace"});
+}
+
+/* =========================================================
+   SLIDE 19 — VDN
+========================================================= */
+function renderVDN(ctx,W,H,t){
+  const {midY,top}=safeZone();
+  const n=3;
+  const cols=['#5fd0c3','#6fa8dc','#e08a9c'];
+  const qx0=W*0.28, gap=150;
+  const y1=midY-40;
+  const sumY=midY+90, sumX=W*0.5;
+
+  const qs=[0.4,0.65,0.5];
+  for(let i=0;i<n;i++){
+    const a=smoothstep(segT(t,i*0.2,0.5));
+    const x=qx0+i*gap;
+    box(ctx,x,y1,110,60,{stroke:cols[i],fill:'rgba(255,255,255,0.03)',alpha:a,r:9});
+    label(ctx,x,y1-4,'Q'+(i+1),{size:13,color:cols[i],weight:'700',alpha:a,font:"'IBM Plex Mono',monospace"});
+    label(ctx,x,y1+14,qs[i].toFixed(2),{size:11,color:'#cfcfda',alpha:a,font:"'IBM Plex Mono',monospace"});
+    const a2=smoothstep(segT(t,0.6+i*0.2,0.5));
+    arrow(ctx,x,y1+30,sumX,sumY-40,{color:cols[i],progress:a2,lw:1.5,alpha:0.7});
+  }
+
+  const a3=smoothstep(segT(t,1.2,0.5));
+  ctx.save(); ctx.globalAlpha=a3;
+  ctx.beginPath(); ctx.arc(sumX,sumY,26,0,TAU);
+  ctx.strokeStyle='#e9e8f0'; ctx.lineWidth=1.8; ctx.fillStyle='rgba(255,255,255,0.05)'; ctx.fill(); ctx.stroke();
+  ctx.restore();
+  label(ctx,sumX,sumY,'+',{size:22,color:'#e9e8f0',alpha:a3,weight:'700'});
+
+  const a4=smoothstep(segT(t,1.6,0.5));
+  arrow(ctx,sumX,sumY+26,sumX,sumY+70,{color:'#e9e8f0',progress:a4,lw:1.8});
+  label(ctx,sumX,sumY+92,'Qtot = '+qs.reduce((s,v)=>s+v,0).toFixed(2),{size:13,color:'#cfcfda',alpha:a4,font:"'IBM Plex Mono',monospace"});
+
+  const a5=smoothstep(segT(t,2.0,0.5));
+  label(ctx,W*0.5,top+20,'Qtot(s,a) = Σᵢ Qᵢ(sᵢ,aᵢ)   — simplest possible decomposition',{size:12.5,color:'#e9e8f0',alpha:a5,font:"'IBM Plex Mono',monospace"});
+}
+
+/* =========================================================
+   SLIDE 20 — SUMMARY
+========================================================= */
+function renderSummary(ctx,W,H,t){
+  const {top,bottom}=safeZone();
+  const cols=[
+    {title:'ACTOR–CRITIC', color:'#5fd0c3', items:['A2C','A3C','PPO','TRPO','DDPG','TD3','SAC']},
+    {title:'MODEL-BASED', color:'#e8a765', items:['Dyna-Q','MCTS','AlphaZero','MuZero','Dreamer']},
+    {title:'MULTI-AGENT', color:'#e08a9c', items:['MADDPG','QMIX','VDN']}
+  ];
+  const colW=W/3;
+  cols.forEach((col,ci)=>{
+    const cx=colW*ci+colW/2;
+    const a=smoothstep(segT(t,ci*0.25,0.5));
+    label(ctx,cx,top+30,col.title,{size:14,color:col.color,weight:'700',alpha:a,spacing:1.5});
+    ctx.save(); ctx.globalAlpha=a*0.5; ctx.strokeStyle=col.color; ctx.lineWidth=1.2;
+    ctx.beginPath(); ctx.moveTo(cx-70,top+46); ctx.lineTo(cx+70,top+46); ctx.stroke(); ctx.restore();
+    col.items.forEach((it,i)=>{
+      const ia=smoothstep(segT(t,0.5+ci*0.25+i*0.12,0.4));
+      label(ctx,cx,top+90+i*34,it,{size:14.5,color:'#e9e8f0',alpha:ia,font:"'IBM Plex Mono',monospace"});
+    });
+  });
+  const a2=smoothstep(segT(t,2.6,0.6));
+  label(ctx,W/2,bottom-16,'same core idea throughout: predict, act, learn from the gap',{size:12.5,color:'#8b8a9a',alpha:a2});
+}
+
+/* =========================================================
+   SLIDE 2a — THE BELLMAN EQUATION (worked numeric example)
+========================================================= */
+function renderBellman(ctx,W,H,t){
+  const {midY,top}=safeZone();
+  const positions=[W*0.22,W*0.5,W*0.78];
+  const rewards=[3,5];
+  const gamma=0.9;
+  const V2=0, V1=rewards[1]+gamma*V2, V0=rewards[0]+gamma*V1;
+
+  const a1=smoothstep(segT(t,0,0.5));
+  positions.forEach((x,i)=>{
+    const term=i===2;
+    ctx.save(); ctx.globalAlpha=a1;
+    ctx.beginPath(); ctx.arc(x,midY,28,0,TAU);
+    ctx.strokeStyle= term? '#8b8a9a':'#6fa8dc';
+    ctx.fillStyle= term? 'rgba(255,255,255,0.04)':'rgba(111,168,220,0.08)';
+    ctx.lineWidth=1.8; ctx.fill(); ctx.stroke();
+    ctx.restore();
+    label(ctx,x,midY-6,'s'+i,{size:13,color:'#e9e8f0',alpha:a1,font:"'IBM Plex Mono',monospace"});
+  });
+  if(a1>0.9){
+    arrow(ctx,positions[0]+30,midY,positions[1]-30,midY,{color:'#e8a765',progress:1,lw:1.6});
+    label(ctx,(positions[0]+positions[1])/2,midY-22,'r = 3',{size:12,color:'#f0cda0',font:"'IBM Plex Mono',monospace"});
+    arrow(ctx,positions[1]+30,midY,positions[2]-30,midY,{color:'#e8a765',progress:1,lw:1.6});
+    label(ctx,(positions[1]+positions[2])/2,midY-22,'r = 5',{size:12,color:'#f0cda0',font:"'IBM Plex Mono',monospace"});
+    label(ctx,W/2,midY-52,'γ = 0.9',{size:12,color:'#8b8a9a',alpha:a1,font:"'IBM Plex Mono',monospace"});
+  }
+
+  const t2=t-0.9; if(t2<0) return;
+  const b1=smoothstep(segT(t2,0,0.5));
+  label(ctx,positions[2],midY+52,'V(s2) = 0   (terminal — nothing left to earn)',{size:12.5,color:'#8b8a9a',alpha:b1,font:"'IBM Plex Mono',monospace"});
+
+  const t3=t2-0.9; if(t3<0) return;
+  const b2=smoothstep(segT(t3,0,0.6));
+  label(ctx,positions[1],midY+52,'V(s1) = 5 + 0.9 × 0  =  5.0',{size:12.5,color:'#a9e2da',alpha:b2,font:"'IBM Plex Mono',monospace"});
+
+  const t4=t3-0.9; if(t4<0) return;
+  const b3=smoothstep(segT(t4,0,0.6));
+  label(ctx,positions[0],midY+52,'V(s0) = 3 + 0.9 × 5.0  =  7.5',{size:12.5,color:'#cdb8ea',alpha:b3,font:"'IBM Plex Mono',monospace"});
+
+  const t5=t4-0.9; if(t5<0) return;
+  const b4=smoothstep(segT(t5,0,0.5));
+  label(ctx,W/2,top+20,'V(s) = 𝔼[ r + γ·V(s′) ]   — solved backward from the end, one step at a time',{size:13,color:'#e9e8f0',alpha:b4,font:"'IBM Plex Mono',monospace"});
+}
+
+/* =========================================================
+   SLIDE 2c — POLICY GRADIENT: WHY THE MATH WORKS
+========================================================= */
+function renderPGDerivation(ctx,W,H,t){
+  const {top}=safeZone();
+  const cx=W*0.5;
+  const lines=[
+    {eq:'J(θ) = 𝔼[ R(τ) ] = ∫ πθ(τ) R(τ) dτ', note:'expected return, written as an integral over trajectories', color:'#e9e8f0'},
+    {eq:'∇θJ(θ) = ∫ ∇θπθ(τ) · R(τ) dτ', note:'differentiate under the integral sign', color:'#9dc1e8'},
+    {eq:'∇θπθ(τ) = πθ(τ) · ∇θ log πθ(τ)', note:'log-derivative trick:  ∇θ log f = ∇θf / f', color:'#e8a765', key:true},
+    {eq:'∇θJ(θ) = 𝔼[ ∇θ log πθ(τ) · R(τ) ]', note:'now it is an expectation — we can estimate it from samples', color:'#5fd0c3'},
+    {eq:'∇θ log πθ(τ) = Σₜ ∇θ log πθ(aₜ|sₜ)', note:'trajectory probability factorizes over timesteps', color:'#a98fd2'}
+  ];
+  const startY=top+56, gap=58;
+  lines.forEach((ln,i)=>{
+    const t0=i*1.15;
+    const a=smoothstep(segT(t,t0,0.55));
+    if(a<=0) return;
+    const y=startY+i*gap;
+    const dy=(1-a)*14;
+    const active = t>=t0 && t<t0+1.7;
+    if(ln.key){
+      const glow=0.5+0.5*pulse(t,1.3);
+      ctx.save(); ctx.globalAlpha=a*0.9;
+      roundRect(ctx,cx-360,y-dy-24,720,46,10);
+      ctx.strokeStyle=`rgba(232,167,101,${0.5+0.3*glow})`; ctx.lineWidth=1.6;
+      ctx.fillStyle=`rgba(232,167,101,${0.06+0.05*glow})`; ctx.fill(); ctx.stroke();
+      ctx.restore();
+      label(ctx,cx-352,y-dy-24+13,'KEY TRICK',{size:9.5,color:'#e8a765',weight:'700',align:'left',alpha:a,spacing:1.5,font:"'IBM Plex Mono',monospace"});
+    } else if(active){
+      const pulseA=0.10+0.09*pulse(t-t0,1.4);
+      ctx.save(); ctx.globalAlpha=a*0.9;
+      roundRect(ctx,cx-340,y-dy-24,680,44,10);
+      ctx.fillStyle=`rgba(255,255,255,${pulseA})`; ctx.fill();
+      ctx.restore();
+    }
+    const dim = (active||ln.key) ? 1 : 0.5;
+    label(ctx,cx,y-dy,ln.eq,{size:16,color:ln.color,font:"'IBM Plex Mono',monospace",weight:'600',alpha:a*dim});
+    label(ctx,cx,y-dy+20,ln.note,{size:11,color:'#8b8a9a',alpha:a*dim*0.95});
+  });
+}
+
+/* =========================================================
+   CORE CONCEPTS — 12 SLIDES
+========================================================= */
+function renderMDP(ctx,W,H,t){
+  const {midY,top}=safeZone();
+  const items=[
+    {sym:'S',mean:'states',color:'#5fd0c3'},
+    {sym:'A',mean:'actions',color:'#6fa8dc'},
+    {sym:'P',mean:'transition probs',color:'#e8a765'},
+    {sym:'R',mean:'reward function',color:'#e08a9c'},
+    {sym:'\u03b3',mean:'discount factor',color:'#a98fd2'}
+  ];
+  const n=items.length, gap=W*0.16;
+  const startX=W/2-(gap*(n-1))/2;
+  items.forEach((it,i)=>{
+    const a=smoothstep(segT(t,i*0.3,0.5));
+    const x=startX+i*gap;
+    ctx.save(); ctx.globalAlpha=a;
+    ctx.beginPath(); ctx.arc(x,midY-20,32,0,TAU);
+    ctx.strokeStyle=it.color; ctx.lineWidth=1.8; ctx.fillStyle=it.color+'22';
+    ctx.fill(); ctx.stroke(); ctx.restore();
+    label(ctx,x,midY-20,it.sym,{size:19,color:it.color,weight:'700',alpha:a,font:"'IBM Plex Mono',monospace"});
+    label(ctx,x,midY+34,it.mean,{size:11,color:'#8b8a9a',alpha:a});
+  });
+  const a2=smoothstep(segT(t,1.8,0.6));
+  label(ctx,W/2,midY+90,'MDP = (S, A, P, R, \u03b3)',{size:15,color:'#e9e8f0',alpha:a2,font:"'IBM Plex Mono',monospace",weight:'600'});
+  const a3=smoothstep(segT(t,2.4,0.6));
+  label(ctx,W/2,top+20,'Markov property: P(s\u2032|s,a) depends only on the present -- not on history',{size:12,color:'#8b8a9a',alpha:a3});
+}
+
+function renderExploration(ctx,W,H,t){
+  const {midY,top}=safeZone();
+  const cx=W*0.5;
+  const a1=smoothstep(segT(t,0,0.5));
+  const barW=360, barH=26;
+  const eps=Math.max(0.08, 0.5-(t%12)*0.03);
+  ctx.save(); ctx.globalAlpha=a1;
+  roundRect(ctx,cx-barW/2,midY-13,barW,barH,8);
+  ctx.fillStyle='rgba(255,255,255,0.05)'; ctx.fill();
+  ctx.strokeStyle='#8b8a9a'; ctx.lineWidth=1.4; ctx.stroke();
+  const exploreW=barW*eps;
+  roundRect(ctx,cx-barW/2,midY-13,exploreW,barH,8);
+  ctx.fillStyle='rgba(224,138,156,0.35)'; ctx.fill();
+  ctx.restore();
+  label(ctx,cx-barW/2+exploreW/2,midY+34,'explore \u03b5',{size:11.5,color:'#e08a9c',alpha:a1});
+  label(ctx,cx-barW/2+exploreW+(barW-exploreW)/2,midY+34,'exploit 1\u2212\u03b5',{size:11.5,color:'#a9e2da',alpha:a1});
+  if(a1>0.9){
+    const roll=(Math.sin(t*3.7)+1)/2;
+    const goExplore=roll<eps;
+    const bx=cx-barW/2+roll*barW;
+    dotOnLine(ctx,bx,midY-40,bx,midY-16,1,{color: goExplore?'#e08a9c':'#a9e2da',r:5,glow:8});
+    label(ctx,cx,midY-56, goExplore? 'random action (explore)':'greedy action = argmax\u2090Q(s,a)',{size:12.5,color: goExplore?'#f0bcc8':'#a9e2da'});
+  }
+  const a2=smoothstep(segT(t,1.2,0.5));
+  label(ctx,cx,top+20,'\u03b5-greedy: random w.p. \u03b5, else argmax\u2090 Q(s,a) -- \u03b5 decays over training',{size:12.5,color:'#e9e8f0',alpha:a2,font:"'IBM Plex Mono',monospace"});
+}
+
+function renderOnOffPolicy(ctx,W,H,t){
+  const {midY,top,bottom}=safeZone();
+  const lx=W*0.27, rx=W*0.73;
+  const a1=smoothstep(segT(t,0,0.5));
+  label(ctx,lx,top+20,'ON-POLICY',{size:14,color:'#5fd0c3',weight:'700',alpha:a1,spacing:1.5});
+  box(ctx,lx,midY,190,90,{stroke:'#5fd0c3',fill:'rgba(95,208,195,0.06)',alpha:a1,r:12});
+  label(ctx,lx,midY-8,'one policy',{size:13,color:'#a9e2da',alpha:a1});
+  label(ctx,lx,midY+14,'acts AND learns',{size:11,color:'#8b8a9a',alpha:a1});
+  if(a1>0.9){
+    const cyc=2.0; const p=(t%cyc)/cyc;
+    dotOnLine(ctx,lx-70,midY+40,lx+70,midY+40,p,{color:'#5fd0c3',r:4});
+  }
+  label(ctx,lx,midY+70,'e.g. SARSA, PPO, A2C',{size:10.5,color:'#8b8a9a',alpha:a1,font:"'IBM Plex Mono',monospace"});
+
+  const a2=smoothstep(segT(t,0.5,0.5));
+  label(ctx,rx,top+20,'OFF-POLICY',{size:14,color:'#e8a765',weight:'700',alpha:a2,spacing:1.5});
+  box(ctx,rx,midY-35,190,64,{stroke:'#e08a9c',fill:'rgba(224,138,156,0.06)',alpha:a2,r:10});
+  label(ctx,rx,midY-35,'behavior policy (explores)',{size:11,color:'#f0bcc8',alpha:a2});
+  box(ctx,rx,midY+45,190,64,{stroke:'#e8a765',fill:'rgba(232,167,101,0.06)',alpha:a2,r:10});
+  label(ctx,rx,midY+45,'target policy (greedy)',{size:11,color:'#f0cda0',alpha:a2});
+  if(a2>0.9) arrow(ctx,rx,midY-3,rx,midY+13,{color:'#8b8a9a',progress:1,lw:1.4});
+  label(ctx,rx,midY+100,'e.g. Q-learning, DDPG, TD3',{size:10.5,color:'#8b8a9a',alpha:a2,font:"'IBM Plex Mono',monospace"});
+
+  const a3=smoothstep(segT(t,1.2,0.6));
+  label(ctx,W/2,bottom-16,'off-policy can reuse old data; on-policy must throw it away after one update',{size:12,color:'#8b8a9a',alpha:a3});
+}
+
+function renderTaxonomy(ctx,W,H,t){
+  const {midY,top}=safeZone();
+  const rootY=top+40, branchY=midY, cx=W/2;
+  const a0=smoothstep(segT(t,0,0.4));
+  label(ctx,cx,rootY,'RL ALGORITHMS',{size:14,color:'#e9e8f0',weight:'700',alpha:a0,spacing:1.5});
+  const branches=[
+    {x:W*0.2,name:'VALUE-BASED',color:'#6fa8dc',sub:'learn Q(s,a), act greedily',ex:'Q-learning, DQN'},
+    {x:W*0.5,name:'ACTOR-CRITIC',color:'#e8a765',sub:'learn both, together',ex:'A2C, PPO, SAC...'},
+    {x:W*0.8,name:'POLICY-BASED',color:'#e08a9c',sub:'learn \u03c0(a|s) directly',ex:'REINFORCE'}
+  ];
+  branches.forEach((b,i)=>{
+    const a=smoothstep(segT(t,0.3+i*0.25,0.5));
+    arrow(ctx,cx,rootY+16,b.x,branchY-46,{color:'#8b8a9a',progress:a,lw:1.3,alpha:0.5});
+    box(ctx,b.x,branchY,190,84,{stroke:b.color,fill:b.color+'18',alpha:a,r:12});
+    label(ctx,b.x,branchY-14,b.name,{size:12.5,color:b.color,weight:'700',alpha:a,spacing:0.5});
+    label(ctx,b.x,branchY+10,b.sub,{size:10.5,color:'#cfcfda',alpha:a});
+    label(ctx,b.x,branchY+50,b.ex,{size:10.5,color:'#8b8a9a',alpha:a,font:"'IBM Plex Mono',monospace"});
+  });
+}
+
+function renderQLearning(ctx,W,H,t){
+  const {midY,bottom}=safeZone();
+  const cx=W*0.5;
+  const actions=['up','down','left'];
+  const qvals=[1.2,3.7,0.4];
+  const cellW=140;
+  const startX=cx-cellW*1.5;
+  const a1=smoothstep(segT(t,0,0.5));
+  label(ctx,cx,midY-90,"Q(s', \u00b7)",{size:13,color:'#9dc1e8',alpha:a1,font:"'IBM Plex Mono',monospace"});
+  actions.forEach((act,i)=>{
+    const a=smoothstep(segT(t,0.2+i*0.15,0.5));
+    const x=startX+i*cellW+cellW/2;
+    const best=i===1;
+    box(ctx,x,midY-40,cellW-16,54,{stroke: best?'#e8a765':'#6fa8dc', fill: best?'rgba(232,167,101,0.1)':'rgba(111,168,220,0.06)', alpha:a, r:9});
+    label(ctx,x,midY-52,act,{size:11.5,color:'#cfcfda',alpha:a});
+    label(ctx,x,midY-30,qvals[i].toFixed(1),{size:13,color: best?'#f0cda0':'#9dc1e8',alpha:a,font:"'IBM Plex Mono',monospace",weight:'600'});
+  });
+  const a2=smoothstep(segT(t,0.9,0.5));
+  label(ctx,cx,midY+15,'off-policy: bootstrap from the BEST next action -- even if a different one gets taken',{size:11.5,color:'#f0cda0',alpha:a2});
+  const a3=smoothstep(segT(t,1.5,0.6));
+  label(ctx,cx,bottom-18,"Q(s,a) \u2190 Q(s,a) + \u03b1[ r + \u03b3\u00b7max\u2090\u2032Q(s',a') \u2212 Q(s,a) ]",{size:13,color:'#e9e8f0',alpha:a3,font:"'IBM Plex Mono',monospace"});
+}
+
+function renderDQN(ctx,W,H,t){
+  const {midY,top}=safeZone();
+  const netX=W*0.28;
+  const a1=smoothstep(segT(t,0,0.5));
+  box(ctx,netX,midY-10,160,110,{stroke:'#6fa8dc',fill:'rgba(111,168,220,0.06)',alpha:a1,r:12});
+  label(ctx,netX,midY-58,'Q\u03b8 (online net)',{size:12,color:'#6fa8dc',weight:'700',alpha:a1});
+  if(a1>0.9) miniNet(ctx,netX,midY,1.6,'#6fa8dc',0.3);
+
+  const a2=smoothstep(segT(t,0.4,0.5));
+  box(ctx,W*0.5,midY+130,240,80,{stroke:'#e8a765',fill:'rgba(232,167,101,0.06)',alpha:a2,r:11});
+  label(ctx,W*0.5,midY+112,'REPLAY BUFFER',{size:11.5,color:'#e8a765',weight:'700',alpha:a2,spacing:1});
+  label(ctx,W*0.5,midY+148,'(s,a,r,s\u2032) stored & sampled at random',{size:10,color:'#f0cda0',alpha:a2});
+
+  const a3=smoothstep(segT(t,0.7,0.5));
+  box(ctx,W*0.78,midY-10,160,110,{stroke:'#a98fd2',fill:'rgba(169,143,210,0.06)',alpha:a3,r:12,dashed:true});
+  label(ctx,W*0.78,midY-58,'Q\u03b8\u207b (target net)',{size:12,color:'#a98fd2',weight:'700',alpha:a3});
+  if(a3>0.9) miniNet(ctx,W*0.78,midY,1.6,'#a98fd2',0.1);
+  label(ctx,W*0.78,midY+40,'frozen copy -- updated every C steps',{size:10,color:'#cdb8ea',alpha:a3});
+
+  if(a1>0.9 && a2>0.9) arrow(ctx,netX,midY+55,W*0.5-40,midY+95,{color:'#8b8a9a',progress:1,lw:1.2,alpha:0.5,dashed:true});
+  if(a2>0.9 && a1>0.9) arrow(ctx,W*0.5-70,midY+100,netX-20,midY+55,{color:'#8b8a9a',progress:1,lw:1.2,alpha:0.5});
+  const a4=smoothstep(segT(t,1.5,0.6));
+  label(ctx,W*0.5,top+20,"L(\u03b8) = \ud835\udd3c[ (r + \u03b3\u00b7max\u2090\u2032Q\u03b8\u207b(s',a') \u2212 Q\u03b8(s,a))\u00b2 ]",{size:12.5,color:'#e9e8f0',alpha:a4,font:"'IBM Plex Mono',monospace"});
+}
+
+function renderBiasVariance(ctx,W,H,t){
+  const {midY,top,bottom}=safeZone();
+  const lx=W*0.3, rx=W*0.7;
+
+  function board(cx,color,spread,bias,alpha){
+    ctx.save(); ctx.globalAlpha=alpha;
+    ctx.beginPath(); ctx.arc(cx,midY,70,0,TAU); ctx.strokeStyle='#8b8a9a'; ctx.lineWidth=1; ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx,midY,40,0,TAU); ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx,midY,12,0,TAU); ctx.stroke();
+    ctx.restore();
+    for(let i=0;i<14;i++){
+      const ang=(i/14)*TAU + i*1.3;
+      const r=spread*(0.3+0.7*((i*37)%10)/10);
+      const dx=Math.cos(ang)*r + bias, dy=Math.sin(ang)*r*0.6;
+      ctx.save(); ctx.globalAlpha=alpha*0.85; ctx.fillStyle=color;
+      ctx.beginPath(); ctx.arc(cx+dx,midY+dy,3.4,0,TAU); ctx.fill(); ctx.restore();
+    }
+  }
+  const a1=smoothstep(segT(t,0,0.6));
+  board(lx,'#5fd0c3',62,0,a1);
+  label(ctx,lx,top+20,'MONTE CARLO',{size:13,color:'#5fd0c3',weight:'700',alpha:a1,spacing:1});
+  label(ctx,lx,midY+95,'unbiased, high variance',{size:11.5,color:'#a9e2da',alpha:a1});
+  label(ctx,lx,midY+114,"G\u209c = \u03a3 \u03b3\u1d4fr\u209c\u208a\u2096  (waits for full episode)",{size:10,color:'#8b8a9a',alpha:a1,font:"'IBM Plex Mono',monospace"});
+
+  const a2=smoothstep(segT(t,0.5,0.6));
+  board(rx,'#e8a765',22,26,a2);
+  label(ctx,rx,top+20,'TEMPORAL DIFFERENCE',{size:13,color:'#e8a765',weight:'700',alpha:a2,spacing:1});
+  label(ctx,rx,midY+95,'some bias, low variance',{size:11.5,color:'#f0cda0',alpha:a2});
+  label(ctx,rx,midY+114,'target: r\u209c + \u03b3V(s\u209c\u208a\u2081)  (bootstraps after 1 step)',{size:10,color:'#8b8a9a',alpha:a2,font:"'IBM Plex Mono',monospace"});
+
+  const a3=smoothstep(segT(t,1.3,0.6));
+  label(ctx,W/2,bottom-16,'GAE blends both -- this is the knob that lets you choose',{size:12,color:'#8b8a9a',alpha:a3});
+}
+
+function renderGAE(ctx,W,H,t){
+  const {midY,top}=safeZone();
+  const x0=W*0.22, x1=W*0.78, baseline=midY;
+  const a1=smoothstep(segT(t,0,0.5));
+  ctx.save(); ctx.globalAlpha=a1*0.6; ctx.strokeStyle='#8b8a9a'; ctx.lineWidth=1.3;
+  ctx.beginPath(); ctx.moveTo(x0,baseline); ctx.lineTo(x1,baseline); ctx.stroke(); ctx.restore();
+  label(ctx,x0,baseline+26,'\u03bb=0',{size:12,color:'#e8a765',alpha:a1,font:"'IBM Plex Mono',monospace"});
+  label(ctx,x1,baseline+26,'\u03bb=1',{size:12,color:'#5fd0c3',alpha:a1,font:"'IBM Plex Mono',monospace"});
+  label(ctx,(x0+x1)/2,baseline+26,'GAE(\u03bb)',{size:12,color:'#cdb8ea',alpha:a1,font:"'IBM Plex Mono',monospace"});
+
+  const t2=t-0.6; if(t2<0) return;
+  const cyc=3.4; const p=(t2%cyc)/cyc;
+  const lam=p;
+  const x=lerp(x0,x1,lam);
+  dotOnLine(ctx,x,baseline,x,baseline,0,{color:'#e9e8f0',r:7,glow:10});
+  label(ctx,x,baseline-70,lam<0.5?'more bias, less variance':'less bias, more variance',{size:12,color: lam<0.5?'#f0cda0':'#a9e2da'});
+  const biasH=(1-lam)*70, varH=lam*70;
+  ctx.save(); ctx.fillStyle='rgba(232,167,101,0.4)'; ctx.fillRect(x-40,baseline-30-biasH,14,biasH); ctx.restore();
+  ctx.save(); ctx.fillStyle='rgba(95,208,195,0.4)'; ctx.fillRect(x+26,baseline-30-varH,14,varH); ctx.restore();
+  label(ctx,x-33,baseline-38-biasH,'bias',{size:9.5,color:'#f0cda0'});
+  label(ctx,x+33,baseline-38-varH,'var',{size:9.5,color:'#a9e2da'});
+
+  const a4=smoothstep(segT(t,1.4,0.6));
+  label(ctx,W/2,top+20,"A\u1d33\u1d2c\u1d31(\u03bb) = \u03a3\u2097 (\u03b3\u03bb)\u02e1 \u00b7 \u03b4\u209c\u208a\u2097",{size:13,color:'#e9e8f0',alpha:a4,font:"'IBM Plex Mono',monospace"});
+}
+
+function renderImportanceSampling(ctx,W,H,t){
+  const {midY,top}=safeZone();
+  const cx=W*0.5, baseY=midY+70;
+  const a1=smoothstep(segT(t,0,0.5));
+  ctx.save(); ctx.globalAlpha=a1*0.5; ctx.strokeStyle='#8b8a9a'; ctx.lineWidth=1.2;
+  ctx.beginPath(); ctx.moveTo(cx-260,baseY); ctx.lineTo(cx+260,baseY); ctx.stroke(); ctx.restore();
+
+  function bell(cx2,sigma,peak,color){
+    ctx.save(); ctx.globalAlpha=a1; ctx.beginPath();
+    for(let x=-200;x<=200;x+=4){
+      const y=baseY-peak*Math.exp(-((x-(cx2-cx))*(x-(cx2-cx)))/(2*sigma*sigma));
+      if(x===-200) ctx.moveTo(cx+x,y); else ctx.lineTo(cx+x,y);
+    }
+    ctx.strokeStyle=color; ctx.lineWidth=2; ctx.stroke(); ctx.restore();
+  }
+  bell(cx-60,50,100,'#6fa8dc');
+  bell(cx+50,55,90,'#e08a9c');
+  label(ctx,cx-60,baseY-115,'q (behavior)',{size:11.5,color:'#9dc1e8',alpha:a1});
+  label(ctx,cx+50,baseY-105,'p (target)',{size:11.5,color:'#f0bcc8',alpha:a1});
+
+  const t2=t-0.8; if(t2<0) return;
+  const a2=smoothstep(segT(t2,0,0.6));
+  const sx=cx-60+60*Math.sin(t2*0.6);
+  const w=clamp(1.4-Math.abs(sx-(cx+50))/120, 0.2, 2.2);
+  dotOnLine(ctx,sx,baseY,sx,baseY,0,{color:'#e9e8f0',r:4+w*3,glow:8});
+  label(ctx,sx,baseY+34,'weight = p(x)/q(x) \u2248 '+w.toFixed(2),{size:11,color:'#e9e8f0',alpha:a2,font:"'IBM Plex Mono',monospace"});
+
+  const a3=smoothstep(segT(t,1.6,0.6));
+  label(ctx,cx,top+20,"\ud835\udd3c\u2093\u007e\u209a[f(x)] = \ud835\udd3c\u2093\u007e\u2071[ (p(x)/q(x)) \u00b7 f(x) ]",{size:13,color:'#e9e8f0',alpha:a3,font:"'IBM Plex Mono',monospace"});
+}
+
+function renderEligibility(ctx,W,H,t){
+  const {midY,top}=safeZone();
+  const n=6;
+  const xs=[]; for(let i=0;i<n;i++) xs.push(W*0.16+i*(W*0.68)/(n-1));
+  const y=midY;
+  const cyc=4.2; const p=(t%cyc)/cyc;
+  const headIdx=Math.floor(p*n);
+  const headProg=(p*n)%1;
+
+  for(let i=0;i<n;i++){
+    const age=headIdx-i+(i===headIdx?headProg:0);
+    const trace = i<=headIdx ? Math.pow(0.75,age) : 0;
+    const a=smoothstep(segT(t,0,0.4));
+    ctx.save(); ctx.globalAlpha=a;
+    ctx.beginPath(); ctx.arc(xs[i],y,16,0,TAU);
+    ctx.fillStyle = i<=headIdx? 'rgba(232,167,101,'+(0.15+0.5*trace)+')' : 'rgba(255,255,255,0.03)';
+    ctx.strokeStyle = i<=headIdx? '#e8a765':'#8b8a9a';
+    ctx.lineWidth=1.4; ctx.fill(); ctx.stroke();
+    ctx.restore();
+    if(i<=headIdx) label(ctx,xs[i],y+32,'e='+trace.toFixed(2),{size:9.5,color:'#f0cda0',alpha:a,font:"'IBM Plex Mono',monospace"});
+  }
+  for(let i=0;i<n-1;i++) arrow(ctx,xs[i]+18,y,xs[i+1]-18,y,{color:'#8b8a9a',progress:1,lw:1,alpha:0.3});
+
+  const headX=lerp(xs[Math.min(headIdx,n-1)], xs[Math.min(headIdx+1,n-1)], headProg);
+  dotOnLine(ctx,headX,y,headX,y,0,{color:'#5fd0c3',r:6,glow:10});
+  if(headIdx>=n-1){
+    label(ctx,xs[n-1],y-40,'reward! updates flow back along the trail',{size:11.5,color:'#5fd0c3'});
+  }
+  label(ctx,W/2,top+20,"e\u209c(s) = \u03b3\u03bb\u00b7e\u209c\u208b\u2081(s) + 1[s=s\u209c]     V(s) \u2190 V(s)+\u03b1\u03b4\u209ce\u209c(s)",{size:12,color:'#e9e8f0',font:"'IBM Plex Mono',monospace"});
+}
+
+function renderFunctionApprox(ctx,W,H,t){
+  const {midY,top,bottom}=safeZone();
+  const lx=W*0.28, rx=W*0.72;
+  const a1=smoothstep(segT(t,0,0.5));
+  label(ctx,lx,top+20,'TABLE',{size:14,color:'#e08a9c',weight:'700',alpha:a1,spacing:1.5});
+  const rows=4, cols=4, cw=26,ch=22;
+  for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){
+    const x=lx-cols*cw/2+c*cw+cw/2, y=midY-rows*ch/2+r*ch+ch/2;
+    const shakeA = smoothstep(segT(t,1.2,1));
+    const shake = shakeA>0 ? (Math.sin((r*7+c*13+t*30))*4*shakeA) : 0;
+    ctx.save(); ctx.globalAlpha=a1;
+    ctx.strokeStyle='#e08a9c'; ctx.lineWidth=1;
+    ctx.strokeRect(x-cw/2+shake,y-ch/2+shake,cw-3,ch-3);
+    ctx.restore();
+  }
+  label(ctx,lx,midY+70,'breaks down: infinite / huge state spaces',{size:11,color:'#8b8a9a',alpha:a1});
+
+  const a2=smoothstep(segT(t,0.5,0.5));
+  label(ctx,rx,top+20,'NEURAL NETWORK',{size:14,color:'#5fd0c3',weight:'700',alpha:a2,spacing:1.5});
+  if(a2>0.9) miniNet(ctx,rx,midY,2.4,'#5fd0c3',0.4+0.3*pulse(t,2));
+  label(ctx,rx,midY+70,'generalizes to states it has never seen',{size:11,color:'#8b8a9a',alpha:a2});
+
+  const a3=smoothstep(segT(t,1.5,0.6));
+  label(ctx,W/2,bottom-16,'V\u03b8(s) or Q\u03b8(s,a) -- a smooth function, not a lookup table',{size:12.5,color:'#e9e8f0',alpha:a3,font:"'IBM Plex Mono',monospace"});
+}
+
+function renderActionSpaces(ctx,W,H,t){
+  const {midY,top,bottom}=safeZone();
+  const lx=W*0.27, rx=W*0.73;
+  const a1=smoothstep(segT(t,0,0.5));
+  label(ctx,lx,top+20,'DISCRETE',{size:14,color:'#6fa8dc',weight:'700',alpha:a1,spacing:1.5});
+  const acts=['left','stay','right'];
+  const probs=[0.15,0.15,0.70];
+  acts.forEach((act,i)=>{
+    const x=lx-70+i*70;
+    const h=probs[i]*90;
+    ctx.save(); ctx.globalAlpha=a1;
+    ctx.fillStyle='rgba(111,168,220,0.3)';
+    ctx.fillRect(x-20,midY+30-h,40,h);
+    ctx.strokeStyle='#6fa8dc'; ctx.lineWidth=1.4; ctx.strokeRect(x-20,midY+30-h,40,h);
+    ctx.restore();
+    label(ctx,x,midY+48,act,{size:10,color:'#9dc1e8',alpha:a1});
+  });
+  label(ctx,lx,midY-60,'softmax over logits',{size:11,color:'#8b8a9a',alpha:a1,font:"'IBM Plex Mono',monospace"});
+
+  const a2=smoothstep(segT(t,0.5,0.5));
+  label(ctx,rx,top+20,'CONTINUOUS',{size:14,color:'#e8a765',weight:'700',alpha:a2,spacing:1.5});
+  const baseY=midY+30;
+  ctx.save(); ctx.globalAlpha=a2*0.5; ctx.strokeStyle='#8b8a9a'; ctx.lineWidth=1.2;
+  ctx.beginPath(); ctx.moveTo(rx-100,baseY); ctx.lineTo(rx+100,baseY); ctx.stroke(); ctx.restore();
+  ctx.save(); ctx.globalAlpha=a2; ctx.beginPath();
+  for(let x=-100;x<=100;x+=4){
+    const y=baseY-70*Math.exp(-(x*x)/(2*32*32));
+    if(x===-100) ctx.moveTo(rx+x,y); else ctx.lineTo(rx+x,y);
+  }
+  ctx.strokeStyle='#e8a765'; ctx.lineWidth=2; ctx.stroke(); ctx.restore();
+  label(ctx,rx,midY-60,'a Gaussian over torque, steering, ...',{size:11,color:'#8b8a9a',alpha:a2,font:"'IBM Plex Mono',monospace"});
+
+  const a3=smoothstep(segT(t,1.3,0.6));
+  label(ctx,W/2,bottom-16,'same actor-critic math -- only the output layer changes',{size:12,color:'#8b8a9a',alpha:a3});
+}
+
+/* =========================================================
+   ADVANCED TOPICS — 8 SLIDES
+========================================================= */
+function renderDistributional(ctx,W,H,t){
+  const {midY,top,bottom}=safeZone();
+  const lx=W*0.28, rx=W*0.72, baseY=midY+50;
+  const a1=smoothstep(segT(t,0,0.5));
+  label(ctx,lx,top+20,'SAFE',{size:13,color:'#5fd0c3',weight:'700',alpha:a1,spacing:1.5});
+  ctx.save(); ctx.globalAlpha=a1; ctx.beginPath();
+  for(let x=-80;x<=80;x+=3){ const y=baseY-70*Math.exp(-(x*x)/(2*18*18)); if(x===-80) ctx.moveTo(lx+x,y); else ctx.lineTo(lx+x,y); }
+  ctx.strokeStyle='#5fd0c3'; ctx.lineWidth=2; ctx.stroke(); ctx.restore();
+  label(ctx,lx,baseY+20,'\ud835\udd3c[Z] = 5, narrow spread',{size:11,color:'#a9e2da',alpha:a1,font:"'IBM Plex Mono',monospace"});
+
+  const a2=smoothstep(segT(t,0.5,0.5));
+  label(ctx,rx,top+20,'RISKY',{size:13,color:'#e08a9c',weight:'700',alpha:a2,spacing:1.5});
+  ctx.save(); ctx.globalAlpha=a2; ctx.beginPath();
+  for(let x=-80;x<=80;x+=3){ const y=baseY-32*Math.exp(-(x*x)/(2*55*55)); if(x===-80) ctx.moveTo(rx+x,y); else ctx.lineTo(rx+x,y); }
+  ctx.strokeStyle='#e08a9c'; ctx.lineWidth=2; ctx.stroke(); ctx.restore();
+  label(ctx,rx,baseY+20,'\ud835\udd3c[Z] = 5, wide spread',{size:11,color:'#f0bcc8',alpha:a2,font:"'IBM Plex Mono',monospace"});
+
+  const a3=smoothstep(segT(t,1.2,0.6));
+  label(ctx,W/2,midY-60,"same average -- very different risk. Q(s,a)=\ud835\udd3c[Z(s,a)] can't tell them apart",{size:12,color:'#8b8a9a',alpha:a3});
+  const a4=smoothstep(segT(t,1.8,0.6));
+  label(ctx,W/2,bottom-16,'learn the full distribution Z(s,a), not just its mean',{size:12.5,color:'#e9e8f0',alpha:a4,font:"'IBM Plex Mono',monospace"});
+}
+
+function renderCuriosity(ctx,W,H,t){
+  const {midY,top}=safeZone();
+  const ax=W*0.25, fx=W*0.55;
+  const a1=smoothstep(segT(t,0,0.5));
+  box(ctx,ax,midY,150,90,{stroke:'#5fd0c3',fill:'rgba(95,208,195,0.06)',alpha:a1,r:11});
+  label(ctx,ax,midY-6,'AGENT',{size:13,color:'#5fd0c3',weight:'700',alpha:a1,spacing:1});
+  label(ctx,ax,midY+16,'in state s\u209c, a\u209c',{size:10.5,color:'#a9e2da',alpha:a1,font:"'IBM Plex Mono',monospace"});
+
+  const a2=smoothstep(segT(t,0.4,0.5));
+  box(ctx,fx,midY,170,90,{stroke:'#a98fd2',fill:'rgba(169,143,210,0.06)',alpha:a2,r:11});
+  label(ctx,fx,midY-14,'FORWARD MODEL',{size:12,color:'#a98fd2',weight:'700',alpha:a2,spacing:0.5});
+  label(ctx,fx,midY+12,'predicts s\u0302\u209c\u208a\u2081',{size:10.5,color:'#cdb8ea',alpha:a2,font:"'IBM Plex Mono',monospace"});
+  if(a1>0.9 && a2>0.9) arrow(ctx,ax+76,midY,fx-86,midY,{color:'#8b8a9a',progress:1,lw:1.4});
+
+  const t2=t-1.0; if(t2<0) return;
+  const cyc=3.0; const p=(t2%cyc)/cyc;
+  const novelty=Math.max(0.1,0.9*(1-p));
+  const barH=90*novelty;
+  const av=smoothstep(segT(t2,0,0.4));
+  ctx.save(); ctx.globalAlpha=av;
+  ctx.fillStyle='rgba(232,167,101,0.3)';
+  ctx.fillRect(W*0.78-20, midY+45-barH, 40, barH);
+  ctx.strokeStyle='#e8a765'; ctx.lineWidth=1.4; ctx.strokeRect(W*0.78-20, midY+45-barH, 40, barH);
+  ctx.restore();
+  label(ctx,W*0.78,midY+64,'intrinsic reward',{size:10.5,color:'#f0cda0',alpha:av});
+  label(ctx,W*0.78,midY-70,novelty>0.4?'surprising!':'familiar now',{size:11.5,color: novelty>0.4?'#f0cda0':'#8b8a9a'});
+
+  const a3=smoothstep(segT(t2,0.6,0.6));
+  label(ctx,W/2,top+20,"r_intrinsic = \u2016f\u03c6(s\u209c,a\u209c) \u2212 s\u209c\u208a\u2081\u2016\u00b2  -- curiosity IS prediction error",{size:12.5,color:'#e9e8f0',alpha:a3,font:"'IBM Plex Mono',monospace"});
+}
+
+function renderHER(ctx,W,H,t){
+  const {midY,top}=safeZone();
+  const startX=W*0.2, goalX=W*0.75, achX=W*0.55, y=midY-10;
+  const a1=smoothstep(segT(t,0,0.5));
+  label(ctx,startX,y-50,'start',{size:11,color:'#8b8a9a',alpha:a1});
+  ctx.save(); ctx.globalAlpha=a1; ctx.fillStyle='#e9e8f0'; ctx.beginPath(); ctx.arc(startX,y,6,0,TAU); ctx.fill(); ctx.restore();
+
+  const a2=smoothstep(segT(t,0.4,0.6));
+  ctx.save(); ctx.globalAlpha=a2; ctx.strokeStyle='#8b8a9a'; ctx.setLineDash([3,4]); ctx.lineWidth=1.6;
+  ctx.beginPath(); ctx.moveTo(startX,y); ctx.quadraticCurveTo((startX+achX)/2,y-60,achX,y-10); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
+  label(ctx,goalX,y-40,'goal g (missed)',{size:11.5,color:'#e08a9c',alpha:a2});
+  ctx.save(); ctx.globalAlpha=a2*0.5; ctx.strokeStyle='#e08a9c'; ctx.beginPath(); ctx.arc(goalX,y,20,0,TAU); ctx.stroke(); ctx.restore();
+
+  const a3=smoothstep(segT(t,1.0,0.6));
+  label(ctx,achX,y-40,"achieved g' (reached)",{size:11.5,color:'#5fd0c3',alpha:a3});
+  ctx.save(); ctx.globalAlpha=a3*0.6; ctx.strokeStyle='#5fd0c3'; ctx.beginPath(); ctx.arc(achX,y-10,20,0,TAU); ctx.stroke(); ctx.restore();
+
+  const t2=t-1.6; if(t2<0) return;
+  const a4=smoothstep(segT(t2,0,0.6));
+  label(ctx,W/2,y+70,"relabel: pretend g' was the goal all along -- reward flips 0 \u2192 1",{size:12.5,color:'#f0cda0',alpha:a4});
+  const a5=smoothstep(segT(t2,0.6,0.6));
+  label(ctx,W/2,top+20,"replay (s,a,r,s',g) with g \u2190 g' = \u03c6(s\u209c)  -- \"failure\" becomes a success story",{size:12,color:'#e9e8f0',alpha:a5,font:"'IBM Plex Mono',monospace"});
+}
+
+function renderOfflineRL(ctx,W,H,t){
+  const {midY,top,bottom}=safeZone();
+  const dbX=W*0.24, aY=midY;
+  const a1=smoothstep(segT(t,0,0.5));
+  box(ctx,dbX,aY,160,100,{stroke:'#6fa8dc',fill:'rgba(111,168,220,0.06)',alpha:a1,r:12});
+  label(ctx,dbX,aY-16,'FIXED DATASET',{size:12,color:'#6fa8dc',weight:'700',alpha:a1,spacing:0.5});
+  label(ctx,dbX,aY+12,'no new interaction',{size:10.5,color:'#9dc1e8',alpha:a1});
+
+  const a2=smoothstep(segT(t,0.4,0.5));
+  const gx=W*0.62, gy0=midY-70;
+  ctx.save(); ctx.globalAlpha=a2*0.5; ctx.strokeStyle='#8b8a9a'; ctx.lineWidth=1.2;
+  ctx.beginPath(); ctx.moveTo(gx-140,gy0+120); ctx.lineTo(gx+140,gy0+120); ctx.stroke(); ctx.restore();
+  ctx.save(); ctx.globalAlpha=a2; ctx.beginPath();
+  const pts=40;
+  for(let i=0;i<=pts;i++){
+    const xn=i/pts, x=gx-140+xn*280;
+    let val;
+    if(xn<0.65){ val=20+10*Math.sin(xn*8); }
+    else { val=20+10*Math.sin(0.65*8) + Math.pow((xn-0.65)/0.35,2)*160; }
+    const yv=gy0+120-val;
+    if(i===0) ctx.moveTo(x,yv); else ctx.lineTo(x,yv);
+  }
+  ctx.strokeStyle='#e08a9c'; ctx.lineWidth=2; ctx.stroke(); ctx.restore();
+  label(ctx,gx-70,gy0+140,'seen actions',{size:10,color:'#8b8a9a',alpha:a2});
+  label(ctx,gx+95,gy0+140,'unseen (OOD)',{size:10,color:'#e08a9c',alpha:a2});
+  label(ctx,gx,gy0-30,'Q\u03b8(s,a) overestimates actions never in the data',{size:11.5,color:'#f0bcc8',alpha:a2});
+
+  const a3=smoothstep(segT(t,1.4,0.6));
+  label(ctx,W/2,bottom-16,'fix: penalize Q on out-of-distribution actions -- stay conservative',{size:12,color:'#8b8a9a',alpha:a3});
+  const a4=smoothstep(segT(t,1.9,0.6));
+  label(ctx,W/2,top+20,"L = L_TD + \u03b2\u00b7( \ud835\udd3c\u2090\u007e\u03c0[Q(s,a)] \u2212 \ud835\udd3c\u2090\u007edata[Q(s,a)] )",{size:12,color:'#e9e8f0',alpha:a4,font:"'IBM Plex Mono',monospace"});
+}
+
+function renderRewardHacking(ctx,W,H,t){
+  const {midY,top,bottom}=safeZone();
+  const cx=W*0.42, cy=midY, R=70;
+  const a1=smoothstep(segT(t,0,0.5));
+  ctx.save(); ctx.globalAlpha=a1*0.4; ctx.strokeStyle='#e8a765'; ctx.setLineDash([3,5]); ctx.lineWidth=1.4;
+  ctx.beginPath(); ctx.arc(cx,cy,R,0,TAU); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
+  label(ctx,cx,cy-R-16,'regenerating bonus',{size:11,color:'#f0cda0',alpha:a1});
+
+  const cyc=2.2; const p=(t%cyc)/cyc;
+  const ang=p*TAU;
+  const bx=cx+Math.cos(ang)*R, by=cy+Math.sin(ang)*R;
+  if(a1>0.9){
+    ctx.save(); ctx.fillStyle='#e8a765'; ctx.shadowColor='#e8a765'; ctx.shadowBlur=10;
+    ctx.beginPath(); ctx.arc(bx,by,6,0,TAU); ctx.fill(); ctx.restore();
+    const score=Math.floor(t*40)%9999;
+    label(ctx,cx,cy,'score: '+score,{size:12,color:'#e9e8f0'});
+  }
+
+  const a2=smoothstep(segT(t,0.6,0.5));
+  const finishX=W*0.78;
+  ctx.save(); ctx.globalAlpha=a2*0.5; ctx.strokeStyle='#8b8a9a'; ctx.setLineDash([4,4]); ctx.lineWidth=1.4;
+  ctx.beginPath(); ctx.moveTo(finishX,cy-60); ctx.lineTo(finishX,cy+60); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
+  label(ctx,finishX,cy-76,'finish line (unused)',{size:10.5,color:'#8b8a9a',alpha:a2});
+
+  const a3=smoothstep(segT(t,1.2,0.6));
+  label(ctx,W/2,top+20,'"when a measure becomes the target, it stops being a good measure"',{size:12,color:'#8b8a9a',alpha:a3});
+  const a4=smoothstep(segT(t,1.8,0.6));
+  label(ctx,W/2,bottom-16,"max\u03b8 \ud835\udd3c[R_proxy(\u03c4)]  \u2260  max\u03b8 \ud835\udd3c[R_true(\u03c4)]  in general",{size:12.5,color:'#e9e8f0',alpha:a4,font:"'IBM Plex Mono',monospace"});
+}
+
+function renderRLHF(ctx,W,H,t){
+  const {midY,top}=safeZone();
+  const y=midY-10;
+  const xs=[W*0.14,W*0.38,W*0.62,W*0.86];
+  const lines=[['BASE','model'],['SAMPLE','outputs'],['REWARD','model'],['PPO','fine-tune']];
+  const cols=['#8b8a9a','#6fa8dc','#e08a9c','#5fd0c3'];
+  xs.forEach((x,i)=>{
+    const a=smoothstep(segT(t,i*0.35,0.5));
+    box(ctx,x,y,140,78,{stroke:cols[i],fill:cols[i]+'18',alpha:a,r:10});
+    label(ctx,x,y-8,lines[i][0],{size:11.5,color:cols[i],weight:'700',alpha:a,spacing:0.5});
+    label(ctx,x,y+12,lines[i][1],{size:10.5,color:'#cfcfda',alpha:a});
+    if(i>0){
+      const ap=smoothstep(segT(t,i*0.35-0.1,0.4));
+      arrow(ctx,xs[i-1]+70,y,x-70,y,{color:'#8b8a9a',progress:ap,lw:1.4});
+    }
+  });
+  label(ctx,xs[2],y+56,'trained on human A/B comparisons',{size:9.5,color:'#f0bcc8',alpha:smoothstep(segT(t,1.05,0.5))});
+
+  const t2=t-1.6; if(t2<0) return;
+  const a2=smoothstep(segT(t2,0,0.6));
+  curvedArrow(ctx,xs[3],y+45,xs[0],y+45,90,{color:'#a98fd2',progress:a2,lw:1.6});
+  label(ctx,W/2,y+95,'KL penalty pulls the fine-tuned policy back toward the base model',{size:11.5,color:'#cdb8ea',alpha:a2});
+
+  const a3=smoothstep(segT(t2,0.6,0.6));
+  label(ctx,W/2,top+20,"R(x,y) = R_RM(x,y) \u2212 \u03b2\u00b7KL(\u03c0\u03b8(\u00b7|x) \u2016 \u03c0_ref(\u00b7|x))",{size:12.5,color:'#e9e8f0',alpha:a3,font:"'IBM Plex Mono',monospace"});
+}
+
+function renderHierarchical(ctx,W,H,t){
+  const {midY,top}=safeZone();
+  const mgrY=midY-90, cx=W*0.5;
+  const a1=smoothstep(segT(t,0,0.5));
+  box(ctx,cx,mgrY,200,66,{stroke:'#a98fd2',fill:'rgba(169,143,210,0.07)',alpha:a1,r:12});
+  label(ctx,cx,mgrY,'MANAGER (picks options)',{size:12,color:'#a98fd2',weight:'700',alpha:a1,spacing:0.3});
+
+  const opts=[{x:W*0.22,name:'o1: reach door'},{x:W*0.5,name:'o2: pick up key'},{x:W*0.78,name:'o3: unlock'}];
+  const cyc=4.5; const p=(t%cyc)/cyc;
+  const activeOpt=Math.floor(p*3)%3;
+  opts.forEach((o,i)=>{
+    const a=smoothstep(segT(t,0.4+i*0.2,0.5));
+    const active=i===activeOpt && t>1.5;
+    box(ctx,o.x,midY+30,180,56,{stroke: active?'#e8a765':'#5fd0c3', fill: active?'rgba(232,167,101,0.1)':'rgba(95,208,195,0.05)', alpha:a, r:10});
+    label(ctx,o.x,midY+30,o.name,{size:10.5,color: active?'#f0cda0':'#a9e2da',alpha:a,font:"'IBM Plex Mono',monospace"});
+    if(a1>0.9 && a>0.9) arrow(ctx,cx,mgrY+34,o.x,midY-2,{color:'#8b8a9a',progress:1,lw:1.2,alpha: active?0.8:0.25});
+    if(active){
+      for(let k=0;k<3;k++){
+        const kx=o.x-40+k*40;
+        dotOnLine(ctx,kx,midY+80,kx,midY+80,0,{color:'#e8a765',r:3.5,alpha:0.8});
+      }
+      label(ctx,o.x,midY+95,'runs several primitive steps...',{size:9.5,color:'#8b8a9a'});
+    }
+  });
+  const a2=smoothstep(segT(t,1.2,0.6));
+  label(ctx,W/2,top+20,'option = ( initiation set, intra-option policy \u03c0\u2092, termination \u03b2\u2092 )',{size:12,color:'#e9e8f0',alpha:a2,font:"'IBM Plex Mono',monospace"});
+}
+
+function renderPOMDP(ctx,W,H,t){
+  const {midY,top,bottom}=safeZone();
+  const sx=W*0.28, ox=W*0.28, bx=W*0.68;
+  const a1=smoothstep(segT(t,0,0.5));
+  box(ctx,sx,midY-90,140,60,{stroke:'#8b8a9a',fill:'rgba(255,255,255,0.02)',alpha:a1,r:10,dashed:true});
+  label(ctx,sx,midY-90,'true state s (hidden)',{size:10.5,color:'#8b8a9a',alpha:a1});
+
+  const a2=smoothstep(segT(t,0.4,0.5));
+  box(ctx,ox,midY,120,60,{stroke:'#6fa8dc',fill:'rgba(111,168,220,0.06)',alpha:a2,r:10});
+  label(ctx,ox,midY,'observation o',{size:11.5,color:'#9dc1e8',alpha:a2,font:"'IBM Plex Mono',monospace"});
+  if(a1>0.9 && a2>0.9) arrow(ctx,sx,midY-58,ox,midY-32,{color:'#8b8a9a',progress:1,lw:1.3,alpha:0.5,dashed:true});
+
+  const n=4;
+  const t2=t-1.0;
+  for(let i=0;i<n;i++){
+    const a=smoothstep(segT(t2,i*0.3,0.5));
+    if(a<=0) continue;
+    const bw=26, bh=10+(i===2?60:18+i*6);
+    const bxi=bx-60+i*40;
+    ctx.save(); ctx.globalAlpha=a;
+    ctx.fillStyle= i===2?'rgba(95,208,195,0.4)':'rgba(255,255,255,0.08)';
+    ctx.fillRect(bxi-bw/2, midY+30-bh, bw, bh);
+    ctx.strokeStyle= i===2?'#5fd0c3':'#8b8a9a'; ctx.lineWidth=1.2;
+    ctx.strokeRect(bxi-bw/2, midY+30-bh, bw, bh);
+    ctx.restore();
+  }
+  label(ctx,bx,midY+50,'belief  b(s)',{size:11.5,color:'#a9e2da',alpha:smoothstep(segT(t2,0,0.5))});
+  label(ctx,bx,top+50,'sharpens as more observations arrive',{size:11,color:'#8b8a9a',alpha:smoothstep(segT(t2,1.2,0.6))});
+
+  const a3=smoothstep(segT(t,2.2,0.6));
+  label(ctx,W/2,bottom-16,"b'(s') \u221d O(o|s') \u00b7 \u03a3\u209b P(s'|s,a) b(s)",{size:12.5,color:'#e9e8f0',alpha:a3,font:"'IBM Plex Mono',monospace"});
+}
+
+/* =========================================================
+   SLIDE DEFINITIONS
+========================================================= */
+const slides = [
+  { section:'Prologue', eyebrow:'Reinforcement Learning', title:'Actor–Critic & Beyond',
+    text:'A visual, first-principles tour through modern RL — from the basic loop to self-play, world models, and teams of learning agents. Every slide builds on the one before it.',
+    formula:'', render:renderTitle },
+
+  { section:'Foundations', eyebrow:'The Loop', title:'How an agent learns at all',
+    text:'An agent looks at a state, picks an action. The environment responds with a new state and a reward. Repeat, forever — this loop is the entire universe of reinforcement learning.',
+    formula:'trajectory:  s₀, a₀, r₁, s₁, a₁, r₂, s₂, …', render:renderLoop },
+
+  { section:'Foundations', eyebrow:'Value Functions', title:'What is a state actually worth?',
+    text:'Define V(s) as the total future reward you expect from state s onward. Because the future looks the same one step later, this value has a recursive definition — solve it backward from the end, one step at a time, and every value just falls out.',
+    formula:'V(s) = 𝔼[ r + γ·V(s′) ]&nbsp;&nbsp;&nbsp;Q(s,a) = 𝔼[ r + γ·V(s′) | a ]', render:renderBellman },
+
+  { section:'Foundations', eyebrow:'Derivation', title:'Why the policy gradient works',
+    text:'We can\'t backpropagate through "sample an action, then get a reward" — sampling isn\'t differentiable. The log-derivative trick sidesteps this entirely, turning an intractable derivative into a plain expectation we can estimate by just... acting and watching what happens.',
+    formula:'', render:renderPGDerivation },
+
+  { section:'Foundations', eyebrow:'Assembling It', title:'From gradient to actor-critic',
+    text:'Raw returns R(τ) as the weight in that gradient are noisy — they depend on everything that happened in the episode. Swap in the advantage A(s,a), and estimate it cheaply with the critic\'s TD-error. That\'s the whole actor-critic recipe.',
+    formula:'', render:renderMathFoundations },
+
+  { section:'Foundations', eyebrow:'Two Networks, One Goal', title:'The Actor–Critic idea',
+    text:'The Actor picks actions; the Critic judges them. The Critic\'s judgment — the TD-error δ — is a one-number estimate of "how much better than expected was that action?" Concretely: reward 2, old estimate 10, new state worth 9, discount 0.9 → δ = 2 + 0.9(9) − 10 = 0.1. Barely better than expected, so only a small nudge.',
+    formula:'δ = r + γV(s′) − V(s)&nbsp;&nbsp;&nbsp;∇θJ ≈ 𝔼[∇θ log πθ(a|s) · δ]', render:renderActorCriticCore },
+
+  { section:'Core Concepts', eyebrow:'The Formalism', title:'A Markov Decision Process',
+    text:'Everything so far has quietly assumed a specific mathematical object: the MDP. Five ingredients — states, actions, transition probabilities, a reward function, and a discount — fully specify the problem. The Markov property is what makes it tractable: the future depends only on the present, never on how you got there.',
+    formula:'', render:renderMDP },
+
+  { section:'Core Concepts', eyebrow:'The Oldest Dilemma', title:'Exploration vs. Exploitation',
+    text:'Take the action you already know is good, or try something new that might be better? ε-greedy is the simplest resolution: act randomly with small probability ε, greedily otherwise — then shrink ε as the agent learns, gradually trusting its own estimates more.',
+    formula:'', render:renderExploration },
+
+  { section:'Core Concepts', eyebrow:'A Key Distinction', title:'On-Policy vs. Off-Policy',
+    text:'On-policy methods (PPO, A2C) can only learn from data generated by the exact policy currently being improved — old data becomes useless the moment the policy changes. Off-policy methods (Q-learning, DDPG, TD3) separate "the policy that explores" from "the policy being learned," so old experience stays valid and reusable.',
+    formula:'', render:renderOnOffPolicy },
+
+  { section:'Core Concepts', eyebrow:'The Big Picture', title:'Three families of algorithm',
+    text:'Value-based methods learn Q(s,a) and act greedily with respect to it. Policy-based methods skip values entirely and climb the policy gradient directly. Actor-critic methods do both at once — which is why they dominate the rest of this deck.',
+    formula:'', render:renderTaxonomy },
+
+  { section:'Core Concepts', eyebrow:'Q-Learning', title:'The original off-policy algorithm',
+    text:'Q-learning updates toward the BEST possible next action, regardless of which action the agent actually takes next. That gap — between the exploring behavior and the greedy target — is exactly what makes it off-policy, and it\'s the ancestor of every value-based deep RL method.',
+    formula:'', render:renderQLearning },
+
+  { section:'Core Concepts', eyebrow:'DQN', title:'Making Q-learning work with neural nets',
+    text:'Naively combining Q-learning with a neural network is unstable — consecutive samples are correlated, and the target moves every step. DQN\'s two fixes: an experience replay buffer to decorrelate samples, and a slow-moving target network to stabilize what the online network is chasing.',
+    formula:'', render:renderDQN },
+
+  { section:'Core Concepts', eyebrow:'A Fundamental Tradeoff', title:'Bias vs. Variance in value estimates',
+    text:'Monte Carlo waits for the real, full episode return — unbiased, but noisy, since one lucky or unlucky episode swings it wildly. TD bootstraps off its own current guess one step later — biased while it\'s still learning, but far steadier. Every advantage estimator in this deck is really just a choice along this spectrum.',
+    formula:'', render:renderBiasVariance },
+
+  { section:'Core Concepts', eyebrow:'GAE', title:'Generalized Advantage Estimation',
+    text:'Rather than picking one end of the bias-variance spectrum, blend every horizon together with exponentially decaying weights. λ=0 recovers pure one-step TD; λ=1 recovers pure Monte Carlo; anything between is a smooth dial connecting the two extremes. This is the advantage estimator actually used inside A2C, PPO, and TRPO.',
+    formula:'', render:renderGAE },
+
+  { section:'Core Concepts', eyebrow:'A General Tool', title:'Importance Sampling',
+    text:'How do you estimate an expectation under distribution p using samples drawn from a different distribution q? Reweight each sample by p(x)/q(x). This single idea underlies PPO\'s ratio r(θ), off-policy corrections, and offline RL — whenever "the data you have" and "the policy you want to evaluate" don\'t match.',
+    formula:'', render:renderImportanceSampling },
+
+  { section:'Core Concepts', eyebrow:'TD(λ)', title:'Eligibility traces',
+    text:'Instead of updating only the state you just left, keep a decaying "trace" of every recently visited state. When a reward finally arrives, it updates all of them at once, weighted by how recently and how often each was visited — credit assignment that reaches backward through time in a single sweep.',
+    formula:'', render:renderEligibility },
+
+  { section:'Core Concepts', eyebrow:'Why Deep RL', title:'Function approximation',
+    text:'A lookup table works for a handful of states, but breaks down completely for images, continuous sensors, or huge state spaces — there\'s no cell for a state you\'ve never seen. A neural network Vθ(s) replaces the table with a smooth function that generalizes: nearby states get similar values, even ones never visited.',
+    formula:'', render:renderFunctionApprox },
+
+  { section:'Core Concepts', eyebrow:'Two Flavors', title:'Discrete vs. continuous actions',
+    text:'A finite menu of actions gets a softmax distribution over logits. A real-valued action — steering angle, torque, joint velocity — needs a distribution over continuous space instead, usually a Gaussian, or a single deterministic point as in DDPG. Everything else about the actor-critic machinery stays exactly the same.',
+    formula:'', render:renderActionSpaces },
+
+  { section:'Actor–Critic Family', eyebrow:'A2C', title:'Advantage Actor-Critic',
+    text:'Run several environment copies in lockstep. Wait for all of them, average their advantage estimates into one low-variance signal, then take a single synchronized gradient step.',
+    formula:'θ ← θ + α · (1/N) Σᵢ ∇θ log πθ(aᵢ|sᵢ) · Aᵢ', render:renderA2C },
+
+  { section:'Actor–Critic Family', eyebrow:'A3C', title:'Asynchronous Advantage Actor-Critic',
+    text:'Drop the synchronization barrier. Many workers explore independently with their own copy of the network, each pushing gradients to a shared global network whenever they\'re ready — no one waits.',
+    formula:'θ_global ← θ_global + α · ∇θᵢ log πθᵢ(a|s) · Aᵢ&nbsp;&nbsp;(as each worker finishes)', render:renderA3C },
+
+  { section:'Actor–Critic Family', eyebrow:'PPO', title:'Proximal Policy Optimization',
+    text:'Big policy updates can wreck performance. PPO measures how far the new policy has drifted with the ratio r(θ), and simply clips the objective once that ratio leaves a safe band — cheap insurance against catastrophic steps.',
+    formula:'r(θ)=πθ(a|s)/π_old(a|s)&nbsp;&nbsp;L=𝔼[min(r·Â, clip(r,1−ε,1+ε)·Â)]', render:renderPPO },
+
+  { section:'Actor–Critic Family', eyebrow:'TRPO', title:'Trust Region Policy Optimization',
+    text:'PPO\'s ancestor: instead of clipping the objective, constrain the update directly so the new policy\'s KL-divergence from the old one never exceeds a budget δ. Near θ_old, KL behaves like a bowl-shaped quadratic (curvature = the Fisher information matrix F), so the constrained step has a closed form — a "natural gradient" step, rescaled to just touch the boundary.',
+    formula:'maximize 𝔼[r(θ)Â] s.t. KL(π_old‖πθ)≤δ&nbsp;&nbsp;⇒&nbsp;&nbsp;Δθ = √(2δ / gᵀF⁻¹g) · F⁻¹g', render:renderTRPO },
+
+  { section:'Actor–Critic Family', eyebrow:'DDPG', title:'Deep Deterministic Policy Gradient',
+    text:'For continuous actions, why sample from a distribution at all? DDPG\'s actor outputs one exact action. The critic scores it, and its gradient with respect to the action flows straight back through the actor via the chain rule.',
+    formula:'∇θJ ≈ 𝔼[ ∇a Q(s,a)|_{a=μθ(s)} · ∇θ μθ(s) ]', render:renderDDPG },
+
+  { section:'Actor–Critic Family', eyebrow:'TD3', title:'Twin Delayed DDPG',
+    text:'DDPG\'s critic tends to overestimate Q-values, which the actor happily exploits. TD3 fixes this three ways: train two critics and take the smaller estimate, update the actor less often than the critics, and smooth the target action with noise.',
+    formula:'y = r + γ · min(Q1,Q2)(s′, μ(s′)+ε),&nbsp; ε~clip(N(0,σ),−c,c)', render:renderTD3 },
+
+  { section:'Actor–Critic Family', eyebrow:'SAC', title:'Soft Actor-Critic',
+    text:'Reward alone can make a policy collapse to one "good enough" action too early. SAC adds an entropy bonus to the objective, explicitly paying the policy to stay spread out and keep exploring, while still maximizing reward.',
+    formula:'H(π(·|s)) = −𝔼_{a~π}[log π(a|s)]&nbsp;&nbsp;&nbsp;J(π) = 𝔼[ Σₜ rₜ + α·H(π(·|sₜ)) ]', render:renderSAC },
+
+  { section:'Model-Based RL', eyebrow:'A Different Strategy', title:'Learn a model, then plan',
+    text:'Instead of only reacting to real experience, learn an internal simulator f_φ(s,a)≈(s′,r) of the world. Once you have it, you can "imagine" many rollouts for free — real interaction becomes the scarce resource to conserve.',
+    formula:'f_φ trained by:&nbsp;&nbsp;min_φ 𝔼‖f_φ(s,a) − (s′,r)‖²', render:renderModelBasedIntro },
+
+  { section:'Model-Based RL', eyebrow:'Dyna-Q', title:'Real experience + imagined experience',
+    text:'The simplest bridge between model-free and model-based: after every real step, also replay several simulated transitions sampled from the learned model through the exact same Q-learning update. Same rule, more updates per second.',
+    formula:'Q(s,a) ← Q(s,a) + α[ r + γ maxₐ′Q(s′,a′) − Q(s,a) ]', render:renderDynaQ },
+
+  { section:'Model-Based RL', eyebrow:'MCTS', title:'Monte Carlo Tree Search',
+    text:'Four repeating phases build a search tree of possible futures: select the most promising path (via UCB), expand it with a new node, simulate a rollout to estimate its value, then back-propagate that value up to every ancestor.',
+    formula:'UCB(s,a) = Q(s,a) + c·√( ln N(s) / N(s,a) )', render:renderMCTS },
+
+  { section:'Model-Based RL', eyebrow:'AlphaZero', title:'MCTS guided by a neural network',
+    text:'Pure MCTS wastes time on random rollouts. AlphaZero replaces them with a neural network that instantly proposes a prior over moves P(a|s) and a value estimate V(s), then improves that very network from the games it just played.',
+    formula:'PUCT(s,a) = Q(s,a) + c·P(s,a)·√(ΣN) / (1+N(s,a))', render:renderAlphaZero },
+
+  { section:'Model-Based RL', eyebrow:'MuZero', title:'Learning the rules, not just the moves',
+    text:'AlphaZero needs the true rules of the game to simulate ahead. MuZero doesn\'t: it learns its own abstract dynamics — representation h, dynamics g, prediction f — trained end-to-end to predict only what matters: policy, value, and reward.',
+    formula:'sₜ=h(oₜ)&nbsp; sₜ₊₁,rₜ₊₁=g(sₜ,aₜ)&nbsp; pₜ,vₜ=f(sₜ)', render:renderMuZero },
+
+  { section:'Model-Based RL', eyebrow:'Dreamer', title:'Learning entirely inside a dream',
+    text:'Dreamer learns a latent world model from real experience, then trains its policy almost exclusively on trajectories imagined inside that latent space — touching the real environment only occasionally to keep the dream accurate.',
+    formula:'imagined rollout:&nbsp; ŝₜ₊₁ = g_φ(ŝₜ, πθ(ŝₜ))&nbsp; (no real env calls)', render:renderDreamer },
+
+  { section:'Multi-Agent RL', eyebrow:'A New Wrinkle', title:'When everyone is learning at once',
+    text:'With multiple agents, the environment itself seems to shift underneath each one — because every other agent is also changing its policy. This breaks the "stationary environment" assumption most single-agent theory relies on.',
+    formula:'from agent i\'s view: p(s′|s,aᵢ) changes as π₋ᵢ changes', render:renderMultiAgentIntro },
+
+  { section:'Multi-Agent RL', eyebrow:'MADDPG', title:'Centralized training, decentralized execution',
+    text:'Give each actor only its own local observation — that\'s how it must act in the real world. But during training, let one shared critic see everything: every agent\'s state and action. It can attribute credit properly; each actor still learns to act alone.',
+    formula:'Qᵢ(s₁,…,s_N, a₁,…,a_N)&nbsp; — used only for training', render:renderMADDPG },
+
+  { section:'Multi-Agent RL', eyebrow:'QMIX', title:'Mixing individual values — carefully',
+    text:'Each agent keeps its own Q-value. A learned mixing network combines them into a team value Qtot — but its weights are constrained to be non-negative, guaranteeing that improving any single agent\'s Q never makes the team worse off.',
+    formula:'Qtot = f_mix(Q₁,…,Q_N),&nbsp;&nbsp; ∂Qtot/∂Qᵢ ≥ 0 ∀i', render:renderQMIX },
+
+  { section:'Multi-Agent RL', eyebrow:'VDN', title:'Value Decomposition Networks',
+    text:'QMIX\'s simpler ancestor: skip the learned mixing network entirely and just add the individual Q-values together. Crude, but it trains fast and satisfies the same monotonicity guarantee automatically.',
+    formula:'Qtot(s,a) = Σᵢ Qᵢ(sᵢ,aᵢ)', render:renderVDN },
+
+  { section:'Advanced Topics', eyebrow:'Beyond the Mean', title:'Distributional RL',
+    text:'Two policies can have identical expected return but wildly different risk — one reliable, one a gamble. Learning only Q(s,a)=𝔼[Z] throws that information away. Distributional RL (C51, QR-DQN) instead learns the entire return distribution Z(s,a), so risk becomes something the agent can actually see and reason about.',
+    formula:'', render:renderDistributional },
+
+  { section:'Advanced Topics', eyebrow:'Intrinsic Motivation', title:'Curiosity-driven exploration',
+    text:'When real reward is sparse, give the agent its own reason to explore: a bonus proportional to how badly its own forward model failed to predict what just happened. Novel, poorly-understood states are inherently "surprising" and get rewarded; once a region is mastered, the model predicts it well and the bonus fades — curiosity is quite literally prediction error.',
+    formula:'', render:renderCuriosity },
+
+  { section:'Advanced Topics', eyebrow:'HER', title:'Hindsight Experience Replay',
+    text:'In goal-conditioned tasks with sparse rewards, almost every trajectory "fails." HER\'s trick: relabel the goal after the fact. A trajectory that missed its target g still definitely reached wherever it ended up — treat that as the goal it was "trying" for, and it becomes a perfectly good positive example, free of charge.',
+    formula:'', render:renderHER },
+
+  { section:'Advanced Topics', eyebrow:'Offline RL', title:'Learning without ever touching the world',
+    text:'Sometimes real interaction is expensive or dangerous — so learn entirely from a fixed, previously logged dataset. The danger: the learned Q-function can wildly overestimate actions it never saw in the data, since nothing constrains it there. The fix is conservatism — explicitly penalize Q-values for unfamiliar, out-of-distribution actions.',
+    formula:'', render:renderOfflineRL },
+
+  { section:'Advanced Topics', eyebrow:'A Cautionary Tale', title:'Reward hacking',
+    text:'An agent optimizes exactly what you told it to — which is rarely exactly what you meant. In one famous case, a boat-racing agent discovered it could loop forever through a regenerating bonus, racking up score infinitely, and never once crossed the finish line. The proxy reward was maximized perfectly; the actual goal was ignored entirely.',
+    formula:'', render:renderRewardHacking },
+
+  { section:'Advanced Topics', eyebrow:'RLHF', title:'Reinforcement Learning from Human Feedback',
+    text:'How do you specify a reward function for "be a helpful assistant"? You don\'t — you learn one. Humans compare pairs of model outputs; a reward model learns to predict those preferences; the policy is then fine-tuned with PPO to maximize that learned reward, with a KL penalty keeping it from drifting too far from the original model.',
+    formula:'', render:renderRLHF },
+
+  { section:'Advanced Topics', eyebrow:'Hierarchical RL', title:'Options: actions that take actions',
+    text:'Flat, single-step actions struggle with long-horizon tasks. The options framework lets a high-level "manager" policy choose among temporally-extended sub-policies — each one running for many primitive steps before handing control back — turning a long, hard problem into a short sequence of easier ones.',
+    formula:'', render:renderHierarchical },
+
+  { section:'Advanced Topics', eyebrow:'POMDP', title:'When you can\'t see the true state',
+    text:'Real sensors are noisy and incomplete — the agent sees an observation o, never the true state s directly. The principled fix is a belief: a full probability distribution over what the state might be, updated with Bayes\' rule as each new observation arrives, sharpening over time as evidence accumulates.',
+    formula:'', render:renderPOMDP },
+
+  { section:'Epilogue', eyebrow:'Recap', title:'One idea, many disguises',
+    text:'Actor-critic methods differ in how carefully they take a step. Model-based methods differ in how they plan ahead. Multi-agent methods differ in how they share credit. Underneath all of it: predict, act, and learn from the gap between the two.',
+    formula:'', render:renderSummary }
+];
+
+/* =========================================================
+   ENGINE + NAVIGATION
+========================================================= */
+let slideIndex=0;
+let t0=performance.now();
+let rafId=null;
+
+const headerBlock=document.getElementById('headerBlock');
+const footerBlock=document.getElementById('footerBlock');
+const eyebrowEl=document.getElementById('eyebrow');
+const titleEl=document.getElementById('slideTitle');
+const textEl=document.getElementById('slideText');
+const formulaEl=document.getElementById('formula');
+const counterEl=document.getElementById('counter');
+const progressBar=document.getElementById('progressBar');
+const sectionTag=document.getElementById('sectionTag');
+
+function pad(n){ return n<10 ? '0'+n : ''+n; }
+
+function goTo(i){
+  slideIndex = clamp(i,0,slides.length-1);
+  const s = slides[slideIndex];
+  headerBlock.classList.remove('show');
+  footerBlock.classList.remove('show');
+  void headerBlock.offsetWidth; // restart CSS transition
+  eyebrowEl.textContent = s.eyebrow;
+  titleEl.textContent = s.title;
+  textEl.textContent = s.text;
+  formulaEl.innerHTML = s.formula;
+  sectionTag.textContent = s.section;
+  requestAnimationFrame(()=>{ headerBlock.classList.add('show'); footerBlock.classList.add('show'); });
+  counterEl.textContent = pad(slideIndex+1)+' / '+pad(slides.length);
+  progressBar.style.width = (100*(slideIndex+1)/slides.length)+'%';
+  startClock();
+}
+
+function startClock(){
+  t0=performance.now();
+  cancelAnimationFrame(rafId);
+  function loop(now){
+    const t=(now-t0)/1000;
+    drawBackground(t);
+    slides[slideIndex].render(ctx,W,H,t);
+    rafId=requestAnimationFrame(loop);
+  }
+  rafId=requestAnimationFrame(loop);
+}
+
+document.getElementById('nextBtn').addEventListener('click',()=>goTo(slideIndex+1));
+document.getElementById('prevBtn').addEventListener('click',()=>goTo(slideIndex-1));
+document.getElementById('replayBtn').addEventListener('click',()=>startClock());
+
+window.addEventListener('keydown',(e)=>{
+  if(e.key==='ArrowRight' || e.key===' '){ e.preventDefault(); goTo(slideIndex+1); }
+  else if(e.key==='ArrowLeft'){ e.preventDefault(); goTo(slideIndex-1); }
+  else if(e.key==='r' || e.key==='R'){ startClock(); }
+});
+
+let touchStartX=null;
+document.addEventListener('touchstart',e=>{ touchStartX=e.touches[0].clientX; });
+document.addEventListener('touchend',e=>{
+  if(touchStartX===null) return;
+  const dx=e.changedTouches[0].clientX-touchStartX;
+  if(dx<-40) goTo(slideIndex+1);
+  else if(dx>40) goTo(slideIndex-1);
+  touchStartX=null;
+});
+
+goTo(0);
+</script>
+</body>
+</html>

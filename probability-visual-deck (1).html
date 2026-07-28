@@ -1,0 +1,2407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Probability — A Visual Journey</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#07070b; --panel:#0d0d15; --panel2:#101019; --ink:#eef0f7; --dim:#888ca0; --dim2:#5c5f70;
+  --accent:#b98bff; --accent2:#5fc9d8; --warn:#ff8fa1; --good:#7fdba0; --amber:#ffcf7a; --line:#1b1b26; --line2:#242433;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;background:#000;overflow:hidden;font-family:'Inter',system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased;}
+#viewport{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 40%, #0c0c14 0%, #000 72%);}
+#stage{position:relative;width:1280px;height:720px;background:var(--bg);border-radius:6px;overflow:hidden;box-shadow:0 0 0 1px var(--line), 0 40px 120px rgba(0,0,0,0.7);transform-origin:center center;}
+canvas#gfx{position:absolute;top:0;left:0;width:1280px;height:720px;z-index:1;}
+#slides{position:absolute;inset:0;z-index:2;}
+.slide{position:absolute;inset:0;opacity:0;pointer-events:none;}
+.slide.active{opacity:1;pointer-events:auto;transition:opacity .45s ease;}
+.slide.leaving{opacity:0;transition:opacity .3s ease;}
+
+.header{position:absolute;top:50px;left:90px;right:90px;}
+.eyebrow{position:relative;font-size:12.5px;letter-spacing:3.2px;text-transform:uppercase;color:var(--accent2);font-weight:700;opacity:0;transform:translateY(8px);transition:opacity .55s ease, transform .55s ease;margin-bottom:13px;}
+.slide.active .eyebrow{opacity:.9;transform:translateY(0);transition-delay:.04s;}
+
+.htitle{position:relative;font-size:29px;font-weight:800;color:var(--ink);letter-spacing:-0.3px;line-height:1.28;opacity:0;transform:translateY(10px);transition:opacity .55s ease, transform .55s ease;margin-bottom:11px;}
+.slide.active .htitle{opacity:1;transform:translateY(0);transition-delay:.09s;}
+
+.hsub{position:relative;max-width:760px;font-size:15px;color:var(--dim);line-height:1.5;opacity:0;transform:translateY(8px);transition:opacity .55s ease, transform .55s ease;}
+.slide.active .hsub{opacity:1;transform:translateY(0);transition-delay:.14s;}
+
+.caption{position:absolute;bottom:50px;left:90px;right:90px;font-size:14.5px;color:var(--dim);line-height:1.5;opacity:0;transition:opacity .55s ease;transition-delay:.32s;}
+.slide.active .caption{opacity:1;}
+.caption b{color:var(--ink);font-weight:600;}
+.caption .accent{color:var(--accent);font-weight:600;}
+
+.panelcap{position:absolute;bottom:50px;font-size:13px;color:var(--dim2);letter-spacing:.5px;opacity:0;transition:opacity .55s ease;transition-delay:.3s;width:420px;text-align:center;}
+.slide.active .panelcap{opacity:1;}
+.panelcap.pl{left:90px;}
+.panelcap.pr{right:90px;}
+
+.codepanel{position:absolute;top:186px;right:88px;width:404px;background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line2);border-radius:12px;padding:20px 22px 16px;opacity:0;transform:translateX(12px);transition:opacity .55s ease, transform .55s ease;transition-delay:.22s;}
+.slide.active .codepanel{opacity:1;transform:translateX(0);}
+.codepanel .tag{font-size:10.5px;letter-spacing:2.2px;color:var(--accent);text-transform:uppercase;margin-bottom:12px;font-weight:700;display:flex;align-items:center;gap:7px;}
+.codepanel .tag::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--accent);display:inline-block;}
+.codepanel pre{font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.68;color:#c9cbe0;white-space:pre-wrap;word-break:break-word;}
+.codepanel .out{margin-top:13px;padding-top:12px;border-top:1px dashed var(--line2);font-size:12.5px;color:var(--good);font-family:'JetBrains Mono',monospace;line-height:1.6;}
+.codepanel .out .lbl{color:var(--dim2);}
+.kw{color:var(--accent);} .fn{color:var(--accent2);} .num{color:var(--amber);} .cm{color:var(--dim2);} .st{color:var(--good);}
+
+/* math slide */
+.mathBody{position:absolute;top:194px;left:110px;right:110px;bottom:38px;overflow-y:auto;overflow-x:hidden;padding-right:8px;}
+.mathBody::-webkit-scrollbar{width:5px;}
+.mathBody::-webkit-scrollbar-track{background:transparent;}
+.mathBody::-webkit-scrollbar-thumb{background:#26263400;border-radius:3px;}
+.mathBody:hover::-webkit-scrollbar-thumb{background:#2a2a38;}
+.formula{font-family:Georgia,'Times New Roman',serif;font-style:italic;font-size:27px;color:var(--ink);text-align:center;padding:6px 0 22px;opacity:0;transform:translateY(10px);transition:opacity .55s ease,transform .55s ease;transition-delay:.18s;line-height:1.5;}
+.slide.active .formula{opacity:1;transform:translateY(0);}
+.formula sup{font-size:0.62em;font-style:italic;}
+.formula sub{font-size:0.62em;font-style:italic;}
+.frac{display:inline-flex;flex-direction:column;vertical-align:middle;text-align:center;margin:0 7px;font-size:0.82em;position:relative;top:0.1em;}
+.frac .fu{border-bottom:1.3px solid currentColor;padding:0 5px 3px;}
+.frac .fd{padding:3px 5px 0;}
+.terms{display:flex;flex-wrap:wrap;justify-content:center;gap:14px;margin-bottom:22px;}
+.term{display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 18px;border:1px solid var(--line2);border-radius:10px;background:var(--panel);opacity:0;transform:translateY(8px);transition:opacity .5s ease,transform .5s ease;min-width:110px;}
+.slide.active .term{opacity:1;transform:translateY(0);}
+.tsym{font-family:'JetBrains Mono',monospace;font-size:16px;color:var(--accent);font-weight:700;}
+.tlab{font-size:11.5px;color:var(--dim);text-align:center;max-width:160px;line-height:1.4;}
+.worked{background:var(--panel2);border:1px solid var(--line2);border-radius:10px;padding:14px 18px;margin-bottom:14px;opacity:0;transition:opacity .55s ease;transition-delay:.5s;}
+.slide.active .worked{opacity:1;}
+.wtag{font-size:10px;letter-spacing:2px;color:var(--accent2);font-weight:700;display:block;margin-bottom:7px;}
+.wtext{font-family:'JetBrains Mono',monospace;font-size:13.5px;color:#c9cbe0;line-height:1.6;}
+.whyWrap{opacity:0;transition:opacity .5s ease;transition-delay:.6s;}
+.slide.active .whyWrap{opacity:1;}
+.whyToggle{display:flex;align-items:center;gap:11px;width:100%;background:var(--panel2);border:1px solid var(--line2);border-radius:10px;padding:12px 16px;color:var(--ink);font-size:13.5px;font-weight:600;cursor:pointer;text-align:left;transition:border-color .2s ease;font-family:'Inter',sans-serif;}
+.whyToggle:hover{border-color:var(--accent);}
+.wtIcon{width:19px;height:19px;border-radius:50%;background:var(--accent);color:#0a0a0f;font-size:11.5px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.wtTxt{flex:1;}
+.wtChev{color:var(--dim);transition:transform .3s ease;font-size:11px;flex-shrink:0;}
+.whyToggle.open .wtChev{transform:rotate(180deg);}
+.whyPanel{max-height:0;overflow:hidden;transition:max-height .4s ease;}
+.whyInner{padding:15px 18px 4px;background:var(--panel);border:1px solid var(--line2);border-top:none;border-radius:0 0 10px 10px;margin-top:-1px;}
+.whyText{font-size:13px;color:#c9cbe0;line-height:1.65;margin-bottom:13px;}
+.usesTag{font-size:10px;letter-spacing:2px;color:var(--accent2);font-weight:700;margin-bottom:7px;}
+.usesList{list-style:none;padding:0;margin:0 0 13px;}
+.usesList li{font-size:12.5px;color:var(--dim);padding:5px 0 5px 15px;position:relative;line-height:1.5;}
+.usesList li::before{content:'';position:absolute;left:0;top:12px;width:5px;height:5px;border-radius:50%;background:var(--accent2);}
+
+.roadmap{position:absolute;top:224px;left:90px;right:90px;bottom:56px;display:grid;grid-template-columns:1fr 1fr;gap:8px 60px;align-content:start;}
+.roadmap.compact{grid-template-columns:1fr 1fr 1fr;gap:4px 44px;}
+.rmItem{display:flex;align-items:baseline;gap:14px;padding:9px 0;border-bottom:1px solid var(--line);opacity:0;transform:translateX(-10px);transition:opacity .5s ease, transform .5s ease;}
+.roadmap.compact .rmItem{padding:7px 0;}
+.slide.active .rmItem{opacity:1;transform:translateX(0);}
+.rmNum{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--dim2);width:22px;}
+.rmName{font-size:17px;color:var(--ink);font-weight:500;}
+.roadmap.compact .rmName{font-size:15px;}
+.roadmap.compact .rmNum{font-size:12px;width:20px;}
+.rmDot{width:6px;height:6px;border-radius:50%;background:var(--accent);flex-shrink:0;}
+
+/* title slide */
+.titleWrap{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;}
+.kicker{font-size:13px;letter-spacing:5px;color:var(--accent2);text-transform:uppercase;font-weight:700;opacity:0;transform:translateY(10px);transition:all .7s ease;}
+.slide.active .kicker{opacity:.9;transform:translateY(0);transition-delay:.1s;}
+.bigtitle{font-size:86px;font-weight:800;color:var(--ink);letter-spacing:-2px;margin-top:14px;opacity:0;transform:translateY(16px);transition:all .8s cubic-bezier(.2,.8,.2,1);}
+.slide.active .bigtitle{opacity:1;transform:translateY(0);transition-delay:.18s;}
+.bigsub{margin-top:18px;font-size:18px;color:var(--dim);opacity:0;transform:translateY(10px);transition:all .7s ease;}
+.slide.active .bigsub{opacity:1;transform:translateY(0);transition-delay:.3s;}
+.startHint{margin-top:56px;font-size:13px;color:var(--dim2);letter-spacing:1px;opacity:0;transition:opacity .7s ease;transition-delay:.6s;}
+.slide.active .startHint{opacity:1;}
+
+/* chrome */
+#chrome{position:fixed;inset:0;pointer-events:none;z-index:50;}
+#topbar{position:absolute;top:0;left:0;right:0;height:3px;background:#131319;}
+#progressFill{height:100%;width:0%;background:linear-gradient(90deg,var(--accent2),var(--accent));transition:width .4s ease;}
+#chapChip{position:fixed;top:22px;right:34px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--dim);letter-spacing:1px;pointer-events:none;}
+#chapChip b{color:var(--ink);}
+#counter{position:fixed;bottom:22px;right:34px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--dim2);letter-spacing:1px;pointer-events:none;}
+.navbtn{position:fixed;top:50%;transform:translateY(-50%);width:46px;height:46px;border-radius:50%;background:#0f0f17;border:1px solid var(--line2);color:var(--dim);font-size:20px;cursor:pointer;pointer-events:auto;display:flex;align-items:center;justify-content:center;transition:all .2s ease;z-index:60;}
+.navbtn:hover{background:#16161f;color:var(--ink);border-color:var(--accent);}
+.navbtn:disabled{opacity:.25;cursor:default;}
+.navbtn:disabled:hover{background:#0f0f17;color:var(--dim);border-color:var(--line2);}
+#btnPrev{left:26px;} #btnNext{right:26px;}
+#hint{position:fixed;bottom:22px;left:34px;font-size:12px;color:var(--dim2);letter-spacing:.5px;pointer-events:none;transition:opacity .5s ease;font-family:'JetBrains Mono',monospace;}
+#hint.hidden{opacity:0;}
+#clickzones{position:fixed;inset:0;z-index:40;pointer-events:none;}
+.cz{position:absolute;top:0;bottom:0;width:5.5%;cursor:pointer;pointer-events:auto;}
+.cz.left{left:0;} .cz.right{right:0;}
+</style>
+</head>
+<body>
+<div id="viewport">
+  <div id="stage">
+    <canvas id="gfx"></canvas>
+    <div id="slides"></div>
+  </div>
+</div>
+<div id="chrome">
+  <div id="topbar"><div id="progressFill"></div></div>
+  <div id="chapChip"></div>
+  <div id="counter"></div>
+  <button class="navbtn" id="btnPrev">‹</button>
+  <button class="navbtn" id="btnNext">›</button>
+  <div id="hint">← → to navigate · space to advance</div>
+</div>
+<div id="clickzones"><div class="cz left"></div><div class="cz right"></div></div>
+
+<script>
+/* ============================= UTIL ============================= */
+const COL = {bg:'#07070b',ink:'#eef0f7',dim:'#888ca0',dim2:'#4c4f60',accent:'#b98bff',accent2:'#5fc9d8',warn:'#ff8fa1',good:'#7fdba0',amber:'#ffcf7a',grid:'#15151f',panel:'#0d0d15'};
+function clamp01(t){return Math.max(0,Math.min(1,t));}
+function eo3(t){t=clamp01(t);return 1-Math.pow(1-t,3);}
+function eio3(t){t=clamp01(t);return t<0.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;}
+function lerp(a,b,t){return a+(b-a)*t;}
+function ph(ms,start,len){return eo3((ms-start)/len);}
+function phL(ms,start,len){return clamp01((ms-start)/len);} // linear phase
+
+function rrect(ctx,x,y,w,h,r){
+  r=Math.min(r,w/2,h/2);
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();
+}
+function dot(ctx,x,y,r,color,alpha=1){ctx.save();ctx.globalAlpha=alpha;ctx.fillStyle=color;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();ctx.restore();}
+function ring(ctx,x,y,r,color,alpha=1,lw=2){ctx.save();ctx.globalAlpha=alpha;ctx.strokeStyle=color;ctx.lineWidth=lw;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();ctx.restore();}
+function bar(ctx,x,yBase,w,h,color,alpha=1){ctx.save();ctx.globalAlpha=alpha;ctx.fillStyle=color;ctx.fillRect(x,yBase-h,w,Math.max(h,0));ctx.restore();}
+function seg(ctx,x1,y1,x2,y2,color,lw=2,alpha=1,dash=null){ctx.save();ctx.globalAlpha=alpha;ctx.strokeStyle=color;ctx.lineWidth=lw;if(dash)ctx.setLineDash(dash);ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();ctx.restore();}
+function arrow(ctx,x1,y1,x2,y2,color,lw=2,alpha=1,head=8){
+  ctx.save();ctx.globalAlpha=alpha;ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=lw;
+  ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+  const ang=Math.atan2(y2-y1,x2-x1);
+  ctx.beginPath();ctx.moveTo(x2,y2);
+  ctx.lineTo(x2-head*Math.cos(ang-0.42),y2-head*Math.sin(ang-0.42));
+  ctx.lineTo(x2-head*Math.cos(ang+0.42),y2-head*Math.sin(ang+0.42));
+  ctx.closePath();ctx.fill();ctx.restore();
+}
+function txt(ctx,x,y,s,{size=15,color=COL.ink,align='center',weight=500,alpha=1,mono=false}={}){
+  ctx.save();ctx.globalAlpha=alpha;ctx.fillStyle=color;
+  ctx.font=`${weight} ${size}px ${mono?"'JetBrains Mono',monospace":"'Inter',sans-serif"}`;
+  ctx.textAlign=align;ctx.textBaseline='middle';ctx.fillText(s,x,y);ctx.restore();
+}
+function curvePts(ctx,pts,color,lw=2.5,alpha=1){
+  if(pts.length<2)return;
+  ctx.save();ctx.globalAlpha=alpha;ctx.strokeStyle=color;ctx.lineWidth=lw;ctx.lineJoin='round';ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(pts[0][0],pts[0][1]);
+  for(let i=1;i<pts.length;i++)ctx.lineTo(pts[i][0],pts[i][1]);
+  ctx.stroke();ctx.restore();
+}
+function normal(x,mu,sigma){return Math.exp(-((x-mu)**2)/(2*sigma*sigma))/(sigma*Math.sqrt(2*Math.PI));}
+function mulberry32(seed){return function(){seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function divider(ctx,x=640,y0=196,y1=606){seg(ctx,x,y0,x,y1,'#1c1c28',1.5,1,[3,7]);}
+
+/* generic: growing bar chart */
+function drawBars(ctx,{cx,baseY,barW,gap,values,maxVal,color,ms,staggerStart=0,stagger=45,dur=550,labels,showVals=true,chartH=210,valColor}){
+  const n=values.length;
+  const totalW=n*barW+(n-1)*gap;
+  const x0=cx-totalW/2;
+  seg(ctx,x0-14,baseY,x0+totalW+14,baseY,'#22222f',1.5,0.8);
+  values.forEach((v,i)=>{
+    const p=ph(ms,staggerStart+i*stagger,dur);
+    const h=(v/maxVal)*chartH*p;
+    const x=x0+i*(barW+gap);
+    bar(ctx,x,baseY,barW,h,color,0.92);
+    if(showVals && p>0.75){
+      txt(ctx,x+barW/2,baseY-h-15,v.toFixed(3),{size:11.5,color:valColor||COL.dim,align:'center',mono:true,alpha:clamp01((p-0.75)*4)});
+    }
+    if(labels){txt(ctx,x+barW/2,baseY+20,String(labels[i]),{size:12,color:COL.dim,align:'center'});}
+  });
+}
+/* generic: curve from function */
+function buildCurve(fn,x0,x1,cx0,cx1,baseY,scaleY,N=140){
+  const pts=[];
+  for(let i=0;i<=N;i++){
+    const xr=x0+(x1-x0)*(i/N);
+    const px=cx0+(cx1-cx0)*(i/N);
+    const py=baseY-fn(xr)*scaleY;
+    pts.push([px,py,xr]);
+  }
+  return pts;
+}
+function drawCurveProgressive(ctx,pts,ms,start,dur,color,lw=2.5){
+  const p=ph(ms,start,dur);
+  const n=Math.max(2,Math.floor(pts.length*p));
+  curvePts(ctx,pts.slice(0,n).map(p=>[p[0],p[1]]),color,lw);
+  return p;
+}
+function fillUnderCurve(ctx,pts,baseY,xFrom,xTo,color){
+  let i0=0,i1=pts.length-1;
+  for(let i=0;i<pts.length;i++){if(pts[i][2]>=xFrom){i0=i;break;}}
+  for(let i=pts.length-1;i>=0;i--){if(pts[i][2]<=xTo){i1=i;break;}}
+  if(i1<=i0)return;
+  ctx.save();ctx.beginPath();ctx.moveTo(pts[i0][0],baseY);
+  for(let i=i0;i<=i1;i++)ctx.lineTo(pts[i][0],pts[i][1]);
+  ctx.lineTo(pts[i1][0],baseY);ctx.closePath();
+  ctx.fillStyle=color;ctx.fill();ctx.restore();
+}
+function axes(ctx,x0,y0,w,h,color='#1e1e2a'){
+  seg(ctx,x0,y0,x0+w,y0,color,1.5,1);
+  seg(ctx,x0,y0-h,x0,y0,color,1.5,1);
+}
+
+/* icons */
+const PIPS={1:[[0,0]],2:[[-1,-1],[1,1]],3:[[-1,-1],[0,0],[1,1]],4:[[-1,-1],[1,-1],[-1,1],[1,1]],5:[[-1,-1],[1,-1],[0,0],[-1,1],[1,1]],6:[[-1,-1],[1,-1],[-1,0],[1,0],[-1,1],[1,1]]};
+function drawDie(ctx,x,y,size,value,{alpha=1,color=COL.ink,fill=null}={}){
+  ctx.save();ctx.globalAlpha=alpha;
+  rrect(ctx,x-size/2,y-size/2,size,size,size*0.16);
+  if(fill){ctx.fillStyle=fill;ctx.fill();}
+  ctx.strokeStyle=color;ctx.lineWidth=2;ctx.stroke();
+  const pipR=size*0.075,off=size*0.25;
+  (PIPS[value]||[]).forEach(([dx,dy])=>dot(ctx,x+dx*off,y+dy*off,pipR,color,1));
+  ctx.restore();
+}
+function drawCoin(ctx,x,y,r,scaleX,label,color=COL.amber){
+  ctx.save();ctx.translate(x,y);ctx.scale(Math.max(scaleX,0.06),1);
+  ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fillStyle='#14111a';ctx.fill();
+  ctx.lineWidth=2.5;ctx.strokeStyle=color;ctx.stroke();
+  if(Math.abs(scaleX)>0.5){ctx.fillStyle=color;ctx.font="700 19px Inter, sans-serif";ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(label,0,1);}
+  ctx.restore();
+}
+function drawServer(ctx,x,y,w,h,color=COL.accent2,active=false,alpha=1){
+  ctx.save();ctx.globalAlpha=alpha;ctx.strokeStyle=color;ctx.lineWidth=2;rrect(ctx,x-w/2,y-h/2,w,h,7);ctx.stroke();
+  for(let i=0;i<3;i++){seg(ctx,x-w/2+10,y-h/2+12+i*((h-24)/2.2),x+w/2-10,y-h/2+12+i*((h-24)/2.2),'#282836',1.4);}
+  dot(ctx,x+w/2-13,y-h/2+12,3,active?COL.good:'#33333f',1);
+  ctx.restore();
+}
+function drawPerson(ctx,x,y,scale=1,color=COL.ink,alpha=1){
+  ctx.save();ctx.globalAlpha=alpha;ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=2.2;
+  ctx.beginPath();ctx.arc(x,y-19*scale,7*scale,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(x,y-11*scale);ctx.lineTo(x,y+15*scale);
+  ctx.moveTo(x-11*scale,y+29*scale);ctx.lineTo(x,y+15*scale);ctx.lineTo(x+11*scale,y+29*scale);
+  ctx.moveTo(x-10*scale,y-1*scale);ctx.lineTo(x,y+8*scale);ctx.lineTo(x+10*scale,y-1*scale);
+  ctx.stroke();ctx.restore();
+}
+function drawClock(ctx,x,y,r,angle,color=COL.accent2,alpha=1){
+  ctx.save();ctx.globalAlpha=alpha;ctx.strokeStyle=color;ctx.lineWidth=2;
+  ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+Math.cos(angle-Math.PI/2)*r*0.68,y+Math.sin(angle-Math.PI/2)*r*0.68);ctx.stroke();
+  dot(ctx,x,y,2.4,color,1);ctx.restore();
+}
+function drawBus(ctx,x,y,w,h,color=COL.accent2,alpha=1){
+  ctx.save();ctx.globalAlpha=alpha;ctx.strokeStyle=color;ctx.lineWidth=2;rrect(ctx,x-w/2,y-h/2,w,h,6);ctx.stroke();
+  seg(ctx,x-w/2+w*0.28,y-h/2,x-w/2+w*0.28,y+h/2,color,1.3);
+  ring(ctx,x-w*0.28,y+h/2+2,4,color,1,1.6);ring(ctx,x+w*0.28,y+h/2+2,4,color,1,1.6);
+  ctx.restore();
+}
+function drawSpinner(ctx,x,y,r,angle,segColors,alpha=1){
+  ctx.save();ctx.globalAlpha=alpha;
+  const n=segColors.length;
+  for(let i=0;i<n;i++){
+    ctx.beginPath();ctx.moveTo(x,y);
+    ctx.arc(x,y,r,angle+i*(Math.PI*2/n),angle+(i+1)*(Math.PI*2/n));
+    ctx.closePath();ctx.fillStyle=segColors[i];ctx.globalAlpha=alpha*0.85;ctx.fill();
+  }
+  ctx.globalAlpha=alpha;ctx.strokeStyle=COL.ink;ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+Math.cos(angle*3)*r*1.12,y+Math.sin(angle*3)*r*1.12);ctx.stroke();
+  ctx.restore();
+}
+function drawCart(ctx,x,y,w,h,color=COL.accent,alpha=1){
+  ctx.save();ctx.globalAlpha=alpha;ctx.strokeStyle=color;ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(x-w/2,y-h/2);ctx.lineTo(x+w/2,y-h/2);ctx.lineTo(x+w/2-6,y+h/2);ctx.lineTo(x-w/2+6,y+h/2);ctx.closePath();ctx.stroke();
+  seg(ctx,x-w/2-8,y-h/2,x-w/2,y-h/2,color,2);
+  ring(ctx,x-w/4,y+h/2+7,3.5,color,1,1.5);ring(ctx,x+w/4,y+h/2+7,3.5,color,1,1.5);
+  ctx.restore();
+}
+function drawFunnel(ctx,x,y,w,h,color=COL.warn,alpha=1){
+  ctx.save();ctx.globalAlpha=alpha;ctx.strokeStyle=color;ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(x-w/2,y-h/2);ctx.lineTo(x+w/2,y-h/2);ctx.lineTo(x+w*0.14,y+h/2);ctx.lineTo(x-w*0.14,y+h/2);ctx.closePath();ctx.stroke();
+  ctx.restore();
+}
+function drawGauge(ctx,x,y,r,frac,color=COL.warn,alpha=1){
+  ctx.save();ctx.globalAlpha=alpha;
+  ctx.strokeStyle='#242433';ctx.lineWidth=8;ctx.lineCap='round';
+  ctx.beginPath();ctx.arc(x,y,r,Math.PI,Math.PI*2);ctx.stroke();
+  ctx.strokeStyle=color;
+  ctx.beginPath();ctx.arc(x,y,r,Math.PI,Math.PI+Math.PI*frac);ctx.stroke();
+  const ang=Math.PI+Math.PI*frac;
+  seg(ctx,x,y,x+Math.cos(ang)*r*0.82,y+Math.sin(ang)*r*0.82,COL.ink,2.2);
+  ctx.restore();
+}
+
+/* ============================= CODE HIGHLIGHT ============================= */
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function hl(code){
+  let s=esc(code);
+  s=s.replace(/(#.*)$/gm,'<span class="cm">$1</span>');
+  s=s.replace(/('[^']*'|"[^"]*")/g,'<span class="st">$1</span>');
+  s=s.replace(/\b(import|from|for|in|if|else|elif|return|def|as|True|False|None|lambda)\b/g,'<span class="kw">$1</span>');
+  s=s.replace(/\b([a-zA-Z_][a-zA-Z0-9_\.]*)\(/g,'<span class="fn">$1</span>(');
+  s=s.replace(/\b(\d+\.?\d*)\b/g,'<span class="num">$1</span>');
+  return s;
+}
+
+/* ============================= SEEDED DATA ============================= */
+const rndA=mulberry32(7), rndB=mulberry32(42), rndC=mulberry32(99), rndD=mulberry32(1234);
+function scatterCircle(n,rnd,cx,cy,R){const pts=[];for(let i=0;i<n;i++){const a=rnd()*Math.PI*2,r=Math.sqrt(rnd())*R;pts.push([cx+Math.cos(a)*r,cy+Math.sin(a)*r]);}return pts;}
+
+const diceSampleSpace=scatterCircle(36,rndA,390,400,150);
+const eventsDots=scatterCircle(30,rndB,390,395,140);
+const condDots=(()=>{const pts=[];const rnd=mulberry32(55);for(let i=0;i<60;i++){const x=200+rnd()*880,y=250+rnd()*300;const inB=(x>560&&x<900&&y>220&&y<520);const inA=inB&&rnd()<0.4||(!inB&&rnd()<0.12);pts.push({x,y,inB,inA});}return pts;})();
+
+/* dice sum pmf (2 dice) */
+function diceSumPMF(){const c={};for(let i=1;i<=6;i++)for(let j=1;j<=6;j++){const s=i+j;c[s]=(c[s]||0)+1;}const vals=[];for(let s=2;s<=12;s++)vals.push(c[s]/36);return vals;}
+const DICE_PMF=diceSumPMF();
+
+function binomPMF(n,p){const C=(n,k)=>{let r=1;for(let i=0;i<k;i++)r=r*(n-i)/(i+1);return r;};const out=[];for(let k=0;k<=n;k++)out.push(C(n,k)*Math.pow(p,k)*Math.pow(1-p,n-k));return out;}
+function poissonPMF(lam,maxK){const out=[];let fact=1;for(let k=0;k<=maxK;k++){if(k>0)fact*=k;out.push(Math.exp(-lam)*Math.pow(lam,k)/fact);}return out;}
+
+/* ============================= SLIDES DATA ============================= */
+const SLIDES=[];
+function chapterTag(n,name){return `CHAPTER ${String(n).padStart(2,'0')} — ${name}`;}
+
+/* ---------- 0: TITLE ---------- */
+SLIDES.push({
+  kind:'title', dur:1, loop:true,
+  html:`<div class="titleWrap">
+    <div class="kicker">A Feynman-style visual primer</div>
+    <div class="bigtitle">Probability</div>
+    <div class="bigsub">Twenty ideas, built from scratch — not memorized, but seen.</div>
+    <div class="startHint">PRESS → OR CLICK TO BEGIN</div>
+  </div>`,
+  draw(ctx,ms){
+    const pts=scatterCircle(70,rndC,640,600,760);
+    pts.forEach((p,i)=>{
+      const drift=Math.sin(ms/1800+i)*6;
+      const tw=(Math.sin(ms/900+i*3)+1)/2;
+      dot(ctx,p[0],p[1]+drift,1.6+tw*1.2,i%5===0?COL.accent:(i%7===0?COL.accent2:COL.dim2),0.18+tw*0.22);
+    });
+  }
+});
+
+/* ---------- 1: ROADMAP ---------- */
+const TOPICS=['Events','Sample Space','Random Variables','PMF','PDF','CDF','Conditional Probability','Bayes\u2019 Rule','Gaussian Distribution','Bernoulli','Binomial','Poisson','Exponential','Uniform','Independence','Expectation','Variance & Std. Dev.','Law of Large Numbers','Central Limit Theorem','Covariance & Correlation'];
+SLIDES.push({
+  kind:'roadmap', dur:900,
+  html:`<div class="header"><div class="eyebrow">THE ROUTE</div>
+  <div class="htitle">Twenty ideas, one story</div>
+  <div class="hsub">Each stop follows the same rhythm: build the idea from nothing, see it in daily life and in production systems, then watch it in a live simulation.</div></div>
+  <div class="roadmap compact">${TOPICS.map((t,i)=>`<div class="rmItem" style="transition-delay:${0.035*i}s"><span class="rmNum">${String(i+1).padStart(2,'0')}</span><span class="rmDot"></span><span class="rmName">${t}</span></div>`).join('')}</div>`,
+  draw(){}
+});
+
+/* ================= helper to push a 4-slide topic block ================= */
+let chNum=0;
+function frac(u,d){return `<span class="frac"><span class="fu">${u}</span><span class="fd">${d}</span></span>`;}
+function pushTopic({name, concept, math, examples, viz}){
+  chNum++;
+  SLIDES.push(Object.assign({kind:'concept',dur:2600},concept,{chap:chNum,html:
+    `<div class="header"><div class="eyebrow">${chapterTag(chNum,name)}</div><div class="htitle">${concept.title}</div><div class="hsub">${concept.sub}</div></div><div class="caption">${concept.caption}</div>`}));
+  SLIDES.push(Object.assign({kind:'math',dur:900},math,{chap:chNum,draw(){},html:
+    `<div class="header"><div class="eyebrow">${chapterTag(chNum,name)}</div><div class="htitle">${math.title||'The math'}</div><div class="hsub">${math.sub||''}</div></div>
+     <div class="mathBody">
+       <div class="formula">${math.formula}</div>
+       <div class="terms">${(math.terms||[]).map((t,ti)=>`<div class="term" style="transition-delay:${0.28+ti*0.08}s"><span class="tsym">${t.sym}</span><span class="tlab">${t.label}</span></div>`).join('')}</div>
+       <div class="worked"><span class="wtag">WORKED EXAMPLE</span><div class="wtext">${math.worked}</div></div>
+       <div class="whyWrap">
+         <button class="whyToggle" type="button"><span class="wtIcon">?</span><span class="wtTxt">Why does the equation look like this \u2014 and where is it used?</span><span class="wtChev">\u25be</span></button>
+         <div class="whyPanel"><div class="whyInner">
+           <div class="whyText">${math.why||''}</div>
+           <div class="usesTag">WHERE THIS SHOWS UP IN PRACTICE</div>
+           <ul class="usesList">${(math.uses||[]).map(u=>`<li>${u}</li>`).join('')}</ul>
+         </div></div>
+       </div>
+     </div>`}));
+  SLIDES.push(Object.assign({kind:'examples',dur:2200},examples,{chap:chNum,html:
+    `<div class="header"><div class="eyebrow">${chapterTag(chNum,name)}</div><div class="htitle">${examples.title||'Where you\u2019ve met it'}</div><div class="hsub">${examples.sub||''}</div></div>
+     <div class="panelcap pl">${examples.leftCap}</div><div class="panelcap pr">${examples.rightCap}</div>`}));
+  SLIDES.push(Object.assign({kind:'viz',dur:2400},viz,{chap:chNum,html:
+    `<div class="header"><div class="eyebrow">${chapterTag(chNum,name)}</div><div class="htitle">${viz.title||'See it, simulate it'}</div><div class="hsub">${viz.sub||''}</div></div>
+     <div class="codepanel"><div class="tag">python</div><pre>${hl(viz.code)}</pre>${viz.out?`<div class="out">${viz.out}</div>`:''}</div>`}));
+}
+
+/* ===================================================================== */
+/* 1. EVENTS */
+pushTopic({
+  name:'Events',
+  math:{
+    title:'The math: counting favorable over total',
+    sub:'Only valid when every outcome in the sample space is equally likely \u2014 otherwise you must weight, not just count.',
+    formula:`P(E) = ${frac('|E|','|\u03a9|')}`,
+    terms:[
+      {sym:'|E|', label:'number of outcomes that count as the event'},
+      {sym:'|\u03a9|', label:'total outcomes in the sample space'}
+    ],
+    worked:`Die roll, E = {2,4,6}: P(E) = 3 \u2044 6 = 0.5`,
+    why:`This formula is really just "fraction of the pie that's shaded in." It only works because we assumed every outcome in \u03a9 is equally likely \u2014 that assumption is what lets simple counting stand in for probability. If a die were weighted, you couldn't just count faces; you'd have to add up each outcome's actual weight instead. Counting is the special case where every weight happens to be the same.`,
+    uses:[
+      'Quality control: fraction of defective items in a random sample',
+      'A/B testing: fraction of visitors who convert',
+      'Games and gambling: odds of drawing a winning card or number'
+    ]
+  },
+  concept:{
+    title:'An event is just a chosen bundle of outcomes',
+    sub:'Before we can talk about chance, we need a universe of things that could happen — and a way to point at some of them.',
+    caption:'Every dot is one possible outcome. Draw a boundary around any group of them — <span class="accent">that boundary is an event.</span>',
+    draw(ctx,ms){
+      diceSampleSpace.forEach((p,i)=>{
+        const a=ph(ms,i*22,500);
+        dot(ctx,p[0],p[1],5,COL.dim2,a*0.9);
+      });
+      const p2=phL(ms,900,900);
+      if(p2>0){
+        ctx.save();ctx.globalAlpha=eo3(p2);
+        ctx.strokeStyle=COL.accent;ctx.lineWidth=2;ctx.setLineDash([]);
+        ctx.beginPath();ctx.ellipse(340,360,120*eo3(p2),95*eo3(p2),-0.2,0,Math.PI*2);ctx.stroke();
+        ctx.restore();
+      }
+      const p3=ph(ms,1500,700);
+      diceSampleSpace.forEach((p,i)=>{
+        const dx=(p[0]-340)/120, dy=(p[1]-360)/95;
+        if(dx*dx+dy*dy<1) dot(ctx,p[0],p[1],5.5,COL.accent,0.95*p3);
+      });
+      if(p3>0.7){
+        txt(ctx,340,555,'event E',{size:15,color:COL.accent,weight:700,alpha:clamp01((p3-0.7)*3)});
+        txt(ctx,720,395,'sample space \u03A9',{size:14,color:COL.dim,align:'left',alpha:clamp01((p3-0.7)*3)});
+      }
+    }
+  },
+  examples:{
+    leftCap:'REAL LIFE — rolling an even number',
+    rightCap:'PRODUCTION — a request that fails',
+    draw(ctx,ms){
+      divider(ctx);
+      const p1=ph(ms,200,600);
+      ctx.save();ctx.translate(320,320);ctx.scale(1,1);ctx.restore();
+      drawDie(ctx,260,340,110,4,{alpha:p1});
+      const wob=Math.sin(ms/220)*0.06;
+      const glow=(Math.sin(ms/500)+1)/2;
+      ring(ctx,260,340,80+glow*8,COL.accent,ph(ms,900,600)*0.5*(1-glow*0.3),2);
+      const p1b=ph(ms,900,600);
+      txt(ctx,260,470,'even face \u2192 in the event',{size:13,color:COL.accent,alpha:p1b});
+
+      const p2=ph(ms,300,700);
+      drawServer(ctx,940,300,120,150,COL.accent2,true,p2);
+      const t=(ms/1600)%1;
+      if(t<0.55){
+        const tt=t/0.55;
+        const x=lerp(880,940,tt), y=lerp(500,375,tt);
+        dot(ctx,x,y,5,COL.amber,p2);
+      } else {
+        const tt=(t-0.55)/0.45;
+        const fail = Math.floor(ms/1600)%4===2;
+        const x=lerp(940,1000+ (fail?20:80),tt), y=lerp(375,500,tt);
+        dot(ctx,x,y,5,fail?COL.warn:COL.good,p2*(1-tt*0.3));
+      }
+      txt(ctx,940,470,'event: request errors (~1 in 4)',{size:13,color:COL.warn,alpha:p2});
+    }
+  },
+  viz:{
+    title:'Watch relative frequency settle',
+    sub:'Flip a coin many times. The event \u201cheads\u201d happens roughly half the time — and the more you flip, the steadier that fraction becomes.',
+    code:`import random
+
+flips = [random.choice(['H','T'])
+         for _ in range(200)]
+event_E = [f for f in flips if f=='H']
+
+p_hat = len(event_E)/len(flips)
+print(p_hat)`,
+    out:`<span class="lbl">&gt;&gt;&gt; </span>0.485  <span class="lbl"># \u2192 0.5 as n grows</span>`,
+    draw(ctx,ms){
+      const rnd=mulberry32(321);
+      const N=90;
+      const cols=15, rows=6;
+      let heads=0,total=0;
+      for(let i=0;i<N;i++){
+        const start=200+i*32;
+        const p=ph(ms,start,260);
+        if(p<=0)continue;
+        const isH=rnd()<0.5;
+        const col=i%cols, row=Math.floor(i/cols);
+        const x=140+col*34, y=560-row*46;
+        dot(ctx,x,y,7,isH?COL.accent:COL.dim2,0.9*p);
+        if(p>0.9){total++; if(isH)heads++;}
+      }
+      seg(ctx,120,600,610,600,'#20202c',1.5);
+      const frac= total? (heads/total):0;
+      const showFrom=ph(ms, 200+N*32+100, 500);
+      if(showFrom>0){
+        txt(ctx,365,635,`P\u0302(heads) \u2248 ${frac.toFixed(2)}`,{size:16,color:COL.accent,weight:700,alpha:showFrom,mono:true});
+      }
+    }
+  }
+});
+
+/* 2. SAMPLE SPACE */
+pushTopic({
+  name:'Sample Space',
+  math:{
+    title:'The math: counting up every combination',
+    sub:'The multiplication rule \u2014 why listing every outcome of several steps means multiplying, not adding.',
+    formula:`|\u03a9| = n<sub>1</sub> \u00d7 n<sub>2</sub> \u00d7 \u22ef \u00d7 n<sub>k</sub>`,
+    terms:[
+      {sym:'n\u1d62', label:'number of choices available at step i'},
+      {sym:'|\u03a9|', label:'total equally-likely outcomes overall'}
+    ],
+    worked:`Two dice: |\u03a9| = 6 \u00d7 6 = 36 equally likely pairs`,
+    why:`If step 1 has n\u2081 outcomes and, no matter which one occurs, step 2 always has n\u2082 outcomes available, then every pairing of a step-1 outcome with a step-2 outcome is a distinct overall outcome. Listing them out gives n\u2081 rows of n\u2082 each \u2014 that's exactly what multiplication counts. Addition would only apply if you were choosing step 1 OR step 2, never both.`,
+    uses:[
+      'Password strength: possible combinations = (alphabet size)^(length)',
+      'Genetics: possible combinations of allele pairs from two parents',
+      'Test-suite design: total input combinations that need coverage'
+    ]
+  },
+  concept:{
+    title:'List everything that could possibly happen',
+    sub:'The sample space is the complete guest list of outcomes for one random experiment — nothing more, nothing left out.',
+    caption:'One die has <b>6</b> equally-spaced seats at the table. Two dice have <b>36</b>.',
+    draw(ctx,ms){
+      for(let i=1;i<=6;i++){
+        const p=ph(ms,i*140,500);
+        const x=250+(i-1)*(760/5);
+        const y=lerp(250,340,eio3(p))-Math.sin(p*Math.PI)*30;
+        drawDie(ctx,x,340+ (1-p)*0, i, {alpha:p});
+      }
+      const p2=phL(ms,1100,700);
+      if(p2>0.05) txt(ctx,640,470,'\u03A9 = { 1, 2, 3, 4, 5, 6 }',{size:19,color:COL.ink,weight:700,mono:true,alpha:eo3(p2)});
+      const p3=phL(ms,1500,700);
+      if(p3>0.05) txt(ctx,640,520,'one experiment \u2192 six possible outcomes, exhaustive and non-overlapping',{size:13.5,color:COL.dim,alpha:eo3(p3)});
+    }
+  },
+  examples:{
+    leftCap:'REAL LIFE — a coin toss: \u03A9 = {H, T}',
+    rightCap:'PRODUCTION — an API response: \u03A9 = status codes',
+    draw(ctx,ms){
+      divider(ctx);
+      ['H','T'].forEach((l,i)=>{
+        const p=ph(ms,300+i*250,500);
+        drawCoin(ctx,220+i*180,360,55,1,l,COL.amber);
+        ctx.save();ctx.globalAlpha=p;ctx.restore();
+      });
+      const codes=[['200',COL.good],['301',COL.accent2],['404',COL.amber],['500',COL.warn]];
+      codes.forEach((c,i)=>{
+        const p=ph(ms,500+i*180,500);
+        const x=900+(i%2)*140-70, y=300+Math.floor(i/2)*130;
+        ctx.save();ctx.globalAlpha=p;
+        rrect(ctx,x-55,y-30,110,60,10);ctx.strokeStyle=c[1];ctx.lineWidth=2;ctx.stroke();
+        txt(ctx,x,y,c[0],{size:17,color:c[1],weight:700,mono:true});
+        ctx.restore();
+      });
+      txt(ctx,940,470,'\u03A9 = every status code the server can return',{size:13,color:COL.dim,alpha:ph(ms,1200,500)});
+    }
+  },
+  viz:{
+    title:'Two dice: 36 seats, laid out in a grid',
+    sub:'Every cell is one equally-likely pair (i, j). This grid is the full sample space \u2014 the stage every later idea performs on.',
+    code:`import itertools
+
+omega = list(itertools.product(
+    range(1,7), range(1,7)))
+
+print(len(omega))
+print(omega[:4])`,
+    out:`<span class="lbl">&gt;&gt;&gt; </span>36
+[(1,1), (1,2), (1,3), (1,4)]`,
+    draw(ctx,ms){
+      const cell=44,ox=180,oy=210;
+      for(let i=0;i<6;i++)for(let j=0;j<6;j++){
+        const idx=i*6+j;
+        const p=ph(ms,180+idx*14,400);
+        const x=ox+j*cell, y=oy+i*cell;
+        ctx.save();ctx.globalAlpha=p;
+        rrect(ctx,x,y,cell-6,cell-6,5);
+        ctx.fillStyle='#141420';ctx.fill();ctx.strokeStyle=COL.dim2;ctx.lineWidth=1;ctx.stroke();
+        txt(ctx,x+(cell-6)/2,y+(cell-6)/2,`${i+1},${j+1}`,{size:10.5,color:COL.dim,mono:true});
+        ctx.restore();
+      }
+      const p2=ph(ms,1200,500);
+      txt(ctx,ox+3*cell,oy-30,'36 equally likely pairs',{size:14,color:COL.accent2,alpha:p2,weight:700});
+    }
+  }
+});
+
+/* 3. RANDOM VARIABLES */
+pushTopic({
+  name:'Random Variables',
+  math:{
+    title:'The math: a function, not a mystery',
+    sub:'Why we insist X be a genuine function \u2014 that\u2019s what unlocks arithmetic on chance.',
+    formula:`X : \u03a9 \u2192 \u211d`,
+    terms:[
+      {sym:'\u03a9', label:'the raw outcomes of the experiment'},
+      {sym:'\u211d', label:'the real numbers X assigns to them'}
+    ],
+    worked:`X(face) = face \u00d7 10  \u2192  X(4) = 40`,
+    why:`Calling X a "function from \u03a9 to \u211d" is a precise way of saying: every outcome gets exactly one number, no exceptions, no ambiguity. That precision is what lets us later add values (E[X]), compare them, or plug them into a formula \u2014 none of that arithmetic makes sense on raw outcomes like "heads" or "cloudy." Turning outcomes into numbers is the one step that makes the rest of probability theory possible.`,
+    uses:[
+      'Turning categorical outcomes (pass/fail) into numeric scores for analysis',
+      'Financial models: mapping market states to payoff numbers',
+      'Machine learning labels: mapping classes to numeric targets for a loss function'
+    ]
+  },
+  concept:{
+    title:'A rule that turns an outcome into a number',
+    sub:'A random variable X isn\u2019t random and isn\u2019t a variable in the algebra sense \u2014 it\u2019s a function from outcomes to numbers.',
+    caption:'X(outcome) = number. Once outcomes become numbers, we can finally add, average, and plot them.',
+    draw(ctx,ms){
+      const faces=[1,2,3,4,5,6];
+      faces.forEach((f,i)=>{
+        const y=210+i*70;
+        const p=ph(ms,i*120,500);
+        drawDie(ctx,300,y,44,f,{alpha:p});
+        const p2=ph(ms,700+i*140,600);
+        if(p2>0){
+          arrow(ctx,335,y,650,y,COL.dim2,1.6,p2*0.8);
+          txt(ctx,700,y,String(f*10),{size:15,color:COL.accent2,mono:true,weight:700,alpha:p2});
+        }
+      });
+      txt(ctx,300,150,'outcome',{size:12,color:COL.dim,alpha:ph(ms,0,400)});
+      txt(ctx,700,150,'X = "value \u00d7 10"',{size:12,color:COL.dim,alpha:ph(ms,700,400)});
+      const p3=ph(ms,1600,600);
+      txt(ctx,960,470,'X is just a labeled mapping \u2014 you choose the rule',{size:13.5,color:COL.dim,alpha:p3});
+    }
+  },
+  examples:{
+    leftCap:'REAL LIFE — X = height of a random person',
+    rightCap:'PRODUCTION — X = latency of a request (ms)',
+    draw(ctx,ms){
+      divider(ctx);
+      drawPerson(ctx,260,380,2.6,COL.ink,ph(ms,200,500));
+      const hv=172;
+      const p1=ph(ms,700,600);
+      seg(ctx,150,220,150,540,'#20202c',1.5,p1);
+      const hy=lerp(540,240,hv/210);
+      seg(ctx,140,hy,340,hy,COL.accent,1.6,p1,[3,4]);
+      txt(ctx,150,hy-16,`X = ${hv} cm`,{size:13,color:COL.accent,alpha:p1,align:'left',mono:true});
+
+      const p2=ph(ms,300,700);
+      drawServer(ctx,960,340,110,140,COL.accent2,true,p2);
+      seg(ctx,830,540,1120,540,'#20202c',1.5,p2);
+      const lat=[40,120,65];
+      lat.forEach((l,i)=>{
+        const p3=ph(ms,900+i*250,500);
+        const x=860+i*110;
+        const h=l*1.6;
+        bar(ctx,x,540,26,h*p3,COL.accent2,0.9);
+        if(p3>0.7)txt(ctx,x+13,540-h*p3-14,`${l}ms`,{size:11,color:COL.dim,alpha:clamp01((p3-0.7)*3)});
+      });
+      txt(ctx,975,470,'X = time the server took to respond',{size:12.5,color:COL.dim,alpha:ph(ms,1500,500)});
+    }
+  },
+  viz:{
+    title:'Simulate X, then look at its shape',
+    sub:'Roll two dice many times and record X = the sum. The values pile up unevenly \u2014 7 shows up far more than 2 or 12.',
+    code:`import random
+
+def roll_two():
+    return random.randint(1,6) \\
+         + random.randint(1,6)
+
+X = [roll_two() for _ in range(5000)]
+print(sum(X)/len(X))`,
+    out:`<span class="lbl">&gt;&gt;&gt; </span>7.01  <span class="lbl"># average \u2248 7</span>`,
+    draw(ctx,ms){
+      const vals=DICE_PMF;
+      drawBars(ctx,{cx:300,baseY:560,barW:34,gap:12,values:vals,maxVal:Math.max(...vals),color:COL.accent2,ms,staggerStart:200,stagger:60,dur:500,labels:Array.from({length:11},(_,i)=>i+2),showVals:false,chartH:230});
+      const p=ph(ms,1000,500);
+      txt(ctx,300,610,'X = sum of two dice, simulated',{size:13,color:COL.dim,alpha:p});
+    }
+  }
+});
+
+/* 4. PMF */
+pushTopic({
+  name:'PMF',
+  math:{
+    title:'The math: masses that must add to one',
+    sub:'Why every PMF, no matter the shape, is forced to sum to exactly 1.',
+    formula:`P(X = x) = p(x), &nbsp;&nbsp; \u03a3<sub>x</sub> p(x) = 1`,
+    terms:[
+      {sym:'p(x)', label:'probability mass sitting at value x'},
+      {sym:'\u03a3 p(x)=1', label:'every mass together makes a whole'}
+    ],
+    worked:`Two-dice sum: P(X=7) = 6 \u2044 36 \u2248 0.167`,
+    why:`X is guaranteed to land on *some* value when the experiment runs \u2014 that's not optional, it's the definition of a sample space. So the event "X takes some value" has probability exactly 1. The PMF just distributes that one unit of certainty across all the possible values X could take; add up all the little piles and you must get the whole pie back.`,
+    uses:[
+      'Inventory planning: probability of 0, 1, 2\u2026 units of demand per day',
+      'Load balancing: probability of k simultaneous requests hitting a server',
+      'Genetics: probability of k dominant alleles among offspring'
+    ]
+  },
+  concept:{
+    title:'For discrete X, how is 1.0 of probability shared out?',
+    sub:'The Probability Mass Function hands each possible value of X its own little pile of probability. All the piles together sum to exactly one whole.',
+    caption:'P(X = x) is a <b>height</b> you can read directly \u2014 that\u2019s only true for discrete variables.',
+    draw(ctx,ms){
+      drawBars(ctx,{cx:640,baseY:560,barW:52,gap:14,values:DICE_PMF,maxVal:Math.max(...DICE_PMF),color:COL.accent,ms,staggerStart:200,stagger:90,dur:600,labels:Array.from({length:11},(_,i)=>i+2),chartH:250});
+      const p=ph(ms,1700,600);
+      txt(ctx,640,180,'P(X=x) for X = sum of two dice',{size:14,color:COL.dim,alpha:ph(ms,100,400)});
+      if(p>0)txt(ctx,640,620,'every bar\u2019s height adds up to exactly 1',{size:13.5,color:COL.accent,alpha:p,weight:600});
+    }
+  },
+  examples:{
+    leftCap:'REAL LIFE — number of children in a family',
+    rightCap:'PRODUCTION — items placed in a cart per session',
+    draw(ctx,ms){
+      divider(ctx);
+      const kids=[0.18,0.32,0.30,0.14,0.06];
+      drawBars(ctx,{cx:320,baseY:560,barW:36,gap:12,values:kids,maxVal:Math.max(...kids),color:COL.accent,ms,staggerStart:200,stagger:80,dur:500,labels:[0,1,2,3,4],chartH:220});
+      const cart=[0.10,0.28,0.26,0.18,0.10,0.05,0.03];
+      drawBars(ctx,{cx:960,baseY:560,barW:26,gap:10,values:cart,maxVal:Math.max(...cart),color:COL.accent2,ms,staggerStart:400,stagger:70,dur:500,labels:[1,2,3,4,5,6,7],chartH:220});
+    }
+  },
+  viz:{
+    title:'Exact PMF vs. a simulated histogram',
+    sub:'Count how often each dice-sum appears out of a huge number of rolls, then normalize \u2014 it converges to the exact triangle shape.',
+    code:`from collections import Counter
+import random
+
+X = [random.randint(1,6)+random.randint(1,6)
+     for _ in range(100000)]
+counts = Counter(X)
+pmf = {k: v/len(X) for k,v in counts.items()}
+print(pmf[7])`,
+    out:`<span class="lbl">&gt;&gt;&gt; </span>0.1668  <span class="lbl"># exact = 6/36 = 0.1667</span>`,
+    draw(ctx,ms){
+      drawBars(ctx,{cx:300,baseY:560,barW:34,gap:12,values:DICE_PMF,maxVal:Math.max(...DICE_PMF),color:COL.accent,ms,staggerStart:200,stagger:60,dur:500,labels:Array.from({length:11},(_,i)=>i+2),chartH:230,showVals:false});
+    }
+  }
+});
+
+/* 5. PDF */
+pushTopic({
+  name:'PDF',
+  math:{
+    title:'The math: why probability lives in area',
+    sub:'Why a single exact point can\u2019t hold probability once X is continuous.',
+    formula:`P(a < X < b) = \u222b<sub>a</sub><sup>b</sup> f(x) dx`,
+    terms:[
+      {sym:'f(x)', label:'density \u2014 not a probability by itself, can exceed 1'},
+      {sym:'\u222b\u2090\u1d47', label:'area swept between a and b'}
+    ],
+    worked:`Heights ~ N(170, 3.2): P(167 < X < 173) \u2248 0.6515`,
+    why:`A continuous variable can take infinitely many possible values in any interval \u2014 if any single exact point had positive probability, and there are infinitely many of them, they'd sum to infinity, which is impossible. So each exact point must carry zero probability, and probability can only accumulate over a stretch of values. Area under a curve is exactly the mathematical tool for accumulating something over a stretch \u2014 that's why f(x) is a density (height) and probability is its integral (area).`,
+    uses:[
+      'Manufacturing tolerances: probability a part\u2019s dimension falls in spec',
+      'Finance: probability an asset\u2019s return falls within a range',
+      'Anomaly detection: modeling a continuous feature\u2019s normal range'
+    ]
+  },
+  concept:{
+    title:'When X is continuous, height stops meaning probability',
+    sub:'Zoom a histogram\u2019s bins narrower and narrower \u2014 the jagged bars blur into a smooth curve. That curve is a density: probability lives in area, not height.',
+    caption:'P(a < X < b) = the <span class="accent">shaded area</span> under the curve between a and b \u2014 never a single point.',
+    draw(ctx,ms){
+      const rnd=mulberry32(88);
+      const samples=[];for(let i=0;i<400;i++){let s=0;for(let k=0;k<6;k++)s+=rnd();samples.push((s/6-0.5)*4+170);}
+      const binsSeq=[6,12,24,48];
+      const stage=Math.min(binsSeq.length-1,Math.floor(ms/650));
+      const bins=binsSeq[stage];
+      const localP=ph(ms,stage*650,600);
+      const lo=160,hi=180;
+      const counts=new Array(bins).fill(0);
+      samples.forEach(v=>{let idx=Math.floor((v-lo)/(hi-lo)*bins);idx=Math.max(0,Math.min(bins-1,idx));counts[idx]++;});
+      const maxC=Math.max(...counts);
+      const x0=220,x1=1060,baseY=560;
+      axes(ctx,x0,baseY,x1-x0,300);
+      counts.forEach((c,i)=>{
+        const w=(x1-x0)/bins;
+        const h=(c/maxC)*260*localP;
+        bar(ctx,x0+i*w,baseY,w-1.5,h,COL.accent2,0.75);
+      });
+      if(stage===binsSeq.length-1 && localP>0.9){
+        const pts=buildCurve(x=>normal(x,170,3.2),160,180,x0,x1,baseY,900*ph(ms,2600,1)/1,140);
+      }
+      const p2=ph(ms,2700,700);
+      if(p2>0){
+        const pts=buildCurve(x=>normal(x,170,3.2)*1.02,160,180,x0,x1,baseY,880);
+        curvePts(ctx,pts.map(p=>[p[0],p[1]]).slice(0,Math.floor(pts.length*p2)),COL.accent,3);
+      }
+      txt(ctx,640,610,'height (cm) \u2014 histogram bins shrinking into a density curve',{size:13,color:COL.dim,alpha:ph(ms,100,400)});
+    }
+  },
+  examples:{
+    leftCap:'REAL LIFE — adult height clusters near an average',
+    rightCap:'PRODUCTION — response time skews right (long tail)',
+    draw(ctx,ms){
+      divider(ctx);
+      const p1=ph(ms,200,900);
+      const pts1=buildCurve(x=>normal(x,0,1),-3.4,3.4,150,540,540,700*p1);
+      curvePts(ctx,pts1.map(p=>[p[0],p[1]]),COL.accent,2.5,p1);
+      if(p1>0.9)fillUnderCurve(ctx,pts1,540,-1,1,'rgba(185,139,255,0.16)');
+      txt(ctx,345,470,'most people near average height',{size:12.5,color:COL.dim,alpha:p1});
+
+      const p2=ph(ms,400,900);
+      const lognorm=x=>{const s=0.55;return Math.exp(-((Math.log(x)-0.2)**2)/(2*s*s))/(x*s*Math.sqrt(2*Math.PI));};
+      const pts2=buildCurve(lognorm,0.15,7,760,1150,540,900*p2);
+      curvePts(ctx,pts2.map(p=>[p[0],p[1]]),COL.accent2,2.5,p2);
+      if(p2>0.9)fillUnderCurve(ctx,pts2,540,3,7,'rgba(95,201,216,0.16)');
+      txt(ctx,955,470,'most requests are fast, a few are very slow',{size:12.5,color:COL.dim,alpha:p2});
+    }
+  },
+  viz:{
+    title:'Density from samples, plus the exact curve',
+    sub:'Generate samples, bucket them finely, and overlay the theoretical bell curve \u2014 they should agree closely.',
+    code:`import numpy as np
+
+x = np.random.normal(
+        loc=170, scale=3.2,
+        size=20000)
+
+density, edges = np.histogram(
+    x, bins=60, density=True)`,
+    out:`<span class="lbl">density.sum()*binwidth \u2248 </span>1.0`,
+    draw(ctx,ms){
+      const x0=200,x1=1050,baseY=560;
+      axes(ctx,x0,baseY,x1-x0,270);
+      const p=ph(ms,200,1200);
+      const pts=buildCurve(x=>normal(x,170,3.2),158,182,x0,x1,baseY,900);
+      curvePts(ctx,pts.map(p=>[p[0],p[1]]).slice(0,Math.floor(pts.length*p)),COL.accent,3);
+      const p2=ph(ms,1300,600);
+      if(p2>0.3)fillUnderCurve(ctx,pts,baseY,167,173,`rgba(185,139,255,${0.22*p2})`);
+      txt(ctx,640,610,'shaded strip \u2248 P(167 < height < 173)',{size:13,color:COL.dim,alpha:ph(ms,1500,500)});
+    }
+  }
+});
+
+/* 6. CDF */
+pushTopic({
+  name:'CDF',
+  math:{
+    title:'The math: a running total of area',
+    sub:'Why the CDF can only ever climb, never fall.',
+    formula:`F(x) = P(X \u2264 x) = \u222b<sub>\u2212\u221e</sub><sup>x</sup> f(t) dt`,
+    terms:[
+      {sym:'F(x)', label:'cumulative probability up to and including x'},
+      {sym:'\u222b\u208b\u221e\u02e3', label:'all the area lying to the left of x'}
+    ],
+    worked:`Standard normal: F(1.0) \u2248 0.841`,
+    why:`F(x) is nothing more than the PDF's area, accumulated from the far left up to x \u2014 a running total. Since density f(t) is never negative, each additional sliver of area you sweep up as x increases can only add to the total or leave it unchanged \u2014 it can never subtract. That's precisely why every valid CDF is monotone non-decreasing, climbing from 0 at negative infinity to 1 at positive infinity.`,
+    uses:[
+      'SLAs: reading p95/p99 latency is just reading the CDF at 0.95 / 0.99',
+      'Percentile ranks on standardized tests',
+      'Risk models: Value-at-Risk is a quantile (inverse CDF) of a loss distribution'
+    ]
+  },
+  concept:{
+    title:'How much area have we swept up so far?',
+    sub:'Sweep a line left to right under the density curve, tracking cumulative area beneath it. That running total traces the Cumulative Distribution Function.',
+    caption:'CDF(x) = P(X \u2264 x) \u2014 it only ever climbs, from 0 up to 1.',
+    draw(ctx,ms){
+      const x0=170,x1=760,baseY=330;
+      const pts=buildCurve(x=>normal(x,0,1),-3.3,3.3,x0,x1,baseY,240);
+      curvePts(ctx,pts.map(p=>[p[0],p[1]]),COL.accent2,2.2,0.9);
+      const cy0=560,cx0=170,cx1=760;
+      axes(ctx,cx0,cy0,cx1-cx0,190);
+      const sweepP=phL(ms,300,3000);
+      const sweepX=x0+(x1-x0)*sweepP;
+      if(sweepP>0 && sweepP<1)seg(ctx,sweepX,baseY-250,sweepX,baseY+10,COL.accent,1.6,0.8);
+      if(sweepP>0)fillUnderCurve(ctx,pts,baseY,-3.3,-3.3+6.6*sweepP,'rgba(95,201,216,0.18)');
+      // build cdf curve progressively
+      const cdfPts=[];
+      let acc=0;const N=pts.length;
+      for(let i=0;i<N;i++){acc+=normal(pts[i][2],0,1)*(6.6/N);cdfPts.push([cx0+(cx1-cx0)*(i/N), cy0-acc*180]);}
+      const shown=Math.floor(N*sweepP);
+      curvePts(ctx,cdfPts.slice(0,Math.max(2,shown)),COL.accent,3);
+      txt(ctx,cx0,330,'density',{size:12,color:COL.dim,align:'left'});
+      txt(ctx,cx0,570+20,'CDF(x)',{size:12,color:COL.accent,align:'left'});
+      txt(ctx,470,160,'sweeping area, left to right',{size:13,color:COL.dim,alpha:ph(ms,100,400)});
+    }
+  },
+  examples:{
+    leftCap:'REAL LIFE — "you scored in the 90th percentile"',
+    rightCap:'PRODUCTION — p95 latency SLA',
+    draw(ctx,ms){
+      divider(ctx);
+      const x0=150,x1=540,baseY=520;
+      const pts=buildCurve(x=>normal(x,0,1)*1.0,-3.4,3.4,x0,x1,baseY,700*ph(ms,200,900));
+      const cdfPts=[];let acc=0;for(let i=0;i<pts.length;i++){acc+=normal(pts[i][2],0,1)*(6.8/pts.length);cdfPts.push([pts[i][0],440-acc*220]);}
+      curvePts(ctx,cdfPts,COL.accent,2.6,ph(ms,200,900));
+      const p2=ph(ms,1200,500);
+      if(p2>0){
+        const xi=x0+(x1-x0)*0.87;
+        seg(ctx,xi,220,xi,470,COL.warn,1.5,p2,[3,4]);
+        txt(ctx,xi,200,'score',{size:11,color:COL.warn,alpha:p2});
+        txt(ctx,345,470,'90% of test-takers scored at or below this line',{size:12,color:COL.dim,alpha:p2});
+      }
+
+      const x2=740,x3=1130;
+      const pts2=buildCurve(x=>{const s=0.5;return Math.exp(-((Math.log(x)-0.1)**2)/(2*s*s))/(x*s*Math.sqrt(2*Math.PI));},0.2,6,x2,x3,baseY,600*ph(ms,300,900));
+      const cdf2=[];let acc2=0;for(let i=0;i<pts2.length;i++){acc2+=pts2[i][1]&&0;}
+      // recompute cdf2 properly from function
+      let acc3=0;const cdf3=[];
+      for(let i=0;i<pts2.length;i++){const f=(x=>{const s=0.5;return Math.exp(-((Math.log(x)-0.1)**2)/(2*s*s))/(x*s*Math.sqrt(2*Math.PI));})(pts2[i][2]);acc3+=f*(5.8/pts2.length);cdf3.push([pts2[i][0],440-acc3*230]);}
+      curvePts(ctx,cdf3,COL.accent2,2.6,ph(ms,300,900));
+      const p3=ph(ms,1300,500);
+      if(p3>0){
+        const xi=x2+(x3-x2)*0.8;
+        seg(ctx,xi,220,xi,470,COL.warn,1.5,p3,[3,4]);
+        txt(ctx,xi,200,'p95',{size:11,color:COL.warn,alpha:p3});
+        txt(ctx,935,470,'95% of requests finish before this latency',{size:12,color:COL.dim,alpha:p3});
+      }
+    }
+  },
+  viz:{
+    title:'CDF as a running cumulative sum',
+    sub:'Sort samples, then track the fraction seen so far as you scan left to right \u2014 that\u2019s exactly the CDF, built empirically.',
+    code:`import numpy as np
+
+x = np.sort(np.random.normal(0,1,5000))
+cdf = np.arange(1, len(x)+1) / len(x)
+
+# P(X <= 1.0) ?
+idx = np.searchsorted(x, 1.0)
+print(cdf[idx])`,
+    out:`<span class="lbl">&gt;&gt;&gt; </span>0.841  <span class="lbl"># matches \u03A6(1.0)</span>`,
+    draw(ctx,ms){
+      const x0=200,x1=1050,baseY=560;
+      axes(ctx,x0,baseY,x1-x0,300);
+      const pts=buildCurve(x=>normal(x,0,1),-3.4,3.4,x0,x1,baseY,1);
+      let acc=0;const cdfPts=[];
+      for(let i=0;i<pts.length;i++){acc+=normal(pts[i][2],0,1)*(6.8/pts.length);cdfPts.push([pts[i][0],baseY-acc*270]);}
+      const p=ph(ms,200,1400);
+      curvePts(ctx,cdfPts.slice(0,Math.floor(cdfPts.length*p)),COL.accent,3);
+      txt(ctx,640,610,'S-shaped, monotone, climbing from 0 to 1',{size:13,color:COL.dim,alpha:ph(ms,100,400)});
+    }
+  }
+});
+
+/* 7. CONDITIONAL PROBABILITY */
+pushTopic({
+  name:'Conditional Probability',
+  math:{
+    title:'The math: rescaling to a smaller universe',
+    sub:'Why dividing by P(B) is exactly what "shrinking the universe" means numerically.',
+    formula:`P(A | B) = ${frac('P(A \u2229 B)','P(B)')}`,
+    terms:[
+      {sym:'A \u2229 B', label:'both events happening together'},
+      {sym:'P(B)', label:'the new, shrunk universe you\u2019re measuring against'}
+    ],
+    worked:`P(rain | cloudy) = 0.18 \u2044 0.42 \u2248 0.43`,
+    why:`Once you know B happened, B becomes your entire world \u2014 outcomes outside B are no longer possible. So you re-measure A only among the outcomes still alive, which is A\u2229B, and re-express it as a fraction of the new whole, which is B. Dividing by P(B) is exactly the rescaling operation that turns "part of the old world" into "part of the new, smaller world."`,
+    uses:[
+      'Medical diagnostics: P(disease | positive test result)',
+      'Recommendation engines: P(purchase | viewed similar items)',
+      'Fraud detection: P(fraud | transaction flagged as suspicious)'
+    ]
+  },
+  concept:{
+    title:'Learning something shrinks your universe',
+    sub:'The moment you know event B happened, every outcome outside B becomes impossible. Probability recalculates inside the smaller world that remains.',
+    caption:'P(A | B) = P(A and B) / P(B) \u2014 re-measure A, but only among the outcomes still alive.',
+    draw(ctx,ms){
+      const cx=390,cy=380;
+      const p1=ph(ms,100,600);
+      condDots.forEach((d,i)=>{
+        const p=ph(ms,150+i*8,400);
+        dot(ctx,d.x,d.y,4.5,d.inA&&d.inB?COL.accent:(d.inB?COL.accent2:COL.dim2),p*0.85);
+      });
+      ring(ctx,730,370,190,COL.accent2,ph(ms,700,600),2);
+      const shrink=ph(ms,1500,900);
+      if(shrink>0){
+        ctx.save();
+        condDots.forEach((d)=>{
+          const a= d.inB? 1: (1-shrink)*0.5;
+          const scale = 1;
+          const tx = d.inB? lerp(d.x, 640+(d.x-730)*1.3, shrink): d.x;
+          const ty = d.inB? lerp(d.y, 360+(d.y-370)*1.3, shrink): d.y;
+          dot(ctx,tx,ty,4.5,d.inA&&d.inB?COL.accent:(d.inB?COL.accent2:COL.dim2),d.inB?0.9:0.85*(1-shrink));
+        });
+        ctx.restore();
+      }
+      if(shrink>0.6)txt(ctx,640,600,'now B is the whole world \u2014 what fraction is A?',{size:13.5,color:COL.dim,alpha:clamp01((shrink-0.6)*3)});
+    }
+  },
+  examples:{
+    leftCap:'REAL LIFE — P(rain | cloudy sky)',
+    rightCap:'PRODUCTION — P(purchase | ad clicked)',
+    draw(ctx,ms){
+      divider(ctx);
+      const p1=ph(ms,200,700);
+      ring(ctx,320,330,140,COL.accent2,p1,2);
+      txt(ctx,320,190,'cloudy days',{size:12,color:COL.accent2,alpha:p1});
+      const rnd=mulberry32(5);
+      for(let i=0;i<26;i++){
+        const a=rnd()*Math.PI*2,r=Math.sqrt(rnd())*125;
+        const x=320+Math.cos(a)*r,y=330+Math.sin(a)*r;
+        const isRain=rnd()<0.42;
+        const p2=ph(ms,400+i*20,300);
+        dot(ctx,x,y,4.5,isRain?COL.accent:COL.dim2,p2*0.85);
+      }
+      const p3=ph(ms,1200,500);
+      txt(ctx,320,500,'\u2248 40% of cloudy days bring rain',{size:12.5,color:COL.dim,alpha:p3});
+
+      const p4=ph(ms,300,700);
+      drawFunnel(ctx,960,300,220,180,COL.warn,p4);
+      txt(ctx,960,220,'ad clicked',{size:12,color:COL.warn,alpha:p4});
+      const rnd2=mulberry32(6);
+      for(let i=0;i<20;i++){
+        const p5=ph(ms,500+i*22,300);
+        const x=890+rnd2()*140, y=330+rnd2()*120;
+        const bought=rnd2()<0.25;
+        dot(ctx,x,y,4.2,bought?COL.good:COL.dim2,p5*0.85);
+      }
+      const p6=ph(ms,1300,500);
+      txt(ctx,960,500,'\u2248 25% of clickers go on to buy',{size:12.5,color:COL.dim,alpha:p6});
+    }
+  },
+  viz:{
+    title:'Boolean masking = conditioning',
+    sub:'Filter your data down to rows where B is true, then measure A only inside that filtered slice.',
+    code:`import numpy as np
+
+B = clicked_ad          # bool array
+A = purchased            # bool array
+
+p_A_given_B = A[B].mean()
+print(p_A_given_B)`,
+    out:`<span class="lbl">&gt;&gt;&gt; </span>0.248`,
+    draw(ctx,ms){
+      const rnd=mulberry32(77);
+      const N=64;
+      const pts=[];for(let i=0;i<N;i++)pts.push({x:220+ (i%8)*90,y:230+Math.floor(i/8)*60,B:rnd()<0.5,A:rnd()<0.4});
+      pts.forEach((d,i)=>{
+        const p=ph(ms,200+i*14,350);
+        dot(ctx,d.x,d.y,7,d.A&&d.B?COL.accent:(d.B?COL.accent2:COL.dim2),0.85*p);
+      });
+      const filterP=ph(ms,1300,700);
+      if(filterP>0){
+        pts.forEach(d=>{ if(!d.B) return; });
+        ctx.save();ctx.globalAlpha=filterP*0.12;ctx.fillStyle=COL.warn;
+        pts.forEach(d=>{ if(!d.B){ ctx.beginPath();ctx.arc(d.x,d.y,10,0,7);ctx.fill(); } });
+        ctx.restore();
+      }
+      const cB=pts.filter(d=>d.B).length, cAB=pts.filter(d=>d.A&&d.B).length;
+      const p2=ph(ms,1900,500);
+      if(p2>0)txt(ctx,530,620,`within B: ${cAB}/${cB} \u2248 ${(cAB/cB).toFixed(2)}`,{size:14,color:COL.accent,mono:true,weight:700,alpha:p2});
+    }
+  }
+});
+
+/* 8. BAYES RULE */
+pushTopic({
+  name:'Bayes\u2019 Rule',
+  math:{
+    title:'The math: the same identity, solved twice',
+    sub:'Bayes\u2019 rule isn\u2019t a new law \u2014 it\u2019s algebra on the definition of conditional probability.',
+    formula:`P(A | B) = ${frac('P(B | A) \u00b7 P(A)','P(B)')}`,
+    terms:[
+      {sym:'P(A)', label:'prior belief, before seeing evidence'},
+      {sym:'P(B|A)', label:'likelihood of this evidence, if A were true'},
+      {sym:'P(B)', label:'overall probability of seeing this evidence at all'}
+    ],
+    worked:`prior 1%, sensitivity 90%, false-pos 5% \u2192 posterior \u2248 15.4%`,
+    why:`The definition of conditional probability can be written two equivalent ways: P(A\u2229B) = P(A|B)\u00b7P(B), and also P(A\u2229B) = P(B|A)\u00b7P(A). Since both equal the same P(A\u2229B), set them equal to each other and solve for P(A|B) \u2014 the prior \u00d7 likelihood \u00f7 evidence structure falls out automatically. Bayes' rule is just that one rearrangement, not a separate assumption.`,
+    uses:[
+      'Spam filters updating the odds an email is spam after seeing a trigger word',
+      'Medical testing: correctly interpreting what a positive result really means',
+      'Search and recommendation ranking: updating relevance after a click'
+    ]
+  },
+  concept:{
+    title:'Update a belief the moment evidence arrives',
+    sub:'Start with a prior belief. Multiply by how likely the evidence is under that belief. Rescale so it\u2019s a probability again. What\u2019s left is the posterior.',
+    caption:'A test is 90% sensitive; the disease is rare (1%). A positive result still leaves you <span class="accent">mostly not sick</span> \u2014 rarity dominates.',
+    draw(ctx,ms){
+      const baseY=520;
+      const p1=ph(ms,150,500);
+      bar(ctx,220,baseY,90,0.01*3000*p1,COL.dim,0.9);
+      txt(ctx,265,baseY+22,'prior: 1%',{size:12.5,color:COL.dim,alpha:p1});
+      txt(ctx,265,150,'has disease?',{size:12,color:COL.dim,alpha:p1});
+
+      const p2=ph(ms,900,600);
+      if(p2>0){
+        arrow(ctx,340,470,470,470,COL.dim2,1.6,p2*0.8);
+        txt(ctx,405,445,'\u00d7 0.90',{size:12,color:COL.accent2,alpha:p2});
+      }
+      const p3=ph(ms,1500,700);
+      const postH=0.154*3000; // approx computed value
+      if(p3>0){
+        bar(ctx,540,baseY,90,Math.min(postH,300)*p3/300*300,COL.dim,0.35*(1-p3)+0.0);
+        bar(ctx,660,baseY,90,postH*p3,COL.accent,0.95);
+        txt(ctx,705,baseY+22,'posterior',{size:12.5,color:COL.accent,alpha:p3});
+      }
+      const p4=ph(ms,2300,600);
+      if(p4>0)txt(ctx,690,150,`P(sick | +) \u2248 15%`,{size:19,color:COL.accent,weight:800,alpha:p4,mono:true});
+    }
+  },
+  examples:{
+    leftCap:'REAL LIFE — a doctor reading a positive test',
+    rightCap:'PRODUCTION — a spam filter reading "free"',
+    draw(ctx,ms){
+      divider(ctx);
+      drawPerson(ctx,300,300,2.2,COL.ink,ph(ms,200,500));
+      const p1=ph(ms,700,700);
+      ring(ctx,300,300,60,COL.warn,p1*0.5,2);
+      txt(ctx,300,430,'prior 1% \u2192 sees "+" \u2192 posterior 15%',{size:12.5,color:COL.dim,alpha:p1});
+      const p2=ph(ms,1200,600);
+      if(p2>0.5)txt(ctx,300,500,'"more likely, but far from certain"',{size:12.5,color:COL.accent,alpha:clamp01((p2-0.5)*2)});
+
+      const p3=ph(ms,300,700);
+      rrect(ctx,860,240,200,120,10);ctx.strokeStyle=COL.accent2;ctx.lineWidth=2;ctx.globalAlpha=p3;ctx.stroke();ctx.globalAlpha=1;
+      txt(ctx,960,300,'"...totally free!!"',{size:13,color:COL.accent2,alpha:p3});
+      const p4=ph(ms,1300,600);
+      if(p4>0)txt(ctx,960,430,'P(spam) jumps from 20% \u2192 87%',{size:13,color:COL.warn,alpha:p4,weight:700});
+    }
+  },
+  viz:{
+    title:'The update, computed explicitly',
+    sub:'Bayes\u2019 rule is nothing but a reweighing: multiply prior by likelihood, divide by total evidence.',
+    code:`prior = 0.01
+sensitivity = 0.90     # P(+ | sick)
+false_pos   = 0.05     # P(+ | healthy)
+
+evidence = prior*sensitivity \\
+         + (1-prior)*false_pos
+posterior = prior*sensitivity/evidence
+print(round(posterior,3))`,
+    out:`<span class="lbl">&gt;&gt;&gt; </span>0.154`,
+    draw(ctx,ms){
+      const baseY=560;
+      const stages=[
+        {label:'prior',val:0.01,color:COL.dim,x:280},
+        {label:'\u00d7 sensitivity',val:0.009,color:COL.accent2,x:480},
+        {label:'\u00f7 evidence',val:0.154,color:COL.accent,x:680},
+      ];
+      stages.forEach((s,i)=>{
+        const p=ph(ms,300+i*500,600);
+        const h=Math.min(s.val,0.3)*700;
+        bar(ctx,s.x,baseY,80,h*p,s.color,0.9);
+        txt(ctx,s.x+40,baseY+22,s.label,{size:12,color:COL.dim,alpha:p});
+        if(p>0.7)txt(ctx,s.x+40,baseY-h*p-16,s.val.toFixed(3),{size:12,color:s.color,mono:true,alpha:clamp01((p-0.7)*3)});
+        if(i<2){
+          const pa=ph(ms,300+i*500+250,300);
+          arrow(ctx,s.x+90,baseY-40,stages[i+1].x-10,baseY-40,COL.dim2,1.4,pa*0.8);
+        }
+      });
+    }
+  }
+});
+
+/* 9. GAUSSIAN */
+pushTopic({
+  name:'Gaussian Distribution',
+  math:{
+    title:'The math: a constant and a penalty',
+    sub:'Where the strange-looking constant out front comes from, and why the exponent is squared.',
+    formula:`f(x) = ${frac('1','\u03c3\u221a(2\u03c0)')} \u00b7 e<sup>\u2212(x\u2212\u03bc)\u00b2\u2044(2\u03c3\u00b2)</sup>`,
+    terms:[
+      {sym:'\u03bc', label:'mean \u2014 where the curve is centered'},
+      {sym:'\u03c3', label:'standard deviation \u2014 how wide it spreads'}
+    ],
+    worked:`\u03bc=170, \u03c3=3.2 \u2192 peak density f(170) \u2248 0.125`,
+    why:`The exponent squares the distance from \u03bc so that being twice as far from the mean costs four times as much likelihood \u2014 exactly the pattern that emerges when you add up many small independent effects (a preview of the Central Limit Theorem). The 1\u2044(\u03c3\u221a2\u03c0) out front isn't arbitrary decoration \u2014 it's precisely the number needed to make the total area under the curve equal exactly 1, a fact that falls out of a classic (and famously non-obvious) integral.`,
+    uses:[
+      'Manufacturing: modeling measurement error around a target value',
+      'Finance: approximating daily return distributions',
+      'Standardized testing: modeling score distributions across a population'
+    ]
+  },
+  concept:{
+    title:'Add up lots of tiny, independent nudges',
+    sub:'Take many small random steps and land somewhere. Do that thousands of times \u2014 the landing spots pile into the same bell shape, no matter what the nudges were.',
+    caption:'This is why the bell curve shows up <b>everywhere</b>: heights, errors, noise \u2014 wherever many small effects add together.',
+    draw(ctx,ms){
+      const rnd=mulberry32(19);
+      const baseY=520,gy=560;
+      // random walks
+      const nWalks=26;
+      const finals=[];
+      for(let w=0;w<nWalks;w++){
+        const rndw=mulberry32(1000+w);
+        let x=340,y=260;
+        const start=w*70;
+        const pts=[[x,y]];
+        for(let s=0;s<6;s++){
+          x+=(rndw()-0.5)*90; y+=34;
+          pts.push([x,y]);
+        }
+        const p=ph(ms,start,650);
+        const shown=Math.max(1,Math.floor(pts.length*p));
+        ctx.save();ctx.globalAlpha=0.5*p;ctx.strokeStyle=COL.dim2;ctx.lineWidth=1.3;
+        ctx.beginPath();ctx.moveTo(pts[0][0],pts[0][1]);
+        for(let i=1;i<shown;i++)ctx.lineTo(pts[i][0],pts[i][1]);
+        ctx.stroke();ctx.restore();
+        if(p>0.95)finals.push(x);
+      }
+      // histogram of finals along baseline
+      const p2=ph(ms,2000,700);
+      if(p2>0 && finals.length){
+        const bins=new Array(16).fill(0);
+        finals.forEach(x=>{let idx=Math.floor((x-100)/40);idx=Math.max(0,Math.min(15,idx));bins[idx]++;});
+        const maxB=Math.max(...bins,1);
+        bins.forEach((c,i)=>{bar(ctx,100+i*40,gy,36,(c/maxB)*140*p2,COL.accent,0.85);});
+      }
+      const p3=ph(ms,2500,500);
+      if(p3>0){
+        const pts=buildCurve(x=>normal(x,340,90),100,700,100,700,gy,7000*p3/7000*140/normal(340,340,90));
+      }
+    }
+  },
+  examples:{
+    leftCap:'REAL LIFE — human height clusters near an average',
+    rightCap:'PRODUCTION — sensor readings cluster near true value',
+    draw(ctx,ms){
+      divider(ctx);
+      const p1=ph(ms,200,900);
+      const pts1=buildCurve(x=>normal(x,0,1),-3.4,3.4,150,530,520,650*p1);
+      curvePts(ctx,pts1.map(p=>[p[0],p[1]]),COL.accent,2.5,p1);
+      [-2,-1,0,1,2].forEach((s,i)=>{
+        const p=ph(ms,900+i*80,300);
+        const x=150+(530-150)*((s+3.4)/6.8);
+        seg(ctx,x,520,x,540,COL.dim2,1.2,p);
+      });
+      txt(ctx,340,570,'\u03bc \u00b1 \u03c3, \u00b12\u03c3 bands',{size:12.5,color:COL.dim,alpha:ph(ms,1300,400)});
+
+      const p2=ph(ms,300,900);
+      const pts2=buildCurve(x=>normal(x,0,0.6),750,1130,750,1130,520,700*p2);
+      curvePts(ctx,pts2.map(p=>[p[0],p[1]]),COL.accent2,2.5,p2);
+      txt(ctx,940,570,'tight spread = a precise sensor',{size:12.5,color:COL.dim,alpha:ph(ms,1300,400)});
+    }
+  },
+  viz:{
+    title:'\u03bc shifts it, \u03c3 stretches it',
+    sub:'Two numbers fully describe a Gaussian: the mean \u03bc (center) and the standard deviation \u03c3 (spread).',
+    code:`import numpy as np
+
+x = np.random.normal(
+        loc=0, scale=1, size=10000)
+
+print(x.mean(), x.std())
+# 68% of values land within 1\u03c3</br>`,
+    out:`<span class="lbl">&gt;&gt;&gt; </span>-0.002  1.004`,
+    draw(ctx,ms){
+      const x0=220,x1=1060,baseY=560;
+      axes(ctx,x0,baseY,x1-x0,280);
+      const p=ph(ms,200,1000);
+      const pts=buildCurve(x=>normal(x,0,1),-3.6,3.6,x0,x1,baseY,900*p);
+      curvePts(ctx,pts.map(pp=>[pp[0],pp[1]]),COL.accent,3);
+      const p2=ph(ms,1200,700);
+      if(p2>0)fillUnderCurve(ctx,pts,baseY,-1,1,`rgba(185,139,255,${0.22*p2})`);
+      const p3=ph(ms,1900,500);
+      if(p3>0)txt(ctx,640,610,'\u00b11\u03c3 covers \u2248 68% of the area',{size:13,color:COL.accent,alpha:p3,weight:600});
+    }
+  }
+});
+
+/* 10. BERNOULLI */
+pushTopic({
+  name:'Bernoulli',
+  math:{
+    title:'The math: one formula, two cases',
+    sub:'A small algebraic trick that quietly covers both success and failure.',
+    formula:`P(X=k) = p<sup>k</sup>(1\u2212p)<sup>1\u2212k</sup>, &nbsp; k \u2208 {0,1}`,
+    terms:[
+      {sym:'p', label:'probability of success on this one trial'},
+      {sym:'k', label:'the outcome: 1 = success, 0 = failure'}
+    ],
+    worked:`Fair coin: P(X=1) = 0.5<sup>1</sup>\u00b70.5<sup>0</sup> = 0.5`,
+    why:`Watch what happens at each value of k: when k=1, the second factor becomes (1\u2212p)\u2070 = 1, leaving just p. When k=0, the first factor becomes p\u2070 = 1, leaving just 1\u2212p. One compact expression silently switches between the two cases depending on k \u2014 no if/else needed, just exponent rules doing the work.`,
+    uses:[
+      'Click or no-click on an advertisement',
+      'Pass or fail on a single test or inspection',
+      'Any single yes/no experiment \u2014 the atom every other distribution here is built from'
+    ]
+  },
+  concept:{
+    title:'The simplest random experiment: one flip, two outcomes',
+    sub:'Success with probability p, failure with probability 1-p. Every more complex distribution in this deck is built by stacking these atoms together.',
+    caption:'A Bernoulli variable only ever takes the value <b>0</b> or <b>1</b>.',
+    draw(ctx,ms){
+      const t=(ms/1400);
+      const scaleX=Math.cos(Math.min(t,1)*Math.PI*4)*Math.max(0,1-t*0.6);
+      drawCoin(ctx,500,300,70,t<1?scaleX:1,'H',COL.amber);
+      const p1=ph(ms,1500,500);
+      if(p1>0){
+        drawBars(ctx,{cx:500,baseY:560,barW:90,gap:40,values:[0.5,0.5],maxVal:0.5,color:COL.accent,ms,staggerStart:1500,stagger:200,dur:500,labels:['success (1)','failure (0)'],chartH:200});
+      }
+      const p2=ph(ms,2200,500);
+      if(p2>0)txt(ctx,500,180,'P(X=1) = p,   P(X=0) = 1\u2212p',{size:15,color:COL.dim,alpha:p2,mono:true});
+    }
+  },
+  examples:{
+    leftCap:'REAL LIFE — heads or tails',
+    rightCap:'PRODUCTION — user clicks the ad, or doesn\u2019t',
+    draw(ctx,ms){
+      divider(ctx);
+      const t=(ms%1400)/1400;
+      const scaleX=Math.cos(t*Math.PI*4);
+      drawCoin(ctx,320,340,65,scaleX,ms%2800<1400?'H':'T',COL.amber);
+      txt(ctx,320,470,'p = 0.5 for a fair coin',{size:13,color:COL.dim,alpha:ph(ms,200,500)});
+
+      const p2=ph(ms,300,700);
+      rrect(ctx,880,290,160,80,12);ctx.strokeStyle=COL.warn;ctx.lineWidth=2.2;ctx.globalAlpha=p2;ctx.stroke();ctx.globalAlpha=1;
+      txt(ctx,960,330,'Ad: 50% OFF',{size:13,color:COL.warn,alpha:p2});
+      const click=Math.floor(ms/1000)%5===2;
+      const p3=ph(ms,900,500);
+      if(p3>0)txt(ctx,960,430,click?'clicked \u2192 X=1':'no click \u2192 X=0',{size:13,color:click?COL.good:COL.dim,alpha:p3,mono:true});
+      txt(ctx,960,470,'p = click-through rate, often just a few %',{size:12,color:COL.dim,alpha:ph(ms,1300,500)});
+    }
+  },
+  viz:{
+    title:'Many single flips, tallied live',
+    sub:'Each square is one Bernoulli(p) trial. Watch the running fraction of successes home in on p.',
+    code:`import numpy as np
+
+p = 0.5
+x = np.random.binomial(
+        n=1, p=p, size=300)
+
+print(x.mean())</br>`,
+    out:`<span class="lbl">&gt;&gt;&gt; </span>0.503  <span class="lbl"># \u2248 p</span>`,
+    draw(ctx,ms){
+      const rnd=mulberry32(202);
+      const N=90,cols=15;
+      let hit=0,tot=0;
+      for(let i=0;i<N;i++){
+        const p=ph(ms,200+i*22,250);
+        if(p<=0)continue;
+        const s=rnd()<0.5;
+        const col=i%cols,row=Math.floor(i/cols);
+        const x=150+col*35,y=560-row*46;
+        ctx.save();ctx.globalAlpha=p;
+        rrect(ctx,x-12,y-12,24,24,5);
+        ctx.fillStyle=s?COL.accent:'#1c1c28';ctx.fill();
+        ctx.strokeStyle=s?COL.accent:COL.dim2;ctx.lineWidth=1.4;ctx.stroke();
+        ctx.restore();
+        if(p>0.9){tot++;if(s)hit++;}
+      }
+      const p2=ph(ms,2400,500);
+      if(p2>0)txt(ctx,375,635,`running mean \u2248 ${(hit/Math.max(tot,1)).toFixed(2)}`,{size:14,color:COL.accent,mono:true,weight:700,alpha:p2});
+    }
+  }
+});
+
+/* 11. BINOMIAL */
+pushTopic({
+  name:'Binomial',
+  math:{
+    title:'The math: one ordering, times how many orderings',
+    sub:'Why a counting term has to sit in front of the probability term.',
+    formula:`P(X=k) = C(n,k) \u00b7 p<sup>k</sup>(1\u2212p)<sup>n\u2212k</sup>`,
+    terms:[
+      {sym:'C(n,k)', label:'number of ways to choose which k trials succeed'},
+      {sym:'n, p', label:'number of trials, and success probability per trial'}
+    ],
+    worked:`10 flips, fair coin: P(X=5) = C(10,5)\u00b70.5<sup>10</sup> \u2248 0.246`,
+    why:`Any *one specific sequence* with exactly k successes and n\u2212k failures has probability p\u1d4f(1\u2212p)\u207f\u207b\u1d4f \u2014 that part is just independent Bernoullis multiplying. But there are many different sequences that all produce the same count k (success-success-failure looks different from failure-success-success, yet both have k=2). C(n,k) counts exactly how many such sequences exist, so you multiply by it to add up all the equally-probable ways of reaching the same total.`,
+    uses:[
+      'Quality control: number of defective items in a batch of n',
+      'A/B testing: number of conversions out of n visitors',
+      'Genetics: number of offspring inheriting a trait out of n'
+    ]
+  },
+  concept:{
+    title:'Stack n independent Bernoullis, count the successes',
+    sub:'Flip n coins at once and just count how many landed heads. That count is a Binomial(n, p) random variable.',
+    caption:'As n grows, the jagged binomial bars start looking suspiciously like a bell curve \u2014 a preview of the Central Limit Theorem.',
+    draw(ctx,ms){
+      const rnd=mulberry32(303);
+      const n=10;
+      for(let i=0;i<n;i++){
+        const p=ph(ms,i*90,400);
+        const t=(ms-i*90)%900;
+        const sc=Math.cos(Math.min(t/220,1)*Math.PI*3)*Math.max(0,1-t/900);
+        drawCoin(ctx,180+i*95,240,26,p<1?(t<220?sc:1):1,rnd()<0.5?'H':'T',COL.amber);
+      }
+      const values=binomPMF(10,0.5);
+      const p2=ph(ms,1200,1);
+      drawBars(ctx,{cx:640,baseY:600,barW:44,gap:12,values,maxVal:Math.max(...values),color:COL.accent,ms,staggerStart:1200,stagger:70,dur:500,labels:Array.from({length:11},(_,i)=>i),chartH:230,showVals:false});
+      const p3=ph(ms,2100,500);
+      if(p3>0)txt(ctx,640,340,'count of heads out of 10 flips',{size:13,color:COL.dim,alpha:p3});
+    }
+  },
+  examples:{
+    leftCap:'REAL LIFE — heads in 10 coin flips',
+    rightCap:'PRODUCTION — successful deploys out of 20 releases',
+    draw(ctx,ms){
+      divider(ctx);
+      const v1=binomPMF(10,0.5);
+      drawBars(ctx,{cx:320,baseY:560,barW:26,gap:8,values:v1,maxVal:Math.max(...v1),color:COL.accent,ms,staggerStart:200,stagger:50,dur:450,labels:Array.from({length:11},(_,i)=>i),chartH:220,showVals:false});
+      const v2=binomPMF(20,0.92);
+      drawBars(ctx,{cx:960,baseY:560,barW:20,gap:6,values:v2,maxVal:Math.max(...v2),color:COL.good,ms,staggerStart:400,stagger:35,dur:450,labels:null,chartH:220,showVals:false});
+      txt(ctx,960,610,'peaks near 18\u201320 successful deploys',{size:12.5,color:COL.dim,alpha:ph(ms,1400,500)});
+    }
+  },
+  viz:{
+    title:'Grow n and watch the shape smooth out',
+    sub:'A large-n binomial is already hard to tell apart from a Gaussian \u2014 that\u2019s the Central Limit Theorem sneaking in.',
+    code:`import numpy as np
+
+n, p = 60, 0.5
+x = np.random.binomial(n, p, 20000)
+
+print(x.mean(), x.std())
+# mean=np, std=sqrt(np(1-p))</br>`,
+    out:`<span class="lbl">&gt;&gt;&gt; </span>30.01  3.87`,
+    draw(ctx,ms){
+      const values=binomPMF(40,0.5);
+      drawBars(ctx,{cx:300,baseY:560,barW:11,gap:3,values,maxVal:Math.max(...values),color:COL.accent,ms,staggerStart:200,stagger:16,dur:400,labels:null,chartH:230,showVals:false});
+      const p2=ph(ms,900,700);
+      if(p2>0){
+        const pts=buildCurve(x=>normal(x,20,Math.sqrt(10)),0,40,100,500,560,230*p2/normal(20,20,Math.sqrt(10)));
+        curvePts(ctx,pts.map(pp=>[pp[0],pp[1]]),COL.warn,2,p2*0.85);
+      }
+      txt(ctx,300,610,'binomial bars vs. Gaussian overlay (dashed feel)',{size:12.5,color:COL.dim,alpha:ph(ms,1300,500)});
+    }
+  }
+});
+
+/* 12. POISSON */
+pushTopic({
+  name:'Poisson',
+  math:{
+    title:'The math: binomial\u2019s limit as trials explode',
+    sub:'Why Poisson has no n or explicit trial count \u2014 it already took a limit for you.',
+    formula:`P(X=k) = ${frac('\u03bb<sup>k</sup> e<sup>\u2212\u03bb</sup>','k!')}`,
+    terms:[
+      {sym:'\u03bb', label:'average rate of events per interval'},
+      {sym:'k!', label:'accounts for the orderings of the k arrivals'}
+    ],
+    worked:`\u03bb=4 calls/hour: P(X=6) = 4<sup>6</sup>e<sup>\u22124</sup>\u20446! \u2248 0.104`,
+    why:`Take a Binomial(n,p) and let the number of trials n grow toward infinity while p shrinks toward zero, keeping their product n\u00b7p fixed at \u03bb \u2014 that's "chop the interval into infinitely many infinitesimally-likely sub-trials." Taking that limit of the binomial formula, the n and the combinatorial term reshape themselves into e\u207b\u03bb and \u03bb\u1d4f\u2044k!. That's why Poisson has no visible n: it's already baked into \u03bb.`,
+    uses:[
+      'Call centers: number of calls arriving per hour',
+      'Site reliability: number of errors or crashes per minute',
+      'Insurance: number of claims arriving per year'
+    ]
+  },
+  concept:{
+    title:'Count rare events over a fixed stretch of time',
+    sub:'Events arrive at random moments, independently, at some average rate \u03bb per interval. The Poisson distribution predicts how many will land in that interval.',
+    caption:'No fixed number of "trials" here \u2014 just a rate, and a window of time to count within.',
+    draw(ctx,ms){
+      const rnd=mulberry32(404);
+      const y=280,x0=180,x1=1100;
+      seg(ctx,x0,y,x1,y,'#22222f',1.6);
+      const arrivals=[];let t=0;
+      for(let i=0;i<14;i++){t+=(-Math.log(1-rnd()))*90;if(t<x1-x0-20)arrivals.push(t);}
+      arrivals.forEach((a,i)=>{
+        const p=ph(ms,300+i*160,350);
+        dot(ctx,x0+a,y,5.5,COL.accent2,p*0.95);
+      });
+      const values=poissonPMF(4,12);
+      const p2=ph(ms,300+arrivals.length*160+300,1);
+      drawBars(ctx,{cx:640,baseY:600,barW:34,gap:11,values,maxVal:Math.max(...values),color:COL.accent,ms,staggerStart:300+arrivals.length*160+300,stagger:60,dur:450,labels:Array.from({length:13},(_,i)=>i),chartH:210,showVals:false});
+      txt(ctx,640,200,'random arrivals along a timeline (rate \u03bb = 4)',{size:13,color:COL.dim,alpha:ph(ms,100,400)});
+    }
+  },
+  examples:{
+    leftCap:'REAL LIFE — calls to a helpline per hour',
+    rightCap:'PRODUCTION — server errors per minute',
+    draw(ctx,ms){
+      divider(ctx);
+      const v1=poissonPMF(6,15);
+      drawBars(ctx,{cx:320,baseY:560,barW:22,gap:6,values:v1,maxVal:Math.max(...v1),color:COL.accent,ms,staggerStart:200,stagger:35,dur:400,labels:null,chartH:220,showVals:false});
+      txt(ctx,320,610,'\u03bb \u2248 6 calls / hour, on average',{size:12.5,color:COL.dim,alpha:ph(ms,900,500)});
+      const v2=poissonPMF(1.5,8);
+      drawBars(ctx,{cx:960,baseY:560,barW:34,gap:12,values:v2,maxVal:Math.max(...v2),color:COL.warn,ms,staggerStart:400,stagger:45,dur:400,labels:Array.from({length:9},(_,i)=>i),chartH:220,showVals:false});
+      txt(ctx,960,610,'\u03bb \u2248 1.5 errors / minute — mostly 0, 1, 2',{size:12.5,color:COL.dim,alpha:ph(ms,1000,500)});
+    }
+  },
+  viz:{
+    title:'Simulate arrivals, count per window',
+    sub:'Draw counts straight from a Poisson generator with rate \u03bb and check the sample mean.',
+    code:`import numpy as np
+
+lam = 4
+counts = np.random.poisson(
+            lam, size=10000)
+
+print(counts.mean())
+# mean = variance = \u03bb</br>`,
+    out:`<span class="lbl">&gt;&gt;&gt; </span>4.006`,
+    draw(ctx,ms){
+      const values=poissonPMF(4,13);
+      drawBars(ctx,{cx:300,baseY:560,barW:32,gap:10,values,maxVal:Math.max(...values),color:COL.accent,ms,staggerStart:200,stagger:55,dur:450,labels:Array.from({length:14},(_,i)=>i),chartH:230,showVals:false});
+    }
+  }
+});
+
+/* 13. EXPONENTIAL */
+pushTopic({
+  name:'Exponential',
+  math:{
+    title:'The math: waiting time, derived from Poisson',
+    sub:'The exponential falls straight out of asking \u201cno arrivals yet\u201d in a Poisson process.',
+    formula:`f(x) = \u03bb e<sup>\u2212\u03bbx</sup>, &nbsp; x \u2265 0`,
+    terms:[
+      {sym:'\u03bb', label:'rate \u2014 the same \u03bb as the underlying Poisson process'},
+      {sym:'x', label:'waiting time (must be non-negative)'}
+    ],
+    worked:`\u03bb=1.2/min: P(wait < 1) = 1 \u2212 e<sup>\u22121.2</sup> \u2248 0.699`,
+    why:`If arrivals follow a Poisson process with rate \u03bb, then "the wait until the next arrival exceeds t" is exactly the same event as "zero arrivals occurred in the interval [0,t]." Plugging k=0 into the Poisson formula gives P(zero arrivals) = e\u207b\u03bbᵗ. So P(wait > t) = e\u207b\u03bbᵗ, and differentiating (1 minus that) with respect to t hands you the density f(x) = \u03bbe\u207b\u03bbˣ directly.`,
+    uses:[
+      'Reliability engineering: time until a component fails',
+      'Queueing systems: time between customer arrivals',
+      'Networking: time between packet arrivals on a link'
+    ]
+  },
+  concept:{
+    title:'How long until the next rare event?',
+    sub:'The gaps between Poisson arrivals aren\u2019t evenly spaced \u2014 measure them and they form a decaying curve: short waits are common, long waits rarer and rarer.',
+    caption:'The exponential is <b>memoryless</b>: however long you\u2019ve already waited, the remaining wait looks exactly the same as starting fresh.',
+    draw(ctx,ms){
+      const rnd=mulberry32(505);
+      const y=250,x0=180,x1=1100;
+      seg(ctx,x0,y,x1,y,'#22222f',1.6);
+      let t=0;const arrivals=[0];
+      for(let i=0;i<9;i++){t+=(-Math.log(1-rnd()))*95;arrivals.push(t);}
+      for(let i=0;i<arrivals.length;i++){
+        const p=ph(ms,200+i*200,300);
+        dot(ctx,x0+arrivals[i],y,5,COL.accent2,p*0.9);
+        if(i>0){
+          const p2=ph(ms,250+i*200,300);
+          seg(ctx,x0+arrivals[i-1],y+22,x0+arrivals[i],y+22,COL.dim2,1.4,p2*0.7,[2,3]);
+        }
+      }
+      const p3=ph(ms,2200,1000);
+      const x02=220,x12=1000,baseY=600;
+      axes(ctx,x02,baseY,x12-x02,200);
+      const pts=buildCurve(x=>1.1*Math.exp(-1.1*x),0,4,x02,x12,baseY,1300);
+      curvePts(ctx,pts.map(pp=>[pp[0],pp[1]]).slice(0,Math.floor(pts.length*p3)),COL.accent,3);
+      if(p3>0.9)txt(ctx,610,640,'gap lengths \u2192 exponential curve',{size:12.5,color:COL.dim,alpha:clamp01((p3-0.9)*10)});
+    }
+  },
+  examples:{
+    leftCap:'REAL LIFE — time until the next bus arrives',
+    rightCap:'PRODUCTION — time between server crashes',
+    draw(ctx,ms){
+      divider(ctx);
+      const p1=ph(ms,200,700);
+      drawBus(ctx,280,340,110,60,COL.accent2,p1);
+      drawClock(ctx,280,460,34,ph(ms,600,900)*Math.PI*2,COL.accent,p1);
+      txt(ctx,280,520,'wait feels "fresh" at any moment',{size:12,color:COL.dim,alpha:p1});
+
+      const p2=ph(ms,300,900);
+      const x0=800,x1=1130,baseY=460;
+      axes(ctx,x0,baseY,x1-x0,170);
+      const pts=buildCurve(x=>0.8*Math.exp(-0.8*x),0,5,x0,x1,baseY,700*p2);
+      curvePts(ctx,pts.map(pp=>[pp[0],pp[1]]),COL.warn,2.6,p2);
+      txt(ctx,965,510,'most gaps between crashes are short',{size:12,color:COL.dim,alpha:p2});
+    }
+  },
+  viz:{
+    title:'Memorylessness, demonstrated',
+    sub:'Condition on already having waited some time \u2014 the remaining-wait distribution is identical to the original.',
+    code:`import numpy as np
+
+rate = 1.2
+wait = np.random.exponential(
+            1/rate, size=8000)
+
+print(wait.mean())   # = 1/rate</br>`,
+    out:`<span class="lbl">&gt;&gt;&gt; </span>0.831`,
+    draw(ctx,ms){
+      const x0=220,x1=1050,baseY=560;
+      axes(ctx,x0,baseY,x1-x0,260);
+      const p=ph(ms,200,1000);
+      const pts=buildCurve(x=>1.2*Math.exp(-1.2*x),0,4.5,x0,x1,baseY,800*p);
+      curvePts(ctx,pts.map(pp=>[pp[0],pp[1]]),COL.accent,3);
+      const p2=ph(ms,1200,700);
+      if(p2>0)fillUnderCurve(ctx,pts,baseY,0.6,4.5,`rgba(185,139,255,${0.18*p2})`);
+      const p3=ph(ms,1900,500);
+      if(p3>0)txt(ctx,640,610,'P(wait > 0.6) is still substantial — long tail',{size:13,color:COL.dim,alpha:p3});
+    }
+  }
+});
+
+/* 14. UNIFORM */
+pushTopic({
+  name:'Uniform',
+  math:{
+    title:'The math: maximum ignorance, made precise',
+    sub:'Why "no reason to prefer any point" forces the density to be a flat constant.',
+    formula:`f(x) = ${frac('1','b\u2212a')}, &nbsp; a \u2264 x \u2264 b`,
+    terms:[
+      {sym:'a, b', label:'the lower and upper bounds of the interval'},
+      {sym:'f(x)', label:'constant density \u2014 every point equally dense'}
+    ],
+    worked:`a=0, b=10: f(x) = 1\u204410 = 0.1 everywhere on [0,10]`,
+    why:`If you truly have no reason to favor any point over any other, then any two equal-length sub-intervals must carry equal probability \u2014 that's what "no preference" means numerically. The only density function that gives every equal-length slice the same area is a flat, constant one. And that constant has to be exactly 1\u2044(b\u2212a) so the whole rectangle's area (base \u00d7 height) works out to 1.`,
+    uses:[
+      'Random ID and hash generation',
+      'Monte Carlo simulation seeds and sampling',
+      'Load balancers choosing a server uniformly at random'
+    ]
+  },
+  concept:{
+    title:'No favorite outcome, anywhere in the range',
+    sub:'Every point between a and b is exactly as likely as every other. The density is a flat rectangle \u2014 the simplest shape probability can take.',
+    caption:'Contrast with the Gaussian: no clustering near a center, just an even spread across the whole interval.',
+    draw(ctx,ms){
+      const x0=260,x1=1020,topY=280,baseY=520;
+      const p1=ph(ms,150,600);
+      ctx.save();ctx.globalAlpha=0.85*p1;ctx.fillStyle='rgba(185,139,255,0.20)';
+      ctx.fillRect(x0,topY+(1-eo3(p1))*0,x1-x0,(baseY-topY));
+      ctx.restore();
+      ctx.save();ctx.strokeStyle=COL.accent;ctx.lineWidth=2.5;ctx.globalAlpha=p1;
+      ctx.beginPath();ctx.moveTo(x0,baseY);ctx.lineTo(x0,topY);ctx.lineTo(x1,topY);ctx.lineTo(x1,baseY);ctx.stroke();
+      ctx.restore();
+      axes(ctx,x0-10,baseY,x1-x0+20,280);
+      const rnd=mulberry32(606);
+      for(let i=0;i<28;i++){
+        const p=ph(ms,900+i*45,500);
+        if(p<=0)continue;
+        const rx=x0+rnd()*(x1-x0);
+        const fallY=lerp(150,baseY-6,eio3(Math.min(1,p*1.3)));
+        dot(ctx,rx,fallY,4.5,COL.accent2,0.85*Math.min(1,p*2));
+      }
+      txt(ctx,640,610,'samples land evenly across [a, b]',{size:13,color:COL.dim,alpha:ph(ms,2200,500)});
+    }
+  },
+  examples:{
+    leftCap:'REAL LIFE — a spinner picks a direction',
+    rightCap:'PRODUCTION — a load balancer picks a server',
+    draw(ctx,ms){
+      divider(ctx);
+      const p1=ph(ms,200,900);
+      const angle=ms/900;
+      drawSpinner(ctx,320,340,110,angle*(p1<1?1:0.15),[COL.accent,COL.accent2,COL.warn,COL.good,COL.amber],p1);
+      txt(ctx,320,490,'every wedge equally likely to be picked',{size:12.5,color:COL.dim,alpha:ph(ms,900,500)});
+
+      const p2=ph(ms,300,900);
+      const servers=5;
+      for(let i=0;i<servers;i++){
+        const p=ph(ms,400+i*100,400);
+        drawServer(ctx,830+i*75,340,55,90,COL.accent2,Math.floor(ms/700)%servers===i,p);
+      }
+      txt(ctx,960,470,'requests spread uniformly across servers',{size:12.5,color:COL.dim,alpha:ph(ms,900,500)});
+    }
+  },
+  viz:{
+    title:'Flat density, flat histogram',
+    sub:'Every sub-interval of equal width should capture roughly the same number of samples.',
+    code:`import numpy as np
+
+x = np.random.uniform(
+        low=0, high=10, size=10000)
+
+print(x.mean(), x.std())
+# mean=(a+b)/2, std=(b-a)/sqrt(12)</br>`,
+    out:`<span class="lbl">&gt;&gt;&gt; </span>4.998  2.886`,
+    draw(ctx,ms){
+      const x0=220,x1=1040,baseY=560;
+      axes(ctx,x0,baseY,x1-x0,270);
+      const bins=20;
+      const rnd=mulberry32(707);
+      const counts=new Array(bins).fill(0);
+      for(let i=0;i<2000;i++)counts[Math.floor(rnd()*bins)]++;
+      const maxC=Math.max(...counts);
+      counts.forEach((c,i)=>{
+        const p=ph(ms,200+i*35,400);
+        const w=(x1-x0)/bins;
+        bar(ctx,x0+i*w,baseY,w-2,(c/maxC)*230*p,COL.accent,0.85);
+      });
+      txt(ctx,640,610,'roughly flat top \u2014 no bin dominates',{size:13,color:COL.dim,alpha:ph(ms,1300,500)});
+    }
+  }
+});
+
+/* 15. INDEPENDENCE */
+pushTopic({
+  name:'Independence',
+  math:{
+    title:'The math: what \u201cno influence\u201d requires algebraically',
+    sub:'The product rule is exactly the condition under which conditioning changes nothing.',
+    formula:`P(A \u2229 B) = P(A) \u00b7 P(B)`,
+    terms:[
+      {sym:'P(A)', label:'unconditional probability of A, on its own'},
+      {sym:'P(B)', label:'unconditional probability of B, on its own'}
+    ],
+    worked:`Two fair coins: P(HH) = 0.5 \u00d7 0.5 = 0.25`,
+    why:`"Independent" means P(A|B) = P(A) \u2014 learning B happened doesn't move your belief about A at all. Substitute that into the definition of conditional probability, P(A|B) = P(A\u2229B)\u2044P(B), and solve: P(A) = P(A\u2229B)\u2044P(B), which rearranges to P(A\u2229B) = P(A)\u00b7P(B). The multiplication rule isn't a separate assumption \u2014 it's what "no influence" looks like once you do the algebra.`,
+    uses:[
+      'Assessing whether two system failures are genuinely unrelated',
+      'Combining two independent sensor readings',
+      'Statistical tests that assume independently drawn samples'
+    ]
+  },
+  concept:{
+    title:'Knowing one tells you nothing about the other',
+    sub:'Two events are independent when learning that one happened leaves your belief about the other completely unchanged.',
+    caption:'P(A and B) = P(A) \u00d7 P(B) \u2014 the defining test for independence.',
+    draw(ctx,ms){
+      const t1=(ms%1200)/1200;
+      const sc1=Math.cos(Math.min(t1,1)*Math.PI*4)*Math.max(0,1-t1*0.6);
+      drawCoin(ctx,420,270,58,ms<1200?sc1:1,'H',COL.amber);
+      const t2=((ms+280)%1400)/1400;
+      const sc2=Math.cos(Math.min(t2,1)*Math.PI*4)*Math.max(0,1-t2*0.6);
+      drawCoin(ctx,860,270,58,ms<1400?sc2:1,'T',COL.accent2);
+      const p1=ph(ms,1500,500);
+      if(p1>0){
+        seg(ctx,500,270,780,270,COL.dim2,1.5,p1*0.6,[3,4]);
+        txt(ctx,640,242,'no connection',{size:12.5,color:COL.dim,alpha:p1});
+      }
+      const p2=ph(ms,2000,900);
+      if(p2>0){
+        const combos=[['H','H'],['H','T'],['T','H'],['T','T']];
+        combos.forEach((c,i)=>{
+          const pp=ph(ms,2000+i*120,400);
+          const x=460+(i%2)*280, y=420+Math.floor(i/2)*90;
+          ctx.save();ctx.globalAlpha=pp;
+          rrect(ctx,x-70,y-28,140,56,10);ctx.strokeStyle=COL.accent;ctx.lineWidth=1.8;ctx.stroke();
+          txt(ctx,x,y-4,`${c[0]}${c[1]}`,{size:15,color:COL.ink,weight:700,mono:true});
+          txt(ctx,x,y+16,'0.25',{size:11,color:COL.dim,mono:true});
+          ctx.restore();
+        });
+      }
+    }
+  },
+  examples:{
+    leftCap:'REAL LIFE — two separate coin flips',
+    rightCap:'PRODUCTION — two unrelated microservices',
+    draw(ctx,ms){
+      divider(ctx);
+      const p1=ph(ms,200,500);
+      drawCoin(ctx,270,320,55,1,'H',COL.amber);
+      drawCoin(ctx,430,320,55,1,'T',COL.accent2);
+      txt(ctx,350,460,'P(both) = 0.5 \u00d7 0.5 = 0.25',{size:13,color:COL.dim,alpha:p1});
+
+      const p2=ph(ms,400,700);
+      drawServer(ctx,890,300,110,140,COL.accent2,Math.floor(ms/900)%3===0,p2);
+      drawServer(ctx,1070,300,110,140,COL.accent2,Math.floor(ms/1100)%4===0,p2);
+      txt(ctx,980,460,'independent failure \u2014 rare for both at once',{size:12,color:COL.dim,alpha:p2});
+    }
+  },
+  viz:{
+    title:'Test it: does the product hold?',
+    sub:'Simulate two fair coins many times, and compare the empirical P(both heads) to P(H)\u00d7P(H).',
+    code:`import random
+
+a = [random.choice([0,1]) for _ in range(20000)]
+b = [random.choice([0,1]) for _ in range(20000)]
+
+p_both = sum(x&y for x,y in zip(a,b))/len(a)
+print(p_both, 0.5*0.5)`,
+    out:`<span class="lbl">&gt;&gt;&gt; </span>0.2503  0.25`,
+    draw(ctx,ms){
+      const values=[0.251,0.249,0.250,0.250];
+      drawBars(ctx,{cx:640,baseY:560,barW:80,gap:30,values,maxVal:0.3,color:COL.accent,ms,staggerStart:200,stagger:150,dur:500,labels:['HH','HT','TH','TT'],chartH:220});
+    }
+  }
+});
+
+/* 16. EXPECTATION */
+pushTopic({
+  name:'Expectation',
+  math:{
+    title:'The math: a weighted average, nothing more',
+    sub:'Why E[X] is the same math as finding a center of mass.',
+    formula:`E[X] = \u03a3 x \u00b7 P(x)`,
+    terms:[
+      {sym:'x', label:'a possible value X could take'},
+      {sym:'P(x)', label:'the weight given to that value'}
+    ],
+    worked:`Dice sum: E[X] = 2(1\u204436)+3(2\u204436)+\u22ef+12(1\u204436) = 7`,
+    why:`Multiplying each value by its probability and summing is exactly the formula for a center of mass, where "probability" plays the role of "weight." Values that occur more often pull the balance point toward themselves harder \u2014 just like heavier objects pull a see-saw's balance point toward them. That's why E[X] can land on a value X itself never actually takes (like 3.5 for a die): it's a balance point, not a most-likely outcome.`,
+    uses:[
+      'Expected value of a bet, lottery ticket, or investment',
+      'Capacity planning: expected load per second on a system',
+      'Insurance: expected payout per policy, used to set premiums'
+    ]
+  },
+  concept:{
+    title:'The balance point of every possible outcome',
+    sub:'Weight each value by how likely it is, then find where the see-saw balances \u2014 that balance point is the expected value.',
+    caption:'E[X] = \u03a3 x\u00b7P(x) \u2014 not the most likely outcome, but the long-run average.',
+    draw(ctx,ms){
+      const values=DICE_PMF;
+      const baseY=470, barW=46, gap=14;
+      drawBars(ctx,{cx:640,baseY,barW,gap,values,maxVal:Math.max(...values),color:COL.accent,ms,staggerStart:100,stagger:70,dur:500,labels:Array.from({length:11},(_,i)=>i+2),chartH:190,showVals:false});
+      const p2=ph(ms,1300,800);
+      if(p2>0){
+        const n=values.length, totalW=n*barW+(n-1)*gap, x0=640-totalW/2;
+        const meanPx=x0+5*(barW+gap)+barW/2;
+        const wob=Math.sin(ms/260)*3*(1-p2);
+        seg(ctx,x0-30,baseY+40,x0+totalW+30,baseY+40+wob,COL.dim2,2.2,p2);
+        ctx.save();ctx.globalAlpha=p2;
+        ctx.beginPath();ctx.moveTo(meanPx,baseY+40+wob-2);ctx.lineTo(meanPx-16,baseY+70);ctx.lineTo(meanPx+16,baseY+70);ctx.closePath();
+        ctx.fillStyle=COL.accent;ctx.fill();ctx.restore();
+        if(p2>0.7)txt(ctx,meanPx,baseY+96,'E[X] = 7',{size:15,color:COL.accent,weight:700,mono:true,alpha:clamp01((p2-0.7)*3)});
+      }
+    }
+  },
+  examples:{
+    leftCap:'REAL LIFE — expected winnings in a raffle',
+    rightCap:'PRODUCTION — expected requests per second',
+    draw(ctx,ms){
+      divider(ctx);
+      const prizes=[{v:0,p:0.85},{v:10,p:0.12},{v:100,p:0.03}];
+      prizes.forEach((pr,i)=>{
+        const pp=ph(ms,200+i*200,500);
+        const x=210+i*110;
+        bar(ctx,x,500,60,pr.p*300*pp,COL.accent,0.85);
+        if(pp>0.6)txt(ctx,x+30,500-pr.p*300*pp-16,'$'+pr.v,{size:12,color:COL.dim,alpha:clamp01((pp-0.6)*3)});
+      });
+      const ev=prizes.reduce((s,pr)=>s+pr.v*pr.p,0);
+      const p2=ph(ms,1000,500);
+      if(p2>0)txt(ctx,345,470,`expected value \u2248 $${ev.toFixed(2)}`,{size:12.5,color:COL.accent,weight:700,alpha:p2});
+
+      const reqs=[20,35,28,42,38,50,44];
+      const maxR=Math.max(...reqs);
+      reqs.forEach((r,i)=>{
+        const pp=ph(ms,300+i*90,400);
+        const x=850+i*40;
+        bar(ctx,x,500,28,(r/maxR)*200*pp,COL.accent2,0.85);
+      });
+      const avgR=reqs.reduce((a,b)=>a+b,0)/reqs.length;
+      const p3=ph(ms,1200,500);
+      if(p3>0){
+        const y=500-(avgR/maxR)*200;
+        seg(ctx,830,y,1140,y,COL.warn,1.6,p3,[4,4]);
+        txt(ctx,985,y-16,`E[X] \u2248 ${avgR.toFixed(0)} req/s \u2014 size for this`,{size:11.5,color:COL.warn,alpha:p3});
+      }
+    }
+  },
+  viz:{
+    title:'Simulate, then average',
+    sub:'The sample mean of enough draws creeps toward the theoretical expectation \u2014 no accident (the Law of Large Numbers is next).',
+    code:`import random
+
+rolls = [random.randint(1,6)+random.randint(1,6)
+         for _ in range(50000)]
+
+print(sum(rolls)/len(rolls))
+# theoretical E[X] = 7`,
+    out:`<span class="lbl">&gt;&gt;&gt; </span>7.003`,
+    draw(ctx,ms){
+      const rnd=mulberry32(909);
+      const x0=220,x1=1050,y=380;
+      seg(ctx,x0,y,x1,y,'#22222f',1.6);
+      for(let v=2;v<=12;v++){
+        const x=x0+(x1-x0)*((v-2)/10);
+        txt(ctx,x,y+26,String(v),{size:11,color:COL.dim,mono:true});
+      }
+      let sum=0,count=0;
+      const N=70;
+      for(let i=0;i<N;i++){
+        const p=ph(ms,150+i*24,300);
+        if(p<=0)continue;
+        const val=2+Math.floor(rnd()*6)+Math.floor(rnd()*6);
+        const x=x0+(x1-x0)*((val-2)/10);
+        dot(ctx,x,y-24-Math.floor(i/14)*14,3.6,COL.accent2,0.7*p);
+        if(p>0.8){sum+=val;count++;}
+      }
+      const avg=count?sum/count:7;
+      const p2=ph(ms,2000,500);
+      if(p2>0){
+        const ax=x0+(x1-x0)*((avg-2)/10);
+        ctx.save();ctx.globalAlpha=p2;
+        ctx.beginPath();ctx.moveTo(ax,y+10);ctx.lineTo(ax-8,y+22);ctx.lineTo(ax+8,y+22);ctx.closePath();ctx.fillStyle=COL.accent;ctx.fill();
+        ctx.restore();
+        txt(ctx,ax,y+60,`sample mean \u2248 ${avg.toFixed(2)}`,{size:13,color:COL.accent,weight:700,mono:true,alpha:p2});
+      }
+    }
+  }
+});
+
+/* 17. VARIANCE & STD DEV */
+pushTopic({
+  name:'Variance & Std. Dev.',
+  math:{
+    title:'The math: why we square the deviations',
+    sub:'Plain deviations always cancel out to zero \u2014 squaring is what forces spread to register.',
+    formula:`Var(X) = E[(X\u2212\u03bc)\u00b2] = E[X\u00b2] \u2212 (E[X])\u00b2`,
+    terms:[
+      {sym:'\u03bc', label:'the mean, E[X]'},
+      {sym:'(X\u2212\u03bc)\u00b2', label:'squared distance of each value from the mean'}
+    ],
+    worked:`x=[2,4,4,4,5,5,7,9], \u03bc=5 \u2192 Var(X) = 4.0`,
+    why:`If you just averaged the raw deviations (X\u2212\u03bc), positive and negative deviations always cancel exactly \u2014 the average deviation from the mean is *always* zero, by the very definition of the mean. That tells you nothing about spread. Squaring first forces every deviation to contribute positively, so values far from \u03bc (in either direction) genuinely increase the total. The second form, E[X\u00b2]\u2212(E[X])\u00b2, is just an algebraic shortcut for computing the same quantity.`,
+    uses:[
+      'Quality control: consistency of a manufacturing process',
+      'Finance: volatility (risk) of an asset\u2019s returns',
+      'Reliability: consistency of a system\u2019s response times'
+    ]
+  },
+  concept:{
+    title:'How far do outcomes typically stray from average?',
+    sub:'Measure each outcome\u2019s distance from the mean, square it so direction can\u2019t cancel out, then average those squares.',
+    caption:'\u03c3 = \u221aVariance \u2014 same units as X, so it\u2019s easy to compare directly to the mean.',
+    draw(ctx,ms){
+      const meanX=640;
+      const rows=[{y:260,spread:18,color:COL.accent2,label:'low variance'},{y:420,spread:70,color:COL.warn,label:'high variance'}];
+      rows.forEach((r,ri)=>{
+        const rnd=mulberry32(111+ri);
+        const pts=[];
+        for(let i=0;i<14;i++)pts.push(meanX+(rnd()-0.5)*2*r.spread);
+        seg(ctx,300,r.y,980,r.y,'#20202c',1.4,ph(ms,ri*200,400));
+        pts.forEach((x,i)=>{
+          const p=ph(ms,300+ri*200+i*40,350);
+          if(p>0.6)seg(ctx,meanX,r.y,x,r.y,r.color,1,0.25*p);
+          dot(ctx,x,r.y,5,r.color,0.85*p);
+        });
+        seg(ctx,meanX,r.y-16,meanX,r.y+16,COL.ink,2,ph(ms,ri*200,400));
+        txt(ctx,meanX,r.y-30,r.label,{size:12.5,color:r.color,alpha:ph(ms,900+ri*200,400)});
+      });
+      const p2=ph(ms,2000,600);
+      if(p2>0)txt(ctx,640,540,'same mean, very different spread',{size:13.5,color:COL.dim,alpha:p2});
+    }
+  },
+  examples:{
+    leftCap:'REAL LIFE — a consistent vs. streaky shooter',
+    rightCap:'PRODUCTION — steady vs. jittery response latency',
+    draw(ctx,ms){
+      divider(ctx);
+      function trace(cx,jitterAmt,seed){
+        const rnd=mulberry32(seed);const pts=[];
+        for(let i=0;i<24;i++)pts.push([cx-260+i*22,360+(rnd()-0.5)*jitterAmt]);
+        return pts;
+      }
+      const p1=ph(ms,200,900);
+      const pts1=trace(340,20,21);
+      curvePts(ctx,pts1.slice(0,Math.floor(pts1.length*p1)),COL.accent2,2.2,p1);
+      seg(ctx,80,360,600,360,COL.dim2,1.2,p1,[3,4]);
+      txt(ctx,340,470,'consistent \u2014 low variance',{size:12.5,color:COL.dim,alpha:p1});
+
+      const p2=ph(ms,300,900);
+      const pts2=trace(960,120,55);
+      curvePts(ctx,pts2.slice(0,Math.floor(pts2.length*p2)),COL.warn,2.2,p2);
+      seg(ctx,700,360,1220,360,COL.dim2,1.2,p2,[3,4]);
+      txt(ctx,960,470,'jittery \u2014 high variance, same average',{size:12.5,color:COL.dim,alpha:p2});
+    }
+  },
+  viz:{
+    title:'Compute it directly from samples',
+    sub:'Variance is the average squared distance from the mean; the standard deviation brings it back to original units.',
+    code:`import numpy as np
+
+x = np.array([2,4,4,4,5,5,7,9])
+
+var = np.var(x)
+std = np.std(x)
+print(var, std)`,
+    out:`<span class="lbl">&gt;&gt;&gt; </span>4.0  2.0`,
+    draw(ctx,ms){
+      const data=[2,4,4,4,5,5,7,9];
+      const mean=data.reduce((a,b)=>a+b,0)/data.length;
+      const x0=260,x1=760,y=330,baseline=600;
+      seg(ctx,x0,y,x1,y,'#22222f',1.5);
+      data.forEach((v,i)=>{
+        const p=ph(ms,200+i*130,400);
+        const x=x0+(x1-x0)*((v-1)/9);
+        dot(ctx,x,y,6,COL.accent2,0.9*p);
+        if(p>0.5){
+          const dev=(v-mean), sq=Math.min(dev*dev,16)*8*p;
+          bar(ctx,x-9,baseline,18,sq,COL.accent,0.8);
+          txt(ctx,x,baseline-sq-12,`${dev.toFixed(1)}\u00b2`,{size:10,color:COL.dim,mono:true,alpha:clamp01((p-0.5)*2)});
+        }
+      });
+      const mx=x0+(x1-x0)*((mean-1)/9);
+      seg(ctx,mx,y-14,mx,y+14,COL.ink,2,ph(ms,100,400));
+      const p2=ph(ms,1200,500);
+      if(p2>0)txt(ctx,510,650,'variance = average of the squares \u2248 4.0',{size:13,color:COL.accent,weight:700,alpha:p2});
+    }
+  }
+});
+
+/* 18. LAW OF LARGE NUMBERS */
+pushTopic({
+  name:'Law of Large Numbers',
+  math:{
+    title:'The math: why averaging shrinks the wobble',
+    sub:'Independent randomness partially cancels when averaged \u2014 that cancellation is what LLN formalizes.',
+    formula:`${frac('1','n')} \u03a3 X<sub>i</sub> &nbsp; \u2192 &nbsp; \u03bc &nbsp;&nbsp; as n \u2192 \u221e`,
+    terms:[
+      {sym:'X\u1d62', label:'each individual, independent trial outcome'},
+      {sym:'n \u2192 \u221e', label:'as the number of trials grows without bound'}
+    ],
+    worked:`n=10: sample mean \u2248 0.60  \u00b7  n=10,000: sample mean \u2248 0.4998`,
+    why:`Averaging n independent copies of X shrinks the *variance* of that average by a factor of n: Var(mean) = Var(X)\u2044n. That's because independent random wiggles partially cancel each other out rather than stacking up. As n grows without bound, Var(X)\u2044n shrinks toward zero \u2014 and a random quantity with vanishing variance has nowhere left to go but its own mean. That's the whole proof sketch in one line.`,
+    uses:[
+      'Casinos profit reliably even though each individual bet is random',
+      'Insurance pricing relies on pooling large numbers of independent policies',
+      'Polling: larger sample sizes shrink the margin of error'
+    ]
+  },
+  concept:{
+    title:'More trials, less randomness in the average',
+    sub:'A single coin flip is a coin flip. But the running average of a thousand flips barely wiggles \u2014 it locks onto the true probability.',
+    caption:'Random per trial, predictable in aggregate \u2014 the engine behind insurance, casinos, and A/B tests.',
+    draw(ctx,ms){
+      const rnd=mulberry32(222);
+      const N=400;
+      let sum=0;const series=[];
+      for(let i=1;i<=N;i++){sum+=rnd()<0.5?1:0;series.push(sum/i);}
+      const x0=200,x1=1080,y0=560,h=280;
+      axes(ctx,x0,y0,x1-x0,h);
+      seg(ctx,x0,y0-h*0.5,x1,y0-h*0.5,COL.dim2,1.3,0.7,[3,4]);
+      const p=ph(ms,200,1800);
+      const shown=Math.max(2,Math.floor(N*p));
+      const pts=[];
+      for(let i=0;i<shown;i++)pts.push([x0+(x1-x0)*(i/(N-1)),y0-series[i]*h]);
+      curvePts(ctx,pts,COL.accent,2.2);
+      if(p>0.95)txt(ctx,x1-10,y0-h*0.5-14,'true p = 0.5',{size:11.5,color:COL.dim,align:'right',alpha:1});
+      const p2=ph(ms,2100,500);
+      if(p2>0)txt(ctx,640,600,'wild swings early on, dead calm by n=400',{size:13,color:COL.dim,alpha:p2});
+    }
+  },
+  examples:{
+    leftCap:'REAL LIFE — a casino\u2019s edge always wins, eventually',
+    rightCap:'PRODUCTION — measured uptime converges to true reliability',
+    draw(ctx,ms){
+      divider(ctx);
+      function series(n,p,seed){const rnd=mulberry32(seed);let s=0;const out=[];for(let i=1;i<=n;i++){s+=rnd()<p?1:0;out.push(s/i);}return out;}
+      const s1=series(300,0.526,33);
+      const x0=150,x1=560,y0=460,h=200;
+      axes(ctx,x0,y0,x1-x0,h);
+      const p1=ph(ms,200,1400);
+      const shown1=Math.max(2,Math.floor(s1.length*p1));
+      const pts1=s1.slice(0,shown1).map((v,i)=>[x0+(x1-x0)*(i/(s1.length-1)),y0-v*h]);
+      curvePts(ctx,pts1,COL.accent,2,p1);
+      seg(ctx,x0,y0-0.526*h,x1,y0-0.526*h,COL.warn,1.2,p1*0.7,[3,4]);
+      txt(ctx,340,500,'house win-rate settles just above 50%',{size:12,color:COL.dim,alpha:p1});
+
+      const s2=series(300,0.94,66);
+      const x2=800,x3=1160;
+      axes(ctx,x2,y0,x3-x2,h);
+      const p2=ph(ms,300,1400);
+      const shown2=Math.max(2,Math.floor(s2.length*p2));
+      const pts2=s2.slice(0,shown2).map((v,i)=>[x2+(x3-x2)*(i/(s2.length-1)),y0-v*h]);
+      curvePts(ctx,pts2,COL.accent2,2,p2);
+      txt(ctx,980,500,'measured uptime \u2192 true reliability rate',{size:12,color:COL.dim,alpha:p2});
+    }
+  },
+  viz:{
+    title:'Grow n, watch the wobble die',
+    sub:'The gap between sample mean and true mean shrinks roughly like 1/\u221an \u2014 four times the data only halves the noise.',
+    code:`import numpy as np
+
+p = 0.5
+for n in [10, 100, 1000, 10000]:
+    x = np.random.binomial(1, p, n)
+    print(n, x.mean())`,
+    out:`10 0.60
+100 0.53
+1000 0.507
+10000 0.4998`,
+    draw(ctx,ms){
+      const rows=[{n:10,mean:0.60},{n:100,mean:0.53},{n:1000,mean:0.507},{n:10000,mean:0.4998}];
+      const x0=340,x1=980;
+      rows.forEach((r,i)=>{
+        const p=ph(ms,200+i*350,500);
+        const y=250+i*80;
+        seg(ctx,x0,y,x1,y,'#20202c',1.2,p*0.6);
+        const midx=(x0+x1)/2;
+        seg(ctx,midx,y-10,midx,y+10,COL.dim2,1.4,p,[2,3]);
+        const dev=(r.mean-0.5);
+        const px=midx+dev*900;
+        dot(ctx,px,y,6,COL.accent,0.9*p);
+        txt(ctx,x0-20,y,`n=${r.n}`,{size:12,color:COL.dim,align:'right',mono:true,alpha:p});
+        if(p>0.6)txt(ctx,px,y-20,r.mean.toFixed(4),{size:11.5,color:COL.accent,mono:true,alpha:clamp01((p-0.6)*3)});
+      });
+    }
+  }
+});
+
+/* 19. CENTRAL LIMIT THEOREM */
+pushTopic({
+  name:'Central Limit Theorem',
+  math:{
+    title:'The math: many small errors, no single one dominating',
+    sub:'Why the source shape stops mattering once you average enough of it.',
+    formula:`${frac('X\u0304 \u2212 \u03bc','\u03c3\u2044\u221an')} &nbsp; \u2192 &nbsp; N(0,1)`,
+    terms:[
+      {sym:'X\u0304', label:'the sample mean of n independent draws'},
+      {sym:'\u03c3\u2044\u221an', label:'the standard error \u2014 shrinks as n grows'}
+    ],
+    worked:`Averaging 30 exponential(1) draws: X\u0304 \u2248 N(1, 0.183\u00b2)`,
+    why:`However lopsided one single draw is, a *sum* of many independent draws spreads its randomness across many small, roughly-equal contributions \u2014 no single draw can dominate the total once there are enough of them. That symmetric piling-up of many small, independent nudges is precisely the mechanism that produces a Gaussian shape (as we saw for the Gaussian itself). The astonishing part is that this works regardless of the shape you started from.`,
+    uses:[
+      'Confidence intervals around any sample mean, whatever the raw data looks like',
+      'Quality-control charts that assume approximately normal sample means',
+      'A/B test significance testing'
+    ]
+  },
+  concept:{
+    title:'Average enough of anything, get a bell curve',
+    sub:'Start with a lopsided, totally non-Gaussian distribution. Average small batches of draws, repeat that thousands of times \u2014 those averages pile into a bell curve anyway.',
+    caption:'This is why the Gaussian shows up even when the raw data looks nothing like it.',
+    draw(ctx,ms){
+      const skew=[0.45,0.25,0.14,0.08,0.05,0.03];
+      drawBars(ctx,{cx:300,baseY:500,barW:34,gap:10,values:skew,maxVal:Math.max(...skew),color:COL.warn,ms,staggerStart:100,stagger:60,dur:450,labels:[1,2,3,4,5,6],chartH:170,showVals:false});
+      txt(ctx,300,550,'source: skewed, not Gaussian at all',{size:12,color:COL.dim,alpha:ph(ms,700,400)});
+
+      const p1=ph(ms,1100,500);
+      if(p1>0){arrow(ctx,470,400,610,400,COL.dim2,1.8,p1*0.85);txt(ctx,540,375,'avg of 5 draws',{size:11.5,color:COL.dim,alpha:p1});}
+
+      const rnd=mulberry32(444);
+      function skewSample(){const r=rnd();let cum=0;for(let i=0;i<skew.length;i++){cum+=skew[i];if(r<cum)return i+1;}return 6;}
+      const bins=new Array(16).fill(0);
+      const nMeans=280;
+      for(let m=0;m<nMeans;m++){
+        const p=ph(ms,1400+m*4,300);
+        if(p<=0.8)continue;
+        let s=0;for(let k=0;k<5;k++)s+=skewSample();
+        const avg=s/5;
+        let idx=Math.floor((avg-1)/(6-1)*16);idx=Math.max(0,Math.min(15,idx));
+        bins[idx]++;
+      }
+      const maxB=Math.max(...bins,1);
+      bins.forEach((c,i)=>bar(ctx,700+i*26,500,22,(c/maxB)*170,COL.accent,0.85));
+      const p2=ph(ms,2800,500);
+      if(p2>0)txt(ctx,900,550,'means of samples: already bell-shaped',{size:12,color:COL.dim,alpha:p2});
+    }
+  },
+  examples:{
+    leftCap:'REAL LIFE — average height of a random sample of people',
+    rightCap:'PRODUCTION — average response time across a batch of requests',
+    draw(ctx,ms){
+      divider(ctx);
+      const p1=ph(ms,200,900);
+      const pts1=buildCurve(x=>normal(x,0,1),-3.2,3.2,150,540,480,600*p1);
+      curvePts(ctx,pts1.map(p=>[p[0],p[1]]),COL.accent,2.4,p1);
+      txt(ctx,345,520,'avg height of 30 random people \u2248 normal',{size:12,color:COL.dim,alpha:p1});
+
+      const p2=ph(ms,300,900);
+      const pts2=buildCurve(x=>normal(x,0,1),-3.2,3.2,760,1150,480,600*p2);
+      curvePts(ctx,pts2.map(p=>[p[0],p[1]]),COL.accent2,2.4,p2);
+      txt(ctx,955,520,'avg latency of 50 requests \u2248 normal',{size:12,color:COL.dim,alpha:p2});
+      const p3=ph(ms,1300,500);
+      if(p3>0)txt(ctx,955,553,'\u2192 this is why we can put confidence intervals on it',{size:11.5,color:COL.accent2,alpha:p3});
+    }
+  },
+  viz:{
+    title:'Averages of averages, simulated',
+    sub:'Draw from a wildly non-normal distribution, average batches of 30, and histogram the batch-means \u2014 watch the bell emerge.',
+    code:`import numpy as np
+
+raw = np.random.exponential(1, size=(10000,30))
+batch_means = raw.mean(axis=1)
+
+print(batch_means.mean(),
+      batch_means.std())`,
+    out:`<span class="lbl">&gt;&gt;&gt; </span>1.001  0.183`,
+    draw(ctx,ms){
+      const x0=240,x1=1040,baseY=560;
+      axes(ctx,x0,baseY,x1-x0,270);
+      const rnd=mulberry32(555);
+      function expSample(){return -Math.log(1-rnd());}
+      const bins=new Array(24).fill(0);
+      const M=900;
+      for(let m=0;m<M;m++){
+        const p=ph(ms,200+m*1.6,350);
+        if(p<=0.8)continue;
+        let s=0;for(let k=0;k<30;k++)s+=expSample();
+        const avg=s/30;
+        let idx=Math.floor((avg-0.4)/(1.8-0.4)*24);idx=Math.max(0,Math.min(23,idx));
+        bins[idx]++;
+      }
+      const maxB=Math.max(...bins,1);
+      bins.forEach((c,i)=>{const w=(x1-x0)/24;bar(ctx,x0+i*w,baseY,w-2,(c/maxB)*250,COL.accent,0.85);});
+      txt(ctx,640,610,'900 batch-means of 30 exponential draws each',{size:12.5,color:COL.dim,alpha:ph(ms,1700,500)});
+    }
+  }
+});
+
+/* 20. COVARIANCE & CORRELATION */
+pushTopic({
+  name:'Covariance & Correlation',
+  math:{
+    title:'The math: products of deviations',
+    sub:'Why multiplying (not subtracting) deviations is what detects a shared trend.',
+    formula:`\u03c1 = ${frac('Cov(X,Y)','\u03c3<sub>X</sub> \u03c3<sub>Y</sub>')}`,
+    terms:[
+      {sym:'Cov(X,Y)', label:'how X and Y vary together, in original units'},
+      {sym:'\u03c1 \u2208 [\u22121,1]', label:'normalized, unit-free strength of the relationship'}
+    ],
+    worked:`CPU load vs. latency: \u03c1 \u2248 0.997 \u2014 near-perfect positive`,
+    why:`Cov(X,Y) averages the product (X\u2212\u03bcX)(Y\u2212\u03bcY). When X and Y tend to sit above their means together (or below together), both deviations share the same sign, so the product is positive \u2014 and the average stays positive. When they move in opposite directions, the signs disagree, products go negative, and the average goes negative. Dividing by \u03c3X\u03c3Y just rescales this raw number into a unit-free score between \u22121 and 1, so it's comparable across any pair of variables regardless of their units.`,
+    uses:[
+      'Finance: diversifying a portfolio using uncorrelated assets',
+      'Machine learning: dropping highly-correlated features before modeling',
+      'Ops monitoring: detecting whether two metrics (like CPU and latency) move together'
+    ]
+  },
+  concept:{
+    title:'Do two variables move together?',
+    sub:'Plot pairs (x, y). If high x tends to come with high y, they\u2019re positively correlated; opposite trend, negative; no pattern, zero.',
+    caption:'Correlation rescales covariance to always sit between \u22121 and 1, so the strength is comparable across any variables.',
+    draw(ctx,ms){
+      const configs=[
+        {cx:280,r:-0.85,color:COL.warn,label:'r \u2248 \u22120.85'},
+        {cx:640,r:0.02,color:COL.dim,label:'r \u2248 0.02'},
+        {cx:1000,r:0.85,color:COL.accent,label:'r \u2248 0.85'}
+      ];
+      configs.forEach((cfg,ci)=>{
+        const rnd=mulberry32(600+ci);
+        const y0=250,y1=470,x0=cfg.cx-140,x1=cfg.cx+140;
+        axes(ctx,x0,y1,x1-x0,y1-y0);
+        for(let i=0;i<40;i++){
+          const p=ph(ms,ci*300+i*20,350);
+          if(p<=0)continue;
+          const xu=rnd()*2-1;
+          const yu=cfg.r*xu+(1-Math.abs(cfg.r))*(rnd()*2-1)*0.9;
+          dot(ctx,cfg.cx+xu*130,360-yu*100,4.5,cfg.color,0.8*p);
+        }
+        const p2=ph(ms,ci*300+900,400);
+        if(p2>0)txt(ctx,cfg.cx,510,cfg.label,{size:13,color:cfg.color,weight:700,mono:true,alpha:p2});
+      });
+    }
+  },
+  examples:{
+    leftCap:'REAL LIFE — height and weight tend to rise together',
+    rightCap:'PRODUCTION — CPU load and response latency rise together',
+    draw(ctx,ms){
+      divider(ctx);
+      function cloud(cx,color,seed){
+        const rnd=mulberry32(seed);
+        for(let i=0;i<34;i++){
+          const p=ph(ms,200+i*20,400);
+          if(p<=0)continue;
+          const xu=rnd()*2-1, yu=0.75*xu+(rnd()*2-1)*0.5;
+          dot(ctx,cx+xu*150,420-yu*110,4.5,color,0.82*p);
+        }
+      }
+      cloud(340,COL.accent,71);
+      seg(ctx,190,470,490,270,COL.dim2,1.3,ph(ms,900,500),[3,4]);
+      txt(ctx,340,500,'taller \u2192 tends to weigh more',{size:12,color:COL.dim,alpha:ph(ms,1000,400)});
+
+      cloud(960,COL.accent2,82);
+      seg(ctx,810,470,1110,270,COL.dim2,1.3,ph(ms,1000,500),[3,4]);
+      txt(ctx,960,500,'higher load \u2192 slower responses',{size:12,color:COL.dim,alpha:ph(ms,1100,400)});
+    }
+  },
+  viz:{
+    title:'Correlation, computed directly',
+    sub:'Standardize both variables and average their product \u2014 that\u2019s the Pearson correlation coefficient.',
+    code:`import numpy as np
+
+cpu = np.array([20,35,40,55,70,82,90])
+latency = np.array([12,18,22,30,41,48,55])
+
+r = np.corrcoef(cpu, latency)[0,1]
+print(round(r,3))`,
+    out:`<span class="lbl">&gt;&gt;&gt; </span>0.997`,
+    draw(ctx,ms){
+      const cpu=[20,35,40,55,70,82,90], lat=[12,18,22,30,41,48,55];
+      const x0=260,x1=1000,y0=560,y1=220;
+      axes(ctx,x0,y0,x1-x0,y0-y1);
+      cpu.forEach((c,i)=>{
+        const p=ph(ms,200+i*150,400);
+        const px=x0+(x1-x0)*(c/100), py=y0-(y0-y1)*(lat[i]/60);
+        dot(ctx,px,py,7,COL.accent,0.9*p);
+      });
+      const p2=ph(ms,1300,600);
+      if(p2>0){
+        const xa=x0+(x1-x0)*(0.15), ya=y0-(y0-y1)*(8/60);
+        const xb=x0+(x1-x0)*(0.95), yb=y0-(y0-y1)*(58/60);
+        seg(ctx,xa,ya,xb,yb,COL.warn,1.8,p2);
+      }
+      txt(ctx,x0,y0+26,'CPU load %',{size:12,color:COL.dim,align:'left',alpha:ph(ms,100,400)});
+      txt(ctx,x0-14,y1,'latency',{size:12,color:COL.dim,align:'left',alpha:ph(ms,100,400)});
+    }
+  }
+});
+
+/* ---------- OUTRO ---------- */
+SLIDES.push({
+  kind:'outro', dur:900,
+  html:`<div class="header"><div class="eyebrow">THE END, AND THE BEGINNING</div>
+  <div class="htitle">You didn\u2019t memorize probability. You watched it move.</div>
+  <div class="hsub" style="max-width:900px;">"What I cannot create, I do not understand." Every idea here was built from a handful of dots and a few honest animations \u2014 events, densities, and updates, all in motion. Go simulate something.</div></div>
+  <div class="caption">Twenty ideas. One consistent way of seeing them. Scroll back anytime \u2014 press \u2190.</div>`,
+  draw(ctx,ms){
+    const pts=scatterCircle(50,rndD,640,380,500);
+    pts.forEach((p,i)=>{
+      const a=ph(ms,i*20,600);
+      const tw=(Math.sin(ms/1000+i)+1)/2;
+      dot(ctx,p[0],p[1],2+tw,i%4===0?COL.accent:COL.accent2,0.5*a);
+    });
+  }
+});
+
+/* ============================= ENGINE ============================= */
+const dpr=Math.min(window.devicePixelRatio||1,2);
+const canvas=document.getElementById('gfx'), ctx=canvas.getContext('2d');
+function fitCanvas(){canvas.width=1280*dpr;canvas.height=720*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);}
+fitCanvas();
+
+const slidesRoot=document.getElementById('slides');
+SLIDES.forEach((s,i)=>{
+  const div=document.createElement('div');
+  div.className='slide';
+  div.dataset.i=i;
+  div.innerHTML=s.html||'';
+  slidesRoot.appendChild(div);
+  s.el=div;
+});
+
+let current=0, raf=null, slideStart=0;
+const totalChapters=20;
+
+function frame(now){
+  const s=SLIDES[current];
+  const ms=now-slideStart;
+  ctx.clearRect(0,0,1280,720);
+  try{ s.draw && s.draw(ctx,ms); }catch(e){ console.error(e); }
+  if(ms<s.dur || s.loop){ raf=requestAnimationFrame(frame); }
+  else { raf=null; }
+}
+function startAnim(){
+  if(raf) cancelAnimationFrame(raf);
+  slideStart=performance.now();
+  raf=requestAnimationFrame(frame);
+}
+function updateChrome(){
+  document.getElementById('progressFill').style.width=((current+1)/SLIDES.length*100)+'%';
+  document.getElementById('counter').textContent=(current+1)+' / '+SLIDES.length;
+  const s=SLIDES[current];
+  document.getElementById('chapChip').innerHTML = s.chap? `<b>${String(s.chap).padStart(2,'0')}</b> / ${totalChapters}` : '';
+  document.getElementById('btnPrev').disabled = current===0;
+  document.getElementById('btnNext').disabled = current===SLIDES.length-1;
+}
+function goTo(i){
+  i=Math.max(0,Math.min(SLIDES.length-1,i));
+  if(i===current) return;
+  SLIDES[current].el.classList.remove('active');
+  current=i;
+  SLIDES[current].el.classList.add('active');
+  startAnim();
+  updateChrome();
+  document.getElementById('hint').classList.add('hidden');
+}
+function next(){goTo(current+1);}
+function prev(){goTo(current-1);}
+
+SLIDES[0].el.classList.add('active');
+startAnim();
+updateChrome();
+
+document.getElementById('btnNext').addEventListener('click',next);
+document.getElementById('btnPrev').addEventListener('click',prev);
+document.querySelector('.cz.left').addEventListener('click',prev);
+document.querySelector('.cz.right').addEventListener('click',next);
+slidesRoot.addEventListener('click',(e)=>{
+  const btn=e.target.closest('.whyToggle');
+  if(!btn) return;
+  e.stopPropagation();
+  const panel=btn.nextElementSibling;
+  const isOpen=btn.classList.contains('open');
+  if(isOpen){
+    panel.style.maxHeight=panel.scrollHeight+'px';
+    requestAnimationFrame(()=>{ requestAnimationFrame(()=>{ panel.style.maxHeight='0px'; }); });
+    btn.classList.remove('open');
+  } else {
+    panel.style.maxHeight=panel.scrollHeight+'px';
+    btn.classList.add('open');
+  }
+});
+window.addEventListener('keydown',(e)=>{
+  if(['ArrowRight','PageDown',' '].includes(e.key)){e.preventDefault();next();}
+  else if(['ArrowLeft','PageUp'].includes(e.key)){e.preventDefault();prev();}
+  else if(e.key==='Home'){goTo(0);}
+  else if(e.key==='End'){goTo(SLIDES.length-1);}
+});
+let touchX=null;
+window.addEventListener('touchstart',(e)=>{touchX=e.touches[0].clientX;});
+window.addEventListener('touchend',(e)=>{
+  if(touchX===null)return;
+  const dx=e.changedTouches[0].clientX-touchX;
+  if(Math.abs(dx)>50){ dx<0? next(): prev(); }
+  touchX=null;
+});
+
+function resize(){
+  const vw=window.innerWidth, vh=window.innerHeight;
+  const scale=Math.min(vw/1280, vh/720)*0.96;
+  document.getElementById('stage').style.transform=`scale(${scale})`;
+}
+window.addEventListener('resize',resize); resize();
+</script>
+</body>
+</html>

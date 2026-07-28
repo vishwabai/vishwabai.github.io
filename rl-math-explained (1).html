@@ -1,0 +1,1551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Math Behind RL — Built From First Principles</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+
+  :root{
+    --bg:#07070b;
+    --teal:#5fd0c3;
+    --amber:#e8a765;
+    --blue:#6fa8dc;
+    --pink:#e08a9c;
+    --purple:#a98fd2;
+    --green:#7cc48f;
+    --text:#e9e8f0;
+    --dim:#8b8a9a;
+    --hair:#232230;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0;padding:0;background:var(--bg);color:var(--text);
+    height:100%;overflow:hidden;
+    font-family:'Inter',sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  #deck{position:relative;width:100vw;height:100vh;}
+  #slide-container{position:absolute;inset:0;}
+  canvas#scene{position:absolute;inset:0;width:100%;height:100%;display:block;}
+
+  #overlay{position:absolute;inset:0;pointer-events:none;display:flex;flex-direction:column;justify-content:space-between;}
+
+  #headerBlock{
+    padding:34px 60px 0 60px;
+    background:linear-gradient(to bottom, rgba(7,7,11,0.92) 0%, rgba(7,7,11,0.55) 70%, rgba(7,7,11,0) 100%);
+    padding-bottom:30px;
+  }
+  #eyebrow{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;letter-spacing:3px;text-transform:uppercase;
+    color:var(--dim); margin-bottom:8px;
+    opacity:0; transform:translateY(-6px);
+    transition:opacity .5s ease, transform .5s ease;
+  }
+  #slideTitle{
+    font-family:'Source Serif 4',serif;
+    font-weight:600;
+    font-size:clamp(24px,3vw,40px);
+    margin:0;
+    letter-spacing:0.2px;
+    opacity:0; transform:translateY(-8px);
+    transition:opacity .55s ease .05s, transform .55s ease .05s;
+  }
+  #headerBlock.show #eyebrow, #headerBlock.show #slideTitle{opacity:1; transform:translateY(0);}
+
+  #footerBlock{
+    padding:0 60px 38px 60px;
+    background:linear-gradient(to top, rgba(7,7,11,0.94) 0%, rgba(7,7,11,0.6) 65%, rgba(7,7,11,0) 100%);
+    padding-top:36px;
+  }
+  #slideText{
+    font-size:clamp(13.5px,1.15vw,17px);
+    line-height:1.55;
+    color:var(--text);
+    max-width:820px;
+    opacity:0; transform:translateY(8px);
+    transition:opacity .5s ease .12s, transform .5s ease .12s;
+  }
+  #formula{
+    margin-top:12px;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:clamp(12.5px,1.05vw,16px);
+    color:var(--teal);
+    letter-spacing:0.3px;
+    padding:9px 15px;
+    display:inline-block;
+    border:1px solid var(--hair);
+    border-radius:8px;
+    background:rgba(95,208,195,0.045);
+    opacity:0; transform:translateY(8px);
+    transition:opacity .5s ease .2s, transform .5s ease .2s;
+  }
+  #formula:empty{display:none;}
+  #footerBlock.show #slideText, #footerBlock.show #formula{opacity:1; transform:translateY(0);}
+
+  #navBar{
+    position:absolute; bottom:16px; left:50%; transform:translateX(-50%);
+    display:flex; align-items:center; gap:16px;
+    background:rgba(14,14,20,0.75);
+    border:1px solid var(--hair);
+    padding:9px 16px; border-radius:30px;
+    backdrop-filter:blur(8px);
+    pointer-events:auto;
+    z-index:20;
+  }
+  .navBtn{
+    background:none;border:1px solid var(--hair); color:var(--text);
+    width:34px;height:34px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    cursor:pointer; font-size:16px; transition:background .2s, border-color .2s, transform .15s;
+  }
+  .navBtn:hover{background:rgba(95,208,195,0.12); border-color:var(--teal); transform:scale(1.06);}
+  .navBtn:active{transform:scale(0.94);}
+  #counter{font-family:'IBM Plex Mono',monospace; font-size:12.5px; color:var(--dim); min-width:58px; text-align:center;}
+  #progressWrap{position:absolute; top:0; left:0; right:0; height:3px; background:rgba(255,255,255,0.05); z-index:20;}
+  #progressBar{height:100%; width:0%; background:linear-gradient(90deg,var(--teal),var(--blue)); transition:width .4s ease;}
+  #sectionTag{
+    position:absolute; top:22px; right:28px;
+    font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:2px;
+    color:var(--dim); text-transform:uppercase;
+    border:1px solid var(--hair); padding:6px 12px; border-radius:20px;
+    background:rgba(255,255,255,0.02);
+    z-index:15;
+  }
+  .kbd-hint{
+    position:absolute; bottom:16px; right:24px;
+    font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--dim);
+    opacity:0.55; pointer-events:none; z-index:5;
+  }
+  @media (max-width:700px){
+    #headerBlock{padding:24px 20px 22px 20px;}
+    #footerBlock{padding:0 20px 82px 20px;}
+    .kbd-hint{display:none;}
+  }
+</style>
+</head>
+<body>
+<div id="deck">
+  <div id="progressWrap"><div id="progressBar"></div></div>
+  <div id="sectionTag">Section</div>
+  <div id="slide-container">
+    <canvas id="scene"></canvas>
+    <div id="overlay">
+      <div id="headerBlock">
+        <div id="eyebrow"></div>
+        <h1 id="slideTitle"></h1>
+      </div>
+      <div id="footerBlock">
+        <div id="slideText"></div>
+        <div id="formula"></div>
+      </div>
+    </div>
+  </div>
+  <span class="kbd-hint">← → or space to advance · r to replay</span>
+  <div id="navBar">
+    <button class="navBtn" id="prevBtn" title="Previous">‹</button>
+    <span id="counter">01 / 27</span>
+    <button class="navBtn" id="replayBtn" title="Replay animation">↺</button>
+    <button class="navBtn" id="nextBtn" title="Next">›</button>
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   CORE ANIMATION UTILITIES
+========================================================= */
+const TAU = Math.PI*2;
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const lerp=(a,b,t)=>a+(b-a)*t;
+const easeOutCubic=t=>{t=clamp(t,0,1);return 1-Math.pow(1-t,3);};
+const easeInCubic=t=>{t=clamp(t,0,1);return t*t*t;};
+const easeInOutCubic=t=>{t=clamp(t,0,1);return t<0.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;};
+const easeOutBack=t=>{t=clamp(t,0,1);const c1=1.70158,c3=c1+1;return 1+c3*Math.pow(t-1,3)+c1*Math.pow(t-1,2);};
+const smoothstep=t=>{t=clamp(t,0,1);return t*t*(3-2*t);};
+const pulse=(t,period)=> (Math.sin((t/period)*TAU-Math.PI/2)+1)/2;
+const segT=(t,start,dur)=> clamp((t-start)/dur,0,1);
+
+function roundRect(ctx,x,y,w,h,r){
+  r=Math.min(r,w/2,h/2);
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);
+  ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();
+}
+
+function box(ctx,x,y,w,h,opt={}){
+  const {fill='rgba(95,208,195,0.06)',stroke='#5fd0c3',lw=1.6,r=14,alpha=1,dashed=false}=opt;
+  ctx.save();
+  ctx.globalAlpha=alpha;
+  if(dashed) ctx.setLineDash([5,5]);
+  roundRect(ctx,x-w/2,y-h/2,w,h,r);
+  ctx.fillStyle=fill; ctx.fill();
+  ctx.lineWidth=lw; ctx.strokeStyle=stroke; ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+
+function label(ctx,x,y,text,opt={}){
+  const {size=17,color='#e9e8f0',align='center',baseline='middle',weight='500',font="'Inter',sans-serif",alpha=1}=opt;
+  ctx.save();
+  ctx.globalAlpha=alpha;
+  ctx.fillStyle=color;
+  ctx.font=`${weight} ${size}px ${font}`;
+  ctx.textAlign=align;
+  ctx.textBaseline=baseline;
+  ctx.fillText(text,x,y);
+  ctx.restore();
+}
+
+function arrow(ctx,x1,y1,x2,y2,opt={}){
+  const {color='#e9e8f0',lw=2,progress=1,dashed=false,headSize=8,alpha=1}=opt;
+  const p=clamp(progress,0,1);
+  const ex=lerp(x1,x2,p), ey=lerp(y1,y2,p);
+  ctx.save();
+  ctx.globalAlpha=alpha;
+  ctx.strokeStyle=color; ctx.fillStyle=color; ctx.lineWidth=lw;
+  if(dashed) ctx.setLineDash([6,6]);
+  ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(ex,ey); ctx.stroke();
+  ctx.setLineDash([]);
+  if(p>0.02){
+    const ang=Math.atan2(ey-y1,ex-x1);
+    ctx.beginPath();
+    ctx.moveTo(ex,ey);
+    ctx.lineTo(ex-headSize*Math.cos(ang-0.4), ey-headSize*Math.sin(ang-0.4));
+    ctx.lineTo(ex-headSize*Math.cos(ang+0.4), ey-headSize*Math.sin(ang+0.4));
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+  return {x:ex,y:ey};
+}
+
+function curvedArrow(ctx,x1,y1,x2,y2,curvature,opt={}){
+  const {color='#e9e8f0',lw=2,progress=1,alpha=1,headSize=8}=opt;
+  const mx=(x1+x2)/2, my=(y1+y2)/2;
+  const dx=x2-x1, dy=y2-y1;
+  const len=Math.hypot(dx,dy)||1;
+  const nx=-dy/len, ny=dx/len;
+  const cx=mx+nx*curvature, cy=my+ny*curvature;
+  const p=clamp(progress,0,1);
+  ctx.save(); ctx.globalAlpha=alpha; ctx.strokeStyle=color; ctx.fillStyle=color; ctx.lineWidth=lw;
+  const steps=36;
+  let lastX=x1,lastY=y1, tx=0,ty=0;
+  ctx.beginPath(); ctx.moveTo(x1,y1);
+  const n=Math.max(1,Math.round(steps*p));
+  for(let i=1;i<=n;i++){
+    const s=i/steps;
+    const xx=(1-s)*(1-s)*x1+2*(1-s)*s*cx+s*s*x2;
+    const yy=(1-s)*(1-s)*y1+2*(1-s)*s*cy+s*s*y2;
+    ctx.lineTo(xx,yy);
+    lastX=xx; lastY=yy;
+    tx=2*(1-s)*(cx-x1)+2*s*(x2-cx);
+    ty=2*(1-s)*(cy-y1)+2*s*(y2-cy);
+  }
+  ctx.stroke();
+  if(p>0.05){
+    const ang=Math.atan2(ty,tx);
+    ctx.beginPath();
+    ctx.moveTo(lastX,lastY);
+    ctx.lineTo(lastX-headSize*Math.cos(ang-0.4), lastY-headSize*Math.sin(ang-0.4));
+    ctx.lineTo(lastX-headSize*Math.cos(ang+0.4), lastY-headSize*Math.sin(ang+0.4));
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+  return {x:lastX,y:lastY,cx,cy};
+}
+
+function dotOnLine(ctx,x1,y1,x2,y2,t,opt={}){
+  const {color='#e8a765',r=5,alpha=1,glow=0}=opt;
+  const x=lerp(x1,x2,t), y=lerp(y1,y2,t);
+  ctx.save(); ctx.globalAlpha=alpha;
+  if(glow){ ctx.shadowColor=color; ctx.shadowBlur=glow; }
+  ctx.fillStyle=color;
+  ctx.beginPath(); ctx.arc(x,y,r,0,TAU); ctx.fill();
+  ctx.restore();
+  return {x,y};
+}
+
+function fadeAlpha(t,start,dur){ return smoothstep(segT(t,start,dur)); }
+
+/* =========================================================
+   FORMULA DECOMPOSITION HELPER
+   Draws a formula as separately-colored inline parts (monospace),
+   returns each part's center position so callers can draw leader
+   lines + annotation callouts pointing at individual terms.
+========================================================= */
+function drawFormulaParts(ctx, cx, y, parts, opt={}){
+  const {size=24, font="'IBM Plex Mono',monospace", weight='600', alpha=1} = opt;
+  ctx.save();
+  ctx.font = `${weight} ${size}px ${font}`;
+  ctx.textBaseline='alphabetic';
+  const widths = parts.map(p=>ctx.measureText(p.text).width);
+  const total = widths.reduce((a,b)=>a+b,0);
+  let x = cx - total/2;
+  const positions=[];
+  parts.forEach((p,i)=>{
+    const a = (p.alpha===undefined?1:p.alpha) * alpha;
+    ctx.globalAlpha=a;
+    ctx.fillStyle=p.color || '#e9e8f0';
+    ctx.textAlign='left';
+    ctx.fillText(p.text, x, y);
+    positions.push({x: x+widths[i]/2, y, w:widths[i], alpha:a});
+    x += widths[i];
+  });
+  ctx.restore();
+  return positions;
+}
+
+// Draws a leader line from a formula-part position down (or up) to an annotation label.
+function calloutBelow(ctx, part, note, opt={}){
+  const {color='#e9e8f0', dropY=46, size=12.5, alpha=1, dashed=true, maxWidth=220} = opt;
+  const a = alpha * (part.alpha===undefined?1:part.alpha);
+  if(a<=0.01) return;
+  ctx.save();
+  ctx.globalAlpha=a*0.7;
+  ctx.strokeStyle=color; ctx.lineWidth=1.3;
+  if(dashed) ctx.setLineDash([3,4]);
+  ctx.beginPath(); ctx.moveTo(part.x, part.y+8); ctx.lineTo(part.x, part.y+dropY-10); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.beginPath(); ctx.arc(part.x, part.y+8, 2.6, 0, TAU); ctx.fillStyle=color; ctx.fill();
+  ctx.restore();
+  wrapLabel(ctx, part.x, part.y+dropY+4, note, {size, color, alpha:a, maxWidth});
+}
+function calloutAbove(ctx, part, note, opt={}){
+  const {color='#e9e8f0', riseY=42, size=12.5, alpha=1, dashed=true, maxWidth=220} = opt;
+  const a = alpha * (part.alpha===undefined?1:part.alpha);
+  if(a<=0.01) return;
+  ctx.save();
+  ctx.globalAlpha=a*0.7;
+  ctx.strokeStyle=color; ctx.lineWidth=1.3;
+  if(dashed) ctx.setLineDash([3,4]);
+  ctx.beginPath(); ctx.moveTo(part.x, part.y-part_h_fallback(part)); ctx.lineTo(part.x, part.y-riseY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+  wrapLabel(ctx, part.x, part.y-riseY-10, note, {size, color, alpha:a, maxWidth, anchorBottom:true});
+}
+function part_h_fallback(part){ return 26; }
+
+// simple word-wrapped, center-aligned small label (used by callouts)
+function wrapLabel(ctx, x, y, text, opt={}){
+  const {size=12.5, color='#e9e8f0', alpha=1, font="'Inter',sans-serif", weight='500', maxWidth=220, lineHeight=15, anchorBottom=false} = opt;
+  ctx.save();
+  ctx.font=`${weight} ${size}px ${font}`;
+  ctx.textAlign='center';
+  ctx.globalAlpha=alpha;
+  ctx.fillStyle=color;
+  const words=text.split(' ');
+  const lines=[];
+  let cur='';
+  words.forEach(w=>{
+    const test=cur? cur+' '+w : w;
+    if(ctx.measureText(test).width>maxWidth && cur){ lines.push(cur); cur=w; }
+    else cur=test;
+  });
+  if(cur) lines.push(cur);
+  const startY = anchorBottom ? y - (lines.length-1)*lineHeight : y;
+  lines.forEach((ln,i)=> ctx.fillText(ln, x, startY + i*lineHeight));
+  ctx.restore();
+}
+
+/* =========================================================
+   CANVAS + BACKGROUND
+========================================================= */
+const canvas=document.getElementById('scene');
+const ctx=canvas.getContext('2d');
+let W=0,H=0;
+let stars=[];
+function makeStars(){
+  stars=[];
+  const n=Math.floor((window.innerWidth*window.innerHeight)/26000);
+  for(let i=0;i<n;i++){
+    stars.push({x:Math.random(),y:Math.random(),r:Math.random()*1.2+0.3,phase:Math.random()*10});
+  }
+}
+function resize(){
+  const dpr=window.devicePixelRatio||1;
+  W=window.innerWidth; H=window.innerHeight;
+  canvas.width=Math.floor(W*dpr); canvas.height=Math.floor(H*dpr);
+  canvas.style.width=W+'px'; canvas.style.height=H+'px';
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  makeStars();
+}
+window.addEventListener('resize',resize);
+resize();
+
+function drawBackground(t){
+  ctx.fillStyle='#07070b';
+  ctx.fillRect(0,0,W,H);
+  ctx.save();
+  stars.forEach(s=>{
+    const tw=0.35+0.5*pulse(t+s.phase,4);
+    ctx.globalAlpha=tw*0.5;
+    ctx.fillStyle='#ffffff';
+    ctx.beginPath(); ctx.arc(s.x*W,s.y*H,s.r,0,TAU); ctx.fill();
+  });
+  ctx.restore();
+  ctx.save();
+  ctx.globalAlpha=0.05;
+  ctx.strokeStyle='#5fd0c3';
+  ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(0,H*0.88); ctx.lineTo(W,H*0.88); ctx.stroke();
+  ctx.restore();
+}
+
+function safeZone(){
+  return {top:H*0.28, bottom:H*0.80, midY:H*0.53, cx:W/2};
+}
+
+/* =========================================================
+   SLIDE 1 — TITLE
+========================================================= */
+function renderTitle(ctx,W,H,t){
+  const cx=W/2, cy=H*0.56;
+  for(let i=0;i<3;i++){
+    const p=((t*0.12)+i/3)%1;
+    const r=30+p*300;
+    ctx.beginPath(); ctx.arc(cx,cy,r,0,TAU);
+    ctx.strokeStyle=`rgba(95,208,195,${(1-p)*0.2})`;
+    ctx.lineWidth=1.4; ctx.stroke();
+  }
+  const symbols=['\u03a3','\ud835\udd3c','\u2207','\u2202','\u03c0','\u03b3','\u03b8','\u03b4'];
+  symbols.forEach((s,i)=>{
+    const ang=t*0.12+i*(TAU/symbols.length);
+    const r=215;
+    const x=cx+Math.cos(ang)*r, y=cy+Math.sin(ang)*r*0.48;
+    const a=0.35+0.3*pulse(t+i,3);
+    label(ctx,x,y,s,{size:22,color:`rgba(169,143,210,${a})`,weight:'700',font:"'IBM Plex Mono',monospace"});
+  });
+}
+
+/* =========================================================
+   SLIDE 2 — SUMMATION SIGMA
+========================================================= */
+function renderSigma(ctx,W,H,t){
+  const {midY,top}=safeZone();
+  const values=[2,5,3,4];
+  const n=values.length;
+  const startX=W*0.24, gap=100;
+
+  const a0=smoothstep(segT(t,0,0.5));
+  label(ctx,W/2,top+20,'adding up a list of numbers, one at a time',{size:13,color:'#8b8a9a',alpha:a0});
+
+  values.forEach((v,i)=>{
+    const a=smoothstep(segT(t,0.3+i*0.55,0.45));
+    const x=startX+i*gap;
+    box(ctx,x,midY-40,72,58,{stroke:'#6fa8dc',fill:'rgba(111,168,220,0.06)',alpha:a,r:10});
+    label(ctx,x,midY-40,String(v),{size:20,color:'#9dc1e8',weight:'700',alpha:a,font:"'IBM Plex Mono',monospace"});
+    label(ctx,x,midY-78,'v'+(i+1),{size:11,color:'#8b8a9a',alpha:a,font:"'IBM Plex Mono',monospace"});
+  });
+
+  const totalX=W*0.78;
+  const aTotalBox=smoothstep(segT(t,0.9,0.5));
+  box(ctx,totalX,midY-40,150,72,{stroke:'#e8a765',fill:'rgba(232,167,101,0.08)',alpha:aTotalBox,r:12});
+  label(ctx,totalX,midY-58,'running total',{size:11,color:'#f0cda0',alpha:aTotalBox});
+
+  let shown=0;
+  for(let i=0;i<n;i++){ if(t>1.0+i*0.55+0.5) shown=i+1; }
+  const sumSoFar = values.slice(0,shown).reduce((s,v)=>s+v,0);
+  label(ctx,totalX,midY-25,String(sumSoFar),{size:24,color:'#f6c98a',weight:'700',font:"'IBM Plex Mono',monospace"});
+
+  values.forEach((v,i)=>{
+    const arriveT=1.0+i*0.55;
+    const p=segT(t,arriveT-0.4,0.4);
+    if(p>0 && p<1){
+      dotOnLine(ctx,startX+i*gap,midY-6,totalX-60,midY-8,easeInOutCubic(p),{color:'#e8a765',r:5,glow:8});
+    }
+  });
+
+  const t2=t-3.6;
+  if(t2<0) return;
+  const a2=smoothstep(segT(t2,0,0.6));
+  label(ctx,W/2,midY+55,'we write this compactly as:',{size:12.5,color:'#8b8a9a',alpha:a2});
+  const parts=[
+    {text:'\u03a3', color:'#e8a765'},
+    {text:'\u1d62 ', color:'#8b8a9a'},
+    {text:'v\u1d62', color:'#6fa8dc'},
+    {text:'  =  ', color:'#8b8a9a'},
+    {text: String(values.reduce((s,v)=>s+v,0)), color:'#f6c98a'},
+  ];
+  const positions=drawFormulaParts(ctx, W/2, midY+95, parts, {alpha:a2, size:26});
+  const a3=smoothstep(segT(t2,0.6,0.5));
+  if(a3>0.05){
+    calloutBelow(ctx, positions[0], '"sigma" means: add up', {color:'#e8a765',alpha:a3,dropY:34,size:12});
+    calloutBelow(ctx, positions[1], 'for every i in our list', {color:'#8b8a9a',alpha:a3,dropY:34,size:12});
+  }
+}
+
+/* =========================================================
+   SLIDE 3 — EXPECTATION E[.]
+========================================================= */
+function renderExpectation(ctx,W,H,t){
+  const {midY,top,bottom}=safeZone();
+  const outcomes=[{v:10,p:0.2,color:'#e08a9c'},{v:20,p:0.5,color:'#6fa8dc'},{v:50,p:0.3,color:'#e8a765'}];
+  const cx=W*0.32;
+
+  const a0=smoothstep(segT(t,0,0.5));
+  label(ctx,W/2,top+20,'a WEIGHTED average -- likely outcomes count more',{size:13,color:'#8b8a9a',alpha:a0});
+
+  let y=midY-80;
+  outcomes.forEach((o,i)=>{
+    const a=smoothstep(segT(t,0.3+i*0.5,0.45));
+    box(ctx,cx,y,220,54,{stroke:o.color,fill:o.color+'12',alpha:a,r:10});
+    label(ctx,cx-70,y,'value = '+o.v,{size:13,color:o.color,alpha:a,font:"'IBM Plex Mono',monospace",align:'left'});
+    label(ctx,cx+60,y,'p = '+o.p,{size:13,color:'#cfcfda',alpha:a,font:"'IBM Plex Mono',monospace",align:'left'});
+    y+=72;
+  });
+
+  const t2=t-2.0;
+  if(t2<0) return;
+  const rx=W*0.72, ry=midY-8;
+  const a2=smoothstep(segT(t2,0,0.5));
+  box(ctx,rx,ry,190,80,{stroke:'#a98fd2',fill:'rgba(169,143,210,0.08)',alpha:a2,r:12});
+  label(ctx,rx,ry-16,'expected value',{size:11.5,color:'#cdb8ea',alpha:a2});
+  const expected = outcomes.reduce((s,o)=>s+o.v*o.p,0);
+  label(ctx,rx,ry+14,expected.toFixed(1),{size:22,color:'#e9e8f0',weight:'700',alpha:a2,font:"'IBM Plex Mono',monospace"});
+
+  y=midY-80;
+  outcomes.forEach((o,i)=>{
+    const arr=segT(t2,0.2+i*0.25,0.4);
+    if(arr>0) arrow(ctx,cx+110,y,rx-95,ry,{color:o.color,progress:arr,lw:1.4,alpha:0.7});
+    y+=72;
+  });
+
+  const t3=t2-1.6;
+  if(t3<0) return;
+  const a3=smoothstep(segT(t3,0,0.5));
+  const parts=[
+    {text:'\ud835\udd3c[X] = ', color:'#a98fd2'},
+    {text:'\u03a3', color:'#e8a765'},
+    {text:'\u1d62 ', color:'#8b8a9a'},
+    {text:'p\u1d62', color:'#7cc48f'},
+    {text:' \u00b7 ', color:'#8b8a9a'},
+    {text:'v\u1d62', color:'#6fa8dc'},
+  ];
+  const pos=drawFormulaParts(ctx, W/2, bottom-30, parts, {alpha:a3, size:22});
+  const a4=smoothstep(segT(t3,0.5,0.5));
+  if(a4>0.05){
+    calloutAbove(ctx, pos[3], 'how LIKELY each outcome is', {color:'#7cc48f',alpha:a4,riseY:38,size:11.5});
+    calloutAbove(ctx, pos[5], 'what that outcome is WORTH', {color:'#6fa8dc',alpha:a4,riseY:38,size:11.5});
+  }
+}
+
+/* =========================================================
+   SLIDE 4 — DERIVATIVE (slope / rate of change)
+========================================================= */
+function renderDerivative(ctx,W,H,t){
+  const {midY,top,bottom}=safeZone();
+  const cx=W*0.42, cy=midY+50;
+  const scale=75;
+  const f = x => x*x;
+
+  const a0=smoothstep(segT(t,0,0.5));
+  ctx.save(); ctx.globalAlpha=a0; ctx.beginPath();
+  for(let px=-1.5; px<=1.5; px+=0.02){
+    const x=cx+px*scale, y=cy-f(px)*scale*0.55;
+    if(px===-1.5) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+  }
+  ctx.strokeStyle='#6fa8dc'; ctx.lineWidth=2.2; ctx.stroke(); ctx.restore();
+  label(ctx,cx+1.5*scale+50,cy-f(1.5)*scale*0.55,'f(x) = x\u00b2',{size:13,color:'#9dc1e8',alpha:a0,font:"'IBM Plex Mono',monospace"});
+
+  const t2=t-0.6; if(t2<0) return;
+  const x0=0.55;
+  const cyc=3.2;
+  const p=(t2%cyc)/cyc;
+  const h=lerp(0.9,0.03,easeInOutCubic(p));
+  const x1=x0-h, x2=x0+h;
+  const y1=f(x1), y2f=f(x2);
+  const slope=(y2f-y1)/(2*h);
+
+  const toScreen=(px,py)=>({x:cx+px*scale, y:cy-py*scale*0.55});
+  const P1=toScreen(x1,y1), P2=toScreen(x2,y2f);
+  const dx=P2.x-P1.x, dy=P2.y-P1.y, len=Math.hypot(dx,dy)||1;
+  const ux=dx/len, uy=dy/len;
+  const ext=140;
+
+  ctx.save(); ctx.strokeStyle='#e8a765'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(P1.x-ux*ext,P1.y-uy*ext); ctx.lineTo(P2.x+ux*ext,P2.y+uy*ext); ctx.stroke(); ctx.restore();
+  [P1,P2].forEach(P=>{ ctx.save(); ctx.fillStyle='#e8a765'; ctx.beginPath(); ctx.arc(P.x,P.y,4,0,TAU); ctx.fill(); ctx.restore(); });
+
+  label(ctx,cx,top+20, p<0.15?'start with two points, far apart (a "secant" line)':'squeeze them together...',{size:12.5,color:'#f0cda0'});
+  label(ctx,cx,bottom-16,`h = ${h.toFixed(3)}     slope \u2248 ${slope.toFixed(2)}`,{size:13,color:'#e9e8f0',font:"'IBM Plex Mono',monospace"});
+  if(p>0.85){
+    label(ctx,cx,bottom-40,'as h \u2192 0, the secant becomes the TANGENT -- the true slope at that point',{size:11.5,color:'#8b8a9a'});
+  }
+}
+
+/* =========================================================
+   SLIDE 5 — CHAIN RULE
+========================================================= */
+function renderChainRule(ctx,W,H,t){
+  const {midY,top,bottom}=safeZone();
+  const y=midY-10;
+  const x1=W*0.16, x2=W*0.5, x3=W*0.84;
+
+  const a1=smoothstep(segT(t,0,0.5));
+  box(ctx,x1,y,120,64,{stroke:'#8b8a9a',fill:'rgba(255,255,255,0.03)',alpha:a1,r:10});
+  label(ctx,x1,y,'input x',{size:13,color:'#cfcfda',alpha:a1});
+
+  const a2=smoothstep(segT(t,0.3,0.5));
+  box(ctx,x2,y,150,80,{stroke:'#6fa8dc',fill:'rgba(111,168,220,0.06)',alpha:a2,r:11});
+  label(ctx,x2,y-10,'machine g',{size:12.5,color:'#6fa8dc',weight:'700',alpha:a2});
+  label(ctx,x2,y+14,'outputs g(x)',{size:11,color:'#9dc1e8',alpha:a2,font:"'IBM Plex Mono',monospace"});
+
+  const a3=smoothstep(segT(t,0.6,0.5));
+  box(ctx,x3,y,160,80,{stroke:'#e8a765',fill:'rgba(232,167,101,0.06)',alpha:a3,r:11});
+  label(ctx,x3,y-10,'machine f',{size:12.5,color:'#e8a765',weight:'700',alpha:a3});
+  label(ctx,x3,y+14,'outputs f(g(x))',{size:11,color:'#f0cda0',alpha:a3,font:"'IBM Plex Mono',monospace"});
+
+  if(a1>0.9&&a2>0.9) arrow(ctx,x1+62,y,x2-77,y,{color:'#8b8a9a',progress:1,lw:1.5});
+  if(a2>0.9&&a3>0.9) arrow(ctx,x2+77,y,x3-82,y,{color:'#8b8a9a',progress:1,lw:1.5});
+
+  const t2=t-1.4; if(t2<0) return;
+  label(ctx,x1,y+58,'wiggle x a tiny bit',{size:11,color:'#8b8a9a',alpha:smoothstep(segT(t2,0,0.5))});
+  const a4=smoothstep(segT(t2,0.4,0.5));
+  label(ctx,x2,y+58,"g wiggles by g'(x)\u00d7\u0394x",{size:11,color:'#9dc1e8',alpha:a4});
+  const a5=smoothstep(segT(t2,0.9,0.5));
+  label(ctx,x3,y+58,'f wiggles AGAIN, in response to that',{size:11,color:'#f0cda0',alpha:a5});
+
+  const t3=t2-1.6; if(t3<0) return;
+  const a6=smoothstep(segT(t3,0,0.6));
+  const parts=[{text:"d/dx f(g(x)) = ",color:'#e9e8f0'},{text:"f'(g(x))",color:'#e8a765'},{text:' \u00d7 ',color:'#8b8a9a'},{text:"g'(x)",color:'#6fa8dc'}];
+  drawFormulaParts(ctx, W/2, bottom-24, parts, {alpha:a6, size:20});
+}
+
+/* =========================================================
+   SLIDE 6 — LOGARITHMS
+========================================================= */
+function renderLog(ctx,W,H,t){
+  const {midY,top,bottom}=safeZone();
+  const a=6, b=4;
+  const a1=smoothstep(segT(t,0,0.5));
+  label(ctx,W*0.5,top+20,'logs turn MULTIPLICATION into ADDITION',{size:13,color:'#8b8a9a',alpha:a1});
+
+  const parts1=[
+    {text:'log(', color:'#8b8a9a'},{text:String(a), color:'#6fa8dc'},{text:' \u00d7 ', color:'#8b8a9a'},
+    {text:String(b), color:'#e8a765'},{text:')', color:'#8b8a9a'},{text:'  =  ', color:'#8b8a9a'},
+    {text:'log('+a+')', color:'#6fa8dc'},{text:' + ', color:'#8b8a9a'},{text:'log('+b+')', color:'#e8a765'}
+  ];
+  drawFormulaParts(ctx, W*0.5, midY-50, parts1, {alpha:a1, size:19});
+
+  const t2=t-0.9; if(t2<0) return;
+  const a2=smoothstep(segT(t2,0,0.5));
+  const lhs=Math.log(a*b), rhs=Math.log(a)+Math.log(b);
+  label(ctx,W*0.5,midY-8,`${lhs.toFixed(4)}   =   ${rhs.toFixed(4)}   \u2713`,{size:14,color:'#7cc48f',alpha:a2,font:"'IBM Plex Mono',monospace"});
+
+  const t3=t2-0.9; if(t3<0) return;
+  const a3=smoothstep(segT(t3,0,0.5));
+  label(ctx,W*0.5,midY+55,'and its slope has a beautifully simple form:',{size:12.5,color:'#8b8a9a',alpha:a3});
+  const parts2=[{text:'d/dx  log(x)  =  ',color:'#e9e8f0'},{text:'1/x',color:'#a98fd2'}];
+  const pos2=drawFormulaParts(ctx, W*0.5, midY+95, parts2, {alpha:a3, size:22});
+  if(a3>0.5){
+    calloutBelow(ctx,pos2[1],'this exact shape shows up once we start taking gradients of probabilities',{color:'#a98fd2',alpha:a3,dropY:34,size:11.5,maxWidth:270});
+  }
+}
+
+/* =========================================================
+   SLIDE 7 — GRADIENT (multi-variable derivative)
+========================================================= */
+function renderGradient(ctx,W,H,t){
+  const {midY,top,bottom}=safeZone();
+  const center={x:W*0.5,y:midY};
+
+  const a1=smoothstep(segT(t,0,0.6));
+  for(let r=30;r<=180;r+=30){
+    ctx.save(); ctx.globalAlpha=a1*0.5; ctx.strokeStyle='#6fa8dc'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.arc(center.x,center.y,r,0,TAU); ctx.stroke(); ctx.restore();
+  }
+  label(ctx,center.x,center.y,'min',{size:11,color:'#6fa8dc',alpha:a1});
+
+  const pt={x:center.x+90,y:center.y+50};
+  const a2=smoothstep(segT(t,0.6,0.5));
+  ctx.save(); ctx.globalAlpha=a2; ctx.fillStyle='#e9e8f0';
+  ctx.beginPath(); ctx.arc(pt.x,pt.y,5,0,TAU); ctx.fill(); ctx.restore();
+  label(ctx,pt.x+16,pt.y-16,'we are here',{size:11,color:'#e9e8f0',alpha:a2,align:'left'});
+
+  const t2=t-1.2; if(t2<0) return;
+  const dx=pt.x-center.x, dy=pt.y-center.y, len=Math.hypot(dx,dy)||1;
+  const ux=dx/len, uy=dy/len;
+  const growP=smoothstep(segT(t2,0,0.7));
+  arrow(ctx,pt.x,pt.y,pt.x+ux*90*growP,pt.y+uy*90*growP,{color:'#e8a765',progress:1,lw:2.4});
+  label(ctx,pt.x+ux*112,pt.y+uy*112,'\u2207f',{size:14,color:'#f0cda0',alpha:growP,font:"'IBM Plex Mono',monospace",weight:'700'});
+  label(ctx,pt.x+ux*112,pt.y+uy*112+18,'(steepest ascent)',{size:10.5,color:'#f0cda0',alpha:growP});
+
+  const t3=t2-1.0; if(t3<0) return;
+  const a3=smoothstep(segT(t3,0,0.5));
+  label(ctx,W*0.5,top+20,'the gradient is just a VECTOR of partial derivatives -- one per input',{size:12.5,color:'#8b8a9a',alpha:a3});
+  const parts=[{text:'\u2207',color:'#e8a765'},{text:'f = [ ',color:'#8b8a9a'},{text:'\u2202f/\u2202x',color:'#6fa8dc'},{text:' , ',color:'#8b8a9a'},{text:'\u2202f/\u2202y',color:'#e08a9c'},{text:' ]',color:'#8b8a9a'}];
+  drawFormulaParts(ctx,W*0.5,bottom-24,parts,{alpha:a3,size:20});
+}
+
+/* =========================================================
+   SLIDE 8 — TRAJECTORIES & R(tau)
+========================================================= */
+function renderTrajectory(ctx,W,H,t){
+  const {midY,top,bottom}=safeZone();
+  const n=4;
+  const xs=[]; for(let i=0;i<n;i++) xs.push(W*0.16+i*(W*0.6)/(n-1));
+  const y=midY-20;
+  const stepLabels=['s\u2080,a\u2080','s\u2081,a\u2081','s\u2082,a\u2082','s\u2083 (end)'];
+  const rewards=[1,3,2];
+
+  xs.forEach((x,i)=>{
+    const a=smoothstep(segT(t,i*0.4,0.45));
+    ctx.save(); ctx.globalAlpha=a; ctx.beginPath(); ctx.arc(x,y,20,0,TAU);
+    ctx.strokeStyle='#6fa8dc'; ctx.fillStyle='rgba(111,168,220,0.08)'; ctx.lineWidth=1.6; ctx.fill(); ctx.stroke();
+    ctx.restore();
+    label(ctx,x,y,String(i),{size:12,color:'#9dc1e8',alpha:a,font:"'IBM Plex Mono',monospace"});
+    label(ctx,x,y-38,stepLabels[i],{size:10.5,color:'#8b8a9a',alpha:a,font:"'IBM Plex Mono',monospace"});
+    if(i<n-1){
+      const a2=smoothstep(segT(t,i*0.4+0.2,0.4));
+      arrow(ctx,x+22,y,xs[i+1]-22,y,{color:'#8b8a9a',progress:a2,lw:1.3});
+      label(ctx,(x+xs[i+1])/2,y+30,'r='+rewards[i],{size:11,color:'#e8a765',alpha:a2,font:"'IBM Plex Mono',monospace"});
+    }
+  });
+
+  const t2=t-2.0; if(t2<0) return;
+  const a3=smoothstep(segT(t2,0,0.6));
+  label(ctx,W*0.5,top+20,'a TRAJECTORY \u03c4 is just one full run: states, actions, rewards in order',{size:12.5,color:'#8b8a9a',alpha:a3});
+
+  const a4=smoothstep(segT(t2,0.7,0.6));
+  const parts=[{text:'R(\u03c4) = ',color:'#e9e8f0'},{text:'1',color:'#e8a765'},{text:' + ',color:'#8b8a9a'},{text:'3',color:'#e8a765'},{text:' + ',color:'#8b8a9a'},{text:'2',color:'#e8a765'},{text:' = ',color:'#8b8a9a'},{text:'6',color:'#f6c98a'}];
+  drawFormulaParts(ctx, W*0.5, bottom-24, parts, {alpha:a4, size:20});
+}
+
+/* =========================================================
+   SLIDE 9 — DISCOUNT FACTOR GAMMA
+========================================================= */
+function renderDiscount(ctx,W,H,t){
+  const {midY,top,bottom}=safeZone();
+  const n=8;
+  const gammas=[0.5,0.9];
+  const colors=['#e08a9c','#5fd0c3'];
+  const baseYs=[midY-60, midY+80];
+  const labelsG=['\u03b3 = 0.5  (myopic)','\u03b3 = 0.9  (farsighted)'];
+
+  gammas.forEach((g,gi)=>{
+    const baseY=baseYs[gi];
+    const a0=smoothstep(segT(t,gi*0.3,0.5));
+    label(ctx,W*0.14,baseY,labelsG[gi],{size:12,color:colors[gi],alpha:a0,align:'left',font:"'IBM Plex Mono',monospace"});
+    for(let k=0;k<n;k++){
+      const a=smoothstep(segT(t,0.6+gi*0.3+k*0.15,0.4));
+      const val=Math.pow(g,k);
+      const h=val*70;
+      const x=W*0.32+k*46;
+      ctx.save(); ctx.globalAlpha=a;
+      ctx.fillStyle=colors[gi]+'55';
+      ctx.fillRect(x-15,baseY+20-h,30,h);
+      ctx.strokeStyle=colors[gi]; ctx.lineWidth=1.3; ctx.strokeRect(x-15,baseY+20-h,30,h);
+      ctx.restore();
+      if(gi===0) label(ctx,x,baseY+38,'t='+k,{size:9,color:'#8b8a9a',alpha:a});
+    }
+  });
+
+  const t2=t-3.2; if(t2<0) return;
+  const a3=smoothstep(segT(t2,0,0.6));
+  label(ctx,W*0.5,top+20,'each future reward gets multiplied by \u03b3 raised to how far ahead it is',{size:12.5,color:'#8b8a9a',alpha:a3});
+  const parts=[{text:'weight on reward k steps ahead  =  ',color:'#8b8a9a'},{text:'\u03b3\u1d4f',color:'#e8a765'}];
+  drawFormulaParts(ctx,W*0.5,bottom-24,parts,{alpha:a3,size:19});
+}
+
+/* =========================================================
+   SLIDE 10 — THE RETURN G_t
+========================================================= */
+function renderReturn(ctx,W,H,t){
+  const {midY,top,bottom}=safeZone();
+  const a1=smoothstep(segT(t,0,0.5));
+  label(ctx,W*0.5,top+20,'the RETURN is the discounted sum of everything still to come',{size:12.5,color:'#8b8a9a',alpha:a1});
+
+  const parts=[
+    {text:'G\u209c = \u03a3',color:'#e8a765'},{text:'  (k = 0, 1, 2, ...)  ',color:'#8b8a9a'},
+    {text:'\u03b3\u1d4f',color:'#e8a765'},{text:' \u00d7 ',color:'#8b8a9a'},{text:'r\u209c\u208a\u2096',color:'#6fa8dc'}
+  ];
+  const pos=drawFormulaParts(ctx,W*0.5,midY-30,parts,{alpha:a1,size:22});
+  const a2=smoothstep(segT(t,0.6,0.5));
+  if(a2>0.05){
+    calloutBelow(ctx,pos[0],'sum over every future step',{color:'#e8a765',alpha:a2,dropY:36,size:11.5});
+    calloutBelow(ctx,pos[4],'the reward received k steps ahead',{color:'#6fa8dc',alpha:a2,dropY:36,size:11.5,maxWidth:190});
+  }
+
+  const t2=t-1.6; if(t2<0) return;
+  const a3=smoothstep(segT(t2,0,0.6));
+  label(ctx,W*0.5,midY+90,'this unfolds into a tidy RECURSIVE relationship:',{size:12.5,color:'#8b8a9a',alpha:a3});
+  const parts2=[{text:'G\u209c = ',color:'#e9e8f0'},{text:'r\u209c',color:'#6fa8dc'},{text:' + \u03b3\u00b7',color:'#8b8a9a'},{text:'G\u209c\u208a\u2081',color:'#a98fd2'}];
+  const pos2=drawFormulaParts(ctx,W*0.5,midY+130,parts2,{alpha:a3,size:22});
+  if(a3>0.5){
+    calloutBelow(ctx,pos2[3],'"everything after this step" -- same shape as G\u209c itself',{color:'#a98fd2',alpha:a3,dropY:32,size:11,maxWidth:260});
+  }
+}
+
+/* =========================================================
+   SLIDE 11 — VALUE FUNCTION DEFINITION
+========================================================= */
+function renderValueFuncDef(ctx,W,H,t){
+  const {midY,bottom}=safeZone();
+  const a1=smoothstep(segT(t,0,0.5));
+  label(ctx,W*0.5,midY-90,'"how good is it to be in this state?"',{size:14,color:'#8b8a9a',alpha:a1});
+
+  const parts=[{text:'V(s) = ',color:'#e9e8f0'},{text:'\ud835\udd3c',color:'#a98fd2'},{text:'[ ',color:'#8b8a9a'},{text:'G\u209c',color:'#e8a765'},{text:' | ',color:'#8b8a9a'},{text:'s\u209c = s',color:'#6fa8dc'},{text:' ]',color:'#8b8a9a'}];
+  const pos=drawFormulaParts(ctx,W*0.5,midY,parts,{alpha:a1,size:28});
+  const a2=smoothstep(segT(t,0.6,0.5));
+  if(a2>0.05){
+    calloutBelow(ctx,pos[1],'average over all the randomness that follows',{color:'#a98fd2',alpha:a2,dropY:40,size:11.5,maxWidth:220});
+    calloutBelow(ctx,pos[3],'the total future return',{color:'#e8a765',alpha:a2,dropY:40,size:11.5});
+    calloutAbove(ctx,pos[5],'GIVEN we start from state s',{color:'#6fa8dc',alpha:a2,riseY:42,size:11.5});
+  }
+
+  const t2=t-1.6; if(t2<0) return;
+  const a3=smoothstep(segT(t2,0,0.6));
+  label(ctx,W*0.5,bottom-24,'in words: the expected total future reward, starting from s',{size:12.5,color:'#8b8a9a',alpha:a3});
+}
+
+/* =========================================================
+   SLIDE 12 — DERIVING THE BELLMAN EQUATION
+========================================================= */
+function renderBellmanDerivation(ctx,W,H,t){
+  const {top}=safeZone();
+  const cx=W*0.5;
+  const lines=[
+    {eq:'V(s) = \ud835\udd3c[ G\u209c | s\u209c=s ]', note:'start from the definition on the last slide', color:'#e9e8f0'},
+    {eq:'= \ud835\udd3c[ r\u209c + \u03b3G\u209c\u208a\u2081 | s\u209c=s ]', note:'substitute the recursive form of G\u209c', color:'#9dc1e8'},
+    {eq:'= \ud835\udd3c[r\u209c|s] + \u03b3\ud835\udd3c[G\u209c\u208a\u2081|s]', note:'expectation splits over a sum -- linearity', color:'#e8a765', key:true},
+    {eq:'= \ud835\udd3c[r\u209c|s] + \u03b3\ud835\udd3c[V(s\u209c\u208a\u2081)|s]', note:'that inner piece IS, by definition, V(s\u209c\u208a\u2081)', color:'#5fd0c3'},
+    {eq:'V(s) = \ud835\udd3c[ r + \u03b3V(s\u2032) ]', note:'the Bellman equation -- value defined in terms of itself', color:'#a98fd2'}
+  ];
+  const startY=top+56, gap=58;
+  lines.forEach((ln,i)=>{
+    const t0=i*1.15;
+    const a=smoothstep(segT(t,t0,0.55));
+    if(a<=0) return;
+    const y=startY+i*gap;
+    const dy=(1-a)*14;
+    const active = t>=t0 && t<t0+1.7;
+    if(ln.key){
+      const glow=0.5+0.5*pulse(t,1.3);
+      ctx.save(); ctx.globalAlpha=a*0.9;
+      roundRect(ctx,cx-360,y-dy-24,720,46,10);
+      ctx.strokeStyle=`rgba(232,167,101,${0.5+0.3*glow})`; ctx.lineWidth=1.6;
+      ctx.fillStyle=`rgba(232,167,101,${0.06+0.05*glow})`; ctx.fill(); ctx.stroke();
+      ctx.restore();
+      label(ctx,cx-352,y-dy-24+13,'KEY STEP',{size:9.5,color:'#e8a765',weight:'700',align:'left',alpha:a,font:"'IBM Plex Mono',monospace"});
+    } else if(active){
+      const pulseA=0.10+0.09*pulse(t-t0,1.4);
+      ctx.save(); ctx.globalAlpha=a*0.9;
+      roundRect(ctx,cx-340,y-dy-24,680,44,10);
+      ctx.fillStyle=`rgba(255,255,255,${pulseA})`; ctx.fill();
+      ctx.restore();
+    }
+    const dim = (active||ln.key) ? 1 : 0.5;
+    label(ctx,cx,y-dy,ln.eq,{size:15,color:ln.color,font:"'IBM Plex Mono',monospace",weight:'600',alpha:a*dim});
+    label(ctx,cx,y-dy+20,ln.note,{size:10.5,color:'#8b8a9a',alpha:a*dim*0.95});
+  });
+}
+
+/* =========================================================
+   SLIDE 13 — WORKED NUMERIC BELLMAN EXAMPLE
+========================================================= */
+function renderBellmanWorked(ctx,W,H,t){
+  const {midY,top}=safeZone();
+  const positions=[W*0.22,W*0.5,W*0.78];
+  const rewards=[3,5];
+  const gamma=0.9;
+  const V2=0, V1=rewards[1]+gamma*V2, V0=rewards[0]+gamma*V1;
+
+  const a1=smoothstep(segT(t,0,0.5));
+  positions.forEach((x,i)=>{
+    const term=i===2;
+    ctx.save(); ctx.globalAlpha=a1;
+    ctx.beginPath(); ctx.arc(x,midY,28,0,TAU);
+    ctx.strokeStyle= term? '#8b8a9a':'#6fa8dc';
+    ctx.fillStyle= term? 'rgba(255,255,255,0.04)':'rgba(111,168,220,0.08)';
+    ctx.lineWidth=1.8; ctx.fill(); ctx.stroke();
+    ctx.restore();
+    label(ctx,x,midY-6,'s'+i,{size:13,color:'#e9e8f0',alpha:a1,font:"'IBM Plex Mono',monospace"});
+  });
+  if(a1>0.9){
+    arrow(ctx,positions[0]+30,midY,positions[1]-30,midY,{color:'#e8a765',progress:1,lw:1.6});
+    label(ctx,(positions[0]+positions[1])/2,midY-22,'r = 3',{size:12,color:'#f0cda0',font:"'IBM Plex Mono',monospace"});
+    arrow(ctx,positions[1]+30,midY,positions[2]-30,midY,{color:'#e8a765',progress:1,lw:1.6});
+    label(ctx,(positions[1]+positions[2])/2,midY-22,'r = 5',{size:12,color:'#f0cda0',font:"'IBM Plex Mono',monospace"});
+    label(ctx,W/2,midY-52,'\u03b3 = 0.9',{size:12,color:'#8b8a9a',alpha:a1,font:"'IBM Plex Mono',monospace"});
+  }
+
+  const t2=t-0.9; if(t2<0) return;
+  const b1=smoothstep(segT(t2,0,0.5));
+  label(ctx,positions[2],midY+52,'V(s2) = 0   (terminal -- nothing left to earn)',{size:12.5,color:'#8b8a9a',alpha:b1,font:"'IBM Plex Mono',monospace"});
+
+  const t3=t2-0.9; if(t3<0) return;
+  const b2=smoothstep(segT(t3,0,0.6));
+  label(ctx,positions[1],midY+52,'V(s1) = 5 + 0.9 \u00d7 0  =  5.0',{size:12.5,color:'#a9e2da',alpha:b2,font:"'IBM Plex Mono',monospace"});
+
+  const t4=t3-0.9; if(t4<0) return;
+  const b3=smoothstep(segT(t4,0,0.6));
+  label(ctx,positions[0],midY+52,'V(s0) = 3 + 0.9 \u00d7 5.0  =  7.5',{size:12.5,color:'#cdb8ea',alpha:b3,font:"'IBM Plex Mono',monospace"});
+
+  const t5=t4-0.9; if(t5<0) return;
+  const b4=smoothstep(segT(t5,0,0.5));
+  label(ctx,W/2,top+20,'solved backward from the terminal state, one step at a time',{size:13,color:'#e9e8f0',alpha:b4});
+}
+
+/* =========================================================
+   SLIDE 14 — POLICY: SOFTMAX FROM SCRATCH
+========================================================= */
+function renderSoftmax(ctx,W,H,t){
+  const {midY,top,bottom}=safeZone();
+  const scores=[2.0,0.5,-1.0];
+  const actions=['left','stay','right'];
+  const colors=['#6fa8dc','#e8a765','#e08a9c'];
+  const cx0=W*0.5;
+
+  const a1=smoothstep(segT(t,0,0.5));
+  label(ctx,cx0,top+20,'raw scores -- can be ANY number, negatives included',{size:12.5,color:'#8b8a9a',alpha:a1});
+  scores.forEach((s,i)=>{
+    const a=smoothstep(segT(t,0.3+i*0.3,0.4));
+    const x=W*0.28+i*140;
+    box(ctx,x,midY-90,90,50,{stroke:colors[i],fill:colors[i]+'15',alpha:a,r:8});
+    label(ctx,x,midY-90,s.toFixed(1),{size:15,color:colors[i],weight:'700',alpha:a,font:"'IBM Plex Mono',monospace"});
+    label(ctx,x,midY-124,actions[i],{size:10.5,color:'#8b8a9a',alpha:a});
+  });
+
+  const t2=t-1.4; if(t2<0) return;
+  const a2=smoothstep(segT(t2,0,0.5));
+  label(ctx,cx0,midY-30,'step 1: exponentiate -- everything becomes positive',{size:12,color:'#f0cda0',alpha:a2});
+  const exps=scores.map(Math.exp);
+  scores.forEach((s,i)=>{
+    const x=W*0.28+i*140;
+    const a=smoothstep(segT(t2,0.2+i*0.2,0.4));
+    label(ctx,x,midY+6,'e^'+s.toFixed(1)+' = '+exps[i].toFixed(2),{size:12,color:colors[i],alpha:a,font:"'IBM Plex Mono',monospace"});
+  });
+
+  const t3=t2-1.4; if(t3<0) return;
+  const a3=smoothstep(segT(t3,0,0.5));
+  const sumExp=exps.reduce((a,b)=>a+b,0);
+  label(ctx,cx0,midY+50,'step 2: divide by the total -- now they sum to 1, a real probability',{size:12,color:'#a9e2da',alpha:a3});
+  scores.forEach((s,i)=>{
+    const x=W*0.28+i*140;
+    const a=smoothstep(segT(t3,0.2+i*0.2,0.4));
+    const p=exps[i]/sumExp;
+    label(ctx,x,midY+82,'p = '+p.toFixed(3),{size:13,color:colors[i],weight:'700',alpha:a,font:"'IBM Plex Mono',monospace"});
+  });
+
+  const t4=t3-1.4; if(t4<0) return;
+  const a4=smoothstep(segT(t4,0,0.5));
+  const parts=[{text:'\u03c0(a\u1d62|s) = ',color:'#e9e8f0'},{text:'e^score(a\u1d62)',color:'#e8a765'},{text:' / ',color:'#8b8a9a'},{text:'\u03a3\u2c7c e^score(a\u2c7c)',color:'#6fa8dc'}];
+  drawFormulaParts(ctx,cx0,bottom-24,parts,{alpha:a4,size:18});
+}
+
+/* =========================================================
+   SLIDE 15 — THE RL OBJECTIVE J(theta)
+========================================================= */
+function renderObjective(ctx,W,H,t){
+  const {midY,top,bottom}=safeZone();
+  const a1=smoothstep(segT(t,0,0.5));
+  label(ctx,W*0.5,top+20,'our GOAL, written as a single number to maximize',{size:13,color:'#8b8a9a',alpha:a1});
+
+  const parts=[{text:'J(',color:'#e9e8f0'},{text:'\u03b8',color:'#a98fd2'},{text:') = ',color:'#e9e8f0'},{text:'\ud835\udd3c',color:'#7cc48f'},{text:'[ \u03a3',color:'#e8a765'},{text:'\u209c',color:'#8b8a9a'},{text:' \u03b3\u1d57 ',color:'#e8a765'},{text:'r\u209c',color:'#6fa8dc'},{text:' ]',color:'#e9e8f0'}];
+  const pos=drawFormulaParts(ctx,W*0.5,midY,parts,{alpha:a1,size:26});
+  const a2=smoothstep(segT(t,0.6,0.5));
+  if(a2>0.05){
+    calloutAbove(ctx,pos[1],'\u03b8 = the tunable knobs (weights) inside our policy',{color:'#a98fd2',alpha:a2,riseY:46,size:11,maxWidth:250});
+    calloutBelow(ctx,pos[3],'averaged over every random trajectory \u03c0\u03b8 might produce',{color:'#7cc48f',alpha:a2,dropY:40,size:11,maxWidth:230});
+    calloutBelow(ctx,pos[7],'every reward we collect along the way',{color:'#6fa8dc',alpha:a2,dropY:40,size:11,maxWidth:200});
+  }
+
+  const t2=t-1.6; if(t2<0) return;
+  const a3=smoothstep(segT(t2,0,0.6));
+  label(ctx,W*0.5,bottom-24,'every algorithm in this course is really just: how do we push \u03b8 to make J(\u03b8) bigger?',{size:12,color:'#8b8a9a',alpha:a3});
+}
+
+/* =========================================================
+   SLIDE 16 — GRADIENT ASCENT
+========================================================= */
+function renderGradientAscent(ctx,W,H,t){
+  const {midY,top,bottom}=safeZone();
+  const cx=W*0.5;
+  const a0=smoothstep(segT(t,0,0.5));
+  ctx.save(); ctx.globalAlpha=a0; ctx.beginPath();
+  for(let px=-220; px<=220; px+=4){
+    const nx=px/220;
+    const y=midY+40 - (1-nx*nx)*110;
+    if(px===-220) ctx.moveTo(cx+px,y); else ctx.lineTo(cx+px,y);
+  }
+  ctx.strokeStyle='#6fa8dc'; ctx.lineWidth=2.2; ctx.stroke(); ctx.restore();
+  label(ctx,cx,midY-100,'J(\u03b8)  -- we want to reach the TOP',{size:12,color:'#9dc1e8',alpha:a0});
+
+  const t2=t-0.6; if(t2<0) return;
+  const cyc=3.4; const p=(t2%cyc)/cyc;
+  const startX=-190;
+  const px=lerp(startX,0,easeOutCubic(Math.min(p*1.3,1)));
+  const nx=clamp(px,-220,220)/220;
+  const py=midY+40-(1-nx*nx)*110;
+  ctx.save(); ctx.fillStyle='#e8a765'; ctx.shadowColor='#e8a765'; ctx.shadowBlur=10;
+  ctx.beginPath(); ctx.arc(cx+px,py,7,0,TAU); ctx.fill(); ctx.restore();
+
+  const slope=-2*nx;
+  if(p<0.9){
+    const dirx=Math.sign(slope)||1;
+    arrow(ctx,cx+px,py,cx+px+dirx*50,py-Math.abs(slope)*20,{color:'#7cc48f',progress:1,lw:2});
+  }
+
+  const a2=smoothstep(segT(t2,0,0.5));
+  label(ctx,W*0.5,top+20,'take small steps in the direction the gradient points -- straight uphill',{size:12.5,color:'#8b8a9a',alpha:a2});
+
+  const a3=smoothstep(segT(t2,2.2,0.5));
+  const parts=[{text:'\u03b8 \u2190 ',color:'#e9e8f0'},{text:'\u03b8',color:'#a98fd2'},{text:' + \u03b1\u00b7',color:'#8b8a9a'},{text:'\u2207',color:'#e8a765'},{text:'\u03b8',color:'#a98fd2'},{text:'J(\u03b8)',color:'#7cc48f'}];
+  drawFormulaParts(ctx,W*0.5,bottom-24,parts,{alpha:a3,size:20});
+}
+
+/* =========================================================
+   SLIDE 17 — WHY WE CAN'T JUST BACKPROP THROUGH SAMPLING
+========================================================= */
+function renderSamplingProblem(ctx,W,H,t){
+  const {midY,top,bottom}=safeZone();
+  const cx=W*0.5;
+
+  const a1=smoothstep(segT(t,0,0.5));
+  label(ctx,cx,top+20,'we want \u2207\u03b8J(\u03b8) -- but J depends on a RANDOM sample',{size:13,color:'#8b8a9a',alpha:a1});
+
+  const leftX=W*0.22, rightX=W*0.78;
+  box(ctx,leftX,midY,170,80,{stroke:'#a98fd2',fill:'rgba(169,143,210,0.06)',alpha:a1,r:12});
+  label(ctx,leftX,midY,'\u03b8  (our parameters)',{size:13,color:'#cdb8ea',alpha:a1,font:"'IBM Plex Mono',monospace"});
+
+  const a2=smoothstep(segT(t,0.4,0.5));
+  ctx.save(); ctx.globalAlpha=a2;
+  roundRect(ctx,W*0.5-75,midY-40,150,80,10);
+  ctx.setLineDash([5,5]); ctx.strokeStyle='#e08a9c'; ctx.lineWidth=1.8; ctx.stroke(); ctx.setLineDash([]);
+  ctx.restore();
+  label(ctx,W*0.5,midY-10,'sample a \u223c \u03c0\u03b8',{size:12,color:'#f0bcc8',alpha:a2,font:"'IBM Plex Mono',monospace"});
+  label(ctx,W*0.5,midY+16,'(like a weighted coin flip)',{size:10.5,color:'#8b8a9a',alpha:a2});
+
+  const a3=smoothstep(segT(t,0.8,0.5));
+  box(ctx,rightX,midY,170,80,{stroke:'#e8a765',fill:'rgba(232,167,101,0.06)',alpha:a3,r:12});
+  label(ctx,rightX,midY,'R(\u03c4)  (the reward)',{size:13,color:'#f0cda0',alpha:a3,font:"'IBM Plex Mono',monospace"});
+
+  if(a1>0.9&&a2>0.9) arrow(ctx,leftX+86,midY,W*0.5-76,midY,{color:'#8b8a9a',progress:1,lw:1.4});
+  if(a2>0.9&&a3>0.9) arrow(ctx,W*0.5+76,midY,rightX-86,midY,{color:'#8b8a9a',progress:1,lw:1.4});
+
+  const t2=t-1.4; if(t2<0) return;
+  const cyc=2.4; const p=(t2%cyc)/cyc;
+  if(p<0.6){
+    const q=easeInOutCubic(p/0.6);
+    const gx=lerp(rightX-86,W*0.5+80,q);
+    arrow(ctx,rightX-86,midY-30,gx,midY-30,{color:'#7cc48f',progress:1,lw:2});
+    label(ctx,gx,midY-46,'gradient trying to flow back...',{size:10.5,color:'#7cc48f'});
+  } else {
+    label(ctx,W*0.5,midY-56,'\u2716  blocked -- sampling has no derivative',{size:12.5,color:'#e08a9c',weight:'700'});
+  }
+
+  const t3=t2-2.0; if(t3<0) return;
+  const a4=smoothstep(segT(t3,0,0.6));
+  label(ctx,cx,bottom-24,'we need a completely different route to the gradient',{size:12.5,color:'#8b8a9a',alpha:a4});
+}
+
+/* =========================================================
+   SLIDE 18 — REWRITE AS A SUM, THEN DIFFERENTIATE
+========================================================= */
+function renderPGStep1(ctx,W,H,t){
+  const {top}=safeZone();
+  const cx=W*0.5;
+
+  const a1=smoothstep(segT(t,0,0.5));
+  label(ctx,cx,top+20,'write the expectation out explicitly, as a weighted sum over every possible run:',{size:12,color:'#8b8a9a',alpha:a1});
+  const parts1=[{text:'J(\u03b8) = \u03a3',color:'#e8a765'},{text:'\u03c4 ',color:'#8b8a9a'},{text:'\u03c0\u03b8(\u03c4)',color:'#5fd0c3'},{text:' \u00b7 ',color:'#8b8a9a'},{text:'R(\u03c4)',color:'#e08a9c'}];
+  const pos1=drawFormulaParts(ctx,cx,top+80,parts1,{alpha:a1,size:22});
+  const a1b=smoothstep(segT(t,0.6,0.5));
+  if(a1b>0.05){
+    calloutBelow(ctx,pos1[2],'probability of that specific trajectory',{color:'#5fd0c3',alpha:a1b,dropY:38,size:11,maxWidth:200});
+    calloutBelow(ctx,pos1[4],'how good that trajectory was',{color:'#e08a9c',alpha:a1b,dropY:38,size:11,maxWidth:170});
+  }
+
+  const t2=t-1.7; if(t2<0) return;
+  const a2=smoothstep(segT(t2,0,0.6));
+  label(ctx,cx,top+185,'now differentiate BOTH sides with respect to \u03b8:',{size:12,color:'#8b8a9a',alpha:a2});
+  const parts2=[{text:'\u2207\u03b8J(\u03b8) = \u03a3',color:'#e8a765'},{text:'\u03c4 ',color:'#8b8a9a'},{text:'\u2207\u03b8\u03c0\u03b8(\u03c4)',color:'#a98fd2'},{text:' \u00b7 ',color:'#8b8a9a'},{text:'R(\u03c4)',color:'#e08a9c'}];
+  const pos2=drawFormulaParts(ctx,cx,top+255,parts2,{alpha:a2,size:22});
+  const a3=smoothstep(segT(t2,0.6,0.6));
+  if(a3>0.05){
+    calloutBelow(ctx,pos2[2],'the gradient landed on \u03c0\u03b8 -- but this is not a probability anymore, so we still can\u2019t sample from it',{color:'#a98fd2',alpha:a3,dropY:38,size:10.5,maxWidth:330});
+  }
+}
+
+/* =========================================================
+   SLIDE 19 — THE KEY TRICK: log-derivative identity
+========================================================= */
+function renderLogTrick(ctx,W,H,t){
+  const {top,bottom}=safeZone();
+  const cx=W*0.5;
+
+  const a1=smoothstep(segT(t,0,0.5));
+  label(ctx,cx,top+18,'recall from the derivative + log slides:',{size:12,color:'#8b8a9a',alpha:a1});
+  const parts0=[{text:"d/d\u03b8  log f(\u03b8)  =  ",color:'#e9e8f0'},{text:"f'(\u03b8)",color:'#e8a765'},{text:' / ',color:'#8b8a9a'},{text:'f(\u03b8)',color:'#6fa8dc'}];
+  drawFormulaParts(ctx,cx,top+64,parts0,{alpha:a1,size:18});
+
+  const t2=t-0.9; if(t2<0) return;
+  const a2=smoothstep(segT(t2,0,0.5));
+  label(ctx,cx,top+118,'rearrange it (multiply both sides by f):',{size:12,color:'#8b8a9a',alpha:a2});
+  const parts1=[{text:'f\u2032(\u03b8) = ',color:'#e8a765'},{text:'f(\u03b8)',color:'#6fa8dc'},{text:' \u00d7 ',color:'#8b8a9a'},{text:"d/d\u03b8 log f(\u03b8)",color:'#a98fd2'}];
+  drawFormulaParts(ctx,cx,top+164,parts1,{alpha:a2,size:20});
+
+  const t3=t2-1.0; if(t3<0) return;
+  const a3=smoothstep(segT(t3,0,0.6));
+  label(ctx,cx,top+210,'now set f(\u03b8) = \u03c0\u03b8(\u03c4):',{size:12,color:'#8b8a9a',alpha:a3});
+  const glow=0.5+0.5*pulse(t3,1.3);
+  ctx.save(); ctx.globalAlpha=a3*0.9;
+  roundRect(ctx,cx-320,top+226,640,54,10);
+  ctx.strokeStyle=`rgba(232,167,101,${0.5+0.3*glow})`; ctx.lineWidth=1.6;
+  ctx.fillStyle=`rgba(232,167,101,${0.06+0.05*glow})`; ctx.fill(); ctx.stroke();
+  ctx.restore();
+  const parts2=[{text:'\u2207\u03b8\u03c0\u03b8(\u03c4) = ',color:'#e9e8f0'},{text:'\u03c0\u03b8(\u03c4)',color:'#5fd0c3'},{text:' \u00d7 ',color:'#8b8a9a'},{text:'\u2207\u03b8 log \u03c0\u03b8(\u03c4)',color:'#e8a765'}];
+  drawFormulaParts(ctx,cx,top+259,parts2,{alpha:a3,size:20});
+
+  const t4=t3-1.0; if(t4<0) return;
+  const a4=smoothstep(segT(t4,0,0.6));
+  label(ctx,cx,bottom-24,'THIS is the entire trick -- everything else is just substitution',{size:13,color:'#f0cda0',alpha:a4,weight:'600'});
+}
+
+/* =========================================================
+   SLIDE 20 — SUBSTITUTE BACK: NOW IT'S AN EXPECTATION
+========================================================= */
+function renderPGStep2(ctx,W,H,t){
+  const {top,bottom}=safeZone();
+  const cx=W*0.5;
+
+  const a1=smoothstep(segT(t,0,0.5));
+  label(ctx,cx,top+20,'substitute that back into the gradient sum:',{size:12.5,color:'#8b8a9a',alpha:a1});
+  const parts1=[{text:'\u2207\u03b8J = \u03a3',color:'#e8a765'},{text:'\u03c4 ',color:'#8b8a9a'},{text:'\u03c0\u03b8(\u03c4)',color:'#5fd0c3'},{text:'\u00b7',color:'#8b8a9a'},{text:'\u2207\u03b8log\u03c0\u03b8(\u03c4)',color:'#e8a765'},{text:'\u00b7',color:'#8b8a9a'},{text:'R(\u03c4)',color:'#e08a9c'}];
+  drawFormulaParts(ctx,cx,top+72,parts1,{alpha:a1,size:17});
+
+  const t2=t-1.1; if(t2<0) return;
+  const a2=smoothstep(segT(t2,0,0.6));
+  label(ctx,cx,top+134,'\u03a3 (probability \u00d7 stuff)  is EXACTLY what an expectation is:',{size:12,color:'#8b8a9a',alpha:a2});
+
+  const t3=t2-0.7; if(t3<0) return;
+  const a3=smoothstep(segT(t3,0,0.6));
+  const glow=0.5+0.5*pulse(t3,1.3);
+  ctx.save(); ctx.globalAlpha=a3*0.9;
+  roundRect(ctx,cx-320,top+156,640,54,10);
+  ctx.strokeStyle=`rgba(232,167,101,${0.5+0.3*glow})`; ctx.lineWidth=1.6;
+  ctx.fillStyle=`rgba(232,167,101,${0.06+0.05*glow})`; ctx.fill(); ctx.stroke();
+  ctx.restore();
+  const parts2=[{text:'\u2207\u03b8J(\u03b8) = ',color:'#e9e8f0'},{text:'\ud835\udd3c',color:'#a98fd2'},{text:'\u03c4~\u03c0\u03b8',color:'#8b8a9a'},{text:'[ ',color:'#8b8a9a'},{text:'\u2207\u03b8 log \u03c0\u03b8(\u03c4)',color:'#e8a765'},{text:' \u00b7 ',color:'#8b8a9a'},{text:'R(\u03c4)',color:'#e08a9c'},{text:' ]',color:'#8b8a9a'}];
+  drawFormulaParts(ctx,cx,top+190,parts2,{alpha:a3,size:19});
+
+  const t4=t3-1.0; if(t4<0) return;
+  const a4=smoothstep(segT(t4,0,0.6));
+  label(ctx,cx,top+248,'AND NOW WE CAN SAMPLE FROM IT -- \u03c0\u03b8 is a real distribution',{size:12.5,color:'#f0cda0',alpha:a4,weight:'600'});
+
+  const t5=t4-0.8; if(t5<0) return;
+  const a5=smoothstep(segT(t5,0,0.6));
+  label(ctx,cx,bottom-22,'this is the moment the "impossible" gradient became computable',{size:12,color:'#8b8a9a',alpha:a5});
+}
+
+/* =========================================================
+   SLIDE 21 — TRAJECTORY FACTORIZATION
+========================================================= */
+function renderPGStep3(ctx,W,H,t){
+  const {top,bottom}=safeZone();
+  const cx=W*0.5;
+
+  const a1=smoothstep(segT(t,0,0.5));
+  label(ctx,cx,top+20,'a trajectory is just a chain of independent action choices:',{size:12.5,color:'#8b8a9a',alpha:a1});
+  const parts1=[{text:'\u03c0\u03b8(\u03c4) = ',color:'#e9e8f0'},{text:'\u03c0\u03b8(a\u2080|s\u2080)',color:'#5fd0c3'},{text:' \u00b7 ',color:'#8b8a9a'},{text:'\u03c0\u03b8(a\u2081|s\u2081)',color:'#5fd0c3'},{text:' \u00b7 ...',color:'#8b8a9a'}];
+  drawFormulaParts(ctx,cx,top+72,parts1,{alpha:a1,size:18});
+
+  const t2=t-1.0; if(t2<0) return;
+  const a2=smoothstep(segT(t2,0,0.6));
+  label(ctx,cx,top+130,'take the log -- and products of logs become SUMS:',{size:12,color:'#8b8a9a',alpha:a2});
+  const parts2=[{text:'log \u03c0\u03b8(\u03c4) = \u03a3',color:'#e8a765'},{text:'\u209c ',color:'#8b8a9a'},{text:'log \u03c0\u03b8(a\u209c|s\u209c)',color:'#5fd0c3'}];
+  drawFormulaParts(ctx,cx,top+176,parts2,{alpha:a2,size:19});
+
+  const t3=t2-1.0; if(t3<0) return;
+  const a3=smoothstep(segT(t3,0,0.6));
+  label(ctx,cx,top+230,'notice: the environment\u2019s transition probabilities never appeared --',{size:11.5,color:'#8b8a9a',alpha:a3});
+  const a3b=smoothstep(segT(t3,0.3,0.6));
+  label(ctx,cx,top+250,'they don\u2019t depend on \u03b8, so they vanish from the gradient entirely',{size:11.5,color:'#8b8a9a',alpha:a3b});
+
+  const t4=t3-1.0; if(t4<0) return;
+  const a4=smoothstep(segT(t4,0,0.6));
+  label(ctx,cx,bottom-22,'we never needed to know how the environment works -- model-free!',{size:12.5,color:'#7cc48f',alpha:a4,weight:'600'});
+}
+
+/* =========================================================
+   SLIDE 22 — REINFORCE, ASSEMBLED
+========================================================= */
+function renderREINFORCEFinal(ctx,W,H,t){
+  const {midY,top,bottom}=safeZone();
+  const a1=smoothstep(segT(t,0,0.5));
+  label(ctx,W*0.5,top+30,'putting every piece together:',{size:13,color:'#8b8a9a',alpha:a1});
+
+  const parts=[
+    {text:'\u2207\u03b8J(\u03b8) = ',color:'#e9e8f0'},{text:'\ud835\udd3c',color:'#a98fd2'},{text:'[ \u03a3',color:'#e8a765'},{text:'\u209c ',color:'#8b8a9a'},
+    {text:'\u2207\u03b8 log \u03c0\u03b8(a\u209c|s\u209c)',color:'#5fd0c3'},{text:' \u00b7 ',color:'#8b8a9a'},{text:'R(\u03c4)',color:'#e08a9c'},{text:' ]',color:'#8b8a9a'}
+  ];
+  const pos=drawFormulaParts(ctx,W*0.5,midY,parts,{alpha:a1,size:22});
+
+  const a2=smoothstep(segT(t,0.7,0.5));
+  if(a2>0.05){
+    calloutAbove(ctx,pos[1],'average over many sampled trajectories (Monte Carlo)',{color:'#a98fd2',alpha:a2,riseY:46,size:11,maxWidth:240});
+    calloutBelow(ctx,pos[4],'nudge THIS action\u2019s probability...',{color:'#5fd0c3',alpha:a2,dropY:40,size:11,maxWidth:200});
+    calloutBelow(ctx,pos[6],'...scaled by how good the WHOLE episode turned out',{color:'#e08a9c',alpha:a2,dropY:40,size:11,maxWidth:220});
+  }
+
+  const t2=t-1.6; if(t2<0) return;
+  const a3=smoothstep(segT(t2,0,0.6));
+  label(ctx,W*0.5,bottom-24,'this is REINFORCE -- the simplest policy-gradient algorithm there is',{size:13,color:'#e9e8f0',alpha:a3,weight:'600'});
+}
+
+/* =========================================================
+   SLIDE 23 — THE VARIANCE PROBLEM
+========================================================= */
+function renderVarianceProblem(ctx,W,H,t){
+  const {midY,top,bottom}=safeZone();
+  const cx=W*0.5, cy=midY;
+  const a1=smoothstep(segT(t,0,0.5));
+  label(ctx,cx,top+20,'R(\u03c4) is the return of the WHOLE episode -- one lucky run swings it wildly',{size:12.5,color:'#8b8a9a',alpha:a1});
+
+  const trueAngle=-0.4;
+  const trueLen=90;
+  if(a1>0.5){
+    arrow(ctx,cx,cy,cx+Math.cos(trueAngle)*trueLen,cy+Math.sin(trueAngle)*trueLen,{color:'#7cc48f',progress:1,lw:2.4,alpha:0.9});
+    label(ctx,cx+Math.cos(trueAngle)*(trueLen+50),cy+Math.sin(trueAngle)*(trueLen+40),'true gradient',{size:11,color:'#7cc48f'});
+  }
+
+  const t2=t-0.8; if(t2<0) return;
+  const n=10;
+  for(let i=0;i<n;i++){
+    const a=smoothstep(segT(t2,i*0.15,0.4));
+    if(a<=0) continue;
+    const jitter=Math.abs(Math.sin(i*12.9898)*43758.5453)%1;
+    const noiseAngle=trueAngle + (jitter-0.5)*2.2;
+    const noiseLen=trueLen*(0.6+jitter*0.8);
+    arrow(ctx,cx,cy,cx+Math.cos(noiseAngle)*noiseLen,cy+Math.sin(noiseAngle)*noiseLen,{color:'#e08a9c',progress:1,lw:1.2,alpha:a*0.5});
+  }
+  const a2=smoothstep(segT(t2,1.4,0.6));
+  label(ctx,cx,cy+130,'ten different sampled estimates of the SAME gradient',{size:11.5,color:'#f0bcc8',alpha:a2});
+
+  const t3=t2-2.2; if(t3<0) return;
+  const a3=smoothstep(segT(t3,0,0.6));
+  label(ctx,cx,bottom-24,'we\u2019d need to average over MANY episodes to see the true direction -- slow',{size:12.5,color:'#8b8a9a',alpha:a3});
+}
+
+/* =========================================================
+   SLIDE 24 — THE BASELINE TRICK (with proof it changes nothing)
+========================================================= */
+function renderBaselineTrick(ctx,W,H,t){
+  const {top,bottom}=safeZone();
+  const cx=W*0.5;
+
+  const a1=smoothstep(segT(t,0,0.5));
+  label(ctx,cx,top+18,'idea: subtract a baseline b(s) that doesn\u2019t depend on the action taken',{size:12,color:'#8b8a9a',alpha:a1});
+  const parts1=[{text:'\u2207\u03b8J = \ud835\udd3c[ \u2207\u03b8log\u03c0\u03b8(a|s)\u00b7( ',color:'#e9e8f0'},{text:'R(\u03c4)',color:'#e08a9c'},{text:' \u2212 ',color:'#8b8a9a'},{text:'b(s)',color:'#a98fd2'},{text:' ) ]',color:'#e9e8f0'}];
+  drawFormulaParts(ctx,cx,top+62,parts1,{alpha:a1,size:15});
+
+  const t2=t-1.0; if(t2<0) return;
+  const a2=smoothstep(segT(t2,0,0.6));
+  label(ctx,cx,top+108,'quick proof this adds exactly ZERO to the gradient:',{size:12,color:'#8b8a9a',alpha:a2});
+
+  const lines=[
+    {eq:'\ud835\udd3c[\u2207log\u03c0(a|s)\u00b7b(s)] = \u03a3\u2090 \u03c0(a|s)\u00b7\u2207log\u03c0(a|s)\u00b7b(s)',note:'write the expectation out as a sum over actions', color:'#9dc1e8'},
+    {eq:'= \u03a3\u2090 \u2207\u03c0(a|s)\u00b7b(s)',note:'the log-derivative trick again, IN REVERSE', color:'#e8a765'},
+    {eq:'= b(s)\u00b7\u2207 \u03a3\u2090 \u03c0(a|s)',note:'b(s) doesn\u2019t depend on a -- pull it (and \u2207) outside the sum', color:'#5fd0c3'},
+    {eq:'= b(s)\u00b7\u2207(1) = 0',note:'probabilities over ALL actions always sum to 1 -- a constant!', color:'#7cc48f', key:true},
+  ];
+  const startY=top+150, gap=44;
+  lines.forEach((ln,i)=>{
+    const t0=i*0.85;
+    const a=smoothstep(segT(t2,0.6+t0,0.5));
+    if(a<=0) return;
+    const y=startY+i*gap;
+    label(ctx,cx,y,ln.eq,{size:12,color:ln.color,font:"'IBM Plex Mono',monospace",weight: ln.key?'700':'600',alpha:a});
+    label(ctx,cx,y+15,ln.note,{size:9.5,color:'#8b8a9a',alpha:a*0.9});
+  });
+
+  const t3=t2-4.4; if(t3<0) return;
+  const a3=smoothstep(segT(t3,0,0.6));
+  label(ctx,cx,bottom-20,'so ANY baseline keeps the gradient correct -- a GOOD one just kills variance',{size:12,color:'#e9e8f0',alpha:a3,weight:'600'});
+}
+
+/* =========================================================
+   SLIDE 25 — ADVANTAGE & THE TD-ERROR APPROXIMATION
+========================================================= */
+function renderAdvantageTD(ctx,W,H,t){
+  const {midY,top,bottom}=safeZone();
+  const cx=W*0.5;
+
+  const a1=smoothstep(segT(t,0,0.5));
+  label(ctx,cx,top+20,'the BEST baseline turns out to be the value function V(s) itself',{size:12.5,color:'#8b8a9a',alpha:a1});
+  const parts1=[{text:'A(s,a) = ',color:'#e9e8f0'},{text:'Q(s,a)',color:'#e08a9c'},{text:' \u2212 ',color:'#8b8a9a'},{text:'V(s)',color:'#6fa8dc'}];
+  const pos1=drawFormulaParts(ctx,cx,midY-60,parts1,{alpha:a1,size:22});
+  const a1b=smoothstep(segT(t,0.6,0.5));
+  if(a1b>0.05){
+    calloutBelow(ctx,pos1[1],'how good was THIS SPECIFIC action',{color:'#e08a9c',alpha:a1b,dropY:36,size:11});
+    calloutBelow(ctx,pos1[3],'how good is this state on AVERAGE',{color:'#6fa8dc',alpha:a1b,dropY:36,size:11});
+  }
+
+  const t2=t-1.4; if(t2<0) return;
+  const a2=smoothstep(segT(t2,0,0.6));
+  label(ctx,cx,midY+40,'Q(s,a) still needs a full future to compute -- approximate it in ONE step:',{size:11.5,color:'#8b8a9a',alpha:a2});
+
+  const t3=t2-0.8; if(t3<0) return;
+  const a3=smoothstep(segT(t3,0,0.6));
+  const parts2=[{text:'\u03b4 = ',color:'#e9e8f0'},{text:'r',color:'#e8a765'},{text:' + \u03b3',color:'#8b8a9a'},{text:'V(s\u2032)',color:'#6fa8dc'},{text:' \u2212 ',color:'#8b8a9a'},{text:'V(s)',color:'#6fa8dc'},{text:'  \u2248  A(s,a)',color:'#e08a9c'}];
+  drawFormulaParts(ctx,cx,midY+85,parts2,{alpha:a3,size:18});
+
+  const t4=t3-1.0; if(t4<0) return;
+  const a4=smoothstep(segT(t4,0,0.6));
+  label(ctx,cx,bottom-24,'this \u03b4 is exactly the TD-error from the Bellman-equation slides',{size:12.5,color:'#8b8a9a',alpha:a4});
+}
+
+/* =========================================================
+   SLIDE 26 — THE FINAL ACTOR-CRITIC GRADIENT
+========================================================= */
+function renderFinalGradient(ctx,W,H,t){
+  const {midY,top,bottom}=safeZone();
+  const a1=smoothstep(segT(t,0,0.5));
+  label(ctx,W*0.5,top+30,'substituting \u03b4 in place of R(\u03c4), we finally arrive at:',{size:13,color:'#8b8a9a',alpha:a1});
+
+  const parts=[
+    {text:'\u2207\u03b8J(\u03b8) \u2248 ',color:'#e9e8f0'},{text:'\ud835\udd3c',color:'#a98fd2'},{text:'[ ',color:'#8b8a9a'},
+    {text:'\u2207\u03b8 log \u03c0\u03b8(a|s)',color:'#5fd0c3'},{text:' \u00b7 ',color:'#8b8a9a'},{text:'\u03b4',color:'#e08a9c'},{text:' ]',color:'#8b8a9a'}
+  ];
+  const pos=drawFormulaParts(ctx,W*0.5,midY,parts,{alpha:a1,size:27});
+  const a2=smoothstep(segT(t,0.7,0.5));
+  if(a2>0.05){
+    calloutAbove(ctx,pos[3],'the ACTOR: which way to move probability mass',{color:'#5fd0c3',alpha:a2,riseY:46,size:11.5,maxWidth:230});
+    calloutBelow(ctx,pos[5],'the CRITIC: how much to trust that move',{color:'#e08a9c',alpha:a2,dropY:44,size:11.5,maxWidth:200});
+  }
+
+  const t2=t-1.6; if(t2<0) return;
+  const a3=smoothstep(segT(t2,0,0.6));
+  label(ctx,W*0.5,bottom-24,'every formula from \u03a3 to here collapses into this single line',{size:13,color:'#e9e8f0',alpha:a3,weight:'600'});
+}
+
+/* =========================================================
+   SLIDE 27 — RECAP: THE WHOLE CHAIN OF REASONING
+========================================================= */
+function renderRecapFlow(ctx,W,H,t){
+  const {midY,top,bottom}=safeZone();
+  const steps=[
+    {label:'\u03a3, \ud835\udd3c', sub:'math toolkit', color:'#8b8a9a'},
+    {label:'G\u209c, V(s)', sub:'value & return', color:'#6fa8dc'},
+    {label:'J(\u03b8)', sub:'the objective', color:'#7cc48f'},
+    {label:'log-trick', sub:'makes it samplable', color:'#e8a765'},
+    {label:'REINFORCE', sub:'first gradient', color:'#a98fd2'},
+    {label:'+baseline, \u03b4', sub:'cut the variance', color:'#e08a9c'},
+    {label:'actor-critic', sub:'the destination', color:'#5fd0c3'},
+  ];
+  const n=steps.length;
+  const y=midY;
+  const startX=W*0.10, gap=(W*0.80)/(n-1);
+  steps.forEach((s,i)=>{
+    const a=smoothstep(segT(t,i*0.35,0.5));
+    const x=startX+i*gap;
+    ctx.save(); ctx.globalAlpha=a;
+    ctx.beginPath(); ctx.arc(x,y,26,0,TAU);
+    ctx.strokeStyle=s.color; ctx.fillStyle=s.color+'18'; ctx.lineWidth=1.8; ctx.fill(); ctx.stroke();
+    ctx.restore();
+    label(ctx,x,y+50,s.label,{size:10.5,color:s.color,weight:'700',alpha:a,font:"'IBM Plex Mono',monospace"});
+    label(ctx,x,y+68,s.sub,{size:9,color:'#8b8a9a',alpha:a});
+    if(i>0){
+      const a2=smoothstep(segT(t,i*0.35-0.1,0.4));
+      arrow(ctx,startX+(i-1)*gap+28,y,x-28,y,{color:'#8b8a9a',progress:a2,lw:1.2,alpha:0.5});
+    }
+  });
+
+  const t2=t-n*0.35+0.3; if(t2<0) return;
+  const a3=smoothstep(segT(t2,0,0.6));
+  label(ctx,W*0.5,top+20,'every step built on the one before it -- that\u2019s the whole idea of math',{size:12.5,color:'#8b8a9a',alpha:a3});
+  const a4=smoothstep(segT(t2,0.6,0.6));
+  label(ctx,W*0.5,bottom-20,'nothing here was magic -- just algebra, one honest step at a time',{size:13,color:'#e9e8f0',alpha:a4,weight:'600'});
+}
+
+/* =========================================================
+   SLIDE DEFINITIONS
+========================================================= */
+const slides = [
+  { section:'Prologue', eyebrow:'From First Principles', title:'The Math Behind Reinforcement Learning',
+    text:'Every formula in RL is built from about six pieces of basic math, stacked on top of each other. This deck builds each piece from scratch, in plain language, then assembles them — slowly, honestly — into the exact gradient real algorithms use. Nothing is assumed; everything is derived.',
+    formula:'', render:renderTitle },
+
+  { section:'Math Toolkit', eyebrow:'Σ — Summation', title:'What does "sigma" actually mean?',
+    text:'Σ is nothing but a for-loop: add up a bunch of numbers, one at a time. Every time you see Σ in a formula, mentally replace it with "make a running total, and add the next thing in at each step."',
+    formula:'Σᵢ vᵢ  =  v₁ + v₂ + v₃ + ...', render:renderSigma },
+
+  { section:'Math Toolkit', eyebrow:'𝔼[·] — Expectation', title:'What does "expected value" mean?',
+    text:'It is a weighted average: multiply each possible outcome by how likely it is, then add those products up. Outcomes that happen more often pull the average toward themselves — that\'s all "expectation" ever means.',
+    formula:'𝔼[X] = Σᵢ pᵢ · vᵢ', render:renderExpectation },
+
+  { section:'Math Toolkit', eyebrow:'Derivatives', title:'What is a derivative, really?',
+    text:'A derivative is just a slope: how much the output changes for a tiny nudge in the input. Start with two points far apart (a rough estimate of slope), then squeeze them together — as the gap shrinks to zero, the rough estimate becomes the exact, instantaneous slope.',
+    formula:"f'(x) = lim_{h→0}  [ f(x+h) − f(x) ] / h", render:renderDerivative },
+
+  { section:'Math Toolkit', eyebrow:'Chain Rule', title:'Derivatives of "machines feeding machines"',
+    text:'If x goes into g, and g\'s output goes into f, then wiggling x wiggles g\'s output by g\'(x) per unit — and that wiggle gets amplified AGAIN by f\'(·) on its way through f. Multiply the two rates together and you have the derivative of the whole pipeline.',
+    formula:"d/dx f(g(x)) = f'(g(x)) · g'(x)", render:renderChainRule },
+
+  { section:'Math Toolkit', eyebrow:'Logarithms', title:'Why we love logs',
+    text:'Logs turn multiplication into addition — which is why long products of probabilities (like a whole trajectory\'s worth) become simple sums the moment you take a log. Its derivative, 1/x, is deceptively simple and shows up constantly once we start differentiating probabilities.',
+    formula:'log(a×b) = log(a) + log(b)     d/dx log(x) = 1/x', render:renderLog },
+
+  { section:'Math Toolkit', eyebrow:'Gradient ∇', title:'The derivative, for more than one input',
+    text:'When a function depends on several inputs at once, the gradient ∇f is just a list of partial derivatives — one slope per input, packed into a vector. That vector always points in the direction that increases the function fastest, which is exactly what we\'ll want to climb.',
+    formula:'∇f = [ ∂f/∂x , ∂f/∂y ]', render:renderGradient },
+
+  { section:'Setting Up RL', eyebrow:'Trajectories', title:'A trajectory is just a recorded run',
+    text:'τ (tau) denotes one full episode: a sequence of states, actions, and rewards. R(τ) is a single number summarizing how that whole run went — just the sum of every reward collected along the way.',
+    formula:'τ = (s₀,a₀,r₁,s₁,a₁,r₂,...)     R(τ) = Σ rewards', render:renderTrajectory },
+
+  { section:'Setting Up RL', eyebrow:'Discounting', title:'Why we shrink future rewards',
+    text:'A reward tomorrow is worth slightly less than a reward today — the world might change, or we might not even get there. γ (gamma) encodes exactly how much less: γ close to 0 barely cares about the future, γ close to 1 plans far ahead. Multiplying by γᵏ is what makes an infinite sum of rewards add up to a finite number.',
+    formula:'weight on a reward k steps ahead = γᵏ', render:renderDiscount },
+
+  { section:'Setting Up RL', eyebrow:'The Return', title:'Assembling Σ, γ, and rewards into G_t',
+    text:'Put the discount factor inside the summation from the very first slide, and you get the return: everything still to come, appropriately shrunk by how far away it is. Notice it unfolds recursively — "everything from here" equals "the next reward" plus "everything from the NEXT step," discounted once.',
+    formula:'Gₜ = Σₖ γᵏ rₜ₊ₖ  =  rₜ + γGₜ₊₁', render:renderReturn },
+
+  { section:'Value Functions', eyebrow:'V(s)', title:'Defining "how good is this state?"',
+    text:'The value of a state is just the expected return, given that we start there. Every piece of this formula was already built: 𝔼 is a weighted average, Gₜ is the return we just defined, and "| sₜ=s" simply means we\'re conditioning on starting from state s.',
+    formula:'V(s) = 𝔼[ Gₜ | sₜ = s ]', render:renderValueFuncDef },
+
+  { section:'Value Functions', eyebrow:'Derivation', title:'Deriving the Bellman equation, algebraically',
+    text:'Nothing new here — just substitute the recursive form of Gₜ into the definition of V(s), then use one property of expectations (they split cleanly across a sum) to recognize that the second piece is, by definition, the value of the next state.',
+    formula:'', render:renderBellmanDerivation },
+
+  { section:'Value Functions', eyebrow:'Worked Example', title:'Solving it with real numbers',
+    text:'Because the terminal state has nothing left to earn, we can solve this backward — one arithmetic step at a time, no algebra tricks required, starting from the end and working toward the beginning.',
+    formula:'V(s) = 𝔼[ r + γV(s′) ]', render:renderBellmanWorked },
+
+  { section:'Policy & Objective', eyebrow:'π(a|s)', title:'Building a policy from raw scores',
+    text:'A policy needs to output real probabilities: positive numbers that sum to 1. Softmax gets there in two honest steps — exponentiate every score (forces positivity), then divide by the total (forces them to sum to 1). Bigger scores still win, just now as legitimate probabilities.',
+    formula:'π(aᵢ|s) = e^{score(aᵢ)} / Σⱼ e^{score(aⱼ)}', render:renderSoftmax },
+
+  { section:'Policy & Objective', eyebrow:'J(θ)', title:'Writing down exactly what we want',
+    text:'θ (theta) stands for every tunable number inside our policy. J(θ) packages our entire goal into a single value: the expected discounted return, averaged over every trajectory our current policy might produce. Improve θ, and this number should go up.',
+    formula:'J(θ) = 𝔼[ Σₜ γᵗ rₜ ]', render:renderObjective },
+
+  { section:'Policy & Objective', eyebrow:'Optimization', title:'Climbing J(θ) with gradient ascent',
+    text:'Since ∇θJ(θ) points toward the fastest local increase in J, repeatedly stepping in that direction — scaled by a small learning rate α — walks θ uphill toward better and better policies. Every algorithm in this course computes ∇θJ(θ) a different way; the update rule itself never changes.',
+    formula:'θ ← θ + α · ∇θJ(θ)', render:renderGradientAscent },
+
+  { section:'The Big Derivation', eyebrow:'The Obstacle', title:'Why we can\'t just backpropagate',
+    text:'J(θ) depends on a randomly SAMPLED action — and sampling has no derivative. You can\'t ask "how does the output change if I nudge θ slightly" through a coin flip. We need an entirely different route to the gradient.',
+    formula:'', render:renderSamplingProblem },
+
+  { section:'The Big Derivation', eyebrow:'Steps 1 & 2', title:'Rewrite as a sum, then differentiate',
+    text:'Expand the expectation into an explicit weighted sum over every possible trajectory. Differentiating both sides moves the gradient onto π_θ(τ) itself — progress, but ∇θπ_θ(τ) still isn\'t a probability we can sample from.',
+    formula:'', render:renderPGStep1 },
+
+  { section:'The Big Derivation', eyebrow:'Step 3 — Key Trick', title:'The log-derivative identity',
+    text:'Take the derivative-of-log identity from the math toolkit, rearrange it, then plug in f(θ)=π_θ(τ). This single substitution is the entire reason policy gradients are computable at all — everything before and after this slide is just algebra around this one idea.',
+    formula:'∇θπθ(τ) = πθ(τ) · ∇θ log πθ(τ)', render:renderLogTrick },
+
+  { section:'The Big Derivation', eyebrow:'Step 4', title:'Substituting back — now it\'s an expectation',
+    text:'Plug the identity back into our gradient sum. A sum of (probability × something) is exactly the definition of an expectation — which means we can now estimate ∇θJ(θ) just by sampling trajectories from π_θ and averaging, no calculus-through-randomness required.',
+    formula:'∇θJ(θ) = 𝔼[ ∇θ log πθ(τ) · R(τ) ]', render:renderPGStep2 },
+
+  { section:'The Big Derivation', eyebrow:'Step 5', title:'Breaking τ into individual timesteps',
+    text:'A trajectory\'s probability is a product of independent per-step choices, so its log is a sum of per-step log-probabilities. A bonus falls out for free: the environment\'s own transition probabilities never depended on θ, so they cancel out entirely — this gradient works without ever modeling the environment.',
+    formula:'log πθ(τ) = Σₜ log πθ(aₜ|sₜ)', render:renderPGStep3 },
+
+  { section:'The Big Derivation', eyebrow:'Destination', title:'REINFORCE — the first working policy gradient',
+    text:'Every piece — Σ, 𝔼, the log-derivative trick, the per-timestep breakdown — collapses into this one line. It is the oldest, simplest policy-gradient algorithm, and it is mathematically correct exactly because of the derivation on the last five slides.',
+    formula:'∇θJ(θ) = 𝔼[ Σₜ ∇θ log πθ(aₜ|sₜ) · R(τ) ]', render:renderREINFORCEFinal },
+
+  { section:'Reducing Variance', eyebrow:'The Catch', title:'REINFORCE works, but it\'s noisy',
+    text:'R(τ) depends on the ENTIRE episode — one unusually lucky or unlucky run swings the gradient estimate wildly, even for the exact same policy. We need to keep the gradient correct while making its estimates far less jumpy.',
+    formula:'', render:renderVarianceProblem },
+
+  { section:'Reducing Variance', eyebrow:'The Fix', title:'Subtracting a baseline — for free',
+    text:'Subtract anything that doesn\'t depend on the action, and the expected gradient is completely unchanged — the proof takes four lines, using the same log-derivative trick in reverse plus the fact that probabilities always sum to 1. A good baseline can only help, never hurt.',
+    formula:'', render:renderBaselineTrick },
+
+  { section:'Reducing Variance', eyebrow:'Advantage & TD-error', title:'Choosing the best baseline: V(s)',
+    text:'Subtracting V(s) from Q(s,a) gives the advantage — "how much better than average was this specific action?" Since Q(s,a) alone would need the whole future to compute exactly, approximate it with a single real step: the TD-error, which is exactly the δ from the Bellman-equation slides.',
+    formula:'A(s,a) = Q(s,a) − V(s)     δ = r + γV(s′) − V(s)', render:renderAdvantageTD },
+
+  { section:'Reducing Variance', eyebrow:'The Destination', title:'The actor-critic gradient',
+    text:'Replace R(τ) with δ in the REINFORCE formula, and every algorithm from A2C to PPO to SAC starts right here. The log-probability term is the actor deciding which way to move; δ is the critic saying how much to trust that move.',
+    formula:'∇θJ(θ) ≈ 𝔼[ ∇θ log πθ(a|s) · δ ]', render:renderFinalGradient },
+
+  { section:'Epilogue', eyebrow:'Recap', title:'One long, honest chain of algebra',
+    text:'Nothing on this journey was a leap of faith: Σ and 𝔼 gave us the language, derivatives and the chain rule gave us slopes, the log-derivative trick made an "impossible" gradient computable, and a clever choice of baseline turned it into something practical enough to actually train.',
+    formula:'', render:renderRecapFlow }
+];
+
+/* =========================================================
+   ENGINE + NAVIGATION
+========================================================= */
+let slideIndex=0;
+let t0=performance.now();
+let rafId=null;
+
+const headerBlock=document.getElementById('headerBlock');
+const footerBlock=document.getElementById('footerBlock');
+const eyebrowEl=document.getElementById('eyebrow');
+const titleEl=document.getElementById('slideTitle');
+const textEl=document.getElementById('slideText');
+const formulaEl=document.getElementById('formula');
+const counterEl=document.getElementById('counter');
+const progressBar=document.getElementById('progressBar');
+const sectionTag=document.getElementById('sectionTag');
+
+function pad(n){ return n<10 ? '0'+n : ''+n; }
+
+function goTo(i){
+  slideIndex = clamp(i,0,slides.length-1);
+  const s = slides[slideIndex];
+  headerBlock.classList.remove('show');
+  footerBlock.classList.remove('show');
+  void headerBlock.offsetWidth;
+  eyebrowEl.textContent = s.eyebrow;
+  titleEl.textContent = s.title;
+  textEl.textContent = s.text;
+  formulaEl.innerHTML = s.formula;
+  sectionTag.textContent = s.section;
+  requestAnimationFrame(()=>{ headerBlock.classList.add('show'); footerBlock.classList.add('show'); });
+  counterEl.textContent = pad(slideIndex+1)+' / '+pad(slides.length);
+  progressBar.style.width = (100*(slideIndex+1)/slides.length)+'%';
+  startClock();
+}
+
+function startClock(){
+  t0=performance.now();
+  cancelAnimationFrame(rafId);
+  function loop(now){
+    const t=(now-t0)/1000;
+    drawBackground(t);
+    slides[slideIndex].render(ctx,W,H,t);
+    rafId=requestAnimationFrame(loop);
+  }
+  rafId=requestAnimationFrame(loop);
+}
+
+document.getElementById('nextBtn').addEventListener('click',()=>goTo(slideIndex+1));
+document.getElementById('prevBtn').addEventListener('click',()=>goTo(slideIndex-1));
+document.getElementById('replayBtn').addEventListener('click',()=>startClock());
+
+window.addEventListener('keydown',(e)=>{
+  if(e.key==='ArrowRight' || e.key===' '){ e.preventDefault(); goTo(slideIndex+1); }
+  else if(e.key==='ArrowLeft'){ e.preventDefault(); goTo(slideIndex-1); }
+  else if(e.key==='r' || e.key==='R'){ startClock(); }
+});
+
+let touchStartX=null;
+document.addEventListener('touchstart',e=>{ touchStartX=e.touches[0].clientX; });
+document.addEventListener('touchend',e=>{
+  if(touchStartX===null) return;
+  const dx=e.changedTouches[0].clientX-touchStartX;
+  if(dx<-40) goTo(slideIndex+1);
+  else if(dx>40) goTo(slideIndex-1);
+  touchStartX=null;
+});
+
+goTo(0);
+</script>
+</body>
+</html>
