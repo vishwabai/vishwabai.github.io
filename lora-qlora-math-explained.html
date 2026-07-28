@@ -1,0 +1,1472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>The Math Behind LoRA &amp; QLoRA — Built From Scratch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,500;9..144,600;9..144,700&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ============================= THEME ============================= */
+:root{
+  --bg: #0a0a0c;
+  --bg-raise: #131316;
+  --bg-panel: #17171b;
+  --line: #29292e;
+  --line-soft: #1e1e22;
+  --ink: #e9e7e0;
+  --ink-dim: #9c9a94;
+  --ink-faint: #605f5c;
+
+  --teal: #4f9e94;      /* frozen / base model */
+  --teal-dim: #2f5f5a;
+  --amber: #cf9d52;     /* trainable / active */
+  --amber-dim: #7a5f34;
+  --rose: #b5677a;      /* loss / error */
+  --rose-dim: #6b3c47;
+  --violet: #837bab;    /* secondary / QLoRA */
+  --violet-dim: #4a4568;
+
+  --disp: 'Fraunces', serif;
+  --body: 'Inter', sans-serif;
+  --mono: 'JetBrains Mono', monospace;
+}
+
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{
+  width:100%;height:100%;
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--body);
+  overflow:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* subtle paper grain / vignette so black isn't dead flat */
+body::before{
+  content:"";
+  position:fixed;inset:0;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(255,255,255,0.035), transparent 60%),
+    radial-gradient(ellipse at 50% 100%, rgba(0,0,0,0.4), transparent 70%);
+  pointer-events:none;
+  z-index:5;
+}
+
+/* ============================= DECK / SLIDES ============================= */
+.deck{
+  position:relative;
+  width:100vw;height:100vh;
+}
+
+.slide{
+  position:absolute; inset:0;
+  display:none;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  padding: 6vh 6vw 9vh 6vw;
+}
+.slide.active{ display:flex; }
+
+.slide-eyebrow{
+  position:absolute;
+  top:5.5vh; left:6vw;
+  font-family:var(--mono);
+  font-size:12px;
+  letter-spacing:0.18em;
+  text-transform:uppercase;
+  color:var(--ink-faint);
+}
+.slide-eyebrow span{ color:var(--amber); }
+
+.slide-title{
+  font-family:var(--disp);
+  font-weight:600;
+  font-size:clamp(26px, 3.4vw, 46px);
+  line-height:1.15;
+  letter-spacing:-0.01em;
+  text-align:center;
+  margin-bottom: 0.6em;
+  opacity:0;
+}
+.slide-sub{
+  font-family:var(--body);
+  font-weight:400;
+  font-size:clamp(13px, 1.15vw, 17px);
+  color:var(--ink-dim);
+  text-align:center;
+  max-width:640px;
+  margin: 0 auto 2.2em auto;
+  line-height:1.55;
+  opacity:0;
+}
+.stage{
+  position:relative;
+  width:min(1100px, 88vw);
+  height:min(560px, 58vh);
+  display:flex;align-items:center;justify-content:center;
+}
+.caption{
+  font-family:var(--mono);
+  font-size:clamp(11px,0.95vw,13px);
+  color:var(--ink-faint);
+  text-align:center;
+  max-width:680px;
+  margin-top:1.4em;
+  line-height:1.6;
+  opacity:0;
+}
+.caption b{ color:var(--ink-dim); font-weight:500; }
+
+/* reveal helpers, triggered by JS adding .in to active slide */
+.r-up{ transform:translateY(16px); opacity:0; transition:transform .7s cubic-bezier(.19,1,.22,1), opacity .7s ease; }
+.slide.active.in .r-up{ transform:translateY(0); opacity:1; }
+.d1{transition-delay:.05s} .d2{transition-delay:.2s} .d3{transition-delay:.38s}
+.d4{transition-delay:.55s} .d5{transition-delay:.72s} .d6{transition-delay:.9s}
+
+/* ============================= NAV ============================= */
+.nav{
+  position:fixed; bottom:0; left:0; right:0;
+  height:8.5vh;
+  display:flex; align-items:center; justify-content:center;
+  gap:22px;
+  z-index:20;
+  background:linear-gradient(0deg, rgba(0,0,0,0.55), transparent);
+}
+.nav-btn{
+  width:38px;height:38px;border-radius:50%;
+  border:1px solid var(--line);
+  background:var(--bg-raise);
+  color:var(--ink-dim);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;
+  transition:border-color .2s, color .2s, transform .15s;
+  user-select:none;
+}
+.nav-btn:hover{ border-color:var(--amber-dim); color:var(--amber); }
+.nav-btn:active{ transform:scale(0.92); }
+.nav-btn svg{width:16px;height:16px;}
+
+.dots{ display:flex; gap:7px; align-items:center; }
+.dot{
+  width:6px;height:6px;border-radius:50%;
+  background:var(--line);
+  cursor:pointer;
+  transition:background .25s, transform .25s, width .25s;
+}
+.dot.active{ background:var(--amber); width:18px; border-radius:3px; }
+
+.counter{
+  position:fixed; bottom:2.6vh; right:2.4vw;
+  font-family:var(--mono); font-size:11px; color:var(--ink-faint);
+  z-index:20; letter-spacing:0.05em;
+}
+.counter b{color:var(--ink-dim);}
+
+.hint{
+  position:fixed; top:2.6vh; right:2.4vw;
+  font-family:var(--mono); font-size:10.5px; color:var(--ink-faint);
+  letter-spacing:0.06em; z-index:20; text-transform:uppercase;
+  opacity:0.75;
+}
+
+/* ============================= SHARED SVG / DIAGRAM STYLES ============================= */
+svg text{ font-family:var(--mono); }
+.lockicon{ opacity:0.9; }
+.grid-cell{ transition: fill 1.1s ease, stroke .6s ease; }
+.flowdot{ fill:var(--amber); filter:none; }
+.faint-path{ fill:none; stroke:var(--line); stroke-width:1.5; }
+.active-path{ fill:none; stroke:var(--amber); stroke-width:2; }
+.frozen-path{ fill:none; stroke:var(--teal); stroke-width:2; }
+
+@keyframes dash{ to{ stroke-dashoffset:0; } }
+.draw{ stroke-dasharray: var(--len,300); stroke-dashoffset:var(--len,300); animation:dash 1.3s cubic-bezier(.4,0,.2,1) forwards; }
+
+@keyframes floatDial{ 0%,100%{transform:rotate(0deg);} 50%{transform:rotate(8deg);} }
+@keyframes popIn{ from{opacity:0; transform:scale(.7);} to{opacity:1; transform:scale(1);} }
+@keyframes pulseGlow{ 0%,100%{opacity:1;} 50%{opacity:0.55;} }
+@keyframes riseBar{ from{ transform:scaleY(0); } to { transform:scaleY(1); } }
+@keyframes travel{ from{ offset-distance: 0%; opacity:0;} 5%{opacity:1;} 95%{opacity:1;} to{ offset-distance: 100%; opacity:0;} }
+@keyframes slideEnter{ from{ opacity:0; transform:translateX(26px) scale(.99); } to{ opacity:1; transform:translateX(0) scale(1); } }
+.slide.active{ animation: slideEnter .6s cubic-bezier(.19,1,.22,1); }
+.slide.dir-prev.active{ animation-name: slideEnterRev; }
+@keyframes slideEnterRev{ from{ opacity:0; transform:translateX(-26px) scale(.99); } to{ opacity:1; transform:translateX(0) scale(1); } }
+
+.progress-rail{ position:fixed; top:0; left:0; right:0; height:2px; background:var(--line-soft); z-index:25; }
+.progress-fill{ height:100%; background:var(--amber); transition: width .5s cubic-bezier(.4,0,.2,1); width:0%; }
+@keyframes rollDown{ to{ offset-distance:100%; } }
+@keyframes pageSlide{
+  0%{ transform: translateX(0); opacity:1; }
+  40%{ transform: translateX(215px); opacity:1; }
+  55%{ transform: translateX(215px); opacity:1; }
+  95%{ transform: translateX(0); opacity:1; }
+  100%{ transform: translateX(0); opacity:1; }
+}
+#s2-ball{ offset-rotate:0deg; }
+
+/* ============================= RESPONSIVE ============================= */
+@media (max-width: 720px){
+  .stage{ width:94vw; height:50vh; }
+  .slide{ padding: 5vh 4vw 12vh 4vw; }
+}
+</style>
+</head>
+<body>
+
+<div class="progress-rail"><div class="progress-fill" id="progressFill"></div></div>
+<div class="hint" id="hint">← → / space · swipe · click dots</div>
+
+<script>window.slideScripts = {};</script>
+<div class="deck" id="deck">
+<!-- ============ SLIDE 1 : TITLE ============ -->
+<section class="slide" id="slide-0">
+  <div class="slide-eyebrow">THE MATH, FROM SCRATCH <span class="eyebrow-num"></span></div>
+  <div class="stage">
+    <svg viewBox="0 0 1100 460" width="100%" height="100%" style="overflow:visible">
+      <g id="s0-symbols"></g>
+      <text x="550" y="210" text-anchor="middle" class="r-up d1" font-family="Fraunces" font-weight="600" font-size="44" fill="var(--ink)">The Math Behind</text>
+      <text x="550" y="265" text-anchor="middle" class="r-up d2" font-family="Fraunces" font-weight="600" font-size="44" fill="var(--amber)">LoRA &amp; QLoRA</text>
+      <text x="550" y="310" text-anchor="middle" class="r-up d3" font-family="JetBrains Mono" font-size="13" fill="var(--ink-dim)" letter-spacing="1.5">BUILT FROM SCRATCH · NO PRIOR MATH ASSUMED</text>
+    </svg>
+  </div>
+  <div class="caption r-up d4">We won't skip a single step. Every formula gets taken apart, piece by piece, and rebuilt in front of you.</div>
+</section>
+<!-- ============ SLIDE 2 : WHAT IS A FUNCTION ============ -->
+<section class="slide" id="slide-func">
+  <div class="slide-eyebrow">BUILDING BLOCKS <span class="eyebrow-num"></span></div>
+  <h1 class="slide-title r-up d1">Start here: what does f(x) mean?</h1>
+  <p class="slide-sub r-up d2">A function is a machine: feed it a number, it hands back another number. Everything in this deck is built from that one idea.</p>
+  <div class="stage">
+    <svg viewBox="0 0 1000 340" width="100%" height="100%">
+      <circle cx="140" cy="170" r="26" fill="none" stroke="var(--ink-dim)" stroke-width="2"/>
+      <text id="s-fn-x" x="140" y="177" text-anchor="middle" font-family="JetBrains Mono" font-size="18" fill="var(--ink)">2</text>
+
+      <line x1="170" y1="170" x2="330" y2="170" stroke="var(--ink-faint)" stroke-width="1.5"/>
+      <rect x="330" y="130" width="180" height="80" rx="8" fill="var(--bg-panel)" stroke="var(--amber)" stroke-width="2"/>
+      <text x="420" y="164" text-anchor="middle" font-family="JetBrains Mono" font-size="16" fill="var(--amber)">f(x)</text>
+      <text x="420" y="188" text-anchor="middle" font-family="JetBrains Mono" font-size="12" fill="var(--ink-faint)">= x²</text>
+
+      <line x1="510" y1="170" x2="670" y2="170" stroke="var(--ink-faint)" stroke-width="1.5"/>
+      <circle cx="700" cy="170" r="26" fill="none" stroke="var(--amber)" stroke-width="2"/>
+      <text id="s-fn-y" x="700" y="177" text-anchor="middle" font-family="JetBrains Mono" font-size="18" fill="var(--amber)">4</text>
+
+      <text x="140" y="220" text-anchor="middle" font-family="JetBrains Mono" font-size="11" fill="var(--ink-faint)">input</text>
+      <text x="420" y="240" text-anchor="middle" font-family="JetBrains Mono" font-size="11" fill="var(--ink-faint)">the rule</text>
+      <text x="700" y="220" text-anchor="middle" font-family="JetBrains Mono" font-size="11" fill="var(--ink-faint)">output</text>
+
+      <text id="s-fn-note" x="420" y="290" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="var(--ink-dim)" style="opacity:0">change the input a little → the output changes too. <tspan fill="var(--amber)">How much</tspan> it changes is the whole idea behind the next few slides.</text>
+    </svg>
+  </div>
+  <div class="caption r-up d3">In this deck, "x" is usually data, and "f" is usually the model. Later, f will have millions of knobs — but it's still just a machine that turns inputs into outputs.</div>
+</section>
+<!-- ============ SLIDE 3 : THE DERIVATIVE ============ -->
+<section class="slide" id="slide-deriv">
+  <div class="slide-eyebrow">BUILDING BLOCKS <span class="eyebrow-num"></span></div>
+  <h1 class="slide-title r-up d1">The derivative: how fast is the output changing?</h1>
+  <p class="slide-sub r-up d2">Nudge the input a tiny bit and watch the output. The derivative is just: <b>output change ÷ input change</b>, as that nudge shrinks toward zero.</p>
+  <div class="stage">
+    <svg viewBox="0 0 1000 380" width="100%" height="100%">
+      <path d="M100,320 Q 400,60 900,100" fill="none" stroke="var(--ink-faint)" stroke-width="2"/>
+      <circle id="s-dv-point" cx="500" cy="0" r="6" fill="var(--amber)"/>
+      <line id="s-dv-tangent" x1="0" y1="0" x2="0" y2="0" stroke="var(--amber)" stroke-width="2" stroke-dasharray="5 4"/>
+      <g id="s-dv-triangle" style="opacity:0"></g>
+      <text id="s-dv-formula" x="500" y="345" text-anchor="middle" font-family="JetBrains Mono" font-size="18" fill="var(--ink)" style="opacity:0">
+        f'(x) = <tspan fill="var(--amber)">Δy</tspan> ⁄ <tspan fill="var(--teal)">Δx</tspan> &#160; as &#160; <tspan fill="var(--teal)">Δx</tspan> → 0
+      </text>
+    </svg>
+  </div>
+  <div class="caption r-up d3">That's it — a derivative is a <b>slope</b>. Steep slope means the output reacts strongly to changes in the input; flat slope means it barely reacts at all.</div>
+</section>
+<!-- ============ SLIDE 4 : PARTIAL DERIVATIVES ============ -->
+<section class="slide" id="slide-partial">
+  <div class="slide-eyebrow">BUILDING BLOCKS <span class="eyebrow-num"></span></div>
+  <h1 class="slide-title r-up d1">What if there's more than one input?</h1>
+  <p class="slide-sub r-up d2">A real model has millions of inputs (its weights). A <b>partial derivative</b> asks a simple question: wiggle just <em>one</em> of them, freeze all the others — how much does the output move?</p>
+  <div class="stage">
+    <svg viewBox="0 0 1000 340" width="100%" height="100%">
+      <g id="s-pd-inputs"></g>
+      <rect x="420" y="130" width="160" height="80" rx="8" fill="var(--bg-panel)" stroke="var(--ink-dim)" stroke-width="2"/>
+      <text x="500" y="176" text-anchor="middle" font-family="JetBrains Mono" font-size="16" fill="var(--ink)">L(θ)</text>
+      <line x1="580" y1="170" x2="720" y2="170" stroke="var(--ink-faint)" stroke-width="1.5"/>
+      <circle cx="750" cy="170" r="24" fill="none" stroke="var(--ink-dim)" stroke-width="2"/>
+      <text x="750" y="176" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="var(--ink)">loss</text>
+
+      <text id="s-pd-formula" x="500" y="290" text-anchor="middle" font-family="JetBrains Mono" font-size="19" fill="var(--amber)" style="opacity:0">
+        <tspan id="s-pd-symbol">∂L ⁄ ∂θ₁</tspan> &#160; = &#160; "how much does loss move, if only θ₁ wiggles?"
+      </text>
+    </svg>
+  </div>
+  <div class="caption r-up d3">Do this once for <b>every</b> parameter, and you get a whole list of these — one number per weight. That list is the gradient. Next slide.</div>
+</section>
+<!-- ============ SLIDE 5 : THE GRADIENT VECTOR ============ -->
+<section class="slide" id="slide-gradvec">
+  <div class="slide-eyebrow">BUILDING BLOCKS <span class="eyebrow-num"></span></div>
+  <h1 class="slide-title r-up d1">Collect them all: the gradient ∇L</h1>
+  <p class="slide-sub r-up d2">Stack every partial derivative into one list, in order. That list is called the <b>gradient</b> — and it points in the direction the loss grows fastest.</p>
+  <div class="stage">
+    <svg viewBox="0 0 1000 360" width="100%" height="100%">
+      <text x="200" y="60" text-anchor="middle" font-family="JetBrains Mono" font-size="15" fill="var(--ink-dim)">one number per parameter</text>
+      <g id="s-gv-rows"></g>
+
+      <text x="470" y="185" text-anchor="middle" font-family="Fraunces" font-size="28" fill="var(--ink-faint)" style="opacity:0" id="s-gv-arrow">=</text>
+
+      <path d="M560,60 L540,60 L540,300 L560,300" fill="none" stroke="var(--amber)" stroke-width="2" style="opacity:0" id="s-gv-lbracket"/>
+      <path d="M740,60 L760,60 L760,300 L740,300" fill="none" stroke="var(--amber)" stroke-width="2" style="opacity:0" id="s-gv-rbracket"/>
+      <text id="s-gv-label" x="850" y="190" text-anchor="middle" font-family="Fraunces" font-size="28" fill="var(--amber)" style="opacity:0">∇L</text>
+    </svg>
+  </div>
+  <div class="caption r-up d3">Every entry in this vector tells you exactly which way — and how strongly — to nudge that one parameter to make the loss go down.</div>
+</section>
+<!-- ============ SLIDE 6 : THE UPDATE RULE, TAKEN APART ============ -->
+<section class="slide" id="slide-update">
+  <div class="slide-eyebrow">BUILDING BLOCKS <span class="eyebrow-num"></span></div>
+  <h1 class="slide-title r-up d1">The entire training rule, taken apart</h1>
+  <p class="slide-sub r-up d2">This one line is the whole training loop. Every symbol has a job — let's label each one.</p>
+  <div class="stage">
+    <svg viewBox="0 0 1000 380" width="100%" height="100%">
+      <text x="500" y="110" text-anchor="middle" font-family="JetBrains Mono" font-size="34" fill="var(--ink)">
+        <tspan id="s-up-theta1" fill="var(--ink)">θ</tspan> ← <tspan id="s-up-theta2" fill="var(--ink)">θ</tspan> − <tspan id="s-up-eta" fill="var(--teal)">η</tspan><tspan id="s-up-grad" fill="var(--amber)">∇L</tspan>
+      </text>
+      <g id="s-up-callouts"></g>
+    </svg>
+  </div>
+  <div class="caption r-up d3">In plain words: <b>"new weight = old weight, minus a small step in the direction that increases loss."</b> Do this millions of times, and loss goes down.</div>
+</section>
+<!-- ============ SLIDE 7 : WHAT IS A MATRIX ============ -->
+<section class="slide" id="slide-matrix">
+  <div class="slide-eyebrow">LINEAR ALGEBRA BASICS <span class="eyebrow-num"></span></div>
+  <h1 class="slide-title r-up d1">Before rank and LoRA: what is a matrix?</h1>
+  <p class="slide-sub r-up d2">Just a grid of numbers, arranged in rows and columns. Nothing more mysterious than a spreadsheet.</p>
+  <div class="stage">
+    <svg viewBox="0 0 1000 340" width="100%" height="100%">
+      <g id="s-mx-grid"></g>
+      <text x="500" y="300" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="var(--ink-dim)">3 rows × 4 columns → this matrix has <tspan fill="var(--amber)" font-weight="600">12</tspan> numbers in it</text>
+    </svg>
+  </div>
+  <div class="caption r-up d3">A neural network's weight matrix is exactly this — just bigger. A 4096×4096 matrix is the same idea, 16.7 million cells instead of 12.</div>
+</section>
+<!-- ============ SLIDE 8 : MATRIX × VECTOR, STEP BY STEP ============ -->
+<section class="slide" id="slide-matmul">
+  <div class="slide-eyebrow">LINEAR ALGEBRA BASICS <span class="eyebrow-num"></span></div>
+  <h1 class="slide-title r-up d1">Multiplying a vector by a matrix</h1>
+  <p class="slide-sub r-up d2">Each output number is a <b>dot product</b>: multiply matching entries together, then add them up.</p>
+  <div class="stage">
+    <svg viewBox="0 0 1000 360" width="100%" height="100%">
+      <g id="s-mm-x"></g>
+      <g id="s-mm-w"></g>
+      <g id="s-mm-h"></g>
+      <text id="s-mm-work" x="500" y="330" text-anchor="middle" font-family="JetBrains Mono" font-size="17" fill="var(--amber)" style="opacity:0"></text>
+    </svg>
+  </div>
+  <div class="caption r-up d3">"y = xW" is just this process repeated for every output column — no matter how big the matrix gets.</div>
+</section>
+<!-- ============ SLIDE 9 : FROM VECTORS TO A RANK-1 MATRIX ============ -->
+<section class="slide" id="slide-outer">
+  <div class="slide-eyebrow">LINEAR ALGEBRA BASICS <span class="eyebrow-num"></span></div>
+  <h1 class="slide-title r-up d1">Two vectors can build a whole matrix</h1>
+  <p class="slide-sub r-up d2">Take a column of numbers and a row of numbers. Multiply <em>every</em> pairing between them, and you get a full grid — from almost nothing.</p>
+  <div class="stage">
+    <svg viewBox="0 0 1000 340" width="100%" height="100%">
+      <g id="s-op-u"></g>
+      <text x="280" y="200" text-anchor="middle" font-family="Fraunces" font-size="26" fill="var(--ink-faint)">×</text>
+      <g id="s-op-v"></g>
+      <text x="470" y="200" text-anchor="middle" font-family="Fraunces" font-size="26" fill="var(--ink-faint)">=</text>
+      <g id="s-op-out"></g>
+    </svg>
+  </div>
+  <div class="caption r-up d3">This grid didn't come from nowhere — every entry is just <b>uᵢ × vⱼ</b>. A matrix built this way is called <b>rank-1</b>: the simplest, most "patterned" matrix there is.</div>
+</section>
+<!-- ============ SLIDE 10 : STACKING RANK-1 PIECES ============ -->
+<section class="slide" id="slide-rankr">
+  <div class="slide-eyebrow">LINEAR ALGEBRA BASICS <span class="eyebrow-num"></span></div>
+  <h1 class="slide-title r-up d1">Add more pairs, get a richer matrix</h1>
+  <p class="slide-sub r-up d2">One outer product only makes a patterned, "rank-1" matrix. Add a second one, a third — each addition makes the matrix more flexible.</p>
+  <div class="stage">
+    <svg viewBox="0 0 1000 340" width="100%" height="100%">
+      <text id="s-rr-formula" x="500" y="60" text-anchor="middle" font-family="JetBrains Mono" font-size="17" fill="var(--ink-dim)">
+        M = <tspan id="s-rr-terms" fill="var(--amber)">u₁v₁ᵀ</tspan>
+      </text>
+      <g id="s-rr-grid"></g>
+      <text id="s-rr-ranklabel" x="500" y="325" text-anchor="middle" font-family="JetBrains Mono" font-size="15" fill="var(--amber)">rank = 1</text>
+    </svg>
+  </div>
+  <div class="caption r-up d3">This is the whole idea of "rank": <b>how many rank-1 pieces does it take to build this matrix exactly?</b> That count is its rank.</div>
+</section>
+<!-- ============ SLIDE 11 : THE SVD FORMULA ============ -->
+<section class="slide" id="slide-svd">
+  <div class="slide-eyebrow">LINEAR ALGEBRA BASICS <span class="eyebrow-num"></span></div>
+  <h1 class="slide-title r-up d1">Every matrix splits into three simpler pieces</h1>
+  <p class="slide-sub r-up d2">This is called the <b>SVD</b> (Singular Value Decomposition). Any matrix — no matter how big — can be rebuilt from three special pieces multiplied together.</p>
+  <div class="stage">
+    <svg viewBox="0 0 1000 340" width="100%" height="100%">
+      <text x="500" y="60" text-anchor="middle" font-family="JetBrains Mono" font-size="26" fill="var(--ink)">M &#160; = &#160; U &#160; Σ &#160; Vᵀ</text>
+
+      <g transform="translate(220,180)" style="opacity:0" id="s-sv-u">
+        <rect x="-70" y="-60" width="140" height="120" rx="6" fill="var(--bg-panel)" stroke="var(--teal)" stroke-width="2"/>
+        <text x="0" y="6" text-anchor="middle" font-family="Fraunces" font-size="22" fill="var(--teal)">U</text>
+        <text x="0" y="90" text-anchor="middle" font-family="JetBrains Mono" font-size="12" fill="var(--ink-faint)">output-side directions</text>
+      </g>
+
+      <g id="s-sv-sigma" transform="translate(500,180)" style="opacity:0"></g>
+      <text x="500" y="270" text-anchor="middle" font-family="JetBrains Mono" font-size="12" fill="var(--ink-faint)" style="opacity:0" id="s-sv-sigmalabel">strength of each direction — biggest first</text>
+
+      <g transform="translate(780,180)" style="opacity:0" id="s-sv-v">
+        <rect x="-70" y="-60" width="140" height="120" rx="6" fill="var(--bg-panel)" stroke="var(--violet)" stroke-width="2"/>
+        <text x="0" y="6" text-anchor="middle" font-family="Fraunces" font-size="22" fill="var(--violet)">Vᵀ</text>
+        <text x="0" y="90" text-anchor="middle" font-family="JetBrains Mono" font-size="12" fill="var(--ink-faint)">input-side directions</text>
+      </g>
+    </svg>
+  </div>
+  <div class="caption r-up d3">Σ is the important one for us: it's a diagonal list of numbers, sorted largest to smallest, telling you exactly how much each direction actually matters.</div>
+</section>
+<!-- ============ SLIDE 12 : WHY LOW RANK WORKS ============ -->
+<section class="slide" id="slide-whylowrank">
+  <div class="slide-eyebrow">LINEAR ALGEBRA BASICS <span class="eyebrow-num"></span></div>
+  <h1 class="slide-title r-up d1">Why keeping just a few pieces is enough</h1>
+  <p class="slide-sub r-up d2">Since Σ's numbers are sorted biggest first, the first few rank-1 pieces usually carry almost all of the matrix's "meaning." The rest are small corrections.</p>
+  <div class="stage">
+    <svg viewBox="0 0 1000 340" width="100%" height="100%">
+      <g id="s-wl-bars"></g>
+      <line x1="120" y1="280" x2="900" y2="280" stroke="var(--line)" stroke-width="1"/>
+      <text id="s-wl-note" x="500" y="320" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="var(--ink-faint)" style="opacity:0">keep the first few bars → capture most of the matrix. keep only those → that's a <tspan fill="var(--amber)">low-rank approximation</tspan>.</text>
+    </svg>
+  </div>
+  <div class="caption r-up d3">A theorem called <b>Eckart–Young</b> proves this isn't a lucky guess — keeping the top-r pieces is mathematically the <em>best possible</em> rank-r approximation you could ever build.</div>
+</section>
+<!-- ============ SLIDE 13 : THE PROBLEM, RESTATED ============ -->
+<section class="slide" id="slide-problem">
+  <div class="slide-eyebrow">FROM MATH TO LoRA <span class="eyebrow-num"></span></div>
+  <h1 class="slide-title r-up d1">Now let's point all of this at fine-tuning</h1>
+  <p class="slide-sub r-up d2">Fine-tuning means finding a correction matrix, <b>ΔW</b>, so that the pretrained weight <b>W₀</b> becomes better at your task.</p>
+  <div class="stage">
+    <svg viewBox="0 0 1000 300" width="100%" height="100%">
+      <text x="500" y="130" text-anchor="middle" font-family="JetBrains Mono" font-size="28" fill="var(--ink)">
+        W<tspan font-size="18" dy="6">new</tspan><tspan dy="-6"> = </tspan><tspan fill="var(--teal)">W₀</tspan><tspan> + </tspan><tspan fill="var(--rose)">ΔW</tspan>
+      </text>
+      <text id="s-pr-note" x="500" y="200" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="var(--ink-faint)" style="opacity:0">
+        <tspan fill="var(--teal)">W₀</tspan> is huge, frozen, already good &#160;&#160;·&#160;&#160; <tspan fill="var(--rose)">ΔW</tspan> is what we actually have to learn
+      </text>
+    </svg>
+  </div>
+  <div class="caption r-up d3">Full fine-tuning learns every entry of ΔW directly — same shape as W₀, same enormous parameter count. Section 10's lesson says: we probably don't need to.</div>
+</section>
+<!-- ============ SLIDE 14 : THE LoRA IDEA, DERIVED ============ -->
+<section class="slide" id="slide-loraidea">
+  <div class="slide-eyebrow">FROM MATH TO LoRA <span class="eyebrow-num"></span></div>
+  <h1 class="slide-title r-up d1">Apply the rank lesson to ΔW</h1>
+  <p class="slide-sub r-up d2">We just saw: a handful of rank-1 pieces can rebuild a matrix almost exactly. So instead of learning all of ΔW, let's directly learn a small number of those pieces.</p>
+  <div class="stage">
+    <svg viewBox="0 0 1000 340" width="100%" height="100%">
+      <text x="500" y="70" text-anchor="middle" font-family="JetBrains Mono" font-size="16" fill="var(--ink-faint)">
+        ΔW &#160;≈&#160; u₁v₁ᵀ + u₂v₂ᵀ + ⋯ + uᵣvᵣᵀ &#160;&#160;(r small)
+      </text>
+      <text id="s-li-arrow" x="500" y="130" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="var(--ink-faint)" style="opacity:0">stack those r column-vectors and r row-vectors into two matrices…</text>
+
+      <g transform="translate(340,220)" style="opacity:0" id="s-li-b">
+        <rect x="-50" y="-60" width="100" height="120" rx="6" fill="var(--bg-panel)" stroke="var(--amber)" stroke-width="2"/>
+        <text x="0" y="6" text-anchor="middle" font-family="Fraunces" font-size="24" fill="var(--amber)">B</text>
+        <text x="0" y="90" text-anchor="middle" font-family="JetBrains Mono" font-size="12" fill="var(--ink-faint)">the u's, side by side</text>
+      </g>
+      <text x="470" y="228" text-anchor="middle" font-family="Fraunces" font-size="24" fill="var(--ink-faint)" style="opacity:0" id="s-li-times">×</text>
+      <g transform="translate(620,220)" style="opacity:0" id="s-li-a">
+        <rect x="-110" y="-32" width="220" height="64" rx="6" fill="var(--bg-panel)" stroke="var(--violet)" stroke-width="2"/>
+        <text x="0" y="6" text-anchor="middle" font-family="Fraunces" font-size="24" fill="var(--violet)">A</text>
+        <text x="0" y="60" text-anchor="middle" font-family="JetBrains Mono" font-size="12" fill="var(--ink-faint)">the v's, stacked on top of each other</text>
+      </g>
+      <text x="500" y="320" text-anchor="middle" font-family="JetBrains Mono" font-size="17" fill="var(--ink)" style="opacity:0" id="s-li-result">ΔW &#160;≈&#160; <tspan fill="var(--amber)">B</tspan><tspan fill="var(--violet)">A</tspan></text>
+    </svg>
+  </div>
+  <div class="caption r-up d3">That's the entire idea behind LoRA. Nothing invented from thin air — just the SVD lesson, applied directly to the fine-tuning problem.</div>
+</section>
+<!-- ============ SLIDE 15 : THE PARAMETER COUNT, DERIVED ============ -->
+<section class="slide" id="slide-paramderiv">
+  <div class="slide-eyebrow">FROM MATH TO LoRA <span class="eyebrow-num"></span></div>
+  <h1 class="slide-title r-up d1">Let's actually do the algebra</h1>
+  <p class="slide-sub r-up d2">B is d×r, A is r×k. Just count the entries in each, step by step.</p>
+  <div class="stage">
+    <svg viewBox="0 0 1000 360" width="100%" height="100%">
+      <text id="s-pd2-l1" x="500" y="70"  text-anchor="middle" font-family="JetBrains Mono" font-size="20" fill="var(--ink)" style="opacity:0">entries in B &#160;=&#160; d × r</text>
+      <text id="s-pd2-l2" x="500" y="120" text-anchor="middle" font-family="JetBrains Mono" font-size="20" fill="var(--ink)" style="opacity:0">entries in A &#160;=&#160; r × k</text>
+      <text id="s-pd2-l3" x="500" y="180" text-anchor="middle" font-family="JetBrains Mono" font-size="22" fill="var(--amber)" style="opacity:0">total &#160;=&#160; dr + rk &#160;=&#160; r(d + k)</text>
+
+      <line x1="150" y1="220" x2="850" y2="220" stroke="var(--line)" stroke-width="1" style="opacity:0" id="s-pd2-rule"/>
+
+      <text id="s-pd2-l4" x="500" y="260" text-anchor="middle" font-family="JetBrains Mono" font-size="18" fill="var(--ink-dim)" style="opacity:0">plug in real numbers: d = k = 4096, r = 8</text>
+      <text id="s-pd2-l5" x="500" y="300" text-anchor="middle" font-family="JetBrains Mono" font-size="20" fill="var(--ink)" style="opacity:0">
+        8 × (4096 + 4096) &#160;=&#160; <tspan fill="var(--amber)" font-weight="600">65,536</tspan>
+      </text>
+      <text id="s-pd2-l6" x="500" y="335" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="var(--ink-faint)" style="opacity:0">
+        vs. the full 4096 × 4096 &#160;=&#160; 16,777,216 &#160;&#160;→&#160;&#160; <tspan fill="var(--teal)">256× fewer numbers to train</tspan>
+      </text>
+    </svg>
+  </div>
+  <div class="caption r-up d3">Same derivation works for any d, k, r. Bigger models make the saving even more dramatic, because dk grows quadratically but r(d+k) only grows linearly.</div>
+</section>
+<!-- ============ SLIDE 16 : BUILDING THE FORWARD EQUATION ============ -->
+<section class="slide" id="slide-forwardbuild">
+  <div class="slide-eyebrow">FROM MATH TO LoRA <span class="eyebrow-num"></span></div>
+  <h1 class="slide-title r-up d1">Assembling the forward pass, one piece at a time</h1>
+  <p class="slide-sub r-up d2">Start from the plain linear layer you already know, then add the LoRA piece on top.</p>
+  <div class="stage">
+    <svg viewBox="0 0 1000 340" width="100%" height="100%">
+      <text id="s-fb-1" x="500" y="80" text-anchor="middle" font-family="JetBrains Mono" font-size="22" fill="var(--ink-dim)" style="opacity:0">start: &#160; h = xW</text>
+      <text id="s-fb-2" x="500" y="140" text-anchor="middle" font-family="JetBrains Mono" font-size="22" fill="var(--ink-dim)" style="opacity:0">freeze it, rename it: &#160; h = x<tspan fill="var(--teal)">W₀</tspan></text>
+      <text id="s-fb-3" x="500" y="200" text-anchor="middle" font-family="JetBrains Mono" font-size="22" fill="var(--ink-dim)" style="opacity:0">add the learned correction: &#160; h = x<tspan fill="var(--teal)">W₀</tspan> + x<tspan fill="var(--rose)">ΔW</tspan></text>
+      <text id="s-fb-4" x="500" y="260" text-anchor="middle" font-family="JetBrains Mono" font-size="22" fill="var(--ink-dim)" style="opacity:0">substitute ΔW = BA, add the α⁄r scale: </text>
+      <text id="s-fb-5" x="500" y="310" text-anchor="middle" font-family="JetBrains Mono" font-size="26" fill="var(--ink)" style="opacity:0">
+        h = x<tspan fill="var(--teal)">W₀</tspan> + <tspan fill="var(--amber)">(α⁄r)</tspan> x<tspan fill="var(--amber)">B</tspan><tspan fill="var(--violet)">A</tspan>
+      </text>
+    </svg>
+  </div>
+  <div class="caption r-up d3">Five small steps, no leaps. This last line is the exact equation running inside every LoRA-adapted layer.</div>
+</section>
+<!-- ============ SLIDE 17 : THE CHAIN RULE, STEP BY STEP ============ -->
+<section class="slide" id="slide-chainrule">
+  <div class="slide-eyebrow">FROM MATH TO LoRA <span class="eyebrow-num"></span></div>
+  <h1 class="slide-title r-up d1">How do we actually train A and B?</h1>
+  <p class="slide-sub r-up d2">Follow the arrows from each one to the loss, multiplying the "local" derivative at every step. That's the whole chain rule.</p>
+  <div class="stage">
+    <svg viewBox="0 0 1000 340" width="100%" height="100%">
+      <g id="s-cr-rowA" transform="translate(0,90)"></g>
+      <g id="s-cr-rowB" transform="translate(0,230)"></g>
+    </svg>
+  </div>
+  <div class="caption r-up d3">B's path is one step longer than A's — it has to pass through <b>z</b> first. That extra step is exactly the extra factor of A that shows up in ∂L/∂B.</div>
+</section>
+<!-- ============ SLIDE 18 : ROUNDING AND BINNING ============ -->
+<section class="slide" id="slide-round">
+  <div class="slide-eyebrow">QLoRA MATH, FROM SCRATCH <span class="eyebrow-num"></span></div>
+  <h1 class="slide-title r-up d1">One more basic idea: rounding to the nearest bucket</h1>
+  <p class="slide-sub r-up d2">To store a number in fewer bits, you snap it to the closest value from a small fixed list of "buckets."</p>
+  <div class="stage">
+    <svg viewBox="0 0 1000 300" width="100%" height="100%">
+      <line x1="120" y1="180" x2="880" y2="180" stroke="var(--line)" stroke-width="1.5"/>
+      <g id="s-rd-buckets"></g>
+      <circle id="s-rd-point" cx="0" cy="180" r="7" fill="var(--rose)" style="opacity:0"/>
+      <line id="s-rd-snap" x1="0" y1="180" x2="0" y2="180" stroke="var(--rose)" stroke-width="1.5" stroke-dasharray="4 3" style="opacity:0"/>
+      <text id="s-rd-formula" x="500" y="250" text-anchor="middle" font-family="JetBrains Mono" font-size="16" fill="var(--ink)" style="opacity:0">
+        q(x) = the bucket value closest to x
+      </text>
+    </svg>
+  </div>
+  <div class="caption r-up d3">Fewer bits available = fewer buckets to choose from = a little rounding error each time. The only real design choice is: <b>where do you place the buckets?</b></div>
+</section>
+<!-- ============ SLIDE 19 : QUANTILES OF A BELL CURVE ============ -->
+<section class="slide" id="slide-quantile">
+  <div class="slide-eyebrow">QLoRA MATH, FROM SCRATCH <span class="eyebrow-num"></span></div>
+  <h1 class="slide-title r-up d1">Where should the buckets actually go?</h1>
+  <p class="slide-sub r-up d2">Pretrained weights cluster near zero in a bell curve. A <b>quantile</b> is just a cut point that splits the area under that curve into equal-sized slices.</p>
+  <div class="stage">
+    <svg viewBox="0 0 1000 320" width="100%" height="100%">
+      <path id="s-qt-bell" d="M120,260 C 220,260 260,70 500,70 C 740,70 780,260 880,260" fill="none" stroke="var(--ink-faint)" stroke-width="2"/>
+      <g id="s-qt-slices"></g>
+      <text id="s-qt-formula" x="500" y="300" text-anchor="middle" font-family="JetBrains Mono" font-size="15" fill="var(--ink-dim)" style="opacity:0">
+        bucket position &#160;=&#160; Φ⁻¹(p) &#160;&#160;·&#160;&#160; "the point where p% of the area sits to its left"
+      </text>
+    </svg>
+  </div>
+  <div class="caption r-up d3">Near the center, slices are packed close together (lots of weights live there — fine detail matters). Out in the tails, slices spread wide (few weights, so less resolution is wasted there).</div>
+</section>
+<!-- ============ SLIDE 20 : THE NF4 FORMULA, TAKEN APART ============ -->
+<section class="slide" id="slide-nf4formula">
+  <div class="slide-eyebrow">QLoRA MATH, FROM SCRATCH <span class="eyebrow-num"></span></div>
+  <h1 class="slide-title r-up d1">Now we can read the NF4 formula</h1>
+  <p class="slide-sub r-up d2">Every symbol here is something you've already seen on the last two slides.</p>
+  <div class="stage">
+    <svg viewBox="0 0 1000 340" width="100%" height="100%">
+      <text x="500" y="110" text-anchor="middle" font-family="JetBrains Mono" font-size="28" fill="var(--ink)">
+        level<tspan id="s-nf-i" font-size="17" dy="6" fill="var(--amber)">i</tspan><tspan dy="-6"> = </tspan><tspan id="s-nf-phi" fill="var(--violet)">Φ⁻¹</tspan><tspan id="s-nf-frac" fill="var(--teal)">((i + 0.5) ⁄ 16)</tspan>
+      </text>
+      <g id="s-nf-callouts"></g>
+    </svg>
+  </div>
+  <div class="caption r-up d3">Plug in i = 0, 1, 2, … 15, and out come the 16 exact positions NF4 uses — dense near zero, spread out at the extremes, exactly like the slide before.</div>
+</section>
+<!-- ============ SLIDE 21 : EVERYTHING, TRACED BACK ============ -->
+<section class="slide" id="slide-recap">
+  <div class="slide-eyebrow">RECAP <span class="eyebrow-num"></span></div>
+  <h1 class="slide-title r-up d1">Every formula, traced back to a basic idea</h1>
+  <p class="slide-sub r-up d2">Nothing in this deck was assumed — here's where each piece actually came from.</p>
+  <div class="stage">
+    <svg viewBox="0 0 1000 400" width="100%" height="100%">
+      <g id="s-rc-list"></g>
+    </svg>
+  </div>
+  <div class="caption r-up d3">That's the whole chain: slope → gradient → matrices → rank → LoRA → quantization. Each step small enough to hold in your head at once.</div>
+</section>
+<!--SLIDES_MARKER-->
+</div>
+
+<div class="nav">
+  <div class="nav-btn" id="prevBtn" aria-label="Previous">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+  </div>
+  <div class="dots" id="dots"></div>
+  <div class="nav-btn" id="nextBtn" aria-label="Next">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+  </div>
+</div>
+<div class="counter" id="counter">01 / 18</div>
+
+<script>
+/* ============================= DECK ENGINE ============================= */
+const deck = document.getElementById('deck');
+let slides = [];
+let current = 0;
+
+function buildDots(){
+  const dotsEl = document.getElementById('dots');
+  dotsEl.innerHTML = '';
+  slides.forEach((s,i)=>{
+    const d = document.createElement('div');
+    d.className = 'dot' + (i===0?' active':'');
+    d.addEventListener('click', ()=>goTo(i));
+    dotsEl.appendChild(d);
+  });
+}
+
+function updateCounter(){
+  const n = String(current+1).padStart(2,'0');
+  const t = String(slides.length).padStart(2,'0');
+  document.getElementById('counter').innerHTML = `${n} / ${t}`;
+  const pf = document.getElementById('progressFill');
+  if(pf) pf.style.width = ((current+1)/slides.length*100) + '%';
+}
+
+function goTo(i){
+  if(i<0 || i>=slides.length || i===current) return;
+  const dir = i>current ? 'next' : 'prev';
+  slides[current].classList.remove('active','in','dir-prev');
+  current = i;
+  const s = slides[current];
+  s.classList.toggle('dir-prev', dir==='prev');
+  s.classList.add('active');
+  // force reflow so CSS reveal + enter animations replay every time
+  void s.offsetWidth;
+  requestAnimationFrame(()=>{
+    s.classList.add('in');
+    runSlideScript(current);
+  });
+  document.querySelectorAll('.dot').forEach((d,idx)=> d.classList.toggle('active', idx===current));
+  updateCounter();
+}
+
+function next(){ if(current < slides.length-1) goTo(current+1); }
+function prev(){ if(current > 0) goTo(current-1); }
+
+document.getElementById('nextBtn').addEventListener('click', next);
+document.getElementById('prevBtn').addEventListener('click', prev);
+window.addEventListener('keydown', (e)=>{
+  if(['ArrowRight','ArrowDown',' ','PageDown'].includes(e.key)){ e.preventDefault(); next(); }
+  if(['ArrowLeft','ArrowUp','PageUp'].includes(e.key)){ e.preventDefault(); prev(); }
+});
+let touchX=null;
+window.addEventListener('touchstart', e=> touchX = e.touches[0].clientX);
+window.addEventListener('touchend', e=>{
+  if(touchX===null) return;
+  const dx = e.changedTouches[0].clientX - touchX;
+  if(dx < -40) next();
+  if(dx > 40) prev();
+  touchX=null;
+});
+
+/* per-slide animation hooks: fill in as needed, keyed by slide index */
+const slideScripts = window.slideScripts;
+function runSlideScript(i){ const key = slides[i] && slides[i].id; if(key && slideScripts[key]) slideScripts[key](); }
+
+/* ---------- small reusable helpers ---------- */
+function animateCount(el, from, to, dur=900, suffix=''){
+  const start = performance.now();
+  function step(t){
+    const p = Math.min(1,(t-start)/dur);
+    const eased = 1-Math.pow(1-p,3);
+    const val = Math.round(from + (to-from)*eased);
+    el.textContent = val.toLocaleString('en-US') + suffix;
+    if(p<1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+/* particle traveling along an SVG path using motion-path (progressive enhancement) */
+function flowParticles(svg, pathSelector, count, color, dur=1600, stagger=220){
+  const path = svg.querySelector(pathSelector);
+  if(!path) return;
+  const d = path.getAttribute('d');
+  const parent = path.parentNode;
+  for(let k=0;k<count;k++){
+    const c = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    c.setAttribute('r', 3.4);
+    c.setAttribute('fill', color);
+    c.style.offsetPath = `path('${d}')`;
+    c.style.offsetRotate = '0deg';
+    c.style.animation = `travel ${dur}ms ease-in-out ${k*stagger}ms infinite`;
+    parent.appendChild(c);
+  }
+}
+
+
+/* ---------- generic vertical bar grower ---------- */
+function growBar(rect, bottomY, targetH, dur=1000, delay=0){
+  const t0 = performance.now()+delay;
+  function step(t){
+    if(t<t0){ requestAnimationFrame(step); return; }
+    const p = Math.min(1,(t-t0)/dur);
+    const eased = 1-Math.pow(1-p,3);
+    const h = targetH*eased;
+    rect.setAttribute('height', h);
+    rect.setAttribute('y', bottomY-h);
+    if(p<1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+/* ---------- generic horizontal bar grower ---------- */
+function growBarH(rect, targetW, dur=900, delay=0, onDone){
+  const t0 = performance.now()+delay;
+  function step(t){
+    if(t<t0){ requestAnimationFrame(step); return; }
+    const p = Math.min(1,(t-t0)/dur);
+    const eased = 1-Math.pow(1-p,3);
+    rect.setAttribute('width', targetW*eased);
+    if(p<1) requestAnimationFrame(step); else if(onDone) onDone();
+  }
+  requestAnimationFrame(step);
+}
+
+/* ---------- Slide 0 : floating math symbols ---------- */
+slideScripts['slide-0'] = function(){
+  const g = document.getElementById('s0-symbols');
+  if(g.childElementCount) return;
+  const symbols = ['∂','∇','Σ','∫','θ','α','β','λ','x','W','r','A','B','≈','√','Φ'];
+  const w=1100,h=460;
+  const excludeX=[240,860], excludeY=[170,340];
+  let placed=0, tries=0;
+  while(placed<34 && tries<400){
+    tries++;
+    const x = 40 + Math.random()*(w-80);
+    const y = 40 + Math.random()*(h-80);
+    if(x>excludeX[0] && x<excludeX[1] && y>excludeY[0] && y<excludeY[1]) continue;
+    const sym = symbols[Math.floor(Math.random()*symbols.length)];
+    const colorRoll = Math.random();
+    const col = colorRoll<0.15 ? 'var(--amber)' : (colorRoll<0.28 ? 'var(--violet)' : 'var(--line)');
+    const t = document.createElementNS('http://www.w3.org/2000/svg','text');
+    t.setAttribute('x',x); t.setAttribute('y',y);
+    t.setAttribute('font-family','JetBrains Mono'); t.setAttribute('font-size', 16+Math.random()*14);
+    t.setAttribute('fill', col);
+    t.textContent = sym;
+    t.style.opacity = 0;
+    t.style.animation = `popIn .5s ease forwards ${Math.random()*1.2}s, floatDial ${4+Math.random()*3}s ease-in-out infinite`;
+    t.style.transformOrigin = `${x}px ${y}px`;
+    g.appendChild(t);
+    placed++;
+  }
+};
+
+/* ---------- Slide : what is a function ---------- */
+slideScripts['slide-func'] = function(){
+  const xEl = document.getElementById('s-fn-x');
+  const yEl = document.getElementById('s-fn-y');
+  const note = document.getElementById('s-fn-note');
+  const examples = [[2,4],[3,9],[5,25]];
+  let i = 0;
+  note.style.transition = 'opacity .6s ease';
+  note.style.opacity = 0;
+  function showExample(){
+    const pair = examples[i % examples.length];
+    xEl.textContent = pair[0]; yEl.textContent = pair[1];
+    i++;
+  }
+  showExample();
+  clearInterval(window.__fnInterval);
+  window.__fnInterval = setInterval(showExample, 1400);
+  setTimeout(()=>{ note.style.opacity = 1; }, 900);
+};
+
+/* ---------- Slide : the derivative (tangent + triangle) ---------- */
+slideScripts['slide-deriv'] = function(){
+  const point = document.getElementById('s-dv-point');
+  const tangent = document.getElementById('s-dv-tangent');
+  const tri = document.getElementById('s-dv-triangle');
+  const formula = document.getElementById('s-dv-formula');
+
+  point.setAttribute('cx', 450); point.setAttribute('cy', 135);
+  point.style.opacity = 0; point.style.transition = 'opacity .5s ease';
+  setTimeout(()=>{ point.style.opacity = 1; }, 300);
+
+  tangent.setAttribute('x1', 330); tangent.setAttribute('y1', 168);
+  tangent.setAttribute('x2', 330); tangent.setAttribute('y2', 168);
+  tangent.style.transition = 'x2 .8s ease, y2 .8s ease';
+  setTimeout(()=>{ tangent.setAttribute('x2', 570); tangent.setAttribute('y2', 102); }, 700);
+
+  tri.innerHTML = `
+    <line x1="450" y1="135" x2="550" y2="135" stroke="var(--teal)" stroke-width="2"/>
+    <line x1="550" y1="135" x2="550" y2="107.5" stroke="var(--amber)" stroke-width="2"/>
+    <text x="500" y="152" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="var(--teal)">Δx</text>
+    <text x="568" y="123" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="var(--amber)">Δy</text>
+  `;
+  tri.style.transition = 'opacity .6s ease';
+  setTimeout(()=>{ tri.style.opacity = 1; }, 1700);
+
+  formula.style.transition = 'opacity .6s ease';
+  setTimeout(()=>{ formula.style.opacity = 1; }, 2300);
+};
+
+/* ---------- Slide : partial derivatives, cycling inputs ---------- */
+slideScripts['slide-partial'] = function(){
+  const g = document.getElementById('s-pd-inputs');
+  g.innerHTML = '';
+  const ys = [90, 150, 210, 270];
+  const circles = [];
+  ys.forEach((y,i)=>{
+    const grp = document.createElementNS('http://www.w3.org/2000/svg','g');
+    grp.style.opacity = 0;
+    grp.style.animation = `popIn .4s ease forwards ${i*0.12+0.1}s`;
+    grp.innerHTML = `
+      <line x1="176" y1="${y}" x2="420" y2="170" stroke="var(--line)" stroke-width="1.3"/>
+      <circle cx="150" cy="${y}" r="24" fill="none" stroke="var(--ink-dim)" stroke-width="2"/>
+      <text x="150" y="${y+6}" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="var(--ink-dim)">θ${i+1}</text>
+    `;
+    g.appendChild(grp);
+    circles.push(grp);
+  });
+
+  const formula = document.getElementById('s-pd-formula');
+  const symbol = document.getElementById('s-pd-symbol');
+  formula.style.transition = 'opacity .6s ease';
+  setTimeout(()=>{ formula.style.opacity = 1; }, 700);
+
+  let idx = 0;
+  function highlight(){
+    circles.forEach((c,i)=>{
+      const circ = c.querySelector('circle');
+      const txt = c.querySelector('text');
+      const active = i === idx;
+      circ.setAttribute('stroke', active ? 'var(--amber)' : 'var(--ink-dim)');
+      txt.setAttribute('fill', active ? 'var(--amber)' : 'var(--ink-dim)');
+      circ.style.transition = 'stroke .3s ease, r .3s ease';
+      circ.setAttribute('r', active ? 27 : 24);
+    });
+    symbol.textContent = `∂L ⁄ ∂θ${idx+1}`;
+    idx = (idx + 1) % circles.length;
+  }
+  highlight();
+  clearInterval(window.__pdInterval);
+  window.__pdInterval = setInterval(highlight, 1100);
+};
+
+/* ---------- Slide : gradient vector assembly ---------- */
+slideScripts['slide-gradvec'] = function(){
+  const rows = document.getElementById('s-gv-rows');
+  rows.innerHTML = '';
+  const vals = [-0.4, 0.9, -1.3, 0.2];
+  const ys = [100, 155, 210, 265];
+  vals.forEach((v,i)=>{
+    const t = document.createElementNS('http://www.w3.org/2000/svg','text');
+    t.setAttribute('x', 200); t.setAttribute('y', ys[i]);
+    t.setAttribute('text-anchor','middle');
+    t.setAttribute('font-family','JetBrains Mono'); t.setAttribute('font-size','15');
+    t.setAttribute('fill','var(--ink)');
+    t.textContent = `∂L/∂θ${i+1} = ${v}`;
+    t.style.opacity = 0;
+    t.style.animation = `popIn .4s ease forwards ${i*0.35+0.2}s`;
+    rows.appendChild(t);
+  });
+
+  ['s-gv-arrow','s-gv-lbracket','s-gv-rbracket','s-gv-label'].forEach((id,i)=>{
+    const el = document.getElementById(id);
+    el.style.transition = 'opacity .6s ease';
+    setTimeout(()=>{ el.style.opacity = 1; }, 1900 + i*150);
+  });
+
+  vals.forEach((v,i)=>{
+    const t = document.createElementNS('http://www.w3.org/2000/svg','text');
+    t.setAttribute('x', 650); t.setAttribute('y', ys[i]);
+    t.setAttribute('text-anchor','middle');
+    t.setAttribute('font-family','JetBrains Mono'); t.setAttribute('font-size','16');
+    t.setAttribute('fill','var(--amber)');
+    t.textContent = v;
+    t.style.opacity = 0;
+    t.style.transition = 'opacity .5s ease';
+    setTimeout(()=>{ t.style.opacity = 1; }, 2500 + i*120);
+    rows.appendChild(t);
+  });
+};
+
+/* ---------- Slide : update rule callouts ---------- */
+slideScripts['slide-update'] = function(){
+  const g = document.getElementById('s-up-callouts');
+  g.innerHTML = '';
+  const svg = document.querySelector('#slide-update svg');
+
+  const defs = [
+    { id: 's-up-theta1', label: 'the parameter\nright now',      color: 'var(--ink)',   y: 180 },
+    { id: 's-up-theta2', label: 'the parameter,\nafter this step', color: 'var(--ink)', y: 260 },
+    { id: 's-up-eta',    label: 'learning rate —\nhow big a step', color: 'var(--teal)', y: 180 },
+    { id: 's-up-grad',   label: 'the gradient —\nwhich way is "uphill"', color: 'var(--amber)', y: 260 },
+  ];
+
+  defs.forEach((d, i) => {
+    const el = document.getElementById(d.id);
+    const box = el.getBBox();
+    const cx = box.x + box.width / 2;
+    const topY = box.y + box.height + 6;
+
+    const grp = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    grp.style.opacity = 0;
+    grp.style.transition = 'opacity .6s ease';
+    const lines = d.label.split('\n');
+    grp.innerHTML = `
+      <line x1="${cx}" y1="${topY}" x2="${cx}" y2="${d.y - 14}" stroke="${d.color}" stroke-width="1.3" stroke-dasharray="3 3"/>
+      <text x="${cx}" y="${d.y + 6}" text-anchor="middle" font-family="JetBrains Mono" font-size="12.5" fill="${d.color}">${lines[0]}</text>
+      <text x="${cx}" y="${d.y + 24}" text-anchor="middle" font-family="JetBrains Mono" font-size="12.5" fill="${d.color}">${lines[1] || ''}</text>
+    `;
+    g.appendChild(grp);
+    setTimeout(() => { grp.style.opacity = 1; }, 500 + i * 550);
+  });
+};
+
+/* ---------- Slide : what is a matrix ---------- */
+slideScripts['slide-matrix'] = function(){
+  const g = document.getElementById('s-mx-grid');
+  g.innerHTML = '';
+  const rows = 3, cols = 4;
+  const cw = 90, ch = 60;
+  const x0 = 500 - (cols*cw)/2, y0 = 80;
+  const rng = () => Math.round((Math.random()*4-2)*10)/10;
+  const cells = [];
+  for(let r=0;r<rows;r++){
+    for(let c=0;c<cols;c++){
+      const grp = document.createElementNS('http://www.w3.org/2000/svg','g');
+      grp.setAttribute('transform', `translate(${x0+c*cw},${y0+r*ch})`);
+      grp.style.opacity = 0;
+      grp.style.animation = `popIn .35s ease forwards ${(r*cols+c)*0.06+0.1}s`;
+      const val = rng();
+      grp.innerHTML = `
+        <rect width="${cw-4}" height="${ch-4}" rx="4" fill="var(--bg-panel)" stroke="var(--line)" stroke-width="1.5"/>
+        <text x="${(cw-4)/2}" y="${(ch-4)/2+5}" text-anchor="middle" font-family="JetBrains Mono" font-size="15" fill="var(--ink)">${val}</text>
+      `;
+      g.appendChild(grp);
+      cells.push({grp, r, c});
+    }
+  }
+  setTimeout(()=>{
+    cells.forEach(({grp,r,c})=>{
+      const rect = grp.querySelector('rect');
+      if(r === 1) rect.setAttribute('stroke', 'var(--amber)');
+      if(c === 2) rect.setAttribute('stroke', rect.getAttribute('stroke')==='var(--amber)' ? 'var(--violet)' : 'var(--teal)');
+      rect.style.transition = 'stroke .4s ease';
+    });
+  }, 1600);
+};
+
+/* ---------- Slide : matrix-vector multiply, step by step ---------- */
+slideScripts['slide-matmul'] = function(){
+  const xVec = [2, 3];
+  const W = [[1, 0, 2], [4, 1, -1]];
+  const h = [14, 3, 1];
+
+  const gx = document.getElementById('s-mm-x'); gx.innerHTML = '';
+  const gw = document.getElementById('s-mm-w'); gw.innerHTML = '';
+  const gh = document.getElementById('s-mm-h'); gh.innerHTML = '';
+  const workEl = document.getElementById('s-mm-work');
+
+  const xCells = [];
+  xVec.forEach((v,r)=>{
+    const grp = document.createElementNS('http://www.w3.org/2000/svg','g');
+    grp.setAttribute('transform', `translate(130,${130+r*60})`);
+    grp.style.opacity = 0;
+    grp.style.animation = `popIn .35s ease forwards ${r*0.1+0.1}s`;
+    grp.innerHTML = `<rect width="56" height="56" rx="4" fill="var(--bg-panel)" stroke="var(--teal)" stroke-width="1.6"/>
+      <text x="28" y="35" text-anchor="middle" font-family="JetBrains Mono" font-size="16" fill="var(--teal)">${v}</text>`;
+    gx.appendChild(grp);
+    xCells.push(grp.querySelector('rect'));
+  });
+  const xLabel = document.createElementNS('http://www.w3.org/2000/svg','text');
+  xLabel.setAttribute('x',158); xLabel.setAttribute('y',105); xLabel.setAttribute('text-anchor','middle');
+  xLabel.setAttribute('font-family','JetBrains Mono'); xLabel.setAttribute('font-size','12'); xLabel.setAttribute('fill','var(--ink-faint)');
+  xLabel.textContent = 'x'; gx.appendChild(xLabel);
+
+  const wCells = [];
+  for(let r=0;r<2;r++){
+    wCells.push([]);
+    for(let c=0;c<3;c++){
+      const grp = document.createElementNS('http://www.w3.org/2000/svg','g');
+      grp.setAttribute('transform', `translate(${330+c*70},${100+r*60})`);
+      grp.style.opacity = 0;
+      grp.style.animation = `popIn .35s ease forwards ${0.5+(r*3+c)*0.08}s`;
+      grp.innerHTML = `<rect width="62" height="56" rx="4" fill="var(--bg-panel)" stroke="var(--line-soft)" stroke-width="1.6"/>
+        <text x="31" y="35" text-anchor="middle" font-family="JetBrains Mono" font-size="16" fill="var(--ink)">${W[r][c]}</text>`;
+      gw.appendChild(grp);
+      wCells[r].push(grp.querySelector('rect'));
+    }
+  }
+  const wLabel = document.createElementNS('http://www.w3.org/2000/svg','text');
+  wLabel.setAttribute('x',465); wLabel.setAttribute('y',80); wLabel.setAttribute('text-anchor','middle');
+  wLabel.setAttribute('font-family','JetBrains Mono'); wLabel.setAttribute('font-size','12'); wLabel.setAttribute('fill','var(--ink-faint)');
+  wLabel.textContent = 'W'; gw.appendChild(wLabel);
+
+  const hCells = [];
+  for(let c=0;c<3;c++){
+    const grp = document.createElementNS('http://www.w3.org/2000/svg','g');
+    grp.setAttribute('transform', `translate(780,${70+c*60})`);
+    grp.style.opacity = 0;
+    grp.innerHTML = `<rect width="60" height="56" rx="4" fill="var(--bg-panel)" stroke="var(--amber-dim)" stroke-width="1.6"/>
+      <text x="30" y="35" text-anchor="middle" font-family="JetBrains Mono" font-size="16" fill="var(--amber)"></text>`;
+    gh.appendChild(grp);
+    hCells.push(grp);
+  }
+  const hLabel = document.createElementNS('http://www.w3.org/2000/svg','text');
+  hLabel.setAttribute('x',810); hLabel.setAttribute('y',55); hLabel.setAttribute('text-anchor','middle');
+  hLabel.setAttribute('font-family','JetBrains Mono'); hLabel.setAttribute('font-size','12'); hLabel.setAttribute('fill','var(--ink-faint)');
+  hLabel.textContent = 'h = xW'; gh.appendChild(hLabel);
+
+  workEl.style.transition = 'opacity .3s ease';
+
+  function computeColumn(c){
+    xCells.forEach(r => r.setAttribute('stroke', 'var(--teal)'));
+    for(let r=0;r<2;r++) wCells[r][c].setAttribute('stroke', 'var(--amber)');
+    workEl.style.opacity = 0;
+    const terms = xVec.map((v,r)=> `${v}×${W[r][c]}`).join(' + ');
+    workEl.textContent = `${terms} = ${h[c]}`;
+    requestAnimationFrame(()=>{ workEl.style.opacity = 1; });
+    hCells[c].style.opacity = 1;
+    hCells[c].querySelector('text').textContent = h[c];
+    hCells[c].querySelector('rect').setAttribute('stroke', 'var(--amber)');
+  }
+
+  setTimeout(()=>computeColumn(0), 1300);
+  setTimeout(()=>computeColumn(1), 2700);
+  setTimeout(()=>computeColumn(2), 4100);
+};
+
+/* ---------- Slide : outer product build ---------- */
+slideScripts['slide-outer'] = function(){
+  const u = [2, 1, 3];
+  const v = [1, 4, 2];
+  const gu = document.getElementById('s-op-u'); gu.innerHTML = '';
+  const gv = document.getElementById('s-op-v'); gv.innerHTML = '';
+  const gout = document.getElementById('s-op-out'); gout.innerHTML = '';
+
+  const uCells = [];
+  u.forEach((val,i)=>{
+    const grp = document.createElementNS('http://www.w3.org/2000/svg','g');
+    grp.setAttribute('transform', `translate(130,${100+i*60})`);
+    grp.style.opacity = 0;
+    grp.style.animation = `popIn .35s ease forwards ${i*0.1+0.1}s`;
+    grp.innerHTML = `<rect width="56" height="56" rx="4" fill="var(--bg-panel)" stroke="var(--amber)" stroke-width="1.6"/>
+      <text x="28" y="35" text-anchor="middle" font-family="JetBrains Mono" font-size="16" fill="var(--amber)">${val}</text>`;
+    gu.appendChild(grp);
+    uCells.push(grp.querySelector('rect'));
+  });
+
+  const vCells = [];
+  v.forEach((val,j)=>{
+    const grp = document.createElementNS('http://www.w3.org/2000/svg','g');
+    grp.setAttribute('transform', `translate(${350+j*60},150)`);
+    grp.style.opacity = 0;
+    grp.style.animation = `popIn .35s ease forwards ${0.4+j*0.1}s`;
+    grp.innerHTML = `<rect width="56" height="56" rx="4" fill="var(--bg-panel)" stroke="var(--violet)" stroke-width="1.6"/>
+      <text x="28" y="35" text-anchor="middle" font-family="JetBrains Mono" font-size="16" fill="var(--violet)">${val}</text>`;
+    gv.appendChild(grp);
+    vCells.push(grp.querySelector('rect'));
+  });
+
+  const outCells = [];
+  for(let i=0;i<3;i++){
+    outCells.push([]);
+    for(let j=0;j<3;j++){
+      const grp = document.createElementNS('http://www.w3.org/2000/svg','g');
+      grp.setAttribute('transform', `translate(${600+j*60},${100+i*60})`);
+      grp.style.opacity = 0;
+      const val = u[i]*v[j];
+      grp.innerHTML = `<rect width="56" height="56" rx="4" fill="var(--bg-panel)" stroke="var(--line)" stroke-width="1.6"/>
+        <text x="28" y="35" text-anchor="middle" font-family="JetBrains Mono" font-size="16" fill="var(--ink)">${val}</text>`;
+      gout.appendChild(grp);
+      outCells[i].push(grp);
+    }
+  }
+
+  let delay = 1000;
+  for(let i=0;i<3;i++){
+    for(let j=0;j<3;j++){
+      const cell = outCells[i][j];
+      setTimeout(()=>{ cell.style.opacity = 1; cell.style.animation='popIn .3s ease'; }, delay);
+      delay += 160;
+    }
+  }
+};
+
+/* ---------- Slide : stacking rank-1 terms ---------- */
+slideScripts['slide-rankr'] = function(){
+  const g = document.getElementById('s-rr-grid'); g.innerHTML = '';
+  const terms = document.getElementById('s-rr-terms');
+  const rankLabel = document.getElementById('s-rr-ranklabel');
+
+  const us = [[1,2,1,3],[0,1,2,1],[1,0,1,1]];
+  const vs = [[2,1,0,1],[1,0,1,2],[2,2,1,0]];
+  const n = 4;
+  const cw = 56, ch = 56;
+  const x0 = 500 - (n*cw)/2, y0 = 100;
+
+  let M = Array.from({length:n}, ()=>Array(n).fill(0));
+  const cellEls = [];
+  for(let i=0;i<n;i++){
+    cellEls.push([]);
+    for(let j=0;j<n;j++){
+      const grp = document.createElementNS('http://www.w3.org/2000/svg','g');
+      grp.setAttribute('transform', `translate(${x0+j*cw},${y0+i*ch})`);
+      grp.style.opacity = 0;
+      grp.style.animation = `popIn .3s ease forwards ${(i*n+j)*0.02}s`;
+      grp.innerHTML = `<rect width="${cw-4}" height="${ch-4}" rx="3" fill="var(--bg-panel)" stroke="var(--line)" stroke-width="1.4"/>
+        <text x="${(cw-4)/2}" y="${(ch-4)/2+5}" text-anchor="middle" font-family="JetBrains Mono" font-size="15" fill="var(--ink)">0</text>`;
+      g.appendChild(grp);
+      cellEls[i].push(grp.querySelector('text'));
+    }
+  }
+
+  const termLabels = ['u₁v₁ᵀ', 'u₁v₁ᵀ + u₂v₂ᵀ', 'u₁v₁ᵀ + u₂v₂ᵀ + u₃v₃ᵀ'];
+
+  function addTerm(idx){
+    const u = us[idx], v = vs[idx];
+    for(let i=0;i<n;i++){
+      for(let j=0;j<n;j++){
+        M[i][j] += u[i]*v[j];
+        const el = cellEls[i][j];
+        el.textContent = M[i][j];
+        el.setAttribute('fill', 'var(--amber)');
+        setTimeout(()=>{ el.setAttribute('fill', 'var(--ink)'); }, 400);
+      }
+    }
+    terms.textContent = termLabels[idx];
+    rankLabel.textContent = `rank = ${idx+1}`;
+  }
+
+  setTimeout(()=>addTerm(0), 900);
+  setTimeout(()=>addTerm(1), 2600);
+  setTimeout(()=>addTerm(2), 4300);
+};
+
+/* ---------- Slide : SVD pieces reveal ---------- */
+slideScripts['slide-svd'] = function(){
+  const sigma = document.getElementById('s-sv-sigma');
+  sigma.innerHTML = '';
+  const vals = [8, 5, 2, 1];
+  const n = 4, cw = 42;
+  const x0 = -(n*cw)/2, y0 = -(n*cw)/2;
+  for(let i=0;i<n;i++){
+    for(let j=0;j<n;j++){
+      const isDiag = i === j;
+      const rect = document.createElementNS('http://www.w3.org/2000/svg','rect');
+      rect.setAttribute('x', x0+j*cw+2); rect.setAttribute('y', y0+i*cw+2);
+      rect.setAttribute('width', cw-4); rect.setAttribute('height', cw-4);
+      rect.setAttribute('rx', 3);
+      rect.setAttribute('fill', 'var(--bg-panel)');
+      rect.setAttribute('stroke', isDiag ? 'var(--amber)' : 'var(--line-soft)');
+      rect.setAttribute('stroke-width', 1.4);
+      sigma.appendChild(rect);
+      const text = document.createElementNS('http://www.w3.org/2000/svg','text');
+      text.setAttribute('x', x0+j*cw+cw/2); text.setAttribute('y', y0+i*cw+cw/2+5);
+      text.setAttribute('text-anchor','middle');
+      text.setAttribute('font-family','JetBrains Mono'); text.setAttribute('font-size', 13);
+      text.setAttribute('fill', isDiag ? 'var(--amber)' : 'var(--ink-faint)');
+      text.textContent = isDiag ? vals[i] : 0;
+      sigma.appendChild(text);
+    }
+  }
+  const label = document.createElementNS('http://www.w3.org/2000/svg','text');
+  label.setAttribute('x', 0); label.setAttribute('y', -110); label.setAttribute('text-anchor','middle');
+  label.setAttribute('font-family','Fraunces'); label.setAttribute('font-size', 22); label.setAttribute('fill','var(--amber)');
+  label.textContent = 'Σ';
+  sigma.appendChild(label);
+
+  ['s-sv-u','s-sv-sigma','s-sv-v'].forEach((id,i)=>{
+    const el = document.getElementById(id);
+    el.style.transition = 'opacity .6s ease';
+    setTimeout(()=>{ el.style.opacity = 1; }, 400 + i*700);
+  });
+  const sl = document.getElementById('s-sv-sigmalabel');
+  sl.style.transition = 'opacity .6s ease';
+  setTimeout(()=>{ sl.style.opacity = 1; }, 2200);
+};
+
+/* ---------- Slide : why low rank works, bar chart ---------- */
+slideScripts['slide-whylowrank'] = function(){
+  const g = document.getElementById('s-wl-bars');
+  g.innerHTML = '';
+  const vals = [8, 5, 2, 1, 0.6, 0.3];
+  const maxH = 180;
+  const n = vals.length;
+  const barW = 70, gap = 40;
+  const totalW = n*barW + (n-1)*gap;
+  const x0 = 500 - totalW/2;
+  const scale = maxH / vals[0];
+
+  const rects = [];
+  vals.forEach((v,i)=>{
+    const rect = document.createElementNS('http://www.w3.org/2000/svg','rect');
+    const x = x0 + i*(barW+gap);
+    rect.setAttribute('x', x);
+    rect.setAttribute('width', barW);
+    rect.setAttribute('height', 0);
+    rect.setAttribute('y', 280);
+    rect.setAttribute('rx', 4);
+    rect.setAttribute('fill', 'var(--teal)');
+    g.appendChild(rect);
+    growBar(rect, 280, v*scale, 900, i*150+200);
+    rects.push(rect);
+
+    const label = document.createElementNS('http://www.w3.org/2000/svg','text');
+    label.setAttribute('x', x+barW/2); label.setAttribute('y', 300);
+    label.setAttribute('text-anchor','middle');
+    label.setAttribute('font-family','JetBrains Mono'); label.setAttribute('font-size','12');
+    label.setAttribute('fill','var(--ink-faint)');
+    label.textContent = `σ${i+1}`;
+    g.appendChild(label);
+  });
+
+  setTimeout(()=>{
+    rects.forEach((r,i)=>{
+      r.style.transition = 'fill .5s ease, opacity .5s ease';
+      if(i < 2){ r.setAttribute('fill', 'var(--amber)'); }
+      else { r.style.opacity = 0.35; }
+    });
+    const note = document.getElementById('s-wl-note');
+    note.style.transition = 'opacity .6s ease';
+    note.style.opacity = 1;
+  }, 2100);
+};
+
+/* ---------- Slide : the problem restated ---------- */
+slideScripts['slide-problem'] = function(){
+  const note = document.getElementById('s-pr-note');
+  note.style.transition = 'opacity .6s ease';
+  note.style.opacity = 0;
+  setTimeout(()=>{ note.style.opacity = 1; }, 700);
+};
+
+/* ---------- Slide : LoRA idea derivation reveal ---------- */
+slideScripts['slide-loraidea'] = function(){
+  const seq = ['s-li-arrow', 's-li-b', 's-li-times', 's-li-a', 's-li-result'];
+  seq.forEach((id,i)=>{
+    const el = document.getElementById(id);
+    el.style.transition = 'opacity .6s ease';
+    el.style.opacity = 0;
+    setTimeout(()=>{ el.style.opacity = 1; }, 500 + i*700);
+  });
+};
+
+/* ---------- Slide : parameter count algebra reveal ---------- */
+slideScripts['slide-paramderiv'] = function(){
+  const seq = ['s-pd2-l1','s-pd2-l2','s-pd2-l3','s-pd2-rule','s-pd2-l4','s-pd2-l5','s-pd2-l6'];
+  seq.forEach((id,i)=>{
+    const el = document.getElementById(id);
+    el.style.transition = 'opacity .55s ease';
+    el.style.opacity = 0;
+    setTimeout(()=>{ el.style.opacity = 1; }, 400 + i*550);
+  });
+};
+
+/* ---------- Slide : forward equation build-up ---------- */
+slideScripts['slide-forwardbuild'] = function(){
+  const seq = ['s-fb-1','s-fb-2','s-fb-3','s-fb-4','s-fb-5'];
+  seq.forEach((id,i)=>{
+    const el = document.getElementById(id);
+    el.style.transition = 'opacity .6s ease';
+    el.style.opacity = 0;
+    setTimeout(()=>{ el.style.opacity = 1; }, 400 + i*650);
+  });
+};
+
+/* ---------- Slide : chain rule derivation ---------- */
+slideScripts['slide-chainrule'] = function(){
+  function buildChain(containerId, nodes, arrowLabels, resultText, resultColor, startDelay){
+    const g = document.getElementById(containerId);
+    g.innerHTML = '';
+    const n = nodes.length;
+    const xs = [];
+    for(let i=0;i<n;i++) xs.push(80 + i*(840/(n-1)));
+
+    nodes.forEach((label,i)=>{
+      const grp = document.createElementNS('http://www.w3.org/2000/svg','g');
+      grp.setAttribute('transform', `translate(${xs[i]},0)`);
+      grp.style.opacity = 0;
+      grp.style.animation = `popIn .4s ease forwards ${startDelay/1000 + i*0.5}s`;
+      grp.innerHTML = `<rect x="-38" y="-24" width="76" height="48" rx="6" fill="var(--bg-panel)" stroke="var(--ink-dim)" stroke-width="1.6"/>
+        <text x="0" y="6" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="var(--ink)">${label}</text>`;
+      g.appendChild(grp);
+    });
+
+    for(let i=0;i<n-1;i++){
+      const midx = (xs[i]+xs[i+1])/2;
+      const arrow = document.createElementNS('http://www.w3.org/2000/svg','g');
+      arrow.style.opacity = 0;
+      arrow.style.transition = 'opacity .5s ease';
+      arrow.innerHTML = `<line x1="${xs[i]+40}" y1="0" x2="${xs[i+1]-40}" y2="0" stroke="var(--amber)" stroke-width="1.6" marker-end="url(#s-cr-arrowhead)"/>
+        <text x="${midx}" y="-14" text-anchor="middle" font-family="JetBrains Mono" font-size="11.5" fill="var(--amber)">${arrowLabels[i]}</text>`;
+      g.appendChild(arrow);
+      setTimeout(()=>{ arrow.style.opacity = 1; }, startDelay + (i+1)*500 - 150);
+    }
+
+    const result = document.createElementNS('http://www.w3.org/2000/svg','text');
+    result.setAttribute('x', 500); result.setAttribute('y', 55);
+    result.setAttribute('text-anchor','middle');
+    result.setAttribute('font-family','JetBrains Mono'); result.setAttribute('font-size','16');
+    result.setAttribute('fill', resultColor);
+    result.textContent = resultText;
+    result.style.opacity = 0;
+    result.style.transition = 'opacity .6s ease';
+    g.appendChild(result);
+    setTimeout(()=>{ result.style.opacity = 1; }, startDelay + n*500 + 300);
+  }
+
+  // arrowhead marker def (added once)
+  const svg = document.querySelector('#slide-chainrule svg');
+  if(!svg.querySelector('#s-cr-arrowhead')){
+    const defs = document.createElementNS('http://www.w3.org/2000/svg','defs');
+    defs.innerHTML = `<marker id="s-cr-arrowhead" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L6,3 L0,6 z" fill="var(--amber)"/></marker>`;
+    svg.appendChild(defs);
+  }
+
+  buildChain('s-cr-rowA', ['A','h_lora','h','L'], ['∂h_lora/∂A', '1', '∂L/∂h'],
+    '∂L/∂A = (α/r)· zᵀ · (∂L/∂h)', 'var(--amber)', 300);
+  buildChain('s-cr-rowB', ['B','z','h_lora','h','L'], ['x', '∂h_lora/∂z', '1', '∂L/∂h'],
+    '∂L/∂B = xᵀ · (∂L/∂h) · ((α/r)A)ᵀ', 'var(--violet)', 2600);
+};
+
+/* ---------- Slide : rounding to nearest bucket ---------- */
+slideScripts['slide-round'] = function(){
+  const g = document.getElementById('s-rd-buckets');
+  g.innerHTML = '';
+  const xs = [200, 340, 480, 620, 760];
+  xs.forEach((x,i)=>{
+    const grp = document.createElementNS('http://www.w3.org/2000/svg','g');
+    grp.style.opacity = 0;
+    grp.style.animation = `popIn .35s ease forwards ${i*0.15+0.1}s`;
+    grp.innerHTML = `<line x1="${x}" y1="170" x2="${x}" y2="190" stroke="var(--teal)" stroke-width="2"/>
+      <text x="${x}" y="210" text-anchor="middle" font-family="JetBrains Mono" font-size="11" fill="var(--teal)">bucket ${i+1}</text>`;
+    g.appendChild(grp);
+  });
+
+  const point = document.getElementById('s-rd-point');
+  const snap = document.getElementById('s-rd-snap');
+  const formula = document.getElementById('s-rd-formula');
+  const realX = 500; // sits between bucket 3 (480) and bucket 4 (620), closer to 480
+  const nearestBucket = 480;
+
+  point.setAttribute('cx', realX);
+  point.style.transition = 'opacity .4s ease';
+  setTimeout(()=>{ point.style.opacity = 1; }, 1200);
+
+  snap.setAttribute('x1', realX); snap.setAttribute('x2', realX);
+  snap.style.transition = 'x2 .7s ease';
+  setTimeout(()=>{ snap.style.opacity = 1; snap.setAttribute('x2', nearestBucket); }, 1900);
+  setTimeout(()=>{ point.style.transition = 'cx .7s ease'; point.setAttribute('cx', nearestBucket); }, 1900);
+
+  formula.style.transition = 'opacity .6s ease';
+  setTimeout(()=>{ formula.style.opacity = 1; }, 2800);
+};
+
+/* ---------- Slide : quantile slices on a bell curve ---------- */
+slideScripts['slide-quantile'] = function(){
+  const bell = document.getElementById('s-qt-bell');
+  const len = bell.getTotalLength();
+  bell.style.transition = 'none';
+  bell.style.strokeDasharray = len;
+  bell.style.strokeDashoffset = len;
+  void bell.offsetWidth;
+  bell.style.transition = 'stroke-dashoffset 1.3s cubic-bezier(.4,0,.2,1)';
+  bell.style.strokeDashoffset = 0;
+
+  const slices = document.getElementById('s-qt-slices');
+  slices.innerHTML = '';
+  const zvals = [-1.53,-0.89,-0.49,-0.16,0.16,0.49,0.89,1.53];
+  zvals.forEach((z,i)=>{
+    const x = 500 + z*140;
+    const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+    line.setAttribute('x1',x); line.setAttribute('x2',x);
+    line.setAttribute('y1',258); line.setAttribute('y2',80);
+    line.setAttribute('stroke','var(--amber)'); line.setAttribute('stroke-width','1.3');
+    line.setAttribute('stroke-dasharray','3 3');
+    line.style.opacity = 0;
+    line.style.animation = `popIn .3s ease forwards ${1.4+i*0.12}s`;
+    slices.appendChild(line);
+  });
+
+  const formula = document.getElementById('s-qt-formula');
+  formula.style.transition = 'opacity .6s ease';
+  setTimeout(()=>{ formula.style.opacity = 1; }, 2700);
+};
+
+/* ---------- Slide : NF4 formula callouts ---------- */
+slideScripts['slide-nf4formula'] = function(){
+  const g = document.getElementById('s-nf-callouts');
+  g.innerHTML = '';
+  const defs = [
+    { id: 's-nf-i',    label: 'which bucket —\n0 through 15',        color: 'var(--amber)', y: 190 },
+    { id: 's-nf-phi',  label: 'the quantile function\nfrom last slide', color: 'var(--violet)', y: 260 },
+    { id: 's-nf-frac', label: 'centers each slice, out of\n16 buckets total (4 bits)', color: 'var(--teal)', y: 190 },
+  ];
+  defs.forEach((d,i)=>{
+    const el = document.getElementById(d.id);
+    const box = el.getBBox();
+    const cx = box.x + box.width/2;
+    const topY = box.y + box.height + 6;
+    const grp = document.createElementNS('http://www.w3.org/2000/svg','g');
+    grp.style.opacity = 0;
+    grp.style.transition = 'opacity .6s ease';
+    const lines = d.label.split('\n');
+    grp.innerHTML = `
+      <line x1="${cx}" y1="${topY}" x2="${cx}" y2="${d.y-14}" stroke="${d.color}" stroke-width="1.3" stroke-dasharray="3 3"/>
+      <text x="${cx}" y="${d.y+6}" text-anchor="middle" font-family="JetBrains Mono" font-size="12.5" fill="${d.color}">${lines[0]}</text>
+      <text x="${cx}" y="${d.y+24}" text-anchor="middle" font-family="JetBrains Mono" font-size="12.5" fill="${d.color}">${lines[1]||''}</text>
+    `;
+    g.appendChild(grp);
+    setTimeout(()=>{ grp.style.opacity = 1; }, 500 + i*650);
+  });
+};
+
+/* ---------- Slide : final recap, traced back ---------- */
+slideScripts['slide-recap'] = function(){
+  const g = document.getElementById('s-rc-list');
+  g.innerHTML = '';
+  const rows = [
+    ['f\u2019(x) = \u0394y \u2044 \u0394x', 'built from: wiggling the input, watching the output'],
+    ['\u2207L = [\u2202L/\u2202\u03b8\u2081, \u2202L/\u2202\u03b8\u2082, \u2026]', 'built from: partial derivatives, stacked into a list'],
+    ['\u03b8 \u2190 \u03b8 \u2212 \u03b7\u2207L', 'built from: the gradient, taken as one small step'],
+    ['M = U\u03a3V\u1d40', 'built from: rank-1 pieces (uv\u1d40), sorted by strength'],
+    ['\u0394W \u2248 BA', 'built from: keeping only the top few rank-1 pieces'],
+    ['h = xW\u2080 + (\u03b1/r)xBA', 'built from: the frozen layer + the low-rank correction'],
+    ['level\u1d62 = \u03a6\u207b\u00b9((i+0.5)/16)', 'built from: rounding to buckets, placed at quantiles'],
+  ];
+  rows.forEach((row,i)=>{
+    const y = 40 + i*48;
+    const grp = document.createElementNS('http://www.w3.org/2000/svg','g');
+    grp.style.opacity = 0;
+    grp.style.animation = `popIn .4s ease forwards ${i*0.3+0.1}s`;
+    grp.innerHTML = `
+      <text x="60" y="${y}" font-family="JetBrains Mono" font-size="16" fill="var(--amber)">${row[0]}</text>
+      <text x="960" y="${y}" text-anchor="end" font-family="JetBrains Mono" font-size="12.5" fill="var(--ink-faint)">${row[1]}</text>
+    `;
+    g.appendChild(grp);
+  });
+};
+
+<!--NEW_SLIDES_SCRIPTS_MARKER-->
+window.addEventListener('DOMContentLoaded', ()=>{
+  slides = Array.from(document.querySelectorAll('.slide'));
+  slides.forEach((s,i)=>{
+    const numSpan = s.querySelector('.eyebrow-num');
+    if(numSpan) numSpan.textContent = '· ' + String(i+1).padStart(2,'0');
+  });
+  slides[0].classList.add('active');
+  buildDots();
+  updateCounter();
+  requestAnimationFrame(()=>{ slides[0].classList.add('in'); runSlideScript(0); });
+  setTimeout(()=>{ document.getElementById('hint').style.transition='opacity 1s'; document.getElementById('hint').style.opacity='0.75'; }, 100);
+});
+</script>
+</body>
+</html>

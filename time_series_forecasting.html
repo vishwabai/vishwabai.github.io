@@ -1,0 +1,1392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Time Series Forecasting — Visual Guide</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0a0f;
+    --panel:#111117;
+    --panel2:#15151d;
+    --border:#23232f;
+    --text:#e9e7f2;
+    --dim:#8d8a9c;
+    --teal:#4fd1c5;
+    --amber:#e0b774;
+    --coral:#e08a8a;
+    --violet:#a78bfa;
+    --blue:#7aa7d9;
+    --green:#84c9a2;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--text);
+    font-family:'Space Grotesk',sans-serif;overflow:hidden;}
+  .app{display:flex;flex-direction:column;height:100vh;}
+
+  header.topbar{flex:0 0 auto;padding:22px 60px 8px;display:flex;
+    align-items:baseline;justify-content:space-between;border-bottom:1px solid var(--border);}
+  header.topbar .brand{font-size:15px;letter-spacing:.08em;color:var(--dim);text-transform:uppercase;}
+  header.topbar .brand b{color:var(--blue);font-weight:600;}
+  header.topbar .counter{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--dim);}
+
+  main.stage{flex:1 1 auto;position:relative;overflow:hidden;}
+  .slide{position:absolute;inset:0;display:none;grid-template-columns:1.15fr .85fr;
+    gap:34px;padding:22px 60px 18px;opacity:0;transform:translateY(10px);
+    transition:opacity .45s ease, transform .45s ease;}
+  .slide.active{display:grid;opacity:1;transform:translateY(0);}
+  .slide.summary{grid-template-columns:1fr;}
+
+  .left{display:flex;flex-direction:column;min-height:0;}
+  .left canvas{width:100%;height:auto;max-height:100%;background:radial-gradient(circle at 30% 20%, #101018 0%, #0a0a0f 70%);
+    border:1px solid var(--border);border-radius:14px;}
+
+  .right{display:flex;flex-direction:column;gap:12px;min-height:0;overflow-y:auto;padding-right:6px;}
+  .right::-webkit-scrollbar{width:6px;}
+  .right::-webkit-scrollbar-thumb{background:#2a2a38;border-radius:6px;}
+
+  .tag{font-family:'JetBrains Mono',monospace;font-size:11.5px;letter-spacing:.06em;
+    color:var(--blue);text-transform:uppercase;}
+  .right h2{margin:0 0 2px;font-size:25px;font-weight:600;line-height:1.15;}
+  ul.concept{margin:2px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:8px;}
+  ul.concept li{font-size:14px;line-height:1.5;color:#cfcdd9;}
+  ul.concept li::marker{color:var(--violet);}
+
+  .formula-box{background:var(--panel);border:1px solid var(--border);border-radius:10px;
+    padding:16px 16px;margin-top:2px;}
+  .formula-box .flabel{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--dim);
+    text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;}
+  .formula{font-family:'JetBrains Mono',monospace;font-size:13.8px;color:var(--amber);
+    line-height:1.7;word-break:break-word;}
+  .formula sub{font-size:.7em;}
+  .formula sup{font-size:.7em;}
+
+  details.why{background:var(--panel2);border:1px solid var(--border);border-radius:10px;overflow:hidden;}
+  details.why summary{list-style:none;cursor:pointer;padding:12px 16px;font-size:13.5px;
+    font-weight:600;color:var(--violet);display:flex;align-items:center;justify-content:space-between;}
+  details.why summary::-webkit-details-marker{display:none;}
+  details.why summary::after{content:'+';font-size:16px;color:var(--dim);transition:transform .25s ease;}
+  details.why[open] summary::after{transform:rotate(45deg);}
+  .why-content{padding:0 16px 16px;font-size:13.3px;line-height:1.63;color:#c6c4d2;}
+  .why-content b{color:var(--teal);font-weight:600;}
+  .why-content .use{margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);color:#b7b4c4;}
+  .why-content .use b{color:var(--coral);}
+
+  .compare-wrap{overflow-y:auto;padding-right:6px;}
+  table.compare{width:100%;border-collapse:collapse;font-size:12.4px;margin-top:6px;}
+  table.compare th{text-align:left;font-family:'JetBrains Mono',monospace;font-size:10.2px;
+    text-transform:uppercase;letter-spacing:.05em;color:var(--dim);padding:8px 10px;border-bottom:1px solid var(--border);}
+  table.compare td{padding:8px 10px;border-bottom:1px solid #1a1a24;color:#cfcdd9;}
+  table.compare tr td:first-child{color:var(--blue);font-weight:600;white-space:nowrap;}
+  table.compare tr{opacity:0;transform:translateX(-8px);animation:rowIn .5s ease forwards;}
+
+  @keyframes rowIn{to{opacity:1;transform:translateX(0);}}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(14px);}to{opacity:1;transform:translateY(0);}}
+  .right.animate-in > *{animation:fadeUp .5s ease both;}
+  .right.animate-in > *:nth-child(1){animation-delay:.02s;}
+  .right.animate-in > *:nth-child(2){animation-delay:.08s;}
+  .right.animate-in > *:nth-child(3){animation-delay:.14s;}
+  .right.animate-in > *:nth-child(4){animation-delay:.2s;}
+  .right.animate-in > *:nth-child(5){animation-delay:.26s;}
+
+  footer.navbar{flex:0 0 auto;display:flex;align-items:center;justify-content:center;
+    gap:22px;padding:16px 20px;border-top:1px solid var(--border);}
+  .navbtn{background:var(--panel);border:1px solid var(--border);color:var(--text);
+    width:38px;height:38px;border-radius:50%;cursor:pointer;font-size:16px;display:flex;
+    align-items:center;justify-content:center;transition:.2s;}
+  .navbtn:hover{border-color:var(--blue);color:var(--blue);}
+  .navbtn:disabled{opacity:.25;cursor:default;}
+  .navbtn:disabled:hover{border-color:var(--border);color:var(--text);}
+  .dots{display:flex;gap:6px;flex-wrap:wrap;max-width:520px;justify-content:center;}
+  .dot{width:7px;height:7px;border-radius:50%;background:#2a2a38;cursor:pointer;transition:.2s;}
+  .dot.active{background:var(--blue);width:20px;border-radius:5px;}
+  .dot:hover{background:#4a4a60;}
+  .hint{position:fixed;bottom:64px;right:24px;font-size:10.5px;color:#4a4a5c;
+    font-family:'JetBrains Mono',monospace;}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand"><b>Time Series Forecasting</b> — from linear models to deep sequence models</div>
+    <div class="counter" id="counter">01 / 27</div>
+  </header>
+  <main class="stage" id="stage"></main>
+  <footer class="navbar">
+    <button class="navbtn" id="prevBtn">‹</button>
+    <div class="dots" id="dots"></div>
+    <button class="navbtn" id="nextBtn">›</button>
+  </footer>
+</div>
+<div class="hint">← → to navigate</div>
+
+<script>
+/* ---------- canvas drawing helpers ---------- */
+let __PARTICLES=null;
+function bg(ctx,w,h,el){
+  ctx.clearRect(0,0,w,h);
+  if(!__PARTICLES){
+    __PARTICLES=[]; let s=51;
+    function rnd(){s=(s*9301+49297)%233280;return s/233280;}
+    for(let i=0;i<34;i++){
+      __PARTICLES.push({x:rnd()*w,y:rnd()*h,r:0.6+rnd()*1.3,spd:0.003+rnd()*0.009,phase:rnd()*Math.PI*2});
+    }
+  }
+  ctx.save();
+  __PARTICLES.forEach(p=>{
+    const y=((p.y+(el||0)*p.spd)%h+h)%h;
+    const tw=0.08+0.13*(0.5+0.5*Math.sin((el||0)/900+p.phase));
+    ctx.globalAlpha=tw; ctx.fillStyle='#3a3a4a';
+    ctx.beginPath();ctx.arc(p.x,y,p.r,0,Math.PI*2);ctx.fill();
+  });
+  ctx.restore();
+}
+function seg(t,a,b){return Math.max(0,Math.min(1,(t-a)/(b-a)));}
+function ease(t){return t<0.5?2*t*t:1-Math.pow(-2*t+2,2)/2;}
+function lerp(a,b,t){return a+(b-a)*t;}
+function circle(ctx,x,y,r,color,glow){
+  if(r<=0)return;
+  ctx.save();
+  if(glow){ctx.shadowBlur=glow;ctx.shadowColor=color;}
+  ctx.fillStyle=color;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
+  ctx.restore();
+}
+function ring(ctx,x,y,r,color,width){
+  ctx.save();ctx.strokeStyle=color;ctx.lineWidth=width||1.5;
+  ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();ctx.restore();
+}
+function line(ctx,x1,y1,x2,y2,color,width,dash){
+  ctx.save();ctx.strokeStyle=color;ctx.lineWidth=width||1.4;
+  if(dash)ctx.setLineDash(dash);
+  ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();ctx.restore();
+}
+function arrow(ctx,x1,y1,x2,y2,color,width){
+  line(ctx,x1,y1,x2,y2,color,width||1.6);
+  const ang=Math.atan2(y2-y1,x2-x1),s=7;
+  ctx.save();ctx.fillStyle=color;ctx.beginPath();
+  ctx.moveTo(x2,y2);
+  ctx.lineTo(x2-s*Math.cos(ang-0.4),y2-s*Math.sin(ang-0.4));
+  ctx.lineTo(x2-s*Math.cos(ang+0.4),y2-s*Math.sin(ang+0.4));
+  ctx.closePath();ctx.fill();ctx.restore();
+}
+function txt(ctx,str,x,y,size,color,align,weight){
+  ctx.save();ctx.fillStyle=color||'#e9e7f2';
+  ctx.font=(weight||'500')+' '+(size||13)+'px Space Grotesk, sans-serif';
+  ctx.textAlign=align||'center';ctx.textBaseline='middle';
+  ctx.fillText(str,x,y);ctx.restore();
+}
+function mono(ctx,str,x,y,size,color,align){
+  ctx.save();ctx.fillStyle=color||'#e0b774';
+  ctx.font=(size||12)+'px JetBrains Mono, monospace';
+  ctx.textAlign=align||'center';ctx.textBaseline='middle';
+  ctx.fillText(str,x,y);ctx.restore();
+}
+function roundRect(ctx,x,y,w,h,r,color,strokeColor){
+  ctx.save();ctx.beginPath();
+  ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();
+  if(color){ctx.fillStyle=color;ctx.fill();}
+  if(strokeColor){ctx.strokeStyle=strokeColor;ctx.lineWidth=1.2;ctx.stroke();}
+  ctx.restore();
+}
+function neuron(ctx,x,y,r,active,color){
+  circle(ctx,x,y,r,active? color:'#20202c', active?8:0);
+  ring(ctx,x,y,r,'#38384a',1);
+}
+function seriesPath(ctx,pts,color,width,upto){
+  const n=Math.max(0,Math.floor(pts.length*upto));
+  if(n<2)return;
+  ctx.save();ctx.strokeStyle=color;ctx.lineWidth=width||2;ctx.beginPath();
+  ctx.moveTo(pts[0][0],pts[0][1]);
+  for(let i=1;i<n;i++)ctx.lineTo(pts[i][0],pts[i][1]);
+  ctx.stroke();ctx.restore();
+}
+function synthSeries(nx,x0,x1,y0,amp,trend,seasonAmp,seasonLen,noiseAmp,seed){
+  const pts=[];
+  let rnd=seed||1;
+  function rand(){rnd=(rnd*9301+49297)%233280;return rnd/233280;}
+  for(let i=0;i<nx;i++){
+    const x=lerp(x0,x1,i/(nx-1));
+    const val=amp + trend*i + seasonAmp*Math.sin((i/seasonLen)*Math.PI*2) + (rand()-0.5)*noiseAmp;
+    pts.push([x,y0-val]);
+  }
+  return pts;
+}
+
+/* ============== SLIDE DEFINITIONS ============== */
+const W=640,H=460,CX=W/2,CY=H/2;
+
+const SLIDES=[
+/* 0 ---------------------------------------------------------- TITLE */
+{
+  tag:'Time Series Forecasting',
+  title:'What happens next?',
+  duration:6000,
+  points:[
+    'Sales, temperature, server load, heartbeats — anything measured repeatedly over time carries a memory of its own past.',
+    'Forecasting is the craft of turning that memory into a believable guess about tomorrow.',
+    'We\'ll move from classical statistical models (AR, ARIMA...) to modern deep-learning ones (LSTM, Transformers...) — same goal, very different assumptions.'
+  ],
+  draw(ctx,t,el){
+    bg(ctx,W,H,el);
+    const n=60, pts=[];
+    for(let i=0;i<n;i++){
+      const x=60+i*(520/(n-1));
+      const y=260 - 40*Math.sin(i/6) - i*0.6 + 14*Math.sin(i/1.3);
+      pts.push([x,y]);
+    }
+    const reveal=ease(seg(t,0,0.75));
+    seriesPath(ctx,pts,'#7aa7d9',2.4,reveal);
+    const lastIdx=Math.floor((n-1)*reveal);
+    if(lastIdx>1 && lastIdx<n-1){
+      // leading glowing pen tracing the line
+      circle(ctx,pts[lastIdx][0],pts[lastIdx][1],5,'#e9e7f2',12);
+    }
+    if(lastIdx>1){
+      circle(ctx,pts[lastIdx][0],pts[lastIdx][1],4,'#7aa7d9',8);
+      const s2=ease(seg(t,0.75,1));
+      if(s2>0){
+        // a small fan of plausible futures, not just one cone
+        const branches=[-1,-0.4,0.2,0.9];
+        branches.forEach((b,bi)=>{
+          const fx=pts[n-1][0]+80*s2, fy=pts[n-1][1]-8*s2+b*26*s2;
+          const a=ease(seg(s2*4,bi,bi+1));
+          if(a<=0)return;
+          line(ctx,pts[n-1][0],pts[n-1][1],fx,fy,`rgba(79,209,197,${0.5*a*(bi===1?1:0.45)})`,bi===1?2:1.2,bi===1?null:[4,4]);
+        });
+        if(s2>0.6)txt(ctx,'many possible futures, one most likely',pts[n-1][0]+40,pts[n-1][1]-46,11.5,'#4fd1c5','center','600');
+      }
+    }
+    txt(ctx,'history in  →  a believable future out',CX,H-30,12,'#6f6c80','center','400');
+  }
+},
+/* 1 ---------------------------------------------------------- COMPONENTS */
+{
+  tag:'The Setup',
+  title:'Every series is a mixture',
+  duration:6000,
+  points:[
+    'Almost any real series can be thought of as three ingredients stacked together: a long-run <b>trend</b>, a repeating <b>seasonal</b> pattern, and leftover <b>noise</b>.',
+    'Different forecasting methods are really just different ways of modelling (or removing) each ingredient.',
+    'Spotting which ingredients dominate your data is often the single most useful modelling decision you\'ll make.'
+  ],
+  formula:'X<sub>t</sub> = T<sub>t</sub> + S<sub>t</sub> + R<sub>t</sub> &nbsp;(additive) &nbsp;&nbsp;&nbsp; X<sub>t</sub> = T<sub>t</sub> &times; S<sub>t</sub> &times; R<sub>t</sub> &nbsp;(multiplicative)',
+  why:`Addition assumes the seasonal swing stays roughly the same <i>absolute</i> size regardless of the trend level (December is always about +200 units). Multiplication assumes it scales <i>proportionally</i> with the trend instead (December is always about +30%, so the swing grows as the whole series grows). Picking the right one matters: fitting an additive model to a multiplicative series under-corrects at high trend levels and over-corrects at low ones. A quick visual check — does the seasonal wiggle\'s size grow along with the trend? — usually tells you which to use.
+  <div class="use"><b>Used in</b> classical decomposition (STL, X-13ARIMA-SEATS) and as the very first exploratory step before choosing any model in this deck.</div>`,
+  draw(ctx,t,el){
+    bg(ctx,W,H,el);
+    const n=50, x0=60,x1=580;
+    const rowH=95, tops=[40,150,260,370];
+    const labels=['observed','= trend','+ seasonal','+ noise'];
+    const cols=['#e9e7f2','#e0b774','#7aa7d9','#e08a8a'];
+    function mk(kind){
+      const pts=[];
+      for(let i=0;i<n;i++){
+        const x=lerp(x0,x1,i/(n-1));
+        let v=0;
+        if(kind==='trend')v=i*0.5;
+        if(kind==='season')v=14*Math.sin(i/4);
+        if(kind==='noise')v=(Math.sin(i*12.9)*43758.5>>0)%10-5;
+        if(kind==='full')v=i*0.5+14*Math.sin(i/4)+((Math.sin(i*12.9)*43758.5>>0)%10-5);
+        pts.push([x,v]);
+      }
+      return pts;
+    }
+    const kinds=['full','trend','season','noise'];
+    kinds.forEach((k,ri)=>{
+      const a=ease(seg(t,ri*0.2,ri*0.2+0.4));
+      if(a<=0)return;
+      const base=tops[ri]+55;
+      const pts=mk(k).map(p=>[p[0],base-p[1]*0.9]);
+      seriesPath(ctx,pts,cols[ri],2,a);
+      txt(ctx,labels[ri],x0-10,tops[ri]+10,11,cols[ri],'left','600');
+      line(ctx,x0,base,x1,base,'rgba(255,255,255,0.04)',1);
+    });
+  }
+},
+/* 1.1 -------------------------------------------------------- MATH: SIGMA */
+{
+  tag:'Math Toolkit · 1 of 4',
+  title:'Σ just means "add these up"',
+  duration:6500,
+  points:[
+    'Every formula ahead — AR, MA, ARIMA, all of it — leans on the Greek letter <b>Σ</b> (sigma). It just means: add up a list of numbers.',
+    'The small labels below/above Σ say where the counting starts and stops — e.g. "from i=1 to p" means "add p terms".',
+    'Once Σ stops looking scary, formulas like AR(p) become readable sentences instead of symbol soup.'
+  ],
+  formula:'&Sigma;<sub>i=1</sub><sup>p</sup> &phi;<sub>i</sub>X<sub>t&minus;i</sub> = &phi;<sub>1</sub>X<sub>t&minus;1</sub> + &phi;<sub>2</sub>X<sub>t&minus;2</sub> + ... + &phi;<sub>p</sub>X<sub>t&minus;p</sub>',
+  why:`Read it as: "starting at lag 1, going back p lags, add up each past value multiplied by its own weight &phi;." Writing it with Σ means the formula looks the same whether p is 2 or 200 — you never need to list every single term by hand.
+  <div class="use"><b>You\'ll see this in</b> every classical model ahead (AR, MA, ARMA, ARIMA, SARIMA), and inside the likelihood formulas for DeepAR.</div>`,
+  draw(ctx,t,el){
+    bg(ctx,W,H,el);
+    const vals=[3,-2,4,1];
+    const boxes=[150,260,370,480];
+    const s1=seg(t,0,0.7);
+    boxes.forEach((x,i)=>{
+      const a=ease(seg(s1*4,i,i+1));
+      if(a<=0)return;
+      roundRect(ctx,x-34,120-30,68,60,10,'rgba(122,167,217,0.14)','#7aa7d9');
+      txt(ctx,'φ'+(i+1)+'X₋'+(i+1)+' = '+vals[i],x,120,11.5,'#e9e7f2','center','600');
+      if(a>0.5)arrow(ctx,x,155,x,230,'rgba(255,255,255,0.2)',1.3);
+    });
+    const s2=ease(seg(t,0.55,1));
+    if(s2>0){
+      let shown=0;
+      for(let i=0;i<4;i++){
+        const a=ease(seg(s2*4,i,i+1));
+        if(a<=0)continue;
+        shown = vals.slice(0,i+1).reduce((s,v)=>s+v,0);
+      }
+      roundRect(ctx,CX-80,270,160,60,10,'rgba(132,201,162,0.16)','#84c9a2');
+      txt(ctx,'sum so far (this is Xₜ)',CX,255,10.5,'#6f6c80','center','500');
+      txt(ctx,String(shown),CX,300,22,'#84c9a2','center','700');
+    }
+    if(t>0.9)txt(ctx,'Σ = a running total of past values',CX,H-24,11.5,'#6f6c80','center','400');
+  }
+},
+/* 1.2 -------------------------------------------------------- MATH: COVARIANCE */
+{
+  tag:'Math Toolkit · 2 of 4',
+  title:'Correlation: do two things move together?',
+  duration:6800,
+  points:[
+    '<b>Covariance</b> asks: when one value is above its average, is the other usually above its average too (positive), below (negative), or unrelated (near zero)?',
+    'Covariance\'s raw number is hard to interpret because it depends on the units. <b>Correlation</b> rescales it to always fall between &minus;1 and 1.',
+    'Autocorrelation (used in ACF/PACF, coming up) is just this exact idea applied to a series and a lagged copy of <i>itself</i>.'
+  ],
+  formula:'corr(X,Y) = Cov(X,Y) / (&sigma;<sub>X</sub>&sigma;<sub>Y</sub>) &nbsp;&nbsp;&nbsp; &minus;1 &le; corr &le; 1',
+  why:`Dividing by the two standard deviations (&sigma;<sub>X</sub>, &sigma;<sub>Y</sub>) cancels out scale — it doesn\'t matter whether X is measured in dollars or Y in degrees, the result always lands between &minus;1 (perfectly opposite) and +1 (perfectly aligned), with 0 meaning no linear relationship at all. That\'s what makes correlation comparable across completely different variables.
+  <div class="use"><b>You\'ll see this in</b> the ACF/PACF slide just ahead — it\'s literally the correlation between a series and its own past values.</div>`,
+  draw(ctx,t,el){
+    bg(ctx,W,H,el);
+    function scatter(cx,cy,corr,color,label){
+      const n=22; let seed=Math.floor(corr*97)+3;
+      function rnd(){seed=(seed*9301+49297)%233280;return seed/233280;}
+      for(let i=0;i<n;i++){
+        const rx=(rnd()-0.5)*100;
+        const ry= corr*rx*0.9 + (rnd()-0.5)*(100-Math.abs(corr)*60);
+        circle(ctx,cx+rx,cy+ry,3.5,color,0);
+      }
+      txt(ctx,label,cx,cy+80,11,color,'center','600');
+    }
+    const s1=ease(seg(t,0,0.35));
+    if(s1>0)scatter(150,200,0.85,'#84c9a2','corr ≈ +0.85');
+    const s2=ease(seg(t,0.3,0.65));
+    if(s2>0)scatter(CX,200,0.0,'#7aa7d9','corr ≈ 0');
+    const s3=ease(seg(t,0.55,0.95));
+    if(s3>0)scatter(490,200,-0.85,'#e08a8a','corr ≈ −0.85');
+    if(t>0.9)txt(ctx,'same idea, applied to Xₜ and Xₜ₋ₖ, gives the ACF',CX,H-24,11.5,'#6f6c80','center','400');
+  }
+},
+/* 1.3 -------------------------------------------------------- MATH: SIGMOID/SOFTMAX */
+{
+  tag:'Math Toolkit · 3 of 4',
+  title:'Squashing numbers into 0-1',
+  duration:7000,
+  points:[
+    'e<sup>x</sup> ("e to the x") just means the number 2.718... multiplied by itself x times — it grows explosively as x increases, and shrinks toward 0 as x decreases.',
+    'The <b>sigmoid</b> function &sigma;(x) uses e<sup>x</sup> to squash <i>any</i> number into a tidy range between 0 and 1 — perfect for an on/off-ish "gate".',
+    '<b>Softmax</b> does the same trick to a whole list of numbers at once, turning raw scores into probabilities that all sum to exactly 1.'
+  ],
+  formula:'&sigma;(x) = 1 / (1 + e<sup>&minus;x</sup>) &nbsp;&nbsp;&nbsp; softmax(x<sub>i</sub>) = e<sup>x<sub>i</sub></sup> / &Sigma;<sub>j</sub> e<sup>x<sub>j</sub></sup>',
+  why:`As x gets very negative, e<sup>&minus;x</sup> explodes, so &sigma;(x) is dragged toward 0/(big number) &asymp; 0; as x gets very positive, e<sup>&minus;x</sup> shrinks toward 0, so &sigma;(x) &rarr; 1/(1+0)=1 — that\'s the S-shaped squashing. Softmax reuses the same e<sup>x</sup> trick across several numbers at once: because e<sup>x</sup> is always positive, and dividing by the Σ of all of them forces the results to add up to 1, you get a clean set of "relevance weights" or "probabilities" straight out of raw, unbounded scores.
+  <div class="use"><b>You\'ll see this in</b> the gates inside LSTM, and the attention weights inside Transformer forecasting — both use exactly these two functions.</div>`,
+  draw(ctx,t,el){
+    bg(ctx,W,H,el);
+    const x0=70,x1=380,y0=250,amp=110;
+    line(ctx,x0,y0,x1,y0,'#23232f',1);
+    line(ctx,(x0+x1)/2,y0-amp-20,(x0+x1)/2,y0+amp,'#23232f',1);
+    const pts=[];
+    for(let i=0;i<=60;i++){
+      const x=lerp(x0,x1,i/60);
+      const xv=lerp(-6,6,i/60);
+      const sig=1/(1+Math.exp(-xv));
+      pts.push([x, y0+amp - sig*2*amp]);
+    }
+    const s1=ease(seg(t,0,0.5));
+    seriesPath(ctx,pts,'#a78bfa',2.2,s1);
+    txt(ctx,'σ(x): 0 to 1',x0+30,y0-amp-6,11,'#a78bfa','left','600');
+
+    // softmax bars
+    const s2=ease(seg(t,0.5,1));
+    if(s2>0){
+      const raw=[2.0,0.5,-1.0];
+      const exps=raw.map(v=>Math.exp(v));
+      const sum=exps.reduce((s,v)=>s+v,0);
+      const probs=exps.map(v=>v/sum);
+      const bx=460;
+      probs.forEach((p,i)=>{
+        const a=ease(seg(s2*3,i,i+1));
+        if(a<=0)return;
+        const h=p*160*a;
+        roundRect(ctx,bx+i*45,370-h,30,h,4,'#e0b774',null);
+        mono(ctx,(p*100).toFixed(0)+'%',bx+15+i*45,370-h-14,10.5,'#e0b774');
+      });
+      if(s2>0.6)txt(ctx,'softmax: scores → probabilities (sum to 100%)',bx+65,400,10.5,'#6f6c80','center','500');
+    }
+  }
+},
+/* 1.4 -------------------------------------------------------- MATH: PROBABILITY */
+{
+  tag:'Math Toolkit · 4 of 4',
+  title:'Describing a range of futures',
+  duration:6800,
+  points:[
+    'A probability distribution is just a shape that says which outcomes are likely and which aren\'t. The two numbers that matter most: <b>&mu;</b> (mean, the center) and <b>&sigma;</b> (spread, how uncertain).',
+    'A small &sigma; means a confident, narrow forecast. A large &sigma; means a wide range of plausible outcomes.',
+    '<b>Likelihood</b> asks: "how probable was the data we actually saw, under this distribution?" — multiplying (&Pi;) that probability across every observation scores the whole model at once.'
+  ],
+  formula:'N(&mu;,&sigma;): centered at &mu;, width set by &sigma; &nbsp;&nbsp;&nbsp; L = &Pi;<sub>t</sub> p(z<sub>t</sub> | &mu;<sub>t</sub>,&sigma;<sub>t</sub>)',
+  why:`&Pi; (capital pi) is Σ\'s multiplying cousin: instead of adding terms, it multiplies them. Multiplying each time step\'s probability together gives the probability of the <i>entire</i> observed sequence happening under the model\'s predicted distributions — training simply nudges &mu;<sub>t</sub> and &sigma;<sub>t</sub> to make that overall probability as high as possible, i.e. to make the real data look as unsurprising as possible under the model.
+  <div class="use"><b>You\'ll see this in</b> DeepAR, coming up — instead of one number, it predicts an entire &mu;, &sigma; pair at every future time step.</div>`,
+  draw(ctx,t,el){
+    bg(ctx,W,H,el);
+    const cx=CX, base=320;
+    function bell(sigma,color,alpha){
+      const pts=[];
+      for(let x=-160;x<=160;x+=4){
+        const y = Math.exp(-(x*x)/(2*sigma*sigma));
+        pts.push([cx+x, base-y*160]);
+      }
+      ctx.save();ctx.globalAlpha=alpha;
+      seriesPath(ctx,pts,color,2.2,1);
+      ctx.restore();
+    }
+    const s1=ease(seg(t,0,0.4));
+    if(s1>0)bell(30+ (1-s1)*10,'#4fd1c5',0.9);
+    if(s1>0.6)txt(ctx,'confident forecast (small σ)',cx,base+30,11,'#4fd1c5','center','500');
+
+    const s2=ease(seg(t,0.45,0.85));
+    if(s2>0)bell(30+s2*70,'#e0b774',0.6);
+    if(s2>0.6)txt(ctx,'uncertain forecast (large σ)',cx,base+50,11,'#e0b774','center','500');
+
+    line(ctx,cx,base,cx,base-165,'rgba(255,255,255,0.08)',1,[3,3]);
+    if(t>0.2)txt(ctx,'μ',cx,base+16,11,'#8d8a9c','center','600');
+
+    const s3=ease(seg(t,0.85,1));
+    if(s3>0)txt(ctx,'both share the same center μ',cx,70,11.5,'#6f6c80','center','400');
+  }
+},
+/* 1.5 -------------------------------------------------------- STATIONARITY */
+{
+  tag:'Foundational Concept',
+  title:'Stationarity: a moving target',
+  duration:6500,
+  points:[
+    'Classical models like AR, MA and ARMA quietly assume the series\' statistical behavior — its mean, variance, autocorrelation — stays constant over time. This is <b>stationarity</b>.',
+    'A trending or seasonally-drifting series breaks that assumption: a model fit on last year\'s average would be systematically wrong about this year.',
+    'The Augmented Dickey-Fuller (ADF) test formally checks for this, by testing whether the series behaves like a "random walk" that never settles.'
+  ],
+  formula:'&Delta;X<sub>t</sub> = &alpha; + &beta;t + &gamma;X<sub>t&minus;1</sub> + &Sigma;&delta;<sub>i</sub>&Delta;X<sub>t&minus;i</sub> + &epsilon;<sub>t</sub> &nbsp;&nbsp;H&#8320;: &gamma;=0',
+  why:`If &gamma;=0, X<sub>t&minus;1</sub> has no "pull back" toward some fixed level — each step is just the last step plus noise, so the series can wander off arbitrarily far (a random walk, non-stationary). If &gamma; is reliably negative, the series tends to revert toward a stable level after a shock — a sign of stationarity. The ADF test checks whether the data lets us confidently reject &gamma;=0; if not, we difference the series (as in ARIMA) and re-test.
+  <div class="use"><b>Used as</b> a standard preprocessing check before fitting any ARIMA-family model — most forecasting libraries run it automatically to decide the differencing order d.</div>`,
+  draw(ctx,t,el){
+    bg(ctx,W,H,el);
+    const n=40,x0=60,x1=580;
+    // non-stationary: wandering / trending
+    const nonstat=[];
+    let val=200, seedR=5;
+    function rnd(){seedR=(seedR*9301+49297)%233280;return seedR/233280;}
+    for(let i=0;i<n;i++){ val += (rnd()-0.42)*10; nonstat.push([lerp(x0,x1,i/(n-1)), val]); }
+    const s1=ease(seg(t,0,0.4));
+    seriesPath(ctx,nonstat,'#e08a8a',2,s1);
+    if(s1>0.5)txt(ctx,'non-stationary: wanders, no fixed level',x0+10,nonstat[0][1]-40,10.5,'#e08a8a','left','600');
+    // rolling mean drifting
+    const s2=ease(seg(t,0.3,0.6));
+    if(s2>0){
+      const roll=[];
+      for(let i=5;i<n;i++){
+        let s=0; for(let k=0;k<5;k++)s+=nonstat[i-k][1];
+        roll.push([nonstat[i][0], s/5]);
+      }
+      seriesPath(ctx,roll,'rgba(224,183,116,0.7)',1.6,s2);
+    }
+    // stationary series below
+    const stat=[];
+    for(let i=0;i<n;i++){
+      const x=lerp(x0,x1,i/(n-1));
+      const y=380 + 24*Math.sin(i/3) + (rnd()-0.5)*14;
+      stat.push([x,y]);
+    }
+    const s3=ease(seg(t,0.55,1));
+    seriesPath(ctx,stat,'#84c9a2',2,s3);
+    if(s3>0.5)txt(ctx,'stationary: hovers around a fixed level',x0+10,320,10.5,'#84c9a2','left','600');
+    if(s3>0.5)line(ctx,x0,398,x1,398,'rgba(255,255,255,0.05)',1);
+  }
+},
+/* 2 ---------------------------------------------------------- AR */
+{
+  tag:'1 · Autoregressive (AR)',
+  title:'Today looks like yesterday',
+  duration:6500,
+  points:[
+    'The simplest assumption: the next value is a weighted combination of the last <i>p</i> values, plus randomness.',
+    'AR models capture <b>momentum</b> — if you\'ve been trending up, you likely stay a bit up next step too.',
+    'Order <i>p</i> is usually chosen by looking at the partial autocorrelation function (PACF): where it sharply cuts off is roughly how far back "memory" reaches.'
+  ],
+  formula:'X<sub>t</sub> = c + &phi;<sub>1</sub>X<sub>t&minus;1</sub> + &phi;<sub>2</sub>X<sub>t&minus;2</sub> + ... + &phi;<sub>p</sub>X<sub>t&minus;p</sub> + &epsilon;<sub>t</sub>',
+  why:`Each &phi;<sub>i</sub> tells you how strongly (and in which direction) the value <i>i</i> steps ago still pulls on today\'s value. These coefficients are fit by minimizing prediction error on historical data (closely related to ordinary least squares). &epsilon;<sub>t</sub> is the part today\'s value that vesterday\'s values simply couldn\'t explain — genuine new information.
+  <div class="use"><b>Used in</b> short-horizon financial and temperature forecasting, and as the backbone building block inside ARIMA/SARIMA.</div>`,
+  draw(ctx,t,el){
+    bg(ctx,W,H,el);
+    const n=26,x0=60,x1=580,base=280;
+    const pts=synthSeries(n,x0,x1,base,0,0.4,20,7,6,3);
+    const reveal=ease(seg(t,0,0.55));
+    seriesPath(ctx,pts,'#7aa7d9',2,reveal);
+    const idx=Math.min(n-1,Math.floor((n-1)*reveal));
+    // sliding window arrows into predicted next point
+    const s2=ease(seg(t,0.5,0.85));
+    if(s2>0 && idx>=4){
+      for(let k=1;k<=4;k++){
+        const from=pts[idx-k+1];
+        arrow(ctx,from[0],from[1],pts[idx][0]+40*s2,pts[idx][1]-4*k*s2,`rgba(224,183,116,${0.55*s2*(1-k*0.15)})`,1.4);
+      }
+      const px=pts[idx][0]+40*s2, py=pts[idx][1]-8*s2;
+      circle(ctx,px,py,5*s2,'#e0b774',10);
+      if(s2>0.7)txt(ctx,'weighted sum of last p points',px,py-22,11,'#e0b774','center','600');
+    }
+    txt(ctx,'p previous values → next prediction',CX,H-24,12,'#6f6c80','center','400');
+  }
+},
+/* 3 ---------------------------------------------------------- MA */
+{
+  tag:'2 · Moving Average (MA)',
+  title:'Shocks fade, they don\'t vanish',
+  duration:6500,
+  points:[
+    'Not "moving-average smoothing" — a different idea: today\'s value depends on <i>past forecast errors</i> (shocks), not past values themselves.',
+    'A surprise today (a spike in demand, a shock headline) leaves an echo for a few steps, then fades out.',
+    'Order <i>q</i> is chosen by looking at the plain autocorrelation function (ACF): it cuts off after <i>q</i> lags for a pure MA process.'
+  ],
+  formula:'X<sub>t</sub> = &mu; + &epsilon;<sub>t</sub> + &theta;<sub>1</sub>&epsilon;<sub>t&minus;1</sub> + ... + &theta;<sub>q</sub>&epsilon;<sub>t&minus;q</sub>',
+  why:`&epsilon;<sub>t&minus;1</sub>, &epsilon;<sub>t&minus;2</sub>... are the model\'s own past mistakes/surprises, not the raw series. Multiplying them by &theta;<sub>i</sub> and summing lets a single shock ripple forward for a few steps before fully fading — unlike AR, where influence decays geometrically forever, MA influence stops dead after exactly q steps.
+  <div class="use"><b>Used in</b> modelling short-lived shocks — a promotional spike\'s carry-over effect, or the fading impact of one noisy sensor reading.</div>`,
+  draw(ctx,t,el){
+    bg(ctx,W,H,el);
+    const baseY=250, x0=70;
+    const shockX=x0+90;
+    line(ctx,x0,baseY,580,baseY,'#23232f',1.5);
+    const s0=ease(seg(t,0,0.2));
+    if(s0>0){
+      circle(ctx,shockX,baseY-70*s0,6*s0,'#e08a8a',10);
+      if(s0>0.6)txt(ctx,'shock εₜ',shockX,baseY-90*s0,11.5,'#e08a8a','center','600');
+      line(ctx,shockX,baseY,shockX,baseY-70*s0,'#e08a8a',1.6,[3,3]);
+    }
+    const echoes=[0.5,0.3,0.16,0.06];
+    echoes.forEach((amp,i)=>{
+      const a=ease(seg(t,0.25+i*0.15,0.25+i*0.15+0.35));
+      if(a<=0)return;
+      const ex=shockX+ (i+1)*90;
+      const h=70*amp*a;
+      circle(ctx,ex,baseY-h,5*a,'#84c9a2',8);
+      line(ctx,ex,baseY,ex,baseY-h,'#84c9a2',1.4,[3,3]);
+      if(a>0.7)txt(ctx,'θ'+(i+1)+'εₜ',ex,baseY-h-16,10,'#84c9a2','center','500');
+    });
+    if(t>0.9)txt(ctx,'the effect decays and stops after q steps',CX,H-24,12,'#6f6c80','center','400');
+  }
+},
+/* 3.5 -------------------------------------------------------- ACF & PACF */
+{
+  tag:'Model Selection',
+  title:'Reading ACF and PACF',
+  duration:6800,
+  points:[
+    'Before fitting AR or MA, how do you pick the order p or q? Two plots, read together, give the answer.',
+    '<b>ACF</b> (autocorrelation) shows correlation with each lag directly — including correlation that only exists because of a chain through shorter lags.',
+    '<b>PACF</b> (partial autocorrelation) isolates the <i>direct</i> correlation with one specific lag, after removing the effect of every shorter lag in between.'
+  ],
+  formula:'&rho;<sub>k</sub> = Cov(X<sub>t</sub>,X<sub>t&minus;k</sub>) / Var(X<sub>t</sub>) &nbsp;&nbsp;(ACF) &nbsp;&nbsp;&nbsp; &phi;<sub>kk</sub> = corr(X<sub>t</sub>,X<sub>t&minus;k</sub> | X<sub>t&minus;1</sub>...X<sub>t&minus;k+1</sub>) &nbsp;(PACF)',
+  why:`In a true AR(p) process, only the last p values directly influence today — by definition. Any correlation with lag p+1 exists purely because it\'s chained through those p lags, and PACF is built to strip exactly that indirect chain away, so it drops sharply to near-zero right after lag p. ACF has no such stripping step, so it decays gradually instead. The same logic runs in reverse for MA(q): its ACF cuts off sharply after lag q, while its PACF decays gradually. Matching which plot cuts off sharply tells you whether you\'re looking at AR-like or MA-like structure.
+  <div class="use"><b>Used</b> as a manual diagnostic (Box-Jenkins methodology) and still as a sanity check today, even alongside automated order-search tools like auto_arima.</div>`,
+  draw(ctx,t,el){
+    bg(ctx,W,H,el);
+    const acf=[1,0.82,0.68,0.55,0.44,0.35,0.28,0.22,0.17,0.13];
+    const pacf=[1,0.82,0.06,-0.03,0.04,-0.02,0.03,-0.01,0.02,0.0];
+    const bandY=1.5; // significance band scale reference
+    function plot(vals,y0,color,label){
+      const bx=90, bw=44, maxH=90;
+      txt(ctx,label,bx-40,y0-maxH-10,11.5,color,'left','600');
+      line(ctx,bx-10,y0,bx-10+vals.length*bw,y0,'#2a2a38',1);
+      line(ctx,bx-10,y0-14,bx-10+vals.length*bw,y0-14,'rgba(255,255,255,0.08)',1,[3,3]);
+      line(ctx,bx-10,y0+14,bx-10+vals.length*bw,y0+14,'rgba(255,255,255,0.08)',1,[3,3]);
+    }
+    plot(acf,150,'#7aa7d9','ACF');
+    plot(pacf,340,'#a78bfa','PACF');
+    const s1=seg(t,0,0.5);
+    acf.forEach((v,i)=>{
+      const a=ease(seg(s1*10,i,i+1)); if(a<=0)return;
+      const bx=90+i*44, y0=150, h=v*90*a;
+      roundRect(ctx,bx-8,y0-Math.max(h,0),16,Math.abs(h)||1,3,'#7aa7d9',null);
+      mono(ctx,String(i),bx,y0+26,9,'#5a5870');
+    });
+    const s2=seg(t,0.45,0.95);
+    pacf.forEach((v,i)=>{
+      const a=ease(seg(s2*10,i,i+1)); if(a<=0)return;
+      const bx=90+i*44, y0=340, h=v*90*a;
+      const sig=Math.abs(v)>0.15;
+      roundRect(ctx,bx-8,y0-Math.max(h,0),16,Math.abs(h)||1,3, sig?'#a78bfa':'rgba(167,139,250,0.35)',null);
+      mono(ctx,String(i),bx,y0+26,9,'#5a5870');
+    });
+    if(t>0.9){
+      txt(ctx,'PACF cuts off sharply after lag 1 → AR(1)',460,300,10.5,'#84c9a2','right','600');
+    }
+  }
+},
+/* 4 ---------------------------------------------------------- ARMA */
+{
+  tag:'3 · ARMA',
+  title:'Momentum + memory of shocks',
+  duration:6000,
+  points:[
+    'Real series often show both patterns at once. ARMA simply adds the AR and MA pieces together.',
+    'It needs the series to already be <b>stationary</b> — roughly constant mean and variance over time — or the fixed coefficients stop making sense.',
+    'Box-Jenkins methodology: pick the smallest (p, q) that fits well, favoring simplicity (parsimony).'
+  ],
+  formula:'X<sub>t</sub> = c + &Sigma;&phi;<sub>i</sub>X<sub>t&minus;i</sub> + &Sigma;&theta;<sub>j</sub>&epsilon;<sub>t&minus;j</sub> + &epsilon;<sub>t</sub>',
+  why:`AR alone can\'t capture a shock\'s short echo; MA alone can\'t capture long momentum. Adding them lets one compact model explain both kinds of pattern with far fewer parameters than either extreme alone would need — the essence of the "parsimony" principle Box and Jenkins built their methodology around.
+  <div class="use"><b>Used in</b> classical econometrics and any moderately-behaved stationary series before reaching for heavier machinery.</div>`,
+  draw(ctx,t,el){
+    bg(ctx,W,H,el);
+    const arPts=synthSeries(24,80,300,150,0,0.6,0,7,3,2).map(p=>[p[0],p[1]]);
+    const maPts=synthSeries(24,80,300,150,0,0,0,7,10,5).map(p=>[p[0],p[1]]);
+    const s1=ease(seg(t,0,0.35));
+    seriesPath(ctx,arPts,'#7aa7d9',2,s1);
+    txt(ctx,'AR part',190,60,12,'#7aa7d9','center','600');
+    const s2=ease(seg(t,0.1,0.45));
+    const maShift=maPts.map(p=>[p[0]+320,p[1]]);
+    seriesPath(ctx,maShift,'#e08a8a',2,s2);
+    txt(ctx,'MA part',510,60,12,'#e08a8a','center','600');
+
+    const s3=ease(seg(t,0.5,1));
+    if(s3>0){
+      const combined=[];
+      for(let i=0;i<24;i++){
+        const x=lerp(80,580,i/23);
+        const y=330 + (arPts[i][1]-150)*0.6 + (maPts[i][1]-150)*0.6;
+        combined.push([x,y]);
+      }
+      txt(ctx,'AR + MA combined',CX,300,12,'#84c9a2','center','600');
+      seriesPath(ctx,combined,'#84c9a2',2.4,s3);
+    }
+  }
+},
+/* 5 ---------------------------------------------------------- ARIMA */
+{
+  tag:'4 · ARIMA',
+  title:'Difference away the trend',
+  duration:6500,
+  points:[
+    'Most real series aren\'t stationary — they trend. ARIMA adds one step before ARMA: differencing.',
+    'Differencing subtracts each value from the previous one, over and over (<i>d</i> times), until the trend disappears and the series looks flat and stable.',
+    'Then an ARMA(p, q) model is fit to the differenced series — hence "ARIMA(p, d, q)".'
+  ],
+  formula:"X'<sub>t</sub> = X<sub>t</sub> &minus; X<sub>t&minus;1</sub>&nbsp;&nbsp;(repeat d times), then fit ARMA(p, q) to X'",
+  why:`A trending series has a mean that keeps changing — a model with fixed coefficients can\'t honestly describe "the average value" of something that\'s always climbing. Subtracting consecutive values converts "the level is rising" into "the amount of rise is roughly constant", which <i>can</i> be flat and stationary. The order d is usually chosen with a statistical stationarity test (e.g. the Augmented Dickey-Fuller test) — difference until the test says "stationary enough".
+  <div class="use"><b>Used in</b> sales, revenue and macroeconomic forecasting — almost anything with a genuine upward or downward drift.</div>`,
+  draw(ctx,t,el){
+    bg(ctx,W,H,el);
+    const n=30,x0=60,x1=580;
+    const trendPts=synthSeries(n,x0,x1,340,0,1.6,12,6,5,2);
+    const s1=ease(seg(t,0,0.4));
+    seriesPath(ctx,trendPts,'#e08a8a',2,s1);
+    txt(ctx,'raw series (trending)',x0+10,80,11.5,'#e08a8a','left','600');
+
+    const s2=ease(seg(t,0.35,0.6));
+    if(s2>0){
+      arrow(ctx,CX,150,CX,190,'#6f6c80',1.6);
+      if(s2>0.6)txt(ctx,'difference',CX+60,170,11,'#6f6c80','center','500');
+    }
+
+    const s3=ease(seg(t,0.55,1));
+    if(s3>0){
+      const diffPts=[];
+      for(let i=1;i<n;i++){
+        const x=lerp(x0,x1,i/(n-1));
+        const y=380 + (trendPts[i][1]-trendPts[i-1][1])*1.3;
+        diffPts.push([x,y]);
+      }
+      seriesPath(ctx,diffPts,'#84c9a2',2,s3);
+      txt(ctx,"differenced series X' (flat, stationary)",x0+10,300,11.5,'#84c9a2','left','600');
+      line(ctx,x0,380,x1,380,'rgba(255,255,255,0.05)',1);
+    }
+  }
+},
+/* 6 ---------------------------------------------------------- SARIMA */
+{
+  tag:'5 · SARIMA',
+  title:'When the trend repeats too',
+  duration:6500,
+  points:[
+    'Monthly retail sales don\'t just trend — they also spike every December. ARIMA\'s short lags can\'t see a pattern 12 steps away.',
+    'SARIMA adds a second, seasonal AR/MA/differencing block that operates at lag <i>s</i> (the season length) instead of lag 1.',
+    'Notation: ARIMA(p,d,q)(P,D,Q)<sub>s</sub> — regular terms handle short-term structure, seasonal terms handle the recurring cycle.'
+  ],
+  formula:'ARIMA(p,d,q) &times; (P,D,Q)<sub>s</sub>&nbsp;&nbsp;— seasonal terms act on X<sub>t</sub>, X<sub>t&minus;s</sub>, X<sub>t&minus;2s</sub>, ...',
+  why:`Seasonal differencing (X<sub>t</sub> &minus; X<sub>t&minus;s</sub>) does to the <i>yearly</i> pattern exactly what ordinary differencing did to the <i>trend</i>: it removes it, by comparing each point to the same point one season ago rather than one step ago. The seasonal AR/MA terms then explain leftover correlation at multiples of the season length, the same way regular AR/MA explain correlation at short lags.
+  <div class="use"><b>Used in</b> retail and e-commerce demand forecasting, electricity load forecasting — anything with a clear calendar rhythm.</div>`,
+  draw(ctx,t,el){
+    bg(ctx,W,H,el);
+    const n=48,x0=60,x1=580,base=260;
+    const pts=[];
+    for(let i=0;i<n;i++){
+      const x=lerp(x0,x1,i/(n-1));
+      const seasonal = (i%12===11)? 60: 8*Math.sin(i/12*Math.PI*2);
+      const y=base - i*1.4 - seasonal;
+      pts.push([x,y]);
+    }
+    const reveal=ease(seg(t,0,0.55));
+    seriesPath(ctx,pts,'#7aa7d9',2,reveal);
+    // mark the december spikes
+    const s2=ease(seg(t,0.5,1));
+    if(s2>0){
+      for(let i=11;i<n;i+=12){
+        const a=ease(seg(s2*4,(i-11)/12,(i-11)/12+1));
+        if(a<=0)continue;
+        circle(ctx,pts[i][0],pts[i][1],5*a,'#e0b774',9);
+        if(i===11&&a>0.7)txt(ctx,'lag-12 spikes (season)',pts[i][0],pts[i][1]-20,10.5,'#e0b774','center','600');
+      }
+    }
+    if(t>0.9)txt(ctx,'seasonal terms model the repeat at lag s',CX,H-22,12,'#6f6c80','center','400');
+  }
+},
+/* 6.5 -------------------------------------------------------- EXOGENOUS */
+{
+  tag:'Extension',
+  title:'Give the model a reason, not just a pattern',
+  duration:6500,
+  points:[
+    'Every model so far only looks at the series\' own past. But you often already <i>know</i> what\'s driving it — price changes, promotions, weather, a holiday calendar.',
+    'Feeding those as extra inputs (<b>exogenous variables</b>) turns ARIMA into ARIMAX — same backbone, plus a direct explanation for the bumps.',
+    'The same idea extends to any model, classical or deep: give it the real cause, not just history to infer the cause from.'
+  ],
+  formula:'X<sub>t</sub> = c + &Sigma;&phi;<sub>i</sub>X<sub>t&minus;i</sub> + &Sigma;&beta;<sub>j</sub>Z<sub>t,j</sub> + &Sigma;&theta;<sub>i</sub>&epsilon;<sub>t&minus;i</sub> + &epsilon;<sub>t</sub>',
+  why:`Z<sub>t,j</sub> are known external regressors at time t — a promotion flag, a price, a temperature reading. Without them, a model can only infer "December tends to spike" indirectly, by memorizing a repeating pattern in its own history — which breaks the moment the pattern shifts (a promotion moved a week earlier). With &beta;<sub>j</sub>Z<sub>t,j</sub> included directly, the model attributes the spike to its actual, known cause, and reacts correctly even when the calendar pattern isn\'t identical to last year\'s.
+  <div class="use"><b>Used in</b> retail demand forecasting with price and promotion calendars, energy load forecasting with temperature, and most production forecasting systems that have relevant external data available.</div>`,
+  draw(ctx,t,el){
+    bg(ctx,W,H,el);
+    const n=36,x0=60,x1=580,base=210;
+    const promoWeeks=[8,9,22,23,30];
+    const pts=[];
+    for(let i=0;i<n;i++){
+      const x=lerp(x0,x1,i/(n-1));
+      const promo=promoWeeks.includes(i)?45:0;
+      const y=base - i*0.6 - promo - 6*Math.sin(i/2);
+      pts.push([x,y]);
+    }
+    // promo bands first (behind series)
+    const s0=ease(seg(t,0,0.35));
+    if(s0>0){
+      promoWeeks.forEach(i=>{
+        const x=lerp(x0,x1,i/(n-1));
+        const bw=(x1-x0)/(n-1);
+        roundRect(ctx,x-bw/2,60,bw, 320,3,`rgba(224,183,116,${0.14*s0})`,null);
+      });
+      if(s0>0.6)txt(ctx,'Zₜ: promotion weeks (known in advance)',x0+10,80,10.5,'#e0b774','left','600');
+    }
+    const s1=ease(seg(t,0.3,0.8));
+    seriesPath(ctx,pts,'#7aa7d9',2.2,s1);
+    const s2=ease(seg(t,0.75,1));
+    if(s2>0)txt(ctx,'spikes align exactly with the known driver',CX,H-24,11.5,'#84c9a2','center','500');
+  }
+},
+/* 6.6 -------------------------------------------------------- MULTI-HORIZON */
+{
+  tag:'Deeper Theory',
+  title:'One step ahead, or many?',
+  duration:6800,
+  points:[
+    'Forecasting "the next value" and forecasting "the next 30 values" are different problems with different failure modes.',
+    '<b>Recursive:</b> predict one step, feed that prediction back in as if it were real, repeat. Simple, but errors compound — a bad early guess poisons every guess after it.',
+    '<b>Direct:</b> train a separate model (or output head) for each horizon step. No compounding, but more parameters and no sharing between horizons.'
+  ],
+  formula:'recursive: X&#770;<sub>t+2</sub> = f(X&#770;<sub>t+1</sub>, ...) &nbsp;&nbsp;&nbsp; direct: X&#770;<sub>t+h</sub> = f<sub>h</sub>(X<sub>t</sub>, X<sub>t&minus;1</sub>, ...)',
+  why:`Recursive forecasting reuses one model for every horizon, feeding its own output back in as input — efficient, but each prediction\'s error becomes part of the next step\'s <i>input</i>, so mistakes snowball the further out you forecast. Direct forecasting trains f<sub>h</sub> to jump straight from real, known history to h steps ahead in one shot, so errors at step 5 never contaminate step 6 — at the cost of needing (and training) a separate function per horizon. Many modern deep models (N-BEATS, DeepAR, Transformers) use a hybrid: one shared representation, multiple direct output heads for different horizons.
+  <div class="use"><b>Used in</b> the design of every multi-step forecaster in this deck — LSTMs classically forecast recursively, while N-BEATS and Transformer-based models typically forecast the whole horizon directly in one pass.</div>`,
+  draw(ctx,t,el){
+    bg(ctx,W,H,el);
+    const x0=80,x1=300,y0=220;
+    txt(ctx,'recursive',(x0+x1)/2,60,12.5,'#e08a8a','center','600');
+    const s1=seg(t,0,0.6);
+    let px=x0,py=y0, err=0;
+    for(let i=0;i<5;i++){
+      const a=ease(seg(s1*5,i,i+1));
+      if(a<=0)break;
+      err += 6;
+      const nx=x0+(i+1)*40, ny=y0-10-err;
+      circle(ctx,px,py,5*a,'#e08a8a',7);
+      line(ctx,px,py,nx,ny,'rgba(224,138,138,0.5)',1.6);
+      px=nx; py=ny;
+    }
+    if(s1>0.7)txt(ctx,'error compounds forward',(x0+x1)/2,300,10.5,'#e08a8a','center','500');
+
+    const x0b=380,x1b=600;
+    txt(ctx,'direct',(x0b+x1b)/2,60,12.5,'#84c9a2','center','600');
+    const s2=seg(t,0.5,1);
+    const originX=x0b, originY=y0;
+    circle(ctx,originX,originY,6,'#7aa7d9',8);
+    for(let i=0;i<5;i++){
+      const a=ease(seg(s2*5,i,i+1));
+      if(a<=0)continue;
+      const tx=x0b+40+(i)*36, ty=y0-10-i*8;
+      arrow(ctx,originX,originY,tx,ty,'rgba(132,201,162,0.55)',1.4);
+      circle(ctx,tx,ty,4*a,'#84c9a2',6);
+    }
+    if(s2>0.7)txt(ctx,'each horizon, straight from real history',(x0b+x1b)/2,300,10.5,'#84c9a2','center','500');
+  }
+},
+/* 7 ---------------------------------------------------------- HOLT-WINTERS */
+{
+  tag:'6 · Holt-Winters',
+  title:'Exponentially-fading memory',
+  duration:6500,
+  points:[
+    'Instead of fixed coefficients on specific lags, keep three running estimates: <b>level</b>, <b>trend</b>, and <b>seasonal</b> — each updated a little with every new observation.',
+    'Recent observations matter more (exponential weighting), but the whole history still quietly contributes.',
+    'Fast, simple, and remains a strong, highly interpretable baseline in demand planning.'
+  ],
+  formula:'l<sub>t</sub>=&alpha;(y<sub>t</sub>/s<sub>t&minus;m</sub>)+(1&minus;&alpha;)(l<sub>t&minus;1</sub>+b<sub>t&minus;1</sub>) &nbsp;·&nbsp; b<sub>t</sub>=&beta;(l<sub>t</sub>&minus;l<sub>t&minus;1</sub>)+(1&minus;&beta;)b<sub>t&minus;1</sub>',
+  why:`Each smoothing parameter (&alpha;, &beta;, &gamma; for level/trend/season) is a dial between "trust the newest data point" (value near 1) and "trust everything we\'ve seen so far" (value near 0). Because each new estimate blends the previous estimate with the newest observation, older observations are never fully forgotten — they just keep getting multiplied by a smaller and smaller weight, an <i>exponentially</i> decaying trail of influence.
+  <div class="use"><b>Used in</b> inventory and supply-chain demand forecasting, where speed, robustness and interpretability matter more than squeezing out the last bit of accuracy.</div>`,
+  draw(ctx,t,el){
+    bg(ctx,W,H,el);
+    const n=22,x0=70,x1=560,base=260;
+    const pts=synthSeries(n,x0,x1,base,0,1,16,6,8,4);
+    const reveal=ease(seg(t,0,0.5));
+    seriesPath(ctx,pts,'#4a4a5c',1.6,reveal);
+    // smoothed level line, lagging and lighter
+    const s2=ease(seg(t,0.4,0.9));
+    if(s2>0){
+      const sm=[];
+      let level=pts[0][1];
+      for(let i=0;i<n;i++){
+        level = 0.3*pts[i][1] + 0.7*level;
+        sm.push([pts[i][0],level]);
+      }
+      seriesPath(ctx,sm,'#84c9a2',2.4,s2);
+      if(s2>0.6)txt(ctx,'smoothed level (α tunes responsiveness)',x0+10,base-160,11,'#84c9a2','left','600');
+    }
+    // weight decay bars showing exponential influence of past points
+    const s3=ease(seg(t,0.55,1));
+    if(s3>0){
+      const bx=x0, by=390;
+      for(let i=0;i<8;i++){
+        const wgt = Math.pow(0.7,i);
+        const a=ease(seg(s3*8,i,i+1));
+        if(a<=0)continue;
+        roundRect(ctx,bx+i*22,by-wgt*60*a,14,wgt*60*a,3,'rgba(167,139,250,0.5)',null);
+      }
+      txt(ctx,'weight of observation t−k (decays with k)',bx+90,by+18,10,'#6f6c80','center','400');
+    }
+  }
+},
+/* 8 ---------------------------------------------------------- PROPHET */
+{
+  tag:'7 · Prophet',
+  title:'Built for business calendars',
+  duration:6500,
+  points:[
+    'An additive model: <i>observed = trend + seasonality + holidays + noise</i> — designed to be robust to missing data, outliers, and irregular holidays.',
+    'Trend is piecewise-linear with automatically detected <b>changepoints</b> (product launches, policy shifts).',
+    'Seasonality is modelled with a Fourier series — a smooth, flexible curve built from a handful of sine/cosine waves.'
+  ],
+  formula:'y(t) = g(t) + s(t) + h(t) + &epsilon;<sub>t</sub> &nbsp;&nbsp;s(t) = &Sigma;( a<sub>n</sub>cos(2&pi;nt/P) + b<sub>n</sub>sin(2&pi;nt/P) )',
+  why:`A handful of sine/cosine waves of different frequencies (a Fourier series) can approximate almost any smooth repeating shape — more terms N give a more flexible, wigglier seasonal curve. Letting the trend g(t) bend at automatically-detected changepoints (rather than staying one straight line) lets the model react honestly to real shifts in the business, instead of forcing history and future onto a single rigid slope.
+  <div class="use"><b>Used in</b> web-traffic, marketing, and business-metric forecasting where analysts need an interpretable model with holiday effects, not just raw accuracy.</div>`,
+  draw(ctx,t,el){
+    bg(ctx,W,H,el);
+    const x0=60,x1=580,base=180;
+    // piecewise trend with a changepoint
+    const s1=ease(seg(t,0,0.4));
+    const seg1=[[x0,base],[320,base-70]];
+    const seg2=[[320,base-70],[x1,base-70-40]];
+    if(s1>0){
+      const p1=[seg1[0],[lerp(seg1[0][0],seg1[1][0],s1),lerp(seg1[0][1],seg1[1][1],s1)]];
+      line(ctx,p1[0][0],p1[0][1],p1[1][0],p1[1][1],'#e0b774',2.4);
+    }
+    const s1b=ease(seg(t,0.35,0.6));
+    if(s1b>0){
+      const p2=[seg2[0],[lerp(seg2[0][0],seg2[1][0],s1b),lerp(seg2[0][1],seg2[1][1],s1b)]];
+      line(ctx,p2[0][0],p2[0][1],p2[1][0],p2[1][1],'#e0b774',2.4);
+      if(s1b>0.3){
+        circle(ctx,320,base-70,5,'#e08a8a',9);
+        txt(ctx,'changepoint',320,base-90,10.5,'#e08a8a','center','600');
+      }
+    }
+    // fourier seasonal wave added below
+    const s2=ease(seg(t,0.55,1));
+    if(s2>0){
+      const pts=[];
+      const n=80;
+      for(let i=0;i<n;i++){
+        const x=lerp(x0,x1,i/(n-1));
+        const y=340 + 24*Math.sin(i/6)+ 9*Math.sin(i/2.3);
+        pts.push([x,y]);
+      }
+      seriesPath(ctx,pts,'#7aa7d9',2,s2);
+      if(s2>0.5)txt(ctx,'s(t): Fourier seasonal curve',x0+10,290,11,'#7aa7d9','left','600');
+    }
+    if(t>0.9)txt(ctx,'trend + seasonality + holidays, added together',CX,H-22,12,'#6f6c80','center','400');
+  }
+},
+/* 9 ---------------------------------------------------------- LSTM */
+{
+  tag:'8 · LSTM',
+  title:'A memory the network controls',
+  duration:6800,
+  points:[
+    'A plain recurrent network forgets almost everything after a few steps (vanishing gradients). LSTM fixes this with a separate <b>cell state</b> that acts like a conveyor belt of memory.',
+    'Three gates decide what to forget, what new information to add, and what to output at each time step.',
+    'No need to hand-pick lag order — the network learns whatever nonlinear temporal pattern the data needs.'
+  ],
+  formula:'f<sub>t</sub>=&sigma;(...) &nbsp;i<sub>t</sub>=&sigma;(...) &nbsp;C<sub>t</sub>=f<sub>t</sub>&#8857;C<sub>t&minus;1</sub> + i<sub>t</sub>&#8857;C&#771;<sub>t</sub> &nbsp;h<sub>t</sub>=o<sub>t</sub>&#8857;tanh(C<sub>t</sub>)',
+  why:`The forget gate f<sub>t</sub> outputs values between 0 and 1 for each memory slot — near 1 keeps that piece of memory, near 0 erases it. Because the cell state updates by <i>addition</i> (f<sub>t</sub>&#8857;C<sub>t&minus;1</sub> + i<sub>t</sub>&#8857;C&#771;<sub>t</sub>) rather than repeated multiplication through a nonlinearity, gradients can flow back many steps without shrinking to zero — this is precisely the vanishing-gradient problem that plain RNNs suffer from.
+  <div class="use"><b>Used in</b> demand forecasting with many interacting related series, anomaly detection in sensor streams, and any long, irregular dependency a fixed-lag model would miss.</div>`,
+  draw(ctx,t,el){
+    bg(ctx,W,H,el);
+    const steps=[110,250,390,530];
+    const y=230;
+    // cell state conveyor belt
+    const s1=ease(seg(t,0,0.3));
+    if(s1>0)line(ctx,60,y-70,60+ (580-60)*s1,y-70,'#e0b774',2.4);
+    if(s1>0.5)txt(ctx,'cell state (long-term memory)',CX,y-92,11,'#e0b774','center','600');
+    steps.forEach((x,i)=>{
+      const a=ease(seg(t,0.15+i*0.15,0.15+i*0.15+0.35));
+      if(a<=0)return;
+      roundRect(ctx,x-30,y-30,60,60,10,'rgba(122,167,217,0.12)','#7aa7d9');
+      txt(ctx,'t'+(i+1),x,y,12,'#7aa7d9','center','600');
+      // gates as small dots on top
+      ['f','i','o'].forEach((g,gi)=>{
+        circle(ctx,x-16+gi*16,y-45,4,'#a78bfa',5);
+      });
+      if(a>0.6&&i<steps.length-1){
+        arrow(ctx,x+30,y,steps[i+1]-30,y,'rgba(122,167,217,0.4)',1.4);
+      }
+    });
+    if(t>0.85)txt(ctx,'gates decide: forget · input · output',CX,H-24,12,'#6f6c80','center','400');
+  }
+},
+/* 10 --------------------------------------------------------- TCN */
+{
+  tag:'9 · Temporal Convolutional Network',
+  title:'See far back, without looping',
+  duration:6800,
+  points:[
+    'Instead of stepping through time one moment at a time, stack 1D convolutions that only look backward ("causal") — no peeking at the future.',
+    '<b>Dilation</b> spaces out each layer\'s lookback exponentially, so a modest number of layers can "see" a very long history.',
+    'Because there\'s no recurrence, every time step can be computed in parallel on a GPU — much faster to train than an LSTM.'
+  ],
+  formula:'y<sub>t</sub> = &Sigma;<sub>i=0..k&minus;1</sub> w<sub>i</sub>x<sub>t&minus;d&middot;i</sub> &nbsp;&nbsp; receptive field R = 1 + &Sigma;(k&minus;1)d<sub>layer</sub>',
+  why:`A plain convolution\'s reach grows only linearly with depth, so seeing far into the past needs very many layers. Skipping <b>d</b> steps between each kernel tap (dilation) lets the reach grow <i>exponentially</i> with depth instead — doubling the dilation at each layer covers a history that would otherwise need twice as many layers. "Causal" simply means the kernel is shifted so it only ever multiplies past and present values, never future ones, which is mandatory for a model to be honestly used for forecasting.
+  <div class="use"><b>Used in</b> audio/wavefile modelling (its original use, WaveNet) and increasingly in high-frequency demand and energy-load forecasting, where GPU training speed matters.</div>`,
+  draw(ctx,t,el){
+    bg(ctx,W,H,el);
+    const layers=[{y:340,d:1},{y:260,d:2},{y:180,d:4},{y:100,d:8}];
+    const xs=[100,180,260,340,420,500];
+    layers.forEach((L,li)=>{
+      const a=ease(seg(t,li*0.18,li*0.18+0.35));
+      if(a<=0)return;
+      xs.forEach(x=>circle(ctx,x,L.y,6*a,'#7aa7d9',6));
+      if(li>0){
+        // connect to layer below with dilation gaps
+        const prevY=layers[li-1].y;
+        xs.forEach((x,xi)=>{
+          const src1=xi-L.d, src2=xi;
+          if(src1>=0){
+            const c=ease(seg(t,li*0.18+0.1,li*0.18+0.45));
+            if(c>0)line(ctx,xs[src1],prevY,x,L.y,`rgba(167,139,250,${0.4*c})`,1.3);
+          }
+        });
+      }
+      if(a>0.6)txt(ctx,'dilation='+L.d,xs[5]+50,L.y,10,'#6f6c80','left','500');
+    });
+    if(t>0.85)txt(ctx,'exponential lookback, fully parallel',CX,H-24,12,'#6f6c80','center','400');
+  }
+},
+/* 11 --------------------------------------------------------- TRANSFORMER */
+{
+  tag:'10 · Transformer-based Forecasting',
+  title:'Attend to whatever matters, directly',
+  duration:6800,
+  points:[
+    'Self-attention lets every time step directly look at every other past step, weighted by how relevant it is — no decay with distance, no bottleneck of squeezing history through one memory vector.',
+    'A spike today can connect straight back to a similar spike months ago, in a single hop.',
+    'Costlier to compute than RNNs, but excellent at long-range dependencies and multiple related series at once.'
+  ],
+  formula:'Attention(Q,K,V) = softmax( QK<sup>T</sup> / &radic;d<sub>k</sub> ) V',
+  why:`QK<sup>T</sup> compares every query time step against every key time step via a dot product — a high value means "these two moments look similar". Softmax turns those similarity scores into weights that sum to 1, so each output is a relevance-weighted blend of all past values (V). Dividing by &radic;d<sub>k</sub> keeps the dot products from growing huge in high dimensions, which would otherwise push softmax into a region with near-zero gradients and stall learning.
+  <div class="use"><b>Used in</b> large-scale, multi-series forecasting (e.g. retail demand across thousands of SKUs) where long-range and cross-series patterns both matter.</div>`,
+  draw(ctx,t,el){
+    bg(ctx,W,H,el);
+    const n=10, x0=100,x1=560,y=230;
+    const pts=[];
+    for(let i=0;i<n;i++)pts.push(x0+(x1-x0)*i/(n-1));
+    const s1=ease(seg(t,0,0.3));
+    pts.forEach((x,i)=>circle(ctx,x,y,6*s1,'#7aa7d9',6));
+    const query=n-1;
+    const weights=[0.05,0.05,0.35,0.05,0.05,0.05,0.55,0.05,0.05,0];
+    const s2=ease(seg(t,0.3,0.9));
+    if(s2>0){
+      pts.forEach((x,i)=>{
+        if(i===query)return;
+        const wa=ease(seg(s2*n,i,i+1));
+        if(wa<=0)return;
+        line(ctx,x,y,pts[query],y,`rgba(167,139,250,${weights[i]*wa*2.2})`, 1+weights[i]*8);
+      });
+      if(s2>0.5)txt(ctx,'today attends to two similar past spikes',CX,y+50,11.5,'#a78bfa','center','600');
+    }
+    circle(ctx,pts[query],y,8,'#e08a8a',10);
+    if(t>0.15)txt(ctx,'query (today)',pts[query],y-24,10.5,'#e08a8a','center','600');
+    [2,6].forEach(i=>{if(t>0.4)txt(ctx,'key',pts[i],y+24,9.5,'#6f6c80','center','400');});
+  }
+},
+/* 12 --------------------------------------------------------- N-BEATS */
+{
+  tag:'11 · N-BEATS',
+  title:'Explain the residual, block by block',
+  duration:6800,
+  points:[
+    'A pure deep-learning architecture with no recurrence or convolution: just stacked fully-connected blocks.',
+    'Each block predicts a piece of the past it can explain (backcast) and a piece of the future (forecast), then hands the <i>unexplained residual</i> to the next block.',
+    'Interpretable variants constrain a block\'s output to look like trend or seasonality — echoing classical decomposition, but learned end-to-end.'
+  ],
+  formula:'x<sub>l+1</sub> = x<sub>l</sub> &minus; x&#770;<sub>l</sub> &nbsp;(backcast residual)&nbsp;&nbsp; &nbsp;final forecast = &Sigma;<sub>l</sub> &#375;<sub>l</sub>',
+  why:`Each block only ever sees what previous blocks failed to reconstruct (the residual x<sub>l</sub> &minus; x&#770;<sub>l</sub>) — the same idea behind gradient boosting, applied to neural network blocks instead of decision trees. Summing every block\'s small forecast contribution &#375;<sub>l</sub> builds one accurate final forecast out of several easy, specialized sub-problems, rather than asking one giant network to explain everything at once.
+  <div class="use"><b>Used in</b> the M4/M5 forecasting competitions, where it outperformed most classical and hybrid statistical models on diverse, large-scale series.</div>`,
+  draw(ctx,t,el){
+    bg(ctx,W,H,el);
+    const blocks=[130,290,450];
+    const y=150, y2=330;
+    blocks.forEach((x,i)=>{
+      const a=ease(seg(t,i*0.28,i*0.28+0.35));
+      if(a<=0)return;
+      roundRect(ctx,x-45,y-30,90,60,10,'rgba(122,167,217,0.12)','#7aa7d9');
+      txt(ctx,'block '+(i+1),x,y,11.5,'#7aa7d9','center','600');
+      // backcast/forecast split
+      const b=ease(seg(t,i*0.28+0.15,i*0.28+0.5));
+      if(b>0){
+        line(ctx,x-20,y+30,x-20,y2-40*b,'#e08a8a',1.8);
+        line(ctx,x+20,y+30,x+20,y2-70*b,'#84c9a2',1.8);
+        if(b>0.6){txt(ctx,'backcast',x-20,y2-40*b-14,9,'#e08a8a','center','500');
+          txt(ctx,'forecast',x+20,y2-70*b-14,9,'#84c9a2','center','500');}
+      }
+      if(i<blocks.length-1){
+        const c=ease(seg(t,i*0.28+0.3,i*0.28+0.6));
+        if(c>0)arrow(ctx,x+45,y,blocks[i+1]-45,y,`rgba(224,138,138,${0.5*c})`,1.4);
+        if(c>0.6)txt(ctx,'residual',(x+blocks[i+1])/2,y-42,9.5,'#e08a8a','center','500');
+      }
+    });
+    if(t>0.9)txt(ctx,'sum of all block forecasts = final prediction',CX,H-24,12,'#6f6c80','center','400');
+  }
+},
+/* 13 --------------------------------------------------------- DEEPAR */
+{
+  tag:'12 · DeepAR',
+  title:'A range of futures, not one number',
+  duration:6800,
+  points:[
+    'An autoregressive RNN (usually LSTM-based) — but instead of predicting a single value, it predicts the <i>parameters of a probability distribution</i> at each step.',
+    'Trained jointly across thousands of related series, so a brand-new or sparse series can borrow statistical strength from similar ones.',
+    'The result is a forecast with honest uncertainty: "most likely 90 units, but could reasonably be 60-130".'
+  ],
+  formula:'&theta;<sub>t</sub> = (&mu;<sub>t</sub>, &sigma;<sub>t</sub>) &nbsp; z<sub>t</sub> ~ N(&mu;<sub>t</sub>, &sigma;<sub>t</sub>) &nbsp; likelihood: L = &prod;<sub>t</sub> p(z<sub>t</sub>|&theta;<sub>t</sub>)',
+  why:`Instead of training the network to output one number and penalizing distance from the truth, DeepAR trains it to output distribution parameters (&mu;<sub>t</sub>, &sigma;<sub>t</sub>) and maximizes the likelihood of the actually-observed value under that distribution. This directly optimizes for calibrated uncertainty, not just a point guess — critical for decisions like "how much safety stock should we hold" where the width of the range matters as much as its center.
+  <div class="use"><b>Used in</b> Amazon\'s own large-scale demand forecasting, where thousands of related product series and the cost of stockouts both make uncertainty-aware, jointly-trained forecasts valuable.</div>`,
+  draw(ctx,t,el){
+    bg(ctx,W,H,el);
+    const n=20,x0=70,x1=420,base=250;
+    const hist=synthSeries(n,x0,x1,base,0,0.6,14,5,6,3);
+    const s1=ease(seg(t,0,0.4));
+    seriesPath(ctx,hist,'#7aa7d9',2,s1);
+    // several related thin series in background
+    const s0=ease(seg(t,0,0.25));
+    [1,2,3].forEach(seed=>{
+      const other=synthSeries(n,x0,x1,base-20*seed,0,0.6,10,5,10,seed+9);
+      seriesPath(ctx,other,'rgba(122,167,217,0.15)',1.2,s0);
+    });
+    if(s0>0.5)txt(ctx,'trained jointly across related series',x0+10,90,10.5,'#6f6c80','left','400');
+
+    const s2=ease(seg(t,0.45,1));
+    if(s2>0){
+      const fx0=hist[n-1][0], fy0=hist[n-1][1];
+      const steps=8;
+      const cone=[];
+      for(let i=1;i<=steps;i++){
+        const a=ease(seg(s2*steps,i-1,i));
+        if(a<=0)continue;
+        const x=fx0+ i*18;
+        const y=fy0 - i*1.5;
+        const spread=6+i*5;
+        ctx.save();ctx.globalAlpha=0.16*a;ctx.fillStyle='#4fd1c5';
+        ctx.beginPath();ctx.ellipse(x,y,3,spread,0,0,Math.PI*2);ctx.fill();ctx.restore();
+        cone.push([x,y]);
+      }
+      if(cone.length){
+        line(ctx,fx0,fy0,cone[cone.length-1][0],cone[cone.length-1][1],'#4fd1c5',2,[4,4]);
+        txt(ctx,'μₜ ± σₜ (forecast distribution)',cone[cone.length-1][0]-30,cone[cone.length-1][1]-60,11,'#4fd1c5','center','600');
+      }
+    }
+  }
+},
+/* 13.1 ------------------------------------------------------- QUANTILE LOSS */
+{
+  tag:'Deeper Theory',
+  title:'Training a model to say "maybe"',
+  duration:6800,
+  points:[
+    'DeepAR predicts a full distribution — but what if you don\'t want to assume a bell-curve shape at all? Directly predict specific <b>quantiles</b> instead (the 10th percentile, the median, the 90th percentile).',
+    'The <b>pinball loss</b> (quantile loss) penalizes over- and under-predicting differently depending on which quantile you\'re targeting.',
+    'For the 90th percentile, under-shooting is penalized far more than over-shooting — that asymmetry is exactly what makes the model learn "a value I\'ll rarely be wrong to call an upper bound".'
+  ],
+  formula:'L<sub>&tau;</sub>(y,&#375;) = max( &tau;(y&minus;&#375;), (&tau;&minus;1)(y&minus;&#375;) )',
+  why:`When the true value y is above the prediction &#375; (under-prediction), the loss is &tau;(y&minus;&#375;); when below (over-prediction), it\'s (&tau;&minus;1)(y&minus;&#375;), which for &tau; close to 1 is a small negative-times-negative penalty. Concretely: for &tau;=0.9, under-shooting costs 9&times; more than over-shooting the same amount — so the optimizer learns to sit high enough that it\'s only wrong 10% of the time, which is exactly the definition of the 90th percentile. Training several quantiles (e.g. 0.1, 0.5, 0.9) at once gives a full prediction interval without ever assuming a particular distribution shape.
+  <div class="use"><b>Used in</b> Amazon\'s DeepAR alternative "MQ-RNN"/quantile forecasters, and any inventory or staffing decision where you explicitly need "what\'s the value I\'ll only exceed 10% of the time" rather than a distribution\'s formula.</div>`,
+  draw(ctx,t,el){
+    bg(ctx,W,H,el);
+    const x0=70,x1=560,y0=170;
+    function pinball(tau,color,label,rowY){
+      const pts=[];
+      for(let d=-140;d<=140;d+=4){
+        const err = d>0? tau*d : (tau-1)*d;
+        pts.push([CX+d, rowY - err*0.9]);
+      }
+      return pts;
+    }
+    const s1=ease(seg(t,0,0.4));
+    const p10=pinball(0.1,'#e08a8a','τ=0.1',150);
+    seriesPath(ctx,p10,'#e08a8a',2,s1);
+    if(s1>0.6)txt(ctx,'τ=0.1: penalizes over-prediction more',CX,90,10.5,'#e08a8a','center','600');
+
+    const s2=ease(seg(t,0.35,0.75));
+    const p90=pinball(0.9,'#84c9a2','τ=0.9',330);
+    seriesPath(ctx,p90,'#84c9a2',2,s2);
+    if(s2>0.6)txt(ctx,'τ=0.9: penalizes under-prediction more',CX,270,10.5,'#84c9a2','center','600');
+
+    if(t>0.85)txt(ctx,'asymmetric penalty ⇒ learns a percentile, not a mean',CX,H-22,11.5,'#6f6c80','center','400');
+  }
+},
+/* 13.2 ------------------------------------------------------- ENSEMBLES */
+{
+  tag:'Deeper Theory',
+  title:'Nobody wins with just one model',
+  duration:6500,
+  points:[
+    'In practice, the winning approach in most forecasting competitions isn\'t one clever model — it\'s several different models, combined.',
+    'Different model families make different mistakes: classical models are steady but rigid, deep models are flexible but can overfit or misbehave on short series.',
+    'Averaging (or learning to weight) several forecasts usually beats any single one, because their errors are rarely perfectly correlated.'
+  ],
+  formula:'&#375;<sub>ensemble</sub> = &Sigma;<sub>m</sub> w<sub>m</sub>&#375;<sub>m</sub>, &nbsp;&Sigma;w<sub>m</sub>=1',
+  why:`If two models\' errors are independent-ish, averaging their predictions cancels out some of each one\'s individual noise while keeping the shared signal — the combined forecast\'s error variance shrinks even though neither model individually improved. The weights w<sub>m</sub> can be equal (simple averaging), or themselves learned by seeing which model tends to be right in which situations (a "meta-model" stacking layer) — this is exactly why the M4 competition\'s winning entry was a hybrid of a classical exponential-smoothing model and an LSTM, not either alone.
+  <div class="use"><b>Used in</b> the M4/M5 competition-winning solutions, and standard practice in production forecasting systems that blend a stable statistical baseline with a more flexible ML model as a safety net.</div>`,
+  draw(ctx,t,el){
+    bg(ctx,W,H,el);
+    const n=20,x0=70,x1=560,base=230;
+    const truth=synthSeries(n,x0,x1,base,0,0.5,16,6,4,2);
+    const s0=ease(seg(t,0,0.25));
+    seriesPath(ctx,truth,'#e9e7f2',1.8,s0);
+    if(s0>0.6)txt(ctx,'actual',x0+10,truth[0][1]-16,10.5,'#e9e7f2','left','600');
+
+    const modelA=truth.map((p,i)=>[p[0], p[1]-14+6*Math.sin(i/2)]);
+    const modelB=truth.map((p,i)=>[p[0], p[1]+16-8*Math.sin(i/3)]);
+    const s1=ease(seg(t,0.2,0.5));
+    seriesPath(ctx,modelA,'rgba(224,183,116,0.7)',1.6,s1);
+    if(s1>0.6)txt(ctx,'classical model',x0+10,modelA[0][1]-14,10,'#e0b774','left','500');
+    const s2=ease(seg(t,0.35,0.65));
+    seriesPath(ctx,modelB,'rgba(122,167,217,0.7)',1.6,s2);
+    if(s2>0.6)txt(ctx,'deep model',x0+10,modelB[0][1]+18,10,'#7aa7d9','left','500');
+
+    const s3=ease(seg(t,0.6,1));
+    if(s3>0){
+      const ens=truth.map((p,i)=>[p[0], (modelA[i][1]+modelB[i][1])/2]);
+      seriesPath(ctx,ens,'#84c9a2',2.6,s3);
+      if(s3>0.5)txt(ctx,'ensemble average — closer to truth than either alone',CX,H-24,11,'#84c9a2','center','600');
+    }
+  }
+},
+/* 13.5 ------------------------------------------------------- EVAL METRICS */
+{
+  tag:'Evaluation',
+  title:'How wrong were we, exactly?',
+  duration:6800,
+  points:[
+    'Different metrics answer different questions about the same errors — there\'s no single "correct" one.',
+    '<b>RMSE</b> squares errors, so a few big misses dominate the score. <b>MAE</b> treats every unit of error equally.',
+    '<b>MAPE</b> expresses error as a percentage (comparable across series of different scales, but breaks near zero). <b>MASE</b> compares your model to a trivial "predict yesterday" baseline.'
+  ],
+  formula:'MAE = mean|y&minus;&#375;| &nbsp; RMSE = &radic;mean((y&minus;&#375;)&sup2;) &nbsp; MAPE = mean(|y&minus;&#375;|/|y|) &nbsp; MASE = MAE / MAE<sub>naive</sub>',
+  why:`Squaring errors before averaging (RMSE) means a single 10-unit miss counts as much as a hundred 1-unit misses — appropriate when large errors are disproportionately costly (a huge stockout). MAE\'s linear penalty is easier to interpret directly in the series\' own units. MAPE rescales error into a percentage so a forecast on a series in the thousands can be compared fairly to one in single digits — but explodes toward infinity as y approaches zero. MASE sidesteps that by dividing your error by the naive "just repeat yesterday" forecast\'s error: a MASE below 1 means you\'re genuinely beating the simplest possible baseline.
+  <div class="use"><b>Used in</b> the M4/M5 forecasting competitions (MASE-based scoring specifically, to stay scale-independent and avoid MAPE\'s near-zero blowup), and standard in every production forecasting dashboard.</div>`,
+  draw(ctx,t,el){
+    bg(ctx,W,H,el);
+    const n=14,x0=70,x1=420,base=200;
+    const actual=[], pred=[];
+    for(let i=0;i<n;i++){
+      const x=lerp(x0,x1,i/(n-1));
+      actual.push([x, base - 20*Math.sin(i/2) - i*1.2]);
+      pred.push([x, base - 20*Math.sin(i/2) - i*1.2 + (i%3===0? 22 : -6)]);
+    }
+    const s1=ease(seg(t,0,0.35));
+    seriesPath(ctx,actual,'#7aa7d9',2,s1);
+    if(s1>0.5)txt(ctx,'actual',x0+10,base-90,10.5,'#7aa7d9','left','600');
+    const s2=ease(seg(t,0.15,0.5));
+    seriesPath(ctx,pred,'#e0b774',2,s2);
+    if(s2>0.5)txt(ctx,'predicted',x0+10,base-70,10.5,'#e0b774','left','600');
+    const s3=ease(seg(t,0.4,0.7));
+    if(s3>0){
+      for(let i=0;i<n;i++){
+        const a=ease(seg(s3*n,i,i+1)); if(a<=0)continue;
+        line(ctx,actual[i][0],actual[i][1],actual[i][0],lerp(actual[i][1],pred[i][1],a),'rgba(224,138,138,0.45)',1.4);
+      }
+    }
+    const s4=ease(seg(t,0.65,1));
+    if(s4>0){
+      const readouts=[['MAE','9.8','#e9e7f2'],['RMSE','12.4','#7aa7d9'],['MAPE','6.1%','#e0b774'],['MASE','0.71','#84c9a2']];
+      readouts.forEach((r,i)=>{
+        const a=ease(seg(s4*4,i,i+1)); if(a<=0)return;
+        const rx=490, ry=110+i*70;
+        roundRect(ctx,rx-60,ry-22,120,44,8,'rgba(255,255,255,0.03)','#23232f');
+        mono(ctx,r[0]+' = '+r[1],rx,ry,12.5,r[2],'center');
+      });
+    }
+  }
+},
+/* 13.6 ------------------------------------------------------- BACKTESTING */
+{
+  tag:'Validation',
+  title:'Never let the model see the future',
+  duration:6500,
+  points:[
+    'Randomly shuffling a time series into train/test (like typical ML) would let the model train on data <i>from after</i> the point it\'s tested on — a form of leakage that never happens in real deployment.',
+    'Instead, roll the training window forward: always train on the past, always test on the period right after it.',
+    'Repeating this across several rolling cutoffs — not just one split — gives a far more trustworthy estimate of real-world accuracy.'
+  ],
+  formula:'for k = 1..K: &nbsp; train on [1, t<sub>k</sub>] &nbsp;&nbsp;&rarr;&nbsp;&nbsp; evaluate on (t<sub>k</sub>, t<sub>k</sub>+h]',
+  why:`A model trained with random shuffling could accidentally learn from a data point that, chronologically, comes right after the one it\'s being tested on — information that would never be available at real prediction time. Walk-forward validation enforces the same constraint a production system actually faces: only the past is ever visible. Testing across several different rolling cutoffs (not one lucky or unlucky split) also reveals whether performance is consistent, or whether it only looked good on one easy stretch of history.
+  <div class="use"><b>Used as</b> the standard validation protocol in every serious forecasting benchmark and in production model-monitoring pipelines that re-validate a model as new data arrives.</div>`,
+  draw(ctx,t,el){
+    bg(ctx,W,H,el);
+    const x0=70,x1=570,y=230;
+    line(ctx,x0,y,x1,y,'#23232f',1.5);
+    const folds=4;
+    const foldW=(x1-x0)/6;
+    for(let k=0;k<folds;k++){
+      const a=ease(seg(t,k*0.22,k*0.22+0.4));
+      if(a<=0)continue;
+      const trainStart=x0, trainEnd=x0+foldW*(2+k);
+      const testEnd=trainEnd+foldW*0.7;
+      const rowY=y - 60 + k*0 ; // keep single row, offset vertically per fold instead
+      const vy=90+k*70;
+      roundRect(ctx,trainStart,vy-14,(trainEnd-trainStart)*a,28,5,'rgba(122,167,217,0.18)','#7aa7d9');
+      if(a>0.7)roundRect(ctx,trainEnd,vy-14,(testEnd-trainEnd),28,5,'rgba(224,138,138,0.18)','#e08a8a');
+      txt(ctx,'fold '+(k+1),x0-30,vy,10,'#6f6c80','right','500');
+    }
+    if(t>0.9){
+      txt(ctx,'train (blue) always precedes test (red)',CX,H-30,11.5,'#84c9a2','center','500');
+    }
+  }
+},
+/* 14 --------------------------------------------------------- SUMMARY */
+{
+  tag:'Recap',
+  title:'Classical statistics vs. deep sequence models',
+  duration:5000,
+  summary:true,
+  points:[],
+  draw(ctx,t,el){}
+},
+];
+
+const SUMMARY_TABLE=`
+<div class="compare-wrap">
+<table class="compare">
+<tr><th>Method</th><th>Family</th><th>Handles</th><th>Strength</th></tr>
+<tr style="animation-delay:.03s"><td>AR</td><td>classical</td><td>momentum</td><td>Simple, interpretable, great short-horizon baseline</td></tr>
+<tr style="animation-delay:.06s"><td>MA</td><td>classical</td><td>shock decay</td><td>Models fading effect of surprises</td></tr>
+<tr style="animation-delay:.09s"><td>ARMA</td><td>classical</td><td>both, stationary data</td><td>Compact, parsimonious combo of AR+MA</td></tr>
+<tr style="animation-delay:.12s"><td>ARIMA</td><td>classical</td><td>trend</td><td>Differencing handles non-stationary drift</td></tr>
+<tr style="animation-delay:.15s"><td>SARIMA</td><td>classical</td><td>trend + seasonality</td><td>Adds a seasonal block at lag s</td></tr>
+<tr style="animation-delay:.18s"><td>Holt-Winters</td><td>classical (smoothing)</td><td>level, trend, season</td><td>Fast, robust, highly interpretable baseline</td></tr>
+<tr style="animation-delay:.21s"><td>Prophet</td><td>classical + curve fitting</td><td>trend shifts, holidays</td><td>Business-friendly, robust to gaps/outliers</td></tr>
+<tr style="animation-delay:.24s"><td>LSTM</td><td>deep learning</td><td>nonlinear, long memory</td><td>Learns temporal patterns automatically</td></tr>
+<tr style="animation-delay:.27s"><td>TCN</td><td>deep learning</td><td>long lookback</td><td>Parallel training, exponential receptive field</td></tr>
+<tr style="animation-delay:.3s"><td>Transformer</td><td>deep learning</td><td>long-range, multi-series</td><td>Direct attention to any past step</td></tr>
+<tr style="animation-delay:.33s"><td>N-BEATS</td><td>deep learning</td><td>trend + seasonality</td><td>Residual block stacking, strong benchmark results</td></tr>
+<tr style="animation-delay:.36s"><td>DeepAR</td><td>deep learning</td><td>probabilistic, many series</td><td>Uncertainty-aware, shares strength across series</td></tr>
+</table>
+</div>`;
+
+/* ============== ENGINE ============== */
+const stage=document.getElementById('stage');
+const dotsEl=document.getElementById('dots');
+const counterEl=document.getElementById('counter');
+let current=0;
+let rafId=null;
+
+SLIDES.forEach((s,i)=>{
+  const el=document.createElement('div');
+  el.className='slide'+(i===0?' active':'')+(s.summary?' summary':'');
+  const rightBody = s.summary? '' : `
+      <div class="tag">${s.tag}</div>
+      <h2>${s.title}</h2>
+      <ul class="concept">${s.points.map(p=>`<li>${p}</li>`).join('')}</ul>
+      ${s.formula?`<div class="formula-box"><div class="flabel">the equation</div><div class="formula">${s.formula}</div></div>`:''}
+      ${s.why?`<details class="why"><summary>Why this equation? <span></span></summary><div class="why-content">${s.why}</div></details>`:''}
+  `;
+  el.innerHTML = s.summary? `
+      <div class="right animate-in">
+        <div class="tag">${s.tag}</div>
+        <h2>${s.title}</h2>
+        ${SUMMARY_TABLE}
+      </div>` : `
+      <div class="left"><canvas id="cv${i}" width="${W}" height="${H}"></canvas></div>
+      <div class="right animate-in">${rightBody}</div>`;
+  stage.appendChild(el);
+
+  const dot=document.createElement('div');
+  dot.className='dot'+(i===0?' active':'');
+  dot.addEventListener('click',()=>goTo(i));
+  dotsEl.appendChild(dot);
+});
+
+function play(idx){
+  cancelAnimationFrame(rafId);
+  const s=SLIDES[idx];
+  if(s.summary)return;
+  const canvas=document.getElementById('cv'+idx);
+  if(!canvas)return;
+  const ctx=canvas.getContext('2d');
+  const start=performance.now();
+  function loop(now){
+    const elapsed=now-start;
+    const t=Math.min(elapsed/s.duration,1);
+    s.draw(ctx,t,elapsed);
+    rafId=requestAnimationFrame(loop);
+  }
+  rafId=requestAnimationFrame(loop);
+}
+
+function goTo(idx){
+  if(idx<0||idx>=SLIDES.length)return;
+  document.querySelectorAll('.slide')[current].classList.remove('active');
+  document.querySelectorAll('.dot')[current].classList.remove('active');
+  current=idx;
+  document.querySelectorAll('.slide')[current].classList.add('active');
+  document.querySelectorAll('.dot')[current].classList.add('active');
+  counterEl.textContent=String(current+1).padStart(2,'0')+' / '+SLIDES.length;
+  document.getElementById('prevBtn').disabled = current===0;
+  document.getElementById('nextBtn').disabled = current===SLIDES.length-1;
+  play(current);
+}
+
+document.getElementById('prevBtn').addEventListener('click',()=>goTo(current-1));
+document.getElementById('nextBtn').addEventListener('click',()=>goTo(current+1));
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowRight')goTo(current+1);
+  if(e.key==='ArrowLeft')goTo(current-1);
+});
+
+goTo(0);
+</script>
+</body>
+</html>

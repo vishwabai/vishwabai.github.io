@@ -1,0 +1,2457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Unsupervised Learning — a visual walkthrough</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0b0d; --panel:#12151a; --panel2:#161a20; --grid:#1c2026; --grid2:#22262d;
+    --text:#eef1f3; --dim:#8b93a1; --dim2:#565f6c;
+    --blue:#6fa8dc; --amber:#d9a066; --rose:#c97b91; --green:#7fb88f; --violet:#9a8fc4; --red:#c9706f; --gray:#556070;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;background:var(--bg);overflow:hidden;font-family:'Inter',sans-serif;-webkit-font-smoothing:antialiased;}
+  #app{position:fixed;inset:0;display:flex;flex-direction:column;}
+  #main{flex:1;display:flex;flex-direction:row;min-height:0;min-width:0;}
+  #stageWrap{position:relative;flex:1;display:flex;align-items:center;justify-content:center;padding:10px;min-width:0;min-height:0;}
+  svg#stage{display:block;background:
+    radial-gradient(ellipse at 20% 10%, rgba(111,168,220,0.05), transparent 55%),
+    radial-gradient(ellipse at 85% 90%, rgba(154,142,196,0.05), transparent 55%),
+    var(--bg);
+    border-radius:6px;}
+  #theoryPanel{width:368px;flex:0 0 368px;min-height:0;border-left:1px solid #1a1e24;background:#0d0f13;
+    transition:flex-basis .32s cubic-bezier(.4,0,.2,1), width .32s cubic-bezier(.4,0,.2,1), opacity .25s ease;
+    overflow:hidden;display:flex;flex-direction:column;}
+  #theoryPanel.collapsed{width:0;flex-basis:0;border-left-color:transparent;opacity:0;}
+  #tabRow{display:flex;flex:0 0 auto;gap:20px;padding:18px 26px 0;border-bottom:1px solid #1a1e24;}
+  .tabBtn{background:transparent;border:none;color:var(--dim2);font-family:'Inter',sans-serif;font-size:12.5px;font-weight:600;
+    letter-spacing:.6px;padding:6px 2px 12px;cursor:pointer;position:relative;transition:color .2s ease;}
+  .tabBtn.active{color:var(--text);}
+  .tabBtn.active::after{content:'';position:absolute;left:0;right:0;bottom:-1px;height:2px;background:linear-gradient(90deg,var(--blue),var(--violet));border-radius:2px;}
+  .tabBtn:not(.active):hover{color:var(--dim);}
+  #theoryInner{width:368px;flex:1;min-height:0;overflow-y:auto;padding:22px 26px 24px;}
+  #theoryInner::-webkit-scrollbar{width:6px;}
+  #theoryInner::-webkit-scrollbar-thumb{background:#242a33;border-radius:3px;}
+  .thKicker{font-size:11px;letter-spacing:2px;color:var(--dim2);font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:7px;}
+  .thKicker .dot{width:6px;height:6px;border-radius:50%;background:var(--blue);flex:0 0 auto;}
+  #thTitle{font-family:'Fraunces',serif;font-weight:600;font-size:21px;color:var(--text);margin:0 0 14px;line-height:1.25;}
+  #thDef{font-size:14.5px;line-height:1.6;color:#c4cad3;margin:0 0 20px;padding-bottom:20px;border-bottom:1px solid #1a1e24;}
+  .thLabel{font-size:11px;letter-spacing:1.5px;color:var(--dim2);font-weight:600;margin:0 0 10px;}
+  #thPoints{list-style:none;margin:0 0 22px;padding:0;display:flex;flex-direction:column;gap:10px;}
+  #thPoints li{font-size:13.5px;line-height:1.55;color:var(--dim);padding-left:16px;position:relative;}
+  #thPoints li::before{content:'';position:absolute;left:0;top:7px;width:5px;height:5px;border-radius:1px;background:var(--violet);transform:rotate(45deg);}
+  .thBlock{border-radius:10px;padding:13px 15px;margin-bottom:12px;font-size:13px;line-height:1.55;}
+  .thBlock.use{background:rgba(127,184,143,.08);border:1px solid rgba(127,184,143,.22);color:#a9c9b3;}
+  .thBlock.warn{background:rgba(201,112,111,.08);border:1px solid rgba(201,112,111,.22);color:#d3a5a4;}
+  .thBlock b{color:inherit;font-weight:600;display:block;font-size:10.5px;letter-spacing:1.3px;margin-bottom:5px;opacity:.85;text-transform:uppercase;}
+  .mEqBox{background:#12151a;border:1px solid #1e232b;border-radius:10px;padding:20px 16px;margin-bottom:20px;
+    font-family:'Fraunces',Georgia,serif;font-style:italic;font-size:18px;color:var(--violet);text-align:center;line-height:1.55;}
+  .mText{font-size:13.5px;line-height:1.62;color:var(--dim);margin:0 0 18px;}
+  .mNote{font-size:12px;line-height:1.6;color:var(--dim2);font-style:italic;margin:0 0 18px;}
+  #theoryToggle.open svg{transform:rotate(180deg);}
+  #theoryToggle svg{transition:transform .25s ease;}
+  .brand{position:fixed;top:18px;left:24px;display:flex;align-items:center;gap:9px;color:var(--dim2);font-size:11px;letter-spacing:2.5px;font-weight:600;z-index:5;user-select:none;}
+  .brand .dotwrap{width:14px;height:14px;position:relative;}
+  .brand .dotwrap .ring{position:absolute;inset:0;border-radius:50%;}
+  .brand .dotwrap .p{position:absolute;width:4px;height:4px;border-radius:50%;background:var(--blue);top:0;left:5px;animation:orbit 4s linear infinite;transform-origin:2px 7px;}
+  @keyframes orbit{ from{transform:rotate(0deg);} to{transform:rotate(360deg);} }
+  #chrome{flex:0 0 64px;display:flex;align-items:center;gap:18px;padding:0 26px;z-index:5;
+    background:linear-gradient(to top, rgba(0,0,0,0.55), rgba(0,0,0,0.15));border-top:1px solid #16191e;}
+  .navbtn{width:34px;height:34px;border-radius:50%;border:1px solid #2a2f38;background:#14171c;color:var(--dim);
+    display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s ease;flex:0 0 auto;}
+  .navbtn:hover{border-color:var(--blue);color:var(--text);background:#171c22;}
+  .navbtn svg{width:14px;height:14px;}
+  .navbtn.replay svg{width:13px;height:13px;}
+  #barTrack{flex:1;height:2px;background:var(--grid);border-radius:2px;position:relative;overflow:hidden;}
+  #barFill{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,var(--blue),var(--violet));width:0%;transition:width .35s ease;}
+  #counter{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--dim2);letter-spacing:1px;min-width:64px;text-align:right;}
+  #slideLabel{font-family:'Inter',sans-serif;font-size:12px;color:var(--dim);min-width:180px;letter-spacing:.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .hint{position:fixed;top:18px;right:24px;font-size:11px;color:var(--dim2);letter-spacing:1px;z-index:5;font-family:'JetBrains Mono',monospace;}
+  ::selection{background:rgba(111,168,220,.25);}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="brand"><span class="dotwrap"><span class="p"></span></span>UNSUPERVISED LEARNING</div>
+  <div class="hint" id="hint">← →  navigate  ·  T  theory</div>
+  <div id="main">
+    <div id="stageWrap">
+      <svg id="stage" viewBox="0 0 1280 720" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+    <div id="theoryPanel">
+      <div id="tabRow">
+        <button class="tabBtn active" data-tab="theory" id="tabTheoryBtn">THEORY</button>
+        <button class="tabBtn" data-tab="math" id="tabMathBtn">MATH</button>
+      </div>
+      <div id="theoryInner">
+        <div id="paneTheory" class="pane">
+          <div class="thKicker"><span class="dot"></span><span id="thKicker">CONCEPT</span></div>
+          <h3 id="thTitle"></h3>
+          <p id="thDef"></p>
+          <div class="thLabel">KEY POINTS</div>
+          <ul id="thPoints"></ul>
+          <div class="thBlock use"><b>Best for</b><span id="thUse"></span></div>
+          <div class="thBlock warn"><b>Watch out for</b><span id="thWarn"></span></div>
+        </div>
+        <div id="paneMath" class="pane" style="display:none">
+          <div class="thKicker"><span class="dot" style="background:var(--amber)"></span><span>THE EQUATION</span></div>
+          <div id="mEq" class="mEqBox"></div>
+          <div class="thLabel">WHY THIS FORMULA EXISTS</div>
+          <p id="mWhy" class="mText"></p>
+          <div class="thLabel">HOW TO REASON ABOUT IT</div>
+          <p id="mHow" class="mText"></p>
+          <div class="thBlock use"><b>Real-world use</b><span id="mUse"></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="chrome">
+    <button class="navbtn" id="prevBtn" title="Previous (←)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+    <button class="navbtn replay" id="replayBtn" title="Replay animation (R)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 .49-9.5L1 10"/></svg></button>
+    <div id="slideLabel"></div>
+    <div id="barTrack"><div id="barFill"></div></div>
+    <div id="counter"></div>
+    <button class="navbtn" id="nextBtn" title="Next (→)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></button>
+    <button class="navbtn open" id="theoryToggle" title="Toggle theory panel (T)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></button>
+  </div>
+</div>
+
+<script>
+/* =========================================================================
+   ENGINE
+   ========================================================================= */
+const SVGNS = "http://www.w3.org/2000/svg";
+const REDUCED = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const C = {
+  bg:'#0a0b0d', panel:'#12151a', grid:'#1c2026', grid2:'#242932',
+  text:'#eef1f3', dim:'#8b93a1', dim2:'#5b6472',
+  blue:'#6fa8dc', amber:'#d9a066', rose:'#c97b91', green:'#7fb88f', violet:'#9a8fc4', red:'#c9706f', gray:'#556070'
+};
+const PALETTE = [C.blue, C.amber, C.rose, C.green, C.violet, C.red];
+
+function E(tag, attrs={}, parent){
+  const el = document.createElementNS(SVGNS, tag);
+  for (const k in attrs) if(attrs[k]!==undefined) el.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(el);
+  return el;
+}
+function clear(el){ while(el.firstChild) el.removeChild(el.firstChild); }
+
+const Ease = {
+  linear: t=>t,
+  outCubic: t=>1-Math.pow(1-t,3),
+  inCubic: t=>t*t*t,
+  inOutCubic: t=> t<0.5 ? 4*t*t*t : 1-Math.pow(-2*t+2,3)/2,
+  outQuad: t=>1-(1-t)*(1-t),
+  outBack: t=>{const c1=1.70158,c3=c1+1; return 1+c3*Math.pow(t-1,3)+c1*Math.pow(t-1,2);},
+  outElastic: t=>{const c4=(2*Math.PI)/3.4; return t===0?0:t===1?1:Math.pow(2,-9*t)*Math.sin((t*10-0.75)*c4)+1;}
+};
+
+let CURRENT_TOKEN = 0;
+
+function animate(opts){
+  const {delay=0, easing=Ease.inOutCubic, onUpdate, onComplete} = opts;
+  const duration = REDUCED ? 1 : (opts.duration || 700);
+  const token = CURRENT_TOKEN;
+  return new Promise(resolve=>{
+    setTimeout(()=>{
+      if(token!==CURRENT_TOKEN) return resolve();
+      let start=null;
+      function frame(ts){
+        if(token!==CURRENT_TOKEN) return resolve();
+        if(start===null) start=ts;
+        const t=Math.min((ts-start)/duration,1);
+        onUpdate(easing(t));
+        if(t<1){ requestAnimationFrame(frame); } else { onComplete&&onComplete(); resolve(); }
+      }
+      requestAnimationFrame(frame);
+    }, REDUCED?0:delay);
+  });
+}
+function wait(ms){
+  const token=CURRENT_TOKEN;
+  return new Promise(resolve=> setTimeout(resolve, REDUCED?0:ms));
+}
+function active(){ return true; } // legacy no-op guard hook
+
+function tweenAttr(el, to, opts={}){
+  const from={};
+  for(const k in to) from[k]=parseFloat(el.getAttribute(k))||0;
+  return animate({...opts, onUpdate:(t)=>{ for(const k in to) el.setAttribute(k, (from[k]+(to[k]-from[k])*t).toFixed(3)); }});
+}
+function fadeIn(el, opts={}){ el.setAttribute('opacity',0); return tweenAttr(el,{opacity:1}, opts); }
+function fadeOut(el, opts={}){ return tweenAttr(el,{opacity:0}, opts); }
+
+function riseInY(el, attrY, opts={}){
+  const target = parseFloat(el.getAttribute(attrY));
+  const dy = opts.dy ?? 14;
+  el.setAttribute(attrY, target+dy);
+  el.setAttribute('opacity',0);
+  return animate({...opts, onUpdate:(t)=>{
+    el.setAttribute(attrY, target+dy*(1-t));
+    el.setAttribute('opacity', (opts.maxOpacity??1)*t);
+  }});
+}
+
+function drawOn(el, opts={}){
+  let len=140;
+  try{ len = el.getTotalLength(); }catch(e){}
+  el.setAttribute('stroke-dasharray', len);
+  el.setAttribute('stroke-dashoffset', len);
+  el.setAttribute('opacity', opts.opacity ?? 1);
+  return tweenAttr(el, {'stroke-dashoffset':0}, opts);
+}
+
+function moveXY(el, ax, ay, x1, y1, opts={}){
+  const x0=parseFloat(el.getAttribute(ax)), y0=parseFloat(el.getAttribute(ay));
+  return animate({...opts, onUpdate:(t)=>{
+    el.setAttribute(ax, (x0+(x1-x0)*t).toFixed(2));
+    el.setAttribute(ay, (y0+(y1-y0)*t).toFixed(2));
+  }});
+}
+
+function pseudo(n){ const x=Math.sin(n*12.9898)*43758.5453123; return x-Math.floor(x); }
+
+function T(parent, x, y, str, opts={}){
+  const t = E('text', {x, y, fill: opts.fill||C.text, 'font-family': opts.font||"'Inter',sans-serif",
+    'font-size': opts.size||18, 'font-weight': opts.weight||400, 'letter-spacing': opts.ls||'0px',
+    'text-anchor': opts.anchor||'start', 'font-style': opts.italic?'italic':'normal'}, parent);
+  t.textContent = str;
+  return t;
+}
+function mathLine(parent, x, y, parts, opts={}){
+  const g = E('text', {x,y, fill:opts.fill||C.violet, 'font-family':"'Fraunces',Georgia,serif", 'font-size':opts.size||23, 'font-style':'italic', 'text-anchor':opts.anchor||'start'}, parent);
+  parts.forEach(p=>{
+    const ts = E('tspan', {}, g);
+    ts.textContent = p.s;
+    if(p.t==='sub'){ ts.setAttribute('baseline-shift','-28%'); ts.setAttribute('font-size','68%'); ts.setAttribute('font-style','italic'); }
+    else if(p.t==='sup'){ ts.setAttribute('baseline-shift','42%'); ts.setAttribute('font-size','62%'); ts.setAttribute('font-style','italic'); }
+    else if(p.t==='rm'){ ts.setAttribute('font-style','normal'); }
+    else if(p.t==='dim'){ ts.setAttribute('fill',C.dim); ts.setAttribute('font-style','normal'); ts.setAttribute('font-family',"'Inter',sans-serif"); }
+    if(p.fill) ts.setAttribute('fill', p.fill);
+  });
+  return g;
+}
+function termRow(g, x, y, snippetParts, explanation, color, opts={}){
+  const snip = mathLine(g, x, y, snippetParts, {size:opts.size||21, fill:color});
+  snip.setAttribute('opacity',0);
+  const txt = T(g, x+(opts.gap||190), y, explanation, {fill:C.dim, size:14});
+  txt.setAttribute('opacity',0);
+  return {snip, txt};
+}
+async function revealRows(rows, stagger=150){
+  for(const r of rows){
+    fadeIn(r.snip, {duration:300});
+    await fadeIn(r.txt, {duration:300});
+    await wait(stagger);
+  }
+}
+
+async function header(g, kicker, title){
+  const k = T(g, 90, 62, kicker.toUpperCase(), {fill:C.dim2, size:12.5, weight:600, ls:'2.6px'});
+  const ti = T(g, 88, 108, title, {fill:C.text, size:38, weight:600, font:"'Fraunces',serif"});
+  const rule = E('line', {x1:90,y1:130,x2:90,y2:130, stroke:C.blue, 'stroke-width':3, 'stroke-linecap':'round', opacity:.85}, g);
+  fadeIn(k,{duration:380});
+  await riseInY(ti,'y',{duration:520, dy:16, easing:Ease.outCubic});
+  await tweenAttr(rule, {x2:154}, {duration:420, easing:Ease.outCubic});
+}
+function caption(g, x, y, str, opts={}){
+  const t = T(g, x, y, str, {fill:C.dim, size:15.5, ...opts});
+  return t;
+}
+function footnote(g, x, y, str, w){
+  const t = E('text', {x,y, fill:C.dim2, 'font-family':"'Inter',sans-serif",'font-size':13.5}, g);
+  t.textContent = str;
+  return t;
+}
+
+/* shape helpers ---------------------------------------------------------- */
+function dot(parent, x, y, r, color, opts={}){
+  return E('circle', {cx:x, cy:y, r, fill:color, opacity:opts.opacity??0, stroke:opts.stroke||'none', 'stroke-width':opts.sw||0}, parent);
+}
+function ring(parent, x, y, r, color, opts={}){
+  return E('circle', {cx:x, cy:y, r, fill:'none', stroke:color, 'stroke-width':opts.sw||1.4, opacity:opts.opacity??0, 'stroke-dasharray':opts.dash||''}, parent);
+}
+function diamondPath(x,y,size){ return `M ${x} ${y-size} L ${x+size} ${y} L ${x} ${y+size} L ${x-size} ${y} Z`; }
+function diamond(parent, x, y, size, color){
+  return E('path', {d:diamondPath(x,y,size), fill:color, stroke:'#050607', 'stroke-width':1.3, opacity:0}, parent);
+}
+function moveDiamond(el, x0,y0,x1,y1,size,opts){
+  return animate({...opts, onUpdate:(t)=>{
+    const x=x0+(x1-x0)*t, y=y0+(y1-y0)*t;
+    el.setAttribute('d', diamondPath(x,y,size));
+  }});
+}
+function xMark(parent, x, y, s, color, opts={}){
+  const g = E('g', {opacity:opts.opacity??0}, parent);
+  E('line', {x1:x-s,y1:y-s,x2:x+s,y2:y+s, stroke:color, 'stroke-width':1.6, 'stroke-linecap':'round'}, g);
+  E('line', {x1:x-s,y1:y+s,x2:x+s,y2:y-s, stroke:color, 'stroke-width':1.6, 'stroke-linecap':'round'}, g);
+  return g;
+}
+function panel(parent, x, y, w, h, opts={}){
+  return E('rect', {x,y,width:w,height:h, rx:opts.rx??12, fill:opts.fill||C.panel, stroke:opts.stroke||C.grid, 'stroke-width':opts.sw||1, opacity:opts.opacity??0}, parent);
+}
+function legendDot(parent, x, y, color, label){
+  const g = E('g', {opacity:0}, parent);
+  E('circle', {cx:x, cy:y, r:5, fill:color}, g);
+  T(g, x+13, y+4.5, label, {fill:C.dim, size:13.5});
+  return g;
+}
+function scatterBlob(cx, cy, n, spread, seed=0){
+  const pts=[];
+  for(let i=0;i<n;i++){
+    const a = pseudo(i*1.37+seed)*Math.PI*2;
+    const r = spread*Math.sqrt(pseudo(i*7.13+seed+1));
+    pts.push([cx+Math.cos(a)*r, cy+Math.sin(a)*r*0.82]);
+  }
+  return pts;
+}
+function mean(pts){
+  let sx=0,sy=0; pts.forEach(p=>{sx+=p[0];sy+=p[1];});
+  return [sx/pts.length, sy/pts.length];
+}
+function dist(a,b){ return Math.hypot(a[0]-b[0], a[1]-b[1]); }
+
+/* =========================================================================
+   SLIDES
+   ========================================================================= */
+const SLIDES = [];
+
+/* ---------- 1. TITLE ---------- */
+SLIDES.push({ label:"Title", async build(g){
+  const pts = scatterBlob(640, 470, 46, 210, 11);
+  const dots = pts.map((p,i)=>dot(g,p[0],p[1], 3.4, C.gray, {opacity:0}));
+  dots.forEach((d,i)=> fadeIn(d, {duration:500, delay:i*10}));
+  await wait(300);
+
+  const eyebrow = T(g, 640, 210, "SCIKIT-LEARN TAXONOMY · A FEYNMAN-STYLE WALKTHROUGH", {fill:C.dim2, size:13, weight:600, ls:'3px', anchor:'middle'});
+  fadeIn(eyebrow, {duration:500});
+
+  const title1 = T(g, 640, 300, "Unsupervised", {fill:C.text, size:70, weight:600, font:"'Fraunces',serif", anchor:'middle'});
+  const title2 = T(g, 640, 372, "Learning", {fill:C.blue, size:70, weight:600, font:"'Fraunces',serif", anchor:'middle', italic:true});
+  await riseInY(title1, 'y', {duration:650, dy:22, easing:Ease.outCubic});
+  await riseInY(title2, 'y', {duration:650, dy:22, easing:Ease.outCubic, delay:60});
+
+  const sub = T(g, 640, 415, "Finding structure in data — without ever being told the answer.", {fill:C.dim, size:17, anchor:'middle'});
+  fadeIn(sub, {duration:600, delay:150});
+
+  await wait(400);
+  // organize the scatter into three colored clusters as a teaser
+  const centers = [[430,560],[700,540],[880,610]];
+  const assign = pts.map(p=>{
+    let bi=0, bd=1e9;
+    centers.forEach((c,i)=>{ const d=dist(p,c); if(d<bd){bd=d;bi=i;} });
+    return bi;
+  });
+  const proms=[];
+  dots.forEach((d,i)=>{
+    const col = PALETTE[assign[i]];
+    proms.push(animate({duration:700, delay:i*14, easing:Ease.outCubic, onUpdate:(t)=>{
+      d.setAttribute('fill', t>0.5?col:C.gray);
+      d.setAttribute('r', 3.4 + t*1.1);
+    }}));
+  });
+  await Promise.all(proms);
+  const tag = T(g, 640, 660, "clustering · dimensionality reduction · association rules · anomaly & density estimation · topic modeling", {fill:C.dim2, size:12.5, anchor:'middle', ls:'.3px'});
+  fadeIn(tag, {duration:600});
+}});
+
+/* ---------- 2. WHAT IS UNSUPERVISED LEARNING ---------- */
+SLIDES.push({ label:"The core idea", async build(g){
+  await header(g, "The core idea", "No teacher. Just data.");
+  await wait(100);
+
+  const midX = 640;
+  T(g, 300, 190, "SUPERVISED", {fill:C.dim2, size:13, weight:600, ls:'2px', anchor:'middle'});
+  T(g, 980, 190, "UNSUPERVISED", {fill:C.dim2, size:13, weight:600, ls:'2px', anchor:'middle'});
+  const vs = T(g, midX, 400, "vs", {fill:C.dim2, size:22, italic:true, anchor:'middle', font:"'Fraunces',serif"});
+  E('line',{x1:midX,y1:210,x2:midX,y2:600,stroke:C.grid,'stroke-width':1},g);
+  fadeIn(vs,{duration:500});
+
+  // left: labeled points (supervised) - fixed classes shown as color+tag from the start
+  const leftPts = scatterBlob(300, 400, 16, 130, 3);
+  const leftCol = leftPts.map((p,i)=> i%2===0? C.blue: C.amber);
+  const leftDots = leftPts.map((p,i)=> dot(g,p[0],p[1],5,leftCol[i]));
+  leftDots.forEach((d,i)=> fadeIn(d,{duration:400, delay:i*20}));
+  await wait(250);
+  const tagY = leftPts[2][1]-14;
+  const lbl1 = T(g, leftPts[2][0], tagY, "label: A", {fill:C.blue, size:11, anchor:'middle'});
+  const lbl2 = T(g, leftPts[3][0], leftPts[3][1]-14, "label: B", {fill:C.amber, size:11, anchor:'middle'});
+  fadeIn(lbl1,{duration:400}); fadeIn(lbl2,{duration:400});
+  caption(g, 220, 590, "Every point already has an answer key.", {size:14});
+
+  // right: uniform gray points that self-organize
+  const rightPts = scatterBlob(980, 400, 16, 130, 9);
+  const rightDots = rightPts.map((p)=> dot(g,p[0],p[1],5,C.gray));
+  rightDots.forEach((d,i)=> fadeIn(d,{duration:400, delay:i*20}));
+  await wait(500);
+  const rc = [[930,360],[1030,440]];
+  const rassign = rightPts.map(p=> dist(p,rc[0])<dist(p,rc[1])?0:1);
+  const proms=[];
+  rightDots.forEach((d,i)=> proms.push(tweenAttr(d,{r:6.5},{duration:500}).then(()=>{ d.setAttribute('fill', rassign[i]?C.rose:C.green); })));
+  await Promise.all(proms);
+  caption(g, 895, 590, "The algorithm has to discover the groups itself.", {size:14});
+}});
+
+/* ---------- 3. CLUSTERING BIG IDEA ---------- */
+SLIDES.push({ label:"Clustering — the big idea", async build(g){
+  await header(g, "Clustering", "Group by closeness");
+  await wait(100);
+  const cx=640, cy=400;
+  const centers=[[430,320],[760,300],[620,500]];
+  let pts=[];
+  centers.forEach((c,ci)=> pts.push(...scatterBlob(c[0],c[1], 9, 70, ci*13).map(p=>({p, ci}))));
+  const dots = pts.map(o=> dot(g,o.p[0],o.p[1],4.6,C.gray));
+  dots.forEach((d,i)=> fadeIn(d,{duration:420, delay:i*18}));
+  await wait(500);
+
+  // pick a reference point, draw close vs far distance lines
+  const ref = pts[4].p;
+  const refDot = dot(g, ref[0], ref[1], 6, C.text, {opacity:0});
+  await fadeIn(refDot,{duration:300});
+  const near = pts[6].p, far = pts[20].p;
+  const l1 = E('line',{x1:ref[0],y1:ref[1],x2:ref[0],y2:ref[1], stroke:C.green,'stroke-width':1.8}, g);
+  const l2 = E('line',{x1:ref[0],y1:ref[1],x2:ref[0],y2:ref[1], stroke:C.red,'stroke-width':1.8, 'stroke-dasharray':'5,4'}, g);
+  await Promise.all([ tweenAttr(l1,{x2:near[0],y2:near[1]},{duration:500}), tweenAttr(l2,{x2:far[0],y2:far[1]},{duration:500}) ]);
+  const lb1 = T(g,(ref[0]+near[0])/2-10,(ref[1]+near[1])/2-8,"near",{fill:C.green,size:12.5});
+  const lb2 = T(g,(ref[0]+far[0])/2+8,(ref[1]+far[1])/2, "far", {fill:C.red, size:12.5});
+  fadeIn(lb1,{duration:300}); fadeIn(lb2,{duration:300});
+  await wait(700);
+  await Promise.all([fadeOut(l1,{duration:300}), fadeOut(l2,{duration:300}), fadeOut(lb1,{duration:300}), fadeOut(lb2,{duration:300}), fadeOut(refDot,{duration:300})]);
+
+  const proms=[];
+  dots.forEach((d,i)=> proms.push(tweenAttr(d,{r:5.6},{duration:500,delay:i*10}).then(()=> d.setAttribute('fill', PALETTE[pts[i].ci]))));
+  await Promise.all(proms);
+
+  mathLine(g, 90, 660, [
+    {t:'rm', s:'distance('}, {s:'x'}, {t:'rm', s:', '}, {s:'y'}, {t:'rm', s:') = '}, {s:'√'}, {t:'rm', s:'Σ ('}, {s:'x'}, {t:'sub',s:'i'}, {t:'rm',s:' − '}, {s:'y'}, {t:'sub',s:'i'}, {t:'rm', s:')²'},
+    {t:'dim', s:'   — the closer two points are, the more alike we treat them.'}
+  ], {size:21});
+}});
+
+/* ---------- 3b. MATH: DISTANCE METRICS ---------- */
+SLIDES.push({ label:"Math \u2014 distance metrics", async build(g){
+  await header(g, "The math \u00b7 measuring closeness", "Distance metrics, compared");
+  await wait(80);
+  const p1=[220,260], p2=[520,460];
+  fadeIn(panel(g, 150, 200, 480, 340, {opacity:0}), {duration:350});
+  const d1=dot(g,p1[0],p1[1],5,C.blue,{opacity:0}), d2=dot(g,p2[0],p2[1],5,C.blue,{opacity:0});
+  await Promise.all([tweenAttr(d1,{opacity:1},{duration:300}), tweenAttr(d2,{opacity:1},{duration:300})]);
+  T(g, p1[0]-16, p1[1]-12, "x", {fill:C.dim, size:13, italic:true, font:"'Fraunces',serif"});
+  T(g, p2[0]+10, p2[1]+18, "y", {fill:C.dim, size:13, italic:true, font:"'Fraunces',serif"});
+
+  const euc = E('line',{x1:p1[0],y1:p1[1],x2:p1[0],y2:p1[1], stroke:C.blue,'stroke-width':2, opacity:0}, g);
+  await tweenAttr(euc,{opacity:1},{duration:200});
+  await tweenAttr(euc,{x2:p2[0],y2:p2[1]},{duration:500});
+  await wait(450);
+  await fadeOut(euc,{duration:250});
+
+  const manX=p2[0], manY=p1[1];
+  const man1 = E('line',{x1:p1[0],y1:p1[1],x2:p1[0],y2:p1[1], stroke:C.amber,'stroke-width':2,'stroke-dasharray':'5,4', opacity:0}, g);
+  const man2 = E('line',{x1:manX,y1:manY,x2:manX,y2:manY, stroke:C.amber,'stroke-width':2,'stroke-dasharray':'5,4', opacity:0}, g);
+  await Promise.all([tweenAttr(man1,{opacity:1},{duration:200}), tweenAttr(man2,{opacity:1},{duration:200})]);
+  await tweenAttr(man1,{x2:manX,y2:manY},{duration:400});
+  await tweenAttr(man2,{x2:p2[0],y2:p2[1]},{duration:400});
+  await wait(450);
+  await Promise.all([fadeOut(man1,{duration:250}), fadeOut(man2,{duration:250})]);
+
+  const angLine = E('line',{x1:p1[0],y1:p1[1],x2:p2[0],y2:p2[1],stroke:C.rose,'stroke-width':1,'stroke-dasharray':'3,3', opacity:0}, g);
+  await tweenAttr(angLine,{opacity:.55},{duration:350});
+  await wait(400);
+
+  const rows=[
+    termRow(g, 700, 220, [{t:'rm',s:'Euclidean: '},{s:'\u221a\u03a3('},{s:'x'},{t:'sub',s:'i'},{t:'rm',s:'\u2212'},{s:'y'},{t:'sub',s:'i'},{t:'rm',s:')\u00b2'}], "straight-line distance", C.blue, {gap:230,size:17}),
+    termRow(g, 700, 264, [{t:'rm',s:'Manhattan: '},{s:'\u03a3|'},{s:'x'},{t:'sub',s:'i'},{t:'rm',s:'\u2212'},{s:'y'},{t:'sub',s:'i'},{t:'rm',s:'|'}], "walk along the grid, like city blocks", C.amber, {gap:230,size:17}),
+    termRow(g, 700, 308, [{t:'rm',s:'Cosine: 1 \u2212 '},{s:'x'},{t:'rm',s:'\u00b7'},{s:'y'},{t:'rm',s:' / (\u2016'},{s:'x'},{t:'rm',s:'\u2016\u2016'},{s:'y'},{t:'rm',s:'\u2016)'}], "only compares direction, ignores size", C.rose, {gap:230,size:17}),
+  ];
+  await revealRows(rows, 200);
+  caption(g, 90, 660, "example: x=(1,2), y=(4,6)  \u2192  Euclidean = 5,  Manhattan = 7", {size:14});
+}});
+
+/* ---------- 4. K-MEANS ---------- */
+SLIDES.push({ label:"K-Means", async build(g){
+  await header(g, "Clustering · Partitioning", "K-Means");
+  await wait(80);
+
+  const stepsX = 940, stepsY = 178;
+  const stepList = ["1 · Drop K centroids", "2 · Assign each point to the nearest one", "3 · Move each centroid to the mean of its group", "4 · Repeat until nothing moves"];
+  const stepEls = stepList.map((s,i)=> T(g, stepsX, stepsY+i*30, s, {fill:C.dim2, size:14.5}));
+  function activateStep(i){ stepEls.forEach((e,j)=> e.setAttribute('fill', j===i? C.text : C.dim2)); }
+
+  const centers=[[300,320],[430,470],[560,300]];
+  let pts=[]; centers.forEach((c,ci)=> pts.push(...scatterBlob(c[0],c[1], 11, 78, ci*17)));
+  const dots = pts.map(p=> dot(g,p[0],p[1],4.6,C.gray));
+  dots.forEach((d,i)=> fadeIn(d,{duration:380, delay:i*14}));
+  await wait(400);
+
+  activateStep(0);
+  let cPos = [[220,260],[470,540],[560,250]];
+  const cEls = cPos.map(c=> diamond(g, c[0], c[1], 9, C.text));
+  await Promise.all(cEls.map((d,i)=> tweenAttr(d,{opacity:1},{duration:400,delay:i*120,easing:Ease.outBack})));
+  cEls.forEach((d,i)=> d.setAttribute('fill', PALETTE[i]));
+  await wait(500);
+
+  for(let iter=0; iter<3; iter++){
+    activateStep(1);
+    const assign = pts.map(p=>{ let bi=0,bd=1e9; cPos.forEach((c,i)=>{const d=dist(p,c); if(d<bd){bd=d;bi=i;}}); return bi; });
+    const proms=[];
+    dots.forEach((d,i)=> proms.push(tweenAttr(d,{r:5.4},{duration:380}).then(()=> d.setAttribute('fill', PALETTE[assign[i]]))));
+    await Promise.all(proms);
+    await wait(300);
+
+    activateStep(2);
+    const newPos = cPos.map((c,ci)=>{
+      const grp = pts.filter((p,i)=> assign[i]===ci);
+      return grp.length? mean(grp) : c;
+    });
+    await Promise.all(cEls.map((d,i)=> moveDiamond(d, cPos[i][0], cPos[i][1], newPos[i][0], newPos[i][1], 9, {duration:700, easing:Ease.inOutCubic})));
+    cPos = newPos;
+    await wait(250);
+  }
+  activateStep(3);
+  const doneTag = panel(g, 930, stepsY+4*30+14, 150, 32, {fill:'rgba(127,184,143,.12)', stroke:C.green});
+  const doneTxt = T(g, 945, stepsY+4*30+35, "✓ Converged", {fill:C.green, size:14, weight:600});
+  fadeIn(doneTag,{duration:400}); fadeIn(doneTxt,{duration:400});
+
+  mathLine(g, 90, 655, [
+    {s:'J'}, {t:'rm', s:' = '}, {s:'Σ'}, {t:'sub', s:'k'}, {s:' Σ'}, {t:'sub', s:'x∈C'}, {t:'rm', s:' ‖'}, {s:'x'}, {t:'rm', s:' − '}, {s:'μ'}, {t:'sub', s:'k'}, {t:'rm', s:'‖²'},
+  ], {size:22});
+  caption(g, 90, 682, "minimize the total squared distance from every point to its own centroid", {size:13.5});
+}});
+
+/* ---------- 4b. MATH: K-MEANS OBJECTIVE ---------- */
+SLIDES.push({ label:"Math \u2014 K-Means objective", async build(g){
+  await header(g, "The math \u00b7 K-Means", "Reading the objective function");
+  await wait(80);
+  const eq = mathLine(g, 640, 260, [
+    {s:'J'},{t:'rm',s:' = ',fill:C.text},
+    {s:'\u03a3',fill:C.amber},{t:'sub',s:'k',fill:C.amber},
+    {t:'rm',s:' \u03a3 ',fill:C.blue},{t:'sub',s:'x\u2208C',fill:C.blue},
+    {t:'rm',s:' \u2016',fill:C.rose},{s:'x',fill:C.rose},{t:'rm',s:' \u2212 ',fill:C.rose},{s:'\u03bc',fill:C.rose},{t:'sub',s:'k',fill:C.rose},{t:'rm',s:'\u2016\u00b2',fill:C.rose},
+  ], {size:38, anchor:'middle'});
+  await fadeIn(eq,{duration:500});
+  await wait(500);
+
+  const rows=[
+    termRow(g, 130, 380, [{s:'\u03a3',fill:C.amber},{t:'sub',s:'k',fill:C.amber}], "outer sum \u2014 add up over every cluster", C.amber, {gap:100,size:22}),
+    termRow(g, 130, 424, [{t:'rm',s:'\u03a3 ',fill:C.blue},{t:'sub',s:'x\u2208C',fill:C.blue}], "inner sum \u2014 add up every point inside that cluster", C.blue, {gap:100,size:22}),
+    termRow(g, 130, 468, [{t:'rm',s:'\u2016',fill:C.rose},{s:'x',fill:C.rose},{t:'rm',s:'\u2212',fill:C.rose},{s:'\u03bc',fill:C.rose},{t:'sub',s:'k',fill:C.rose},{t:'rm',s:'\u2016\u00b2',fill:C.rose}], "distance from that point to its own centroid, squared", C.rose, {gap:100,size:22}),
+  ];
+  await revealRows(rows, 250);
+  await wait(300);
+
+  const cx=940, cy=430;
+  const pts=[[cx-40,cy-30],[cx+50,cy+10],[cx-10,cy+65]];
+  const centroid=mean(pts);
+  const pdots = pts.map(p=> dot(g,p[0],p[1],5,C.blue,{opacity:0}));
+  const cdot = diamond(g, centroid[0], centroid[1], 8, C.text);
+  T(g, cx, cy-90, "one cluster, worked out:", {fill:C.dim2, size:12.5, anchor:'middle'});
+  await Promise.all(pdots.map(d=> tweenAttr(d,{opacity:1},{duration:300})));
+  await tweenAttr(cdot,{opacity:1},{duration:300,easing:Ease.outBack});
+  let total=0;
+  for(const p of pts){
+    const ln = E('line',{x1:centroid[0],y1:centroid[1],x2:centroid[0],y2:centroid[1],stroke:C.rose,'stroke-width':1.4},g);
+    await tweenAttr(ln,{x2:p[0],y2:p[1]},{duration:350});
+    total += Math.round(dist(p,centroid)**2);
+  }
+  fadeIn(T(g, cx, cy+110, `J for this cluster \u2248 ${total}`, {fill:C.text, size:15, anchor:'middle'}), {duration:400});
+}});
+
+/* ---------- 5. MINI-BATCH & K-MEDOIDS ---------- */
+SLIDES.push({ label:"Mini-Batch K-Means & K-Medoids", async build(g){
+  await header(g, "K-Means variants", "Same idea, different rules");
+  await wait(100);
+  const colW=520;
+  // Left card: Mini-Batch
+  panel(g, 80, 175, colW, 430, {opacity:0});
+  const p1 = g.lastChild; fadeIn(p1,{duration:400});
+  T(g, 110, 215, "Mini-Batch K-Means", {fill:C.blue, size:19, weight:600, font:"'Fraunces',serif"});
+  const pts1 = scatterBlob(340, 400, 26, 140, 21);
+  const dots1 = pts1.map(p=> dot(g,p[0],p[1],4.2,C.gray));
+  dots1.forEach((d,i)=> fadeIn(d,{duration:350, delay:i*12}));
+  await wait(300);
+  const cd1 = diamond(g, 340, 400, 8, C.blue);
+  await tweenAttr(cd1,{opacity:1},{duration:350,easing:Ease.outBack});
+
+  for(let it=0; it<3; it++){
+    const subIdx = pts1.map((_,i)=>i).sort(()=>pseudo(it*3+it)-.5).slice(0, 8 + Math.floor(pseudo(it+99)*4));
+    const rings = subIdx.map(i=> ring(g, pts1[i][0], pts1[i][1], 9, C.amber, {opacity:0, sw:1.6}));
+    await Promise.all(rings.map(r=> tweenAttr(r,{opacity:1},{duration:250})));
+    await wait(280);
+    const sub = subIdx.map(i=>pts1[i]);
+    const m = mean(sub);
+    const cur = [parseFloat(cd1.getAttribute('d').match(/M ([\d.-]+)/)[1]), 0];
+    const curX = 340 + (m[0]-340)*0; // placeholder unused
+    const nx = 340 + (m[0]-340)*0.35*(it+1)/3, ny = 400 + (m[1]-400)*0.35*(it+1)/3;
+    await moveDiamond(cd1, parseFloat(cd1.dataset.x||340), parseFloat(cd1.dataset.y||400), nx, ny, 8, {duration:500});
+    cd1.dataset.x=nx; cd1.dataset.y=ny;
+    await Promise.all(rings.map(r=> fadeOut(r,{duration:200})));
+  }
+  caption(g, 110, 555, "Updates on random subsets each round —", {size:14});
+  caption(g, 110, 576, "much faster on huge datasets, path is a little noisier.", {size:14});
+
+  // Right card: K-Medoids
+  panel(g, 640, 175, colW, 430, {opacity:0});
+  const p2 = g.lastChild; fadeIn(p2,{duration:400, delay:200});
+  T(g, 670, 215, "K-Medoids", {fill:C.rose, size:19, weight:600, font:"'Fraunces',serif"});
+  const pts2 = scatterBlob(900, 400, 22, 130, 55);
+  const outlier = [1040, 260];
+  pts2.push(outlier);
+  const dots2 = pts2.map(p=> dot(g,p[0],p[1],4.2,C.gray));
+  dots2.forEach((d,i)=> fadeIn(d,{duration:350, delay:200+i*12}));
+  await wait(300);
+  caption(g, 670, 555, "The center must be a real data point —", {size:14});
+  caption(g, 670, 576, "so one wild outlier can't drag it away.", {size:14});
+
+  // candidate testing: try 3 candidates, settle on the most central real point
+  const candIdx = [3, 9, 14];
+  let bestI=candIdx[0], bestCost=1e9;
+  for(const ci of candIdx){
+    const cost = pts2.reduce((s,p)=> s+dist(p, pts2[ci]), 0);
+    if(cost<bestCost){ bestCost=cost; bestI=ci; }
+  }
+  for(const ci of candIdx){
+    const mark = ring(g, pts2[ci][0], pts2[ci][1], 10, C.dim, {opacity:0, sw:1.6});
+    await tweenAttr(mark,{opacity:1},{duration:260});
+    await wait(220);
+    if(ci!==bestI) await fadeOut(mark,{duration:220});
+    else { mark.setAttribute('stroke', C.rose); dots2[ci].setAttribute('fill', C.rose); dots2[ci].setAttribute('r', 6.5); }
+  }
+  const outDot = dots2[dots2.length-1];
+  outDot.setAttribute('fill', C.dim2);
+}});
+
+/* ---------- 6. AGGLOMERATIVE ---------- */
+SLIDES.push({ label:"Hierarchical — Agglomerative", async build(g){
+  await header(g, "Hierarchical · Bottom-up", "Agglomerative Clustering");
+  await wait(80);
+
+  const baseY = 600, top = 220, leftX = 140, rightX = 620;
+  const n = 7;
+  let xs = []; for(let i=0;i<n;i++) xs.push(leftX + i*(rightX-leftX)/(n-1));
+  const leafDots = xs.map((x,i)=> dot(g, x, baseY, 5, C.blue, {opacity:0}));
+  leafDots.forEach((d,i)=> fadeIn(d,{duration:350, delay:i*60}));
+  await wait(400);
+
+  // simple synthetic hierarchical merge order (index pairs with heights)
+  const merges = [
+    {a:0,b:1,h:40}, {a:5,b:6,h:55}, {a:2,b:3,h:70}, {a:'m0',b:2==2?null:null}
+  ];
+  // Build clusters programmatically: nodes with position + height, merge nearest pairs by x-distance for a natural look
+  let nodes = xs.map((x,i)=> ({x, y:baseY, h:0, members:[i]}));
+  const order = [];
+  while(nodes.length>1){
+    let bi=0,bj=1,bd=1e9;
+    for(let i=0;i<nodes.length;i++) for(let j=i+1;j<nodes.length;j++){
+      const d = Math.abs(nodes[i].x-nodes[j].x);
+      if(d<bd){bd=d;bi=i;bj=j;}
+    }
+    order.push([bi,bj]);
+    const A=nodes[bi], B=nodes[bj];
+    const newH = Math.max(A.h,B.h) + 55 + pseudo(nodes.length*7)*12;
+    const newNode = {x:(A.x+B.x)/2, y: baseY-newH, h:newH, members:A.members.concat(B.members), a:A, b:B};
+    nodes = nodes.filter((_,idx)=> idx!==bi && idx!==bj);
+    nodes.push(newNode);
+  }
+  const root = nodes[0];
+
+  async function drawMerge(node){
+    if(node.members.length===1) return {x:node.x, y:baseY};
+    const pa = await drawMerge(node.a);
+    const pb = await drawMerge(node.b);
+    const y = Math.max(top, baseY - node.h);
+    const lv = E('line', {x1:pa.x, y1:pa.y, x2:pa.x, y2:y, stroke:C.dim2, 'stroke-width':1.6}, g);
+    const rv = E('line', {x1:pb.x, y1:pb.y, x2:pb.x, y2:y, stroke:C.dim2, 'stroke-width':1.6}, g);
+    const hz = E('line', {x1:pa.x, y1:y, x2:pb.x, y2:y, stroke:C.dim2, 'stroke-width':1.6}, g);
+    await Promise.all([drawOn(lv,{duration:400}), drawOn(rv,{duration:400})]);
+    await drawOn(hz,{duration:300});
+    return {x:(pa.x+pb.x)/2, y};
+  }
+  await drawMerge(root);
+
+  caption(g, 90, 660, "Merge the two closest clusters. Repeat. Height = distance at merge.", {size:14.5});
+  const linkages = ["single","complete","average","ward"];
+  T(g, 760, 250, "linkage rules:", {fill:C.dim2, size:12.5});
+  linkages.forEach((l,i)=> T(g, 760, 275+i*24, "· "+l, {fill:C.dim, size:13.5}));
+}});
+
+/* ---------- 7. DIVISIVE ---------- */
+SLIDES.push({ label:"Hierarchical — Divisive", async build(g){
+  await header(g, "Hierarchical · Top-down", "Divisive Clustering");
+  await wait(80);
+  const centers=[[280,330],[420,470],[520,290]];
+  let pts=[]; centers.forEach((c,ci)=> pts.push(...scatterBlob(c[0],c[1],10,70,ci*23).map(p=>({p,ci}))));
+  const dots = pts.map(o=> dot(g,o.p[0],o.p[1],4.6,C.text));
+  dots.forEach((d,i)=> fadeIn(d,{duration:350,delay:i*14}));
+  await wait(300);
+
+  const xsAll = pts.map(o=>o.p[0]), ysAll = pts.map(o=>o.p[1]);
+  const bx0=Math.min(...xsAll)-30, bx1=Math.max(...xsAll)+30, by0=Math.min(...ysAll)-30, by1=Math.max(...ysAll)+30;
+  const boundary = E('rect',{x:bx0,y:by0,width:bx1-bx0,height:by1-by0, rx:18, fill:'none', stroke:C.dim, 'stroke-width':1.6, 'stroke-dasharray':'6,5', opacity:0}, g);
+  await tweenAttr(boundary,{opacity:1},{duration:400});
+  caption(g, 90, 600, "Start with one big cluster...", {size:15});
+  await wait(700);
+
+  await fadeOut(boundary,{duration:300});
+  // split into two boundaries by ci groups (merge cluster1+2 vs cluster0 for first split)
+  const grpA = pts.filter(o=>o.ci===2).map(o=>o.p);
+  const grpB = pts.filter(o=>o.ci!==2).map(o=>o.p);
+  function boxOf(arr){ const xs=arr.map(p=>p[0]), ys=arr.map(p=>p[1]); return [Math.min(...xs)-26,Math.min(...ys)-26,Math.max(...xs)+26,Math.max(...ys)+26]; }
+  const [ax0,ay0,ax1,ay1] = boxOf(grpA);
+  const [bx0_,by0_,bx1_,by1_] = boxOf(grpB);
+  const boxA = E('rect',{x:ax0,y:ay0,width:ax1-ax0,height:ay1-ay0, rx:16, fill:'none', stroke:C.amber, 'stroke-width':1.6, 'stroke-dasharray':'6,5', opacity:0}, g);
+  const boxB = E('rect',{x:bx0_,y:by0_,width:bx1_-bx0_,height:by1_-by0_, rx:16, fill:'none', stroke:C.blue, 'stroke-width':1.6, 'stroke-dasharray':'6,5', opacity:0}, g);
+  await Promise.all([tweenAttr(boxA,{opacity:1},{duration:400}), tweenAttr(boxB,{opacity:1},{duration:400})]);
+  dots.forEach((d,i)=> { if(pts[i].ci===2) d.setAttribute('fill', C.amber); });
+  caption(g, 90, 600, "...then keep splitting the least-similar group.", {size:15});
+  await wait(700);
+
+  const grpB0 = pts.filter(o=>o.ci===0).map(o=>o.p);
+  const grpB1 = pts.filter(o=>o.ci===1).map(o=>o.p);
+  const [c0x0,c0y0,c0x1,c0y1]=boxOf(grpB0), [c1x0,c1y0,c1x1,c1y1]=boxOf(grpB1);
+  await fadeOut(boxB,{duration:300});
+  const boxC0 = E('rect',{x:c0x0,y:c0y0,width:c0x1-c0x0,height:c0y1-c0y0, rx:14, fill:'none', stroke:C.green,'stroke-width':1.6,'stroke-dasharray':'6,5', opacity:0}, g);
+  const boxC1 = E('rect',{x:c1x0,y:c1y0,width:c1x1-c1x0,height:c1y1-c1y0, rx:14, fill:'none', stroke:C.violet,'stroke-width':1.6,'stroke-dasharray':'6,5', opacity:0}, g);
+  await Promise.all([tweenAttr(boxC0,{opacity:1},{duration:400}), tweenAttr(boxC1,{opacity:1},{duration:400})]);
+  dots.forEach((d,i)=>{ if(pts[i].ci===0) d.setAttribute('fill', C.green); if(pts[i].ci===1) d.setAttribute('fill', C.violet); });
+
+  T(g, 720, 300, "computationally heavy —", {fill:C.dim2, size:14});
+  T(g, 720, 322, "rarely used in practice.", {fill:C.dim2, size:14});
+}});
+
+/* ---------- 8. DBSCAN ---------- */
+SLIDES.push({ label:"DBSCAN", async build(g){
+  await header(g, "Clustering · Density-based", "DBSCAN");
+  await wait(80);
+  const c1 = scatterBlob(320,380,16,68,31);
+  const c2 = scatterBlob(560,470,14,60,47);
+  const noise = [[220,560],[700,300],[760,560],[430,260]];
+  const all = [...c1,...c2,...noise];
+  const dots = all.map(p=> dot(g,p[0],p[1],4.6,C.gray));
+  dots.forEach((d,i)=> fadeIn(d,{duration:350, delay:i*16}));
+  await wait(450);
+
+  const EPS=42, MIN=4;
+  const core = all.map((p,i)=> all.filter(q=>dist(p,q)<EPS).length >= MIN);
+  // pick a demo core point to visualize epsilon circle
+  const demoIdx = 3;
+  const demo = all[demoIdx];
+  const circ = ring(g, demo[0], demo[1], 4, C.blue, {sw:1.6, dash:'4,4'});
+  await tweenAttr(circ, {opacity:1}, {duration:300});
+  await tweenAttr(circ, {r:EPS}, {duration:550, easing:Ease.outCubic});
+  caption(g, demo[0]+EPS+14, demo[1], "ε (epsilon) radius", {size:13});
+  await wait(500);
+  const label1 = T(g, demo[0]-70, demo[1]-EPS-10, "≥ minPts inside → core point", {fill:C.blue, size:13});
+  fadeIn(label1,{duration:350});
+  await wait(700);
+  await Promise.all([fadeOut(circ,{duration:300}), fadeOut(label1,{duration:300})]);
+
+  // flood fill coloring
+  const proms=[];
+  all.forEach((p,i)=>{
+    let col, r=4.6;
+    if(noise.includes(p)) { col=C.gray; }
+    else if(c1.includes(p)) col = core[i]?C.blue:C.blue;
+    else col = core[i]?C.amber:C.amber;
+    proms.push(tweenAttr(dots[i], {r: core[i]?6:5}, {duration:400, delay:i*12}).then(()=>{
+      dots[i].setAttribute('fill', col);
+      dots[i].setAttribute('opacity', core[i]?1: (noise.includes(p)?1:0.65));
+      if(core[i]) dots[i].setAttribute('stroke', 'none');
+      else if(!noise.includes(p)){ dots[i].setAttribute('stroke', col); dots[i].setAttribute('stroke-width',1.3); dots[i].setAttribute('fill','#0a0b0d'); }
+    }));
+  });
+  await Promise.all(proms);
+  noise.forEach(p=>{ const i=all.indexOf(p); xMark(g, p[0], p[1], 6, C.dim2, {opacity:1}); dots[i].setAttribute('opacity',0); });
+
+  legendDot(g, 900, 210, C.blue, "core point"); g.lastChild.setAttribute('opacity',1);
+  const b1=legendDot(g, 900, 236, C.blue, "border point"); b1.setAttribute('opacity',1); b1.firstChild.setAttribute('fill','#0a0b0d'); b1.firstChild.setAttribute('stroke',C.blue); b1.firstChild.setAttribute('stroke-width',1.3);
+  const b2=legendDot(g, 900, 262, C.dim2, "noise"); b2.setAttribute('opacity',1);
+  caption(g, 90, 660, "A cluster is a chain of points within ε of each other, anchored by dense \u201ccore\u201d points.", {size:14});
+}});
+
+/* ---------- 9. HDBSCAN & OPTICS ---------- */
+SLIDES.push({ label:"HDBSCAN & OPTICS", async build(g){
+  await header(g, "DBSCAN family", "When density varies");
+  await wait(80);
+  // left: HDBSCAN
+  T(g, 110, 200, "HDBSCAN", {fill:C.blue, size:18, weight:600, font:"'Fraunces',serif"});
+  const dense = scatterBlob(260, 400, 16, 55, 61);
+  const sparse = scatterBlob(430, 460, 12, 95, 71);
+  const dots1 = [...dense,...sparse].map(p=> dot(g,p[0],p[1],4.4,C.gray));
+  dots1.forEach((d,i)=> fadeIn(d,{duration:350, delay:i*14}));
+  await wait(400);
+  // shrink/grow eps rings conceptually at 3 scales
+  const scales=[26,55,90];
+  for(const r of scales){
+    const r1 = ring(g,260,400,4,C.blue,{sw:1.4}); const r2 = ring(g,430,460,4,C.amber,{sw:1.4});
+    await Promise.all([tweenAttr(r1,{opacity:.85},{duration:150}), tweenAttr(r2,{opacity:.85},{duration:150})]);
+    await Promise.all([tweenAttr(r1,{r},{duration:450}), tweenAttr(r2,{r:r*1.5},{duration:450})]);
+    await wait(180);
+    await Promise.all([fadeOut(r1,{duration:200}), fadeOut(r2,{duration:200})]);
+  }
+  dots1.forEach((d,i)=>{ d.setAttribute('fill', i<dense.length? C.blue : C.amber); });
+  caption(g, 110, 555, "No single ε works for both —", {size:13.5});
+  caption(g, 110, 575, "HDBSCAN builds a hierarchy and keeps stable clusters.", {size:13.5});
+
+  // right: OPTICS reachability plot
+  T(g, 690, 200, "OPTICS", {fill:C.rose, size:18, weight:600, font:"'Fraunces',serif"});
+  const plotX=690, plotY=560, plotW=470, plotH=280;
+  E('line',{x1:plotX,y1:plotY,x2:plotX+plotW,y2:plotY,stroke:C.grid2,'stroke-width':1.2},g);
+  E('line',{x1:plotX,y1:plotY,x2:plotX,y2:plotY-plotH,stroke:C.grid2,'stroke-width':1.2},g);
+  T(g, plotX+plotW/2, plotY+30, "points, ordered", {fill:C.dim2, size:12.5, anchor:'middle'});
+  const vals=[80,60,30,25,35,150,140,155,60,50,45,170,20,15,10,20,130,120,140];
+  const bw = plotW/vals.length;
+  const bars = vals.map((v,i)=>{
+    const x = plotX + i*bw + bw*0.15;
+    return E('rect',{x, y:plotY, width:bw*0.7, height:0, fill: v<60? C.blue : (v<110? C.dim2 : C.rose), opacity:.85}, g);
+  });
+  for(let i=0;i<bars.length;i++){
+    await tweenAttr(bars[i], {y: plotY - vals[i]*1.3, height: vals[i]*1.3}, {duration:120, easing:Ease.outCubic});
+  }
+  caption(g, 690, 600, "Valleys = clusters. Peaks = separation between them.", {size:13.5});
+}});
+
+/* ---------- 10. MEAN SHIFT ---------- */
+SLIDES.push({ label:"Mean Shift", async build(g){
+  await header(g, "Clustering · Mode-seeking", "Mean Shift");
+  await wait(80);
+  const peaks = [[350,320],[820,470]];
+  let pts=[]; peaks.forEach((c,i)=> pts.push(...scatterBlob(c[0],c[1],20,90,i*33)));
+  // density contours around peaks
+  peaks.forEach((c,i)=>{
+    [50,85,120].forEach((r,ri)=>{
+      const rr = ring(g,c[0],c[1],r,C.blue,{sw:1, opacity:0});
+      rr.setAttribute('stroke', i===0?C.blue:C.rose);
+      fadeIn(rr,{duration:500, delay:ri*100});
+      rr.setAttribute('opacity', 0.22-ri*0.05);
+    });
+  });
+  const dots = pts.map(p=> dot(g,p[0],p[1],4,C.gray));
+  dots.forEach((d,i)=> fadeIn(d,{duration:320, delay:i*10}));
+  await wait(500);
+
+  const seeds = [[220,470],[480,250],[650,300],[980,380]];
+  const seedEls = seeds.map(s=> dot(g, s[0], s[1], 6, C.amber, {opacity:0}));
+  await Promise.all(seedEls.map(d=> tweenAttr(d,{opacity:1},{duration:300,easing:Ease.outBack})));
+  caption(g, 90, 640, "Every seed climbs the density hill, one small hop at a time.", {size:14.5});
+
+  for(let step=0; step<4; step++){
+    await Promise.all(seedEls.map((d,i)=>{
+      const cx=parseFloat(d.getAttribute('cx')), cy=parseFloat(d.getAttribute('cy'));
+      const target = dist([cx,cy],peaks[0]) < dist([cx,cy],peaks[1]) ? peaks[0] : peaks[1];
+      const nx = cx + (target[0]-cx)*0.45, ny = cy + (target[1]-cy)*0.45;
+      return moveXY(d,'cx','cy', nx, ny, {duration:420, easing:Ease.outCubic});
+    }));
+  }
+  seedEls.forEach(d=>{
+    const cx=parseFloat(d.getAttribute('cx')), cy=parseFloat(d.getAttribute('cy'));
+    const p0 = dist([cx,cy],peaks[0])<dist([cx,cy],peaks[1]);
+    d.setAttribute('fill', p0?C.blue:C.rose);
+    d.setAttribute('r',7);
+  });
+  dots.forEach((d,i)=>{
+    const p=pts[i];
+    const p0 = dist(p,peaks[0])<dist(p,peaks[1]);
+    d.setAttribute('fill', p0?C.blue:C.rose);
+  });
+}});
+
+/* ---------- 11. GMM ---------- */
+SLIDES.push({ label:"Gaussian Mixture Model", async build(g){
+  await header(g, "Clustering · Probabilistic", "Gaussian Mixture Model");
+  await wait(80);
+  const centers=[[360,330],[680,300],[520,510]];
+  let pts=[]; centers.forEach((c,ci)=> pts.push(...scatterBlob(c[0],c[1],14,72,ci*41)));
+  const dots = pts.map(p=> dot(g,p[0],p[1],4.6,C.gray));
+  dots.forEach((d,i)=> fadeIn(d,{duration:350, delay:i*10}));
+  await wait(400);
+
+  let ell = centers.map((c,i)=> E('ellipse',{cx:c[0],cy:c[1],rx:20,ry:20, fill:PALETTE[i], 'fill-opacity':0.10, stroke:PALETTE[i], 'stroke-width':1.6, opacity:0}, g));
+  await Promise.all(ell.map((e,i)=> animate({duration:500, delay:i*100, easing:Ease.outCubic, onUpdate:(t)=>{ e.setAttribute('opacity', t); e.setAttribute('rx', 20+70*t); e.setAttribute('ry', 20+55*t); }})));
+  T(g, 900, 210, "E-step / M-step", {fill:C.dim2, size:13, weight:600, ls:'1px'});
+  const statusTxt = T(g, 900, 234, "assigning soft probabilities…", {fill:C.dim, size:13.5});
+
+  for(let iter=0; iter<2; iter++){
+    statusTxt.textContent = "E-step — soft-assign each point";
+    const proms=[];
+    pts.forEach((p,i)=>{
+      const ds = centers.map(c=> dist(p,c));
+      const mi = ds.indexOf(Math.min(...ds));
+      proms.push(tweenAttr(dots[i], {r:5.4}, {duration:300}).then(()=> dots[i].setAttribute('fill', PALETTE[mi])));
+    });
+    await Promise.all(proms);
+    await wait(300);
+    statusTxt.textContent = "M-step — reshape each Gaussian";
+    const newCenters = centers.map((c,ci)=>{
+      const grp = pts.filter((p,i)=>{ const ds=centers.map(cc=>dist(p,cc)); return ds.indexOf(Math.min(...ds))===ci; });
+      return grp.length? mean(grp): c;
+    });
+    await Promise.all(ell.map((e,i)=> animate({duration:600, easing:Ease.inOutCubic, onUpdate:(t)=>{
+      const cx0=parseFloat(e.getAttribute('cx')), cy0=parseFloat(e.getAttribute('cy'));
+      e.setAttribute('cx', cx0+(newCenters[i][0]-cx0)*0.06);
+      e.setAttribute('cy', cy0+(newCenters[i][1]-cy0)*0.06);
+    }})));
+    for(let k=0;k<centers.length;k++) centers[k]=newCenters[k];
+    await wait(250);
+  }
+  statusTxt.textContent = "converged — soft clusters ✓";
+
+  mathLine(g, 90, 655, [
+    {t:'rm', s:'p('}, {s:'x'}, {t:'rm', s:') = Σ'}, {s:'π'}, {t:'sub', s:'k'}, {t:'rm', s:' · N('}, {s:'x'}, {t:'rm', s:' | '}, {s:'μ'}, {t:'sub', s:'k'}, {t:'rm', s:', '}, {s:'Σ'}, {t:'sub', s:'k'}, {t:'rm', s:')'}
+  ], {size:21});
+  caption(g, 90, 682, "a point can belong a little to every group — not just one", {size:13.5});
+}});
+
+/* ---------- 11b. MATH: GAUSSIAN FORMULA ---------- */
+SLIDES.push({ label:"Math \u2014 the Gaussian formula", async build(g){
+  await header(g, "The math \u00b7 Gaussian Mixture Models", "The bell curve, unpacked");
+  await wait(80);
+
+  const ax0=140, ay0=420, aw=460;
+  E('line',{x1:ax0,y1:ay0,x2:ax0+aw,y2:ay0,stroke:C.grid2,'stroke-width':1.2},g);
+  function bellPath(mu, sigma, h){
+    const N=60; let d='';
+    for(let i=0;i<=N;i++){
+      const x = ax0 + (i/N)*aw;
+      const xv = (x-ax0-aw/2)/40;
+      const y = ay0 - h*Math.exp(-Math.pow((xv-mu),2)/(2*sigma*sigma));
+      d += (i===0?'M ':'L ')+x+' '+y+' ';
+    }
+    return d;
+  }
+  const curve = E('path',{d:bellPath(0,1,160), fill:'none', stroke:C.blue,'stroke-width':2.4, opacity:0},g);
+  await tweenAttr(curve,{opacity:1},{duration:300});
+  await drawOn(curve,{duration:800,easing:Ease.outCubic});
+  T(g, ax0+aw/2, ay0+30, "x", {fill:C.dim2, size:13, italic:true, anchor:'middle', font:"'Fraunces',serif"});
+
+  const peakX = ax0+aw/2, peakY=ay0-160;
+  const muLine = E('line',{x1:peakX,y1:ay0,x2:peakX,y2:ay0, stroke:C.amber,'stroke-width':1.4,'stroke-dasharray':'4,4', opacity:0},g);
+  await tweenAttr(muLine,{opacity:.9},{duration:250});
+  await tweenAttr(muLine,{y2:peakY},{duration:350});
+  T(g, peakX, peakY-14, "\u03bc \u2014 the mean (peak location)", {fill:C.amber, size:13, anchor:'middle'});
+  await wait(450);
+
+  const wLeft = ax0+aw/2-40, wRight=ax0+aw/2+40, wy=ay0-40;
+  const wArrow = E('line',{x1:wLeft,y1:wy,x2:wLeft,y2:wy,stroke:C.rose,'stroke-width':1.6, opacity:0},g);
+  await tweenAttr(wArrow,{opacity:.9},{duration:200});
+  await tweenAttr(wArrow,{x2:wRight,y2:wy},{duration:400});
+  T(g, ax0+aw/2, wy-12, "\u03c3 \u2014 the spread (width)", {fill:C.rose, size:13, anchor:'middle'});
+  await wait(400);
+
+  const rows=[
+    termRow(g, 700, 210, [{s:'\u03bc',fill:C.amber}], "the mean \u2014 where the peak sits", C.amber, {gap:60,size:22}),
+    termRow(g, 700, 250, [{s:'\u03c3',fill:C.rose}], "the standard deviation \u2014 how wide the bell is", C.rose, {gap:60,size:22}),
+    termRow(g, 700, 290, [{t:'rm',s:'exp(\u2212('},{s:'x'},{t:'rm',s:'\u2212'},{s:'\u03bc'},{t:'rm',s:')\u00b2/2'},{s:'\u03c3'},{t:'sup',s:'2'},{t:'rm',s:')'}], "decays fast the farther x is from \u03bc", C.blue, {gap:230,size:19}),
+    termRow(g, 700, 330, [{t:'rm',s:'1/('},{s:'\u03c3'},{t:'rm',s:'\u221a2\u03c0)'}], "normalizing constant \u2014 makes the area = 1", C.dim, {gap:130,size:19}),
+  ];
+  await revealRows(rows,200);
+  await wait(300);
+
+  mathLine(g, 90, 660, [{t:'rm',s:'mixture:  '},{s:'p'},{t:'rm',s:'('},{s:'x'},{t:'rm',s:') = \u03a3 '},{s:'\u03c0'},{t:'sub',s:'k'},{t:'rm',s:' \u00b7 N('},{s:'x'},{t:'rm',s:' | '},{s:'\u03bc'},{t:'sub',s:'k'},{t:'rm',s:', '},{s:'\u03a3'},{t:'sub',s:'k'},{t:'rm',s:')'}], {size:19});
+  caption(g, 90, 685, "\u03c0k = how big a slice of the pie this cluster owns (mixing weight)", {size:13.5});
+}});
+
+/* ---------- 12. SPECTRAL ---------- */
+SLIDES.push({ label:"Spectral Clustering", async build(g){
+  await header(g, "Clustering · Graph-based", "Spectral Clustering");
+  await wait(80);
+  // two crescent moons
+  function moon(cx,cy,r,a0,a1,n,flip){
+    const pts=[];
+    for(let i=0;i<n;i++){
+      const a = a0 + (a1-a0)*(i/(n-1)) + (pseudo(i+cx)-.5)*0.15;
+      const rr = r + (pseudo(i*3+cy)-.5)*14;
+      pts.push([cx+Math.cos(a)*rr*(flip?-1:1), cy+Math.sin(a)*rr]);
+    }
+    return pts;
+  }
+  const m1 = moon(430,380,120,Math.PI*0.15, Math.PI*1.05, 17,false);
+  const m2 = moon(560,470,120,Math.PI*1.15, Math.PI*2.05, 17,false).map(p=>[p[0]+70,p[1]-40]);
+  const dots1 = m1.map(p=> dot(g,p[0],p[1],4.6,C.gray));
+  const dots2 = m2.map(p=> dot(g,p[0],p[1],4.6,C.gray));
+  [...dots1,...dots2].forEach((d,i)=> fadeIn(d,{duration:350, delay:i*12}));
+  await wait(500);
+
+  // similarity graph edges (nearest neighbours within moon)
+  const all=[...m1,...m2];
+  const edges=[];
+  all.forEach((p,i)=>{
+    const near = all.map((q,j)=>({j,d:dist(p,q)})).filter(o=>o.j!==i).sort((a,b)=>a.d-b.d).slice(0,2);
+    near.forEach(o=> edges.push([i,o.j]));
+  });
+  const edgeEls = edges.map(([i,j])=> E('line',{x1:all[i][0],y1:all[i][1],x2:all[j][0],y2:all[j][1], stroke:C.dim2,'stroke-width':1, opacity:0}, g));
+  edgeEls.forEach(e=> g.insertBefore(e, g.querySelector('circle')));
+  await Promise.all(edgeEls.map((e,i)=> fadeIn(e,{duration:20, delay:i*6})));
+  caption(g, 90, 610, "Turn the points into a graph of neighbors...", {size:14.5});
+  await wait(700);
+
+  await Promise.all(edgeEls.map(e=> tweenAttr(e,{opacity:.16},{duration:300})));
+  [...dots1].forEach(d=> d.setAttribute('fill', C.blue));
+  [...dots2].forEach(d=> d.setAttribute('fill', C.rose));
+  caption(g, 90, 610, "...then cut it where the fewest edges cross. K-Means would fail here — the graph cut succeeds.", {size:14.5});
+
+  mathLine(g, 700, 220, [{s:'L'},{t:'rm',s:' = '},{s:'D'},{t:'rm',s:' − '},{s:'W'}], {size:22});
+  caption(g, 700, 246, "cut chosen via eigenvectors of the graph Laplacian", {size:13});
+}});
+
+/* ---------- 13. BIRCH / AFFINITY / FUZZY ---------- */
+SLIDES.push({ label:"BIRCH, Affinity Propagation, Fuzzy C-Means", async build(g){
+  await header(g, "More clustering methods", "Three more ideas, briefly");
+  await wait(80);
+  const cardW=360, gap=30, startX=90, y0=190, h=440;
+  const titles=[["BIRCH",C.blue],["Affinity Propagation",C.amber],["Fuzzy C-Means",C.rose]];
+  for(let c=0;c<3;c++){
+    const x = startX + c*(cardW+gap);
+    const p = panel(g, x, y0, cardW, h, {opacity:0});
+    fadeIn(p, {duration:400, delay:c*150});
+    T(g, x+24, y0+42, titles[c][0], {fill:titles[c][1], size:19, weight:600, font:"'Fraunces',serif"});
+  }
+  await wait(500);
+
+  // BIRCH: tiny CF-tree building
+  const bx = startX+cardW/2, byTop=290;
+  const root = dot(g,bx,byTop,6,C.blue,{opacity:0});
+  await fadeIn(root,{duration:300});
+  const kids = [[-70,60],[0,60],[70,60]].map(([dx,dy])=> dot(g,bx+dx,byTop+dy,5,C.blue,{opacity:0}));
+  const lines1 = kids.map(k=> E('line',{x1:bx,y1:byTop,x2:bx,y2:byTop,stroke:C.dim2,'stroke-width':1.3},g));
+  await Promise.all(kids.map((k,i)=> tweenAttr(k,{opacity:.9},{duration:300,delay:i*100})));
+  await Promise.all(lines1.map((l,i)=> tweenAttr(l,{x2:kids[i].getAttribute('cx'), y2:kids[i].getAttribute('cy')},{duration:350,delay:i*100})));
+  const leaves=[]; kids.forEach((k,ki)=>{ [[-24,50],[24,50]].forEach(([dx,dy])=>{
+    const kx=parseFloat(k.getAttribute('cx')), ky=parseFloat(k.getAttribute('cy'));
+    const lf = dot(g,kx+dx,ky+dy,3.2,C.dim,{opacity:0});
+    const ln = E('line',{x1:kx,y1:ky,x2:kx,y2:ky,stroke:C.grid2,'stroke-width':1},g);
+    leaves.push({lf,ln,kx:kx+dx,ky:ky+dy});
+  });});
+  await Promise.all(leaves.map((o,i)=> Promise.all([tweenAttr(o.lf,{opacity:.8},{duration:250,delay:i*40}), tweenAttr(o.ln,{x2:o.kx,y2:o.ky},{duration:280,delay:i*40})])));
+  caption(g, startX+22, y0+380, "Summarizes data into a compact", {size:13});
+  caption(g, startX+22, y0+400, "tree first — great for huge datasets.", {size:13});
+
+  // Affinity propagation: message passing dots
+  const ax = startX+cardW+gap+cardW/2, ay=340;
+  const nodePos = [[-90,-40],[0,-70],[90,-40],[-60,40],[60,40]];
+  const nodes = nodePos.map(([dx,dy])=> dot(g, ax+dx, ay+dy, 5, C.amber, {opacity:0}));
+  await Promise.all(nodes.map((n,i)=> tweenAttr(n,{opacity:.9},{duration:300,delay:i*80})));
+  for(let r=0;r<3;r++){
+    const i = Math.floor(pseudo(r*11)*5), j = (i+1+Math.floor(pseudo(r*17)*3))%5;
+    const p0=[ax+nodePos[i][0],ay+nodePos[i][1]], p1=[ax+nodePos[j][0],ay+nodePos[j][1]];
+    const msg = dot(g,p0[0],p0[1],2.6,C.text,{opacity:0});
+    await tweenAttr(msg,{opacity:1},{duration:150});
+    await moveXY(msg,'cx','cy',p1[0],p1[1],{duration:350});
+    await fadeOut(msg,{duration:150});
+  }
+  nodes[1].setAttribute('r',8); nodes[1].setAttribute('fill', C.text); nodes[1].setAttribute('stroke',C.amber); nodes[1].setAttribute('stroke-width',2);
+  caption(g, startX+cardW+gap+22, y0+380, "Points send messages and vote for", {size:13});
+  caption(g, startX+cardW+gap+22, y0+400, "the best exemplar — no fixed K needed.", {size:13});
+
+  // Fuzzy C-Means: pie membership
+  const fx = startX+2*(cardW+gap)+cardW/2, fy=330;
+  const pieR=48;
+  const segs = [0.55,0.3,0.15];
+  let angle=-Math.PI/2;
+  const pieGroup = E('g',{opacity:0}, g);
+  segs.forEach((s,i)=>{
+    const a0=angle, a1=angle+s*Math.PI*2; angle=a1;
+    const largeArc = (a1-a0)>Math.PI?1:0;
+    const x0=fx+Math.cos(a0)*pieR, y0=fy+Math.sin(a0)*pieR;
+    const x1=fx+Math.cos(a1)*pieR, y1=fy+Math.sin(a1)*pieR;
+    E('path',{d:`M ${fx} ${fy} L ${x0} ${y0} A ${pieR} ${pieR} 0 ${largeArc} 1 ${x1} ${y1} Z`, fill:PALETTE[i], 'fill-opacity':0.75},pieGroup);
+  });
+  fadeIn(pieGroup,{duration:500});
+  await wait(500);
+  T(g, fx, fy+pieR+34, "one point, three % memberships", {fill:C.dim, size:12.5, anchor:'middle'});
+  caption(g, startX+2*(cardW+gap)+22, y0+380, "GMM's geometric cousin — every point", {size:13});
+  caption(g, startX+2*(cardW+gap)+22, y0+400, "gets a membership % in every cluster.", {size:13});
+}});
+
+/* ---------- 14. CLUSTERING RECAP MINDMAP ---------- */
+SLIDES.push({ label:"Clustering — recap map", async build(g){
+  await header(g, "Clustering · Recap", "One family, many shapes");
+  await wait(80);
+  const cx=250, cy=420;
+  const core = dot(g, cx, cy, 10, C.text, {opacity:0});
+  await tweenAttr(core,{opacity:1},{duration:350,easing:Ease.outBack});
+  T(g, cx, cy+4, "", {}); // spacer
+  const label = T(g, cx, cy-20, "Clustering", {fill:C.text, size:16, weight:600, anchor:'middle', font:"'Fraunces',serif"});
+  fadeIn(label,{duration:350});
+
+  const branches = [
+    {name:"Partitioning", col:C.blue, angle:-155, items:["K-Means","Mini-Batch K-Means","K-Medoids","Fuzzy C-Means"]},
+    {name:"Hierarchical", col:C.amber, angle:-25, items:["Agglomerative","Divisive"]},
+    {name:"Density-based", col:C.green, angle:65, items:["DBSCAN","HDBSCAN","OPTICS","Mean Shift"]},
+    {name:"Model / Graph", col:C.violet, angle:155, items:["GMM","Spectral","BIRCH","Affinity Propagation"]},
+  ];
+  for(const b of branches){
+    const rad = b.angle*Math.PI/180;
+    const ex = cx+Math.cos(rad)*260, ey = cy+Math.sin(rad)*190;
+    const clampX = Math.max(140, Math.min(1150, ex));
+    const clampY = Math.max(180, Math.min(660, ey));
+    const line = E('line',{x1:cx,y1:cy,x2:cx,y2:cy,stroke:b.col,'stroke-width':1.8, opacity:.8}, g);
+    await tweenAttr(line,{x2:clampX,y2:clampY},{duration:450,easing:Ease.outCubic});
+    const node = dot(g, clampX, clampY, 6, b.col, {opacity:0});
+    await tweenAttr(node,{opacity:1},{duration:250,easing:Ease.outBack});
+    const anchor = clampX>cx? 'start':'end';
+    const tx = clampX>cx? clampX+14 : clampX-14;
+    const nameT = T(g, tx, clampY-6, b.name, {fill:b.col, size:15, weight:600, anchor});
+    fadeIn(nameT,{duration:300});
+    b.items.forEach((it,i)=>{
+      const chip = T(g, tx, clampY+14+i*20, "· "+it, {fill:C.dim, size:13, anchor});
+      fadeIn(chip,{duration:250, delay:i*60});
+    });
+    await wait(200);
+  }
+}});
+
+/* ---------- 14b. CHOOSING K ---------- */
+SLIDES.push({ label:"Choosing K — Elbow & Silhouette", async build(g){
+  await header(g, "Clustering · Model selection", "How many clusters, K?");
+  await wait(80);
+
+  const ax0=140, ay0=560, aw=430, ah=300;
+  E('line',{x1:ax0,y1:ay0,x2:ax0+aw,y2:ay0,stroke:C.grid2,'stroke-width':1.4},g);
+  E('line',{x1:ax0,y1:ay0,x2:ax0,y2:ay0-ah,stroke:C.grid2,'stroke-width':1.4},g);
+  T(g, ax0+aw/2, ay0+34, "K (number of clusters)", {fill:C.dim2, size:12.5, anchor:'middle'});
+  T(g, ax0, 200, "Elbow method", {fill:C.blue, size:16.5, weight:600, font:"'Fraunces',serif"});
+  caption(g, ax0, 224, "adding clusters helps less and less past the bend", {size:13});
+
+  const kvals=[1,2,3,4,5,6,7,8];
+  const sse=[300,190,95,72,58,48,40,34];
+  const maxSSE=300;
+  const pts = kvals.map((k,i)=> [ax0 + (i/(kvals.length-1))*aw, ay0-ah*(sse[i]/maxSSE)]);
+  let d='M '+pts[0][0]+' '+pts[0][1];
+  for(let i=1;i<pts.length;i++) d+=' L '+pts[i][0]+' '+pts[i][1];
+  const line = E('path',{d, fill:'none', stroke:C.blue, 'stroke-width':2.2, opacity:0}, g);
+  await tweenAttr(line,{opacity:1},{duration:200});
+  await drawOn(line,{duration:900, easing:Ease.outCubic});
+  const dots = pts.map((p,i)=> dot(g,p[0],p[1],4, i===2?C.amber:C.blue,{opacity:0}));
+  await Promise.all(dots.map((dd,i)=> tweenAttr(dd,{opacity:1},{duration:200,delay:i*60})));
+  kvals.forEach((k,i)=> T(g, pts[i][0], ay0+18, String(k), {fill:C.dim2, size:11.5, anchor:'middle'}));
+  const elbowRing = ring(g, pts[2][0], pts[2][1], 4, C.amber, {sw:1.6});
+  await tweenAttr(elbowRing,{opacity:1,r:12},{duration:400,easing:Ease.outBack});
+  T(g, pts[2][0]+16, pts[2][1]-14, "elbow \u2248 3", {fill:C.amber, size:12.5});
+
+  const bx0=690, by0=560, bw=430;
+  E('line',{x1:bx0,y1:by0,x2:bx0+bw,y2:by0,stroke:C.grid2,'stroke-width':1.4},g);
+  T(g, bx0, 200, "Silhouette score", {fill:C.rose, size:16.5, weight:600, font:"'Fraunces',serif"});
+  caption(g, bx0, 224, "highest bar (K=3) = best-separated clusters", {size:13});
+  const sil={2:0.42,3:0.68,4:0.50,5:0.40,6:0.33,7:0.29,8:0.24};
+  const numBars=7, barW=40, gapB=(bw-numBars*barW)/(numBars+1);
+  const bars=[];
+  for(let k=2;k<=8;k++){
+    const i=k-2;
+    const x = bx0+gapB+i*(barW+gapB);
+    const bar = E('rect',{x, y:by0, width:barW, height:0, fill: k===3?C.rose:C.dim2, opacity:.9}, g);
+    bars.push({el:bar,k});
+  }
+  for(const b of bars){
+    const h = sil[b.k]*230;
+    await tweenAttr(b.el, {height:h, y:by0-h}, {duration:260, easing:Ease.outCubic});
+  }
+  bars.forEach((b,i)=> T(g, bx0+gapB+i*(barW+gapB)+barW/2, by0+20, String(b.k), {fill:C.dim2, size:11.5, anchor:'middle'}));
+
+  mathLine(g, 90, 686, [{s:'s'},{t:'rm',s:'(i) = ('},{s:'b'},{t:'rm',s:'(i) \u2212 '},{s:'a'},{t:'rm',s:'(i)) / max('},{s:'a'},{t:'rm',s:'(i), '},{s:'b'},{t:'rm',s:'(i))'}], {size:17});
+}});
+
+/* ---------- 14b2. MATH: SILHOUETTE SCORE ---------- */
+SLIDES.push({ label:"Math \u2014 silhouette score", async build(g){
+  await header(g, "The math \u00b7 model selection", "Silhouette score, term by term");
+  await wait(80);
+
+  const eq = mathLine(g, 640, 210, [
+    {s:'s'},{t:'rm',s:'(i) = ('},{s:'b',fill:C.amber},{t:'rm',s:'(i) \u2212 '},{s:'a',fill:C.blue},{t:'rm',s:'(i)) / max('},{s:'a',fill:C.blue},{t:'rm',s:'(i), '},{s:'b',fill:C.amber},{t:'rm',s:'(i))'}
+  ], {size:24, anchor:'middle'});
+  await fadeIn(eq,{duration:500});
+  await wait(400);
+
+  const own = scatterBlob(300, 430, 8, 60, 5);
+  const other = scatterBlob(600, 400, 8, 60, 17);
+  const iPt = own[0];
+  own.slice(1).forEach(p=>{ const d=dot(g,p[0],p[1],4,C.blue,{opacity:0}); tweenAttr(d,{opacity:.8},{duration:300}); });
+  other.forEach(p=>{ const d=dot(g,p[0],p[1],4,C.amber,{opacity:0}); tweenAttr(d,{opacity:.8},{duration:300}); });
+  const iDot = dot(g, iPt[0], iPt[1], 6, C.text, {opacity:1});
+  T(g, iPt[0]-12, iPt[1]-14, "i", {fill:C.text, size:13, italic:true, font:"'Fraunces',serif"});
+  await wait(400);
+
+  const aLine = E('line',{x1:iPt[0],y1:iPt[1],x2:iPt[0],y2:iPt[1],stroke:C.blue,'stroke-width':1.8, opacity:0},g);
+  await tweenAttr(aLine,{opacity:.9},{duration:250});
+  await tweenAttr(aLine,{x2:own[3][0],y2:own[3][1]},{duration:400});
+  T(g, (iPt[0]+own[3][0])/2-10, (iPt[1]+own[3][1])/2-10, "a(i)", {fill:C.blue, size:13});
+  await wait(450);
+
+  const bLine = E('line',{x1:iPt[0],y1:iPt[1],x2:iPt[0],y2:iPt[1],stroke:C.amber,'stroke-width':1.8, opacity:0},g);
+  await tweenAttr(bLine,{opacity:.9},{duration:250});
+  await tweenAttr(bLine,{x2:other[3][0],y2:other[3][1]},{duration:450});
+  T(g, (iPt[0]+other[3][0])/2, (iPt[1]+other[3][1])/2-10, "b(i)", {fill:C.amber, size:13});
+  await wait(450);
+
+  const rows=[
+    termRow(g, 90, 570, [{s:'a',fill:C.blue},{t:'rm',s:'(i)'}], "avg. distance to i's own cluster \u2014 cohesion", C.blue, {gap:70,size:20}),
+    termRow(g, 90, 605, [{s:'b',fill:C.amber},{t:'rm',s:'(i)'}], "avg. distance to nearest other cluster \u2014 separation", C.amber, {gap:70,size:20}),
+  ];
+  await revealRows(rows,200);
+
+  const nlX0=740, nlX1=1160, nlY=560;
+  E('line',{x1:nlX0,y1:nlY,x2:nlX1,y2:nlY,stroke:C.grid2,'stroke-width':1.4},g);
+  [-1,0,1].forEach(v=>{
+    const x=nlX0+(v+1)/2*(nlX1-nlX0);
+    E('line',{x1:x,y1:nlY-6,x2:x,y2:nlY+6,stroke:C.grid2,'stroke-width':1.2},g);
+    T(g, x, nlY+24, String(v), {fill:C.dim2, size:12, anchor:'middle'});
+  });
+  T(g, nlX0, nlY-40, "poorly matched", {fill:C.dim2, size:11.5});
+  T(g, nlX1, nlY-40, "well matched", {fill:C.dim2, size:11.5, anchor:'end'});
+  const marker = dot(g, nlX0+(0.7+1)/2*(nlX1-nlX0), nlY, 6, C.green, {opacity:0});
+  await tweenAttr(marker,{opacity:1},{duration:400,delay:300,easing:Ease.outBack});
+}});
+
+/* ---------- 14c. CURSE OF DIMENSIONALITY ---------- */
+SLIDES.push({ label:"The curse of dimensionality", async build(g){
+  await header(g, "Dimensionality reduction \u00b7 Why it matters", "The curse of dimensionality");
+  await wait(80);
+  const n=12, baseSeed=71;
+  const panelsX=[150, 490, 830];
+  const labels=["1 dimension","2 dimensions","3 dimensions"];
+  for(let p=0;p<3;p++){
+    fadeIn(panel(g, panelsX[p], 200, 260, 260, {opacity:0}), {duration:350, delay:p*150});
+    T(g, panelsX[p]+130, 480, labels[p], {fill:C.dim, size:13.5, anchor:'middle'});
+  }
+  await wait(500);
+
+  const y1=330;
+  const pts1=[]; for(let i=0;i<n;i++) pts1.push([panelsX[0]+30+(i/(n-1))*200, y1]);
+  const d1 = pts1.map(p=> dot(g,p[0],p[1],4.4,C.blue,{opacity:0}));
+  await Promise.all(d1.map((dd,i)=> tweenAttr(dd,{opacity:1},{duration:250,delay:i*40})));
+
+  const pts2=[]; for(let i=0;i<n;i++) pts2.push([panelsX[1]+30+pseudo(i+baseSeed)*200, 230+pseudo(i*3+baseSeed)*200]);
+  const d2 = pts2.map(p=> dot(g,p[0],p[1],4.4,C.amber,{opacity:0}));
+  await Promise.all(d2.map((dd,i)=> tweenAttr(dd,{opacity:1},{duration:250,delay:i*40})));
+
+  const cx=panelsX[2]+130, cy=340;
+  const pts3=[]; for(let i=0;i<n;i++){
+    const a=pseudo(i*2+baseSeed+9)*Math.PI*2, r=40+pseudo(i*5+baseSeed)*90;
+    const zz=pseudo(i*7+baseSeed)*60-30;
+    pts3.push([cx+Math.cos(a)*r, cy+Math.sin(a)*r*0.6-zz*0.5]);
+  }
+  const d3 = pts3.map(p=> dot(g,p[0],p[1],4.4,C.rose,{opacity:0}));
+  await Promise.all(d3.map((dd,i)=> tweenAttr(dd,{opacity:1},{duration:250,delay:i*40})));
+
+  caption(g, 90, 555, "Same 12 points. As dimensions grow, the space around them explodes \u2014", {size:14.5});
+  caption(g, 90, 578, "the data that once looked dense becomes almost empty.", {size:14.5});
+  await wait(500);
+
+  mathLine(g, 90, 645, [{t:'rm', s:'as  d \u2192 \u221e :   ('},{s:'d'},{t:'sub',s:'max'},{t:'rm',s:' \u2212 '},{s:'d'},{t:'sub',s:'min'},{t:'rm',s:') / '},{s:'d'},{t:'sub',s:'min'},{t:'rm',s:' \u2192 0'}], {size:19});
+  caption(g, 90, 672, "nearest and farthest neighbor become almost equally far \u2014 distance stops being meaningful.", {size:13.5});
+}});
+
+/* ---------- 15. DIM REDUCTION BIG IDEA ---------- */
+SLIDES.push({ label:"Dimensionality reduction — the big idea", async build(g){
+  await header(g, "Dimensionality reduction", "Fewer numbers, same story");
+  await wait(80);
+  const cx=380, cy=400;
+  // isometric-ish cube of points
+  function iso(x,y,z){ return [cx + (x-y)*0.86, cy + (x+y)*0.5 - z*0.9]; }
+  const cubePts=[];
+  for(let i=0;i<4;i++) for(let j=0;j<4;j++) for(let k=0;k<3;k++) cubePts.push(iso(i*34-51, j*34-51, k*34));
+  const dots = cubePts.map(p=> dot(g,p[0],p[1],3.4,C.violet,{opacity:0}));
+  await Promise.all(dots.map((d,i)=> tweenAttr(d,{opacity:.85},{duration:20,delay:i*8})));
+  T(g, cx, 220, "many features", {fill:C.dim, size:14, anchor:'middle'});
+  await wait(600);
+
+  const arrow = E('line',{x1:540,y1:400,x2:640,y2:400,stroke:C.dim2,'stroke-width':1.6},g);
+  const ah = E('path',{d:'M 632 393 L 646 400 L 632 407 Z', fill:C.dim2},g);
+  await drawOn(arrow,{duration:350});
+  fadeIn(ah,{duration:200});
+
+  // flatten to 2D scatter
+  const flatCx=880, flatCy=400;
+  const flatPts = cubePts.map((p,i)=>{
+    const a = pseudo(i)*Math.PI*2, r=pseudo(i+3)*150;
+    return [flatCx+Math.cos(a)*r, flatCy+Math.sin(a)*r*0.7];
+  });
+  await Promise.all(dots.map((d,i)=> animate({duration:800, delay:i*8, easing:Ease.inOutCubic, onUpdate:(t)=>{
+    const x0=cubePts[i][0], y0=cubePts[i][1], x1=flatPts[i][0], y1=flatPts[i][1];
+    d.setAttribute('cx', x0+(x1-x0)*t);
+    d.setAttribute('cy', y0+(y1-y0)*t);
+    d.setAttribute('fill', t>0.5? C.blue : C.violet);
+  }})));
+  T(g, flatCx, 220, "a simple shape hiding inside", {fill:C.dim, size:14, anchor:'middle'});
+
+  caption(g, 90, 640, "Real data often lies near a much simpler surface — we just have to find it.", {size:15});
+}});
+
+/* ---------- 16. PCA ---------- */
+SLIDES.push({ label:"Principal Component Analysis", async build(g){
+  await header(g, "Dim. reduction · Linear", "Principal Component Analysis");
+  await wait(80);
+  const cx=380, cy=380;
+  // elongated correlated cloud along ~30deg
+  const theta = -0.5;
+  const raw = scatterBlob(0,0,34,1,17).map((p,i)=>{
+    const sx = p[0]*2.6, sy = p[1]*0.9;
+    const rx = sx*Math.cos(theta)-sy*Math.sin(theta), ry = sx*Math.sin(theta)+sy*Math.cos(theta);
+    return [cx+rx, cy+ry];
+  });
+  const dots = raw.map(p=> dot(g,p[0],p[1],4.4,C.gray));
+  dots.forEach((d,i)=> fadeIn(d,{duration:350, delay:i*10}));
+  await wait(400);
+
+  // spread meter
+  const meterX=760, meterY0=560, meterH=200;
+  E('line',{x1:meterX,y1:meterY0,x2:meterX,y2:meterY0-meterH,stroke:C.grid2,'stroke-width':1.2},g);
+  T(g, meterX, meterY0+22, "spread along the line", {fill:C.dim2, size:12.5, anchor:'middle'});
+  const meterBar = E('rect',{x:meterX-14,y:meterY0,width:28,height:0, fill:C.dim, opacity:.85},g);
+
+  const line = E('line',{x1:cx,y1:cy,x2:cx,y2:cy,stroke:C.blue,'stroke-width':2, opacity:.9},g);
+  const L=170;
+  let bestAngle=0, bestVar=-1;
+  const angles=[]; for(let a=0;a<180;a+=15) angles.push(a*Math.PI/180);
+  for(const a of angles){
+    const x1=cx+Math.cos(a)*L, y1=cy+Math.sin(a)*L, x2=cx-Math.cos(a)*L, y2=cy-Math.sin(a)*L;
+    await tweenAttr(line, {x1,y1,x2,y2}, {duration:130});
+    const ux=Math.cos(a), uy=Math.sin(a);
+    const projs = raw.map(p=> (p[0]-cx)*ux + (p[1]-cy)*uy);
+    const m = projs.reduce((s,v)=>s+v,0)/projs.length;
+    const varr = projs.reduce((s,v)=>s+(v-m)*(v-m),0)/projs.length;
+    if(varr>bestVar){ bestVar=varr; bestAngle=a; }
+    await tweenAttr(meterBar, {height: Math.min(180, varr*0.05), y: meterY0-Math.min(180,varr*0.05)}, {duration:100});
+  }
+  const bx1=cx+Math.cos(bestAngle)*L, by1=cy+Math.sin(bestAngle)*L, bx2=cx-Math.cos(bestAngle)*L, by2=cy-Math.sin(bestAngle)*L;
+  await tweenAttr(line, {x1:bx1,y1:by1,x2:bx2,y2:by2}, {duration:500, easing:Ease.outBack});
+  line.setAttribute('stroke-width',3);
+  T(g, bx1+16, by1-6, "PC1 — max variance direction", {fill:C.blue, size:13});
+
+  const perpAngle = bestAngle+Math.PI/2;
+  const line2 = E('line',{x1:cx,y1:cy,x2:cx,y2:cy,stroke:C.rose,'stroke-width':1.8,'stroke-dasharray':'5,4', opacity:0},g);
+  await tweenAttr(line2,{opacity:.85},{duration:250});
+  await tweenAttr(line2,{x1:cx+Math.cos(perpAngle)*70,y1:cy+Math.sin(perpAngle)*70,x2:cx-Math.cos(perpAngle)*70,y2:cy-Math.sin(perpAngle)*70},{duration:400});
+  T(g, cx+Math.cos(perpAngle)*70+10, cy+Math.sin(perpAngle)*70, "PC2", {fill:C.rose, size:13});
+  await wait(500);
+
+  // project points onto PC1, collapse to 1D
+  const ux=Math.cos(bestAngle), uy=Math.sin(bestAngle);
+  const axisY = 660;
+  await Promise.all(dots.map((d,i)=>{
+    const p=raw[i];
+    const t = (p[0]-cx)*ux + (p[1]-cy)*uy;
+    const fx = cx+ux*t, fy = cy+uy*t;
+    return animate({duration:700, delay:i*8, easing:Ease.inOutCubic, onUpdate:(tt)=>{
+      d.setAttribute('cx', p[0]+(fx-p[0])*tt);
+      d.setAttribute('cy', p[1]+(fy-p[1])*tt);
+      d.setAttribute('fill', C.blue);
+    }});
+  }));
+
+  mathLine(g, 90, 660, [{t:'rm',s:'maximize  Var('},{s:'w'},{t:'rm',s:'·'},{s:'x'},{t:'rm',s:')  subject to  ‖'},{s:'w'},{t:'rm',s:'‖ = 1'}], {size:20});
+}});
+
+/* ---------- 16b. PCA EXPLAINED VARIANCE ---------- */
+SLIDES.push({ label:"PCA — explained variance", async build(g){
+  await header(g, "Dim. reduction \u00b7 Linear (cont.)", "How many components do I keep?");
+  await wait(80);
+  const ax0=140, ay0=560, aw=500, ah=320;
+  E('line',{x1:ax0,y1:ay0,x2:ax0+aw,y2:ay0,stroke:C.grid2,'stroke-width':1.4},g);
+  E('line',{x1:ax0,y1:ay0,x2:ax0,y2:ay0-ah,stroke:C.grid2,'stroke-width':1.4},g);
+  T(g, ax0+aw/2, ay0+34, "principal component", {fill:C.dim2, size:12.5, anchor:'middle'});
+
+  const eig=[0.42,0.24,0.14,0.09,0.06,0.03,0.02];
+  const barW=48, gapE=(aw-eig.length*barW)/(eig.length+1);
+  const bars = eig.map((v,i)=>{
+    const x = ax0+gapE+i*(barW+gapE);
+    return E('rect',{x, y:ay0, width:barW, height:0, fill:C.violet, opacity:.85}, g);
+  });
+  for(let i=0;i<bars.length;i++){
+    const h = eig[i]*ah*1.9;
+    await tweenAttr(bars[i], {height:h, y:ay0-h}, {duration:280, easing:Ease.outCubic});
+  }
+  eig.forEach((v,i)=> T(g, ax0+gapE+i*(barW+gapE)+barW/2, ay0+20, "PC"+(i+1), {fill:C.dim2, size:11, anchor:'middle'}));
+
+  let cum=0;
+  const cumPts = eig.map((v,i)=>{ cum+=v; return [ax0+gapE+i*(barW+gapE)+barW/2, ay0-cum*ah*0.95]; });
+  let dcum='M '+cumPts[0][0]+' '+cumPts[0][1];
+  for(let i=1;i<cumPts.length;i++) dcum+=' L '+cumPts[i][0]+' '+cumPts[i][1];
+  const cumLine = E('path',{d:dcum, fill:'none', stroke:C.amber, 'stroke-width':2, opacity:0}, g);
+  await tweenAttr(cumLine,{opacity:1},{duration:200});
+  await drawOn(cumLine,{duration:800});
+  const cumDots = cumPts.map(p=> dot(g,p[0],p[1],3.6,C.amber,{opacity:0}));
+  await Promise.all(cumDots.map(dd=> tweenAttr(dd,{opacity:1},{duration:200})));
+
+  const thresholdY = ay0-0.9*ah*0.95;
+  const thLine = E('line',{x1:ax0,y1:thresholdY,x2:ax0+aw,y2:thresholdY,stroke:C.dim2,'stroke-width':1.2,'stroke-dasharray':'5,4', opacity:0}, g);
+  await tweenAttr(thLine,{opacity:.8},{duration:300});
+  T(g, ax0+aw+14, thresholdY+4, "90% variance", {fill:C.dim2, size:12});
+
+  const l1=legendDot(g, 700, 220, C.violet, "variance per component"); l1.setAttribute('opacity',1);
+  const l2=legendDot(g, 700, 246, C.amber, "cumulative variance"); l2.setAttribute('opacity',1);
+
+  mathLine(g, 90, 665, [{t:'rm',s:'explained ratio = '},{s:'\u03bb'},{t:'sub',s:'k'},{t:'rm',s:' / \u03a3 '},{s:'\u03bb'}], {size:19});
+  caption(g, 90, 690, "keep enough components to cross ~90\u201395% cumulative variance, drop the rest.", {size:13.5});
+}});
+
+/* ---------- 16c. MATH: PCA EIGENVECTORS ---------- */
+SLIDES.push({ label:"Math \u2014 PCA eigenvectors", async build(g){
+  await header(g, "The math \u00b7 PCA", "Why eigenvectors?");
+  await wait(80);
+
+  const eq = mathLine(g, 500, 230, [
+    {t:'rm',s:'Cov('},{s:'X',fill:C.blue},{t:'rm',s:') '},{s:'v',fill:C.amber},{t:'rm',s:' = '},{s:'\u03bb',fill:C.rose},{s:'v',fill:C.amber}
+  ], {size:34, anchor:'middle'});
+  await fadeIn(eq,{duration:500});
+  await wait(400);
+
+  const rows=[
+    termRow(g, 150, 320, [{t:'rm',s:'Cov('},{s:'X',fill:C.blue},{t:'rm',s:')'}], "covariance matrix \u2014 how features vary together", C.blue, {gap:150,size:22}),
+    termRow(g, 150, 364, [{s:'v',fill:C.amber}], "an eigenvector \u2014 a direction in feature space", C.amber, {gap:60,size:22}),
+    termRow(g, 150, 408, [{s:'\u03bb',fill:C.rose}], "an eigenvalue \u2014 the variance captured along v", C.rose, {gap:60,size:22}),
+  ];
+  await revealRows(rows,220);
+  await wait(300);
+  caption(g, 90, 470, "PC1 is simply the eigenvector with the largest eigenvalue.", {size:14.5});
+
+  const gx=760, gy=270, cell=54;
+  T(g, gx, gy-16, "Cov(X) example", {fill:C.dim2, size:12.5});
+  const vals=[[6.1,3.8],[3.8,4.2]];
+  for(let r=0;r<2;r++) for(let c=0;c<2;c++){
+    const rect = E('rect',{x:gx+c*cell, y:gy+r*cell, width:cell-3, height:cell-3, fill:'rgba(111,168,220,0.12)', stroke:C.grid2, opacity:0},g);
+    fadeIn(rect,{duration:250, delay:(r*2+c)*100});
+    const t2 = T(g, gx+c*cell+cell/2-2, gy+r*cell+cell/2+5, vals[r][c].toFixed(1), {fill:C.text, size:14, anchor:'middle'});
+    fadeIn(t2,{duration:250,delay:(r*2+c)*100});
+  }
+  await wait(900);
+
+  const arrow = E('line',{x1:gx+cell*2+40,y1:gy+cell,x2:gx+cell*2+40,y2:gy+cell, stroke:C.dim2,'stroke-width':1.6},g);
+  await tweenAttr(arrow,{x2:gx+cell*2+110,y2:gy+cell},{duration:350});
+
+  const ellcx=gx+cell*2+160, ellcy=gy+cell;
+  const ell = E('ellipse',{cx:ellcx,cy:ellcy,rx:4,ry:4,fill:'none',stroke:C.amber,'stroke-width':2,opacity:0, transform:`rotate(-38 ${ellcx} ${ellcy})`},g);
+  await tweenAttr(ell,{opacity:.9},{duration:250});
+  await tweenAttr(ell,{rx:65,ry:32},{duration:600,easing:Ease.outCubic});
+  T(g, ellcx, ellcy+56, "eigen-decomposition", {fill:C.dim2, size:11.5, anchor:'middle'});
+}});
+
+/* ---------- 17. PCA VARIANTS ---------- */
+SLIDES.push({ label:"PCA variants", async build(g){
+  await header(g, "PCA variants", "When plain PCA isn't enough");
+  await wait(80);
+  const cardW=360, gap=30, startX=90, y0=190, h=440;
+  const titles=[["Kernel PCA",C.blue],["Incremental PCA",C.amber],["Sparse PCA",C.rose]];
+  for(let c=0;c<3;c++){
+    const x = startX + c*(cardW+gap);
+    fadeIn(panel(g, x, y0, cardW, h, {opacity:0}), {duration:400, delay:c*150});
+    T(g, x+24, y0+42, titles[c][0], {fill:titles[c][1], size:18, weight:600, font:"'Fraunces',serif"});
+  }
+  await wait(500);
+
+  // Kernel PCA: spiral that becomes separable
+  const kx=startX+cardW/2, ky=340;
+  const spiralPts=[];
+  for(let i=0;i<28;i++){ const t=i/28*Math.PI*2.4; spiralPts.push([kx+Math.cos(t)*(10+t*13), ky+Math.sin(t)*(10+t*13)*0.7]); }
+  const sdots = spiralPts.map((p,i)=> dot(g,p[0],p[1],4,i%2?C.blue:C.rose,{opacity:0}));
+  await Promise.all(sdots.map((d,i)=> tweenAttr(d,{opacity:.9},{duration:20,delay:i*20})));
+  await wait(500);
+  await Promise.all(sdots.map((d,i)=> animate({duration:700, delay:i*10, easing:Ease.inOutCubic, onUpdate:(t)=>{
+    const lift = i%2? -60:60;
+    d.setAttribute('cy', spiralPts[i][1] + lift*t*0.5);
+  }})));
+  caption(g, startX+22, y0+380, "Lifts data into a curved space where", {size:13});
+  caption(g, startX+22, y0+400, "a straight PCA line finally works.", {size:13});
+
+  // Incremental PCA: batches streaming in updating a line
+  const ix0=startX+cardW+gap+40, iy0=330, iw=280;
+  const axis = E('line',{x1:ix0,y1:iy0+40,x2:ix0+iw,y2:iy0-30,stroke:C.dim2,'stroke-width':1.6, opacity:0},g);
+  for(let b=0;b<3;b++){
+    const bpts = scatterBlob(ix0+50+b*90, iy0+10-b*4, 6, 26, b*9+3);
+    const bd = bpts.map(p=> dot(g,p[0],p[1],3.6,C.amber,{opacity:0}));
+    await Promise.all(bd.map(d=> tweenAttr(d,{opacity:.85},{duration:250})));
+    await tweenAttr(axis,{opacity:.9,x2:ix0+50+b*90+40,y2:iy0-10-b*4},{duration:350});
+  }
+  caption(g, startX+cardW+gap+22, y0+380, "Learns the axes a little at a time —", {size:13});
+  caption(g, startX+cardW+gap+22, y0+400, "handy when data won't fit in memory.", {size:13});
+
+  // Sparse PCA: bar chart mostly zero
+  const fx0 = startX+2*(cardW+gap)+40, fy0=470;
+  const weights = [0.05,0.08,0.62,0.04,0.03,0.7,0.06];
+  const bw=34, gap2=8;
+  const bars = weights.map((w,i)=> E('rect',{x:fx0+i*(bw+gap2), y:fy0, width:bw, height:0, fill: w>0.4?C.rose:C.grid2, opacity:.9}, g));
+  await Promise.all(bars.map((b,i)=> tweenAttr(b,{height:w*160, y:fy0-w*160},{duration:400, delay:i*70, easing:Ease.outCubic})));
+  caption(g, startX+2*(cardW+gap)+22, y0+380, "Loadings are mostly zero — only a", {size:13});
+  caption(g, startX+2*(cardW+gap)+22, y0+400, "few features matter per component.", {size:13});
+}});
+
+/* ---------- 18. MANIFOLD LEARNING ---------- */
+SLIDES.push({ label:"t-SNE & UMAP", async build(g){
+  await header(g, "Dim. reduction · Nonlinear / Manifold", "t-SNE & UMAP");
+  await wait(80);
+  const cx=340, cy=390;
+  const n=60;
+  const spiral=[];
+  for(let i=0;i<n;i++){ const t=i/n*Math.PI*3.4; spiral.push([cx+Math.cos(t)*(16+t*30), cy+Math.sin(t)*(16+t*30)*0.6]); }
+  const dots = spiral.map((p,i)=> dot(g,p[0],p[1],4.2, `hsl(${200+ i/n*160},45%,62%)`, {opacity:0}));
+  await Promise.all(dots.map((d,i)=> tweenAttr(d,{opacity:.95},{duration:20,delay:i*14})));
+  T(g, cx, 200, "a curled-up manifold (high-D)", {fill:C.dim, size:14, anchor:'middle'});
+  await wait(600);
+
+  const arrow = E('line',{x1:610,y1:390,x2:700,y2:390,stroke:C.dim2,'stroke-width':1.6},g);
+  const ah = E('path',{d:'M 692 383 L 706 390 L 692 397 Z', fill:C.dim2},g);
+  await drawOn(arrow,{duration:350}); fadeIn(ah,{duration:200});
+
+  const lineX0=760, lineX1=1180, lineY=390;
+  await Promise.all(dots.map((d,i)=> animate({duration:800, delay:i*10, easing:Ease.inOutCubic, onUpdate:(t)=>{
+    const x0=spiral[i][0], y0=spiral[i][1];
+    const x1=lineX0+(i/n)*(lineX1-lineX0), y1=lineY;
+    d.setAttribute('cx', x0+(x1-x0)*t);
+    d.setAttribute('cy', y0+(y1-y0)*t);
+  }})));
+  T(g, (lineX0+lineX1)/2, 200, "unrolled (low-D) — neighbor order preserved", {fill:C.dim, size:14, anchor:'middle'});
+
+  caption(g, 90, 500, "t-SNE keeps nearby points nearby — excellent for visualization.", {size:15});
+  caption(g, 90, 528, "UMAP does something similar, faster, while preserving more global shape.", {size:15});
+  footnote(g, 90, 600, "Related earlier ideas: Isomap, Locally Linear Embedding (LLE), MDS — all try to \"unroll\" data without tearing nearby points apart.");
+}});
+
+/* ---------- 18b. ISOMAP ---------- */
+SLIDES.push({ label:"Isomap", async build(g){
+  await header(g, "Manifold learning", "Isomap \u2014 geodesic distances");
+  await wait(80);
+  const cx=380, cy=380, n=40;
+  const curve=[];
+  for(let i=0;i<n;i++){ const t=i/(n-1)*Math.PI*1.6; curve.push([cx+Math.cos(t)*(20+t*38), cy+Math.sin(t)*(20+t*38)*0.55]); }
+  const dots = curve.map((p,i)=> dot(g,p[0],p[1], 3.8, `hsl(${200+ i/n*150},45%,62%)`, {opacity:0}));
+  await Promise.all(dots.map((d,i)=> tweenAttr(d,{opacity:.95},{duration:20,delay:i*16})));
+  await wait(400);
+
+  const a=curve[3], b=curve[n-4];
+  const straight = E('line',{x1:a[0],y1:a[1],x2:a[0],y2:a[1], stroke:C.red,'stroke-width':1.8,'stroke-dasharray':'5,4', opacity:0},g);
+  await tweenAttr(straight,{opacity:.9},{duration:250});
+  await tweenAttr(straight,{x2:b[0],y2:b[1]},{duration:500});
+  T(g, (a[0]+b[0])/2, (a[1]+b[1])/2-14, "straight-line distance \u2014 cuts through the gap", {fill:C.red, size:12.5, anchor:'middle'});
+  await wait(700);
+
+  let pathD = 'M '+curve[3][0]+' '+curve[3][1];
+  for(let i=4;i<=n-4;i++) pathD += ' L '+curve[i][0]+' '+curve[i][1];
+  const geo = E('path',{d:pathD, fill:'none', stroke:C.green, 'stroke-width':2.4, opacity:0}, g);
+  await tweenAttr(geo,{opacity:1},{duration:250});
+  await drawOn(geo,{duration:900, easing:Ease.outCubic});
+  const mid = curve[Math.floor((3+n-4)/2)];
+  T(g, mid[0], mid[1]+26, "geodesic \u2014 hops along neighbors", {fill:C.green, size:12.5, anchor:'middle'});
+
+  caption(g, 90, 620, "Isomap connects each point to its nearest neighbors, then measures distance", {size:14.5});
+  caption(g, 90, 642, "as the shortest hop-by-hop path through that graph \u2014 the true shape of the manifold.", {size:14.5});
+}});
+
+/* ---------- 18c. LLE ---------- */
+SLIDES.push({ label:"Locally Linear Embedding", async build(g){
+  await header(g, "Manifold learning", "Locally Linear Embedding (LLE)");
+  await wait(80);
+  const cx=340, cy=400;
+  const cloud = scatterBlob(cx, cy, 22, 150, 83);
+  const dots = cloud.map(p=> dot(g,p[0],p[1],4,C.gray,{opacity:0}));
+  await Promise.all(dots.map((d,i)=> tweenAttr(d,{opacity:.75},{duration:250,delay:i*20})));
+  await wait(400);
+
+  const target = cloud[5];
+  const targetDot = dot(g, target[0], target[1], 6.5, C.text, {opacity:1});
+  const neigh = cloud.map((p,i)=>({p,i,d:dist(p,target)})).filter(o=>o.i!==5).sort((a,b)=>a.d-b.d).slice(0,3);
+  const lines = neigh.map(n=> E('line',{x1:target[0],y1:target[1],x2:target[0],y2:target[1], stroke:C.amber,'stroke-width':1.6, opacity:0},g));
+  for(let i=0;i<lines.length;i++){ await tweenAttr(lines[i],{opacity:.85},{duration:150}); await tweenAttr(lines[i],{x2:neigh[i].p[0],y2:neigh[i].p[1]},{duration:350}); }
+  neigh.forEach(n=>{ dots[n.i].setAttribute('fill', C.amber); dots[n.i].setAttribute('opacity',1); dots[n.i].setAttribute('r',5.5); });
+  await wait(400);
+
+  const wx=780, wy=250;
+  T(g, wx, wy-14, "reconstruction weights", {fill:C.dim2, size:12.5});
+  const ws=[0.5,0.32,0.18];
+  const barsW = ws.map((w,i)=> E('rect',{x:wx+i*70, y:wy+50, width:44, height:0, fill:C.amber, opacity:.85}, g));
+  for(let i=0;i<barsW.length;i++){ const h=ws[i]*160; await tweenAttr(barsW[i],{height:h, y:wy+50-h},{duration:300, easing:Ease.outCubic}); }
+  mathLine(g, wx, 480, [{s:'x'},{t:'rm',s:' \u2248 '},{s:'w'},{t:'sub',s:'1'},{s:'n'},{t:'sub',s:'1'},{t:'rm',s:' + '},{s:'w'},{t:'sub',s:'2'},{s:'n'},{t:'sub',s:'2'},{t:'rm',s:' + '},{s:'w'},{t:'sub',s:'3'},{s:'n'},{t:'sub',s:'3'}], {size:19});
+  await wait(400);
+
+  caption(g, 90, 620, "Rebuild every point as a weighted mix of its nearest neighbors \u2014", {size:14.5});
+  caption(g, 90, 642, "then find a low-D layout that keeps those exact same weights intact.", {size:14.5});
+}});
+
+/* ---------- 18d. MDS ---------- */
+SLIDES.push({ label:"Multidimensional Scaling (MDS)", async build(g){
+  await header(g, "Manifold learning", "Multidimensional Scaling (MDS)");
+  await wait(80);
+  const labels=['A','B','C','D','E'];
+  const distMat = [[0,42,88,65,120],[42,0,70,58,110],[88,70,0,45,80],[65,58,45,0,60],[120,110,80,60,0]];
+  const gx=110, gy=200, cell=40;
+  T(g, gx, gy-16, "pairwise distance matrix", {fill:C.dim2, size:12.5});
+  for(let r=0;r<5;r++){
+    T(g, gx-18, gy+r*cell+cell/2+5, labels[r], {fill:C.dim2, size:12, anchor:'middle'});
+    T(g, gx+r*cell+cell/2, gy-8, labels[r], {fill:C.dim2, size:12, anchor:'middle'});
+    for(let c=0;c<5;c++){
+      const v=distMat[r][c];
+      const rect = E('rect',{x:gx+c*cell, y:gy+r*cell, width:cell-2, height:cell-2, fill:`rgba(111,168,220,${0.08+(v/120)*0.55})`, opacity:0}, g);
+      fadeIn(rect,{duration:20, delay:(r*5+c)*20});
+      const txt = T(g, gx+c*cell+cell/2-2, gy+r*cell+cell/2+4, r===c?'':String(v), {fill:C.dim, size:10.5, anchor:'middle'});
+      fadeIn(txt,{duration:20, delay:(r*5+c)*20});
+    }
+  }
+  await wait(1200);
+
+  const areaX=650, areaY=380;
+  let pos = labels.map((l,i)=>({x:areaX+(pseudo(i)-.5)*260, y:areaY+(pseudo(i+9)-.5)*260}));
+  const nodeEls = pos.map((p,i)=> dot(g, p.x, p.y, 6, PALETTE[i], {opacity:0}));
+  const nameEls = pos.map((p,i)=> T(g, p.x, p.y-14, labels[i], {fill:PALETTE[i], size:13, anchor:'middle'}));
+  await Promise.all(nodeEls.map((n,i)=> tweenAttr(n,{opacity:1},{duration:300,delay:i*80})));
+  nameEls.forEach(n=> fadeIn(n,{duration:300}));
+  const springLines=[];
+  for(let i=0;i<5;i++) for(let j=i+1;j<5;j++){
+    const l = E('line',{x1:pos[i].x,y1:pos[i].y,x2:pos[j].x,y2:pos[j].y, stroke:C.grid2,'stroke-width':1, opacity:.5}, g);
+    g.insertBefore(l, nodeEls[0]);
+    springLines.push([i,j,l]);
+  }
+  await wait(400);
+
+  const scale = 2.6;
+  for(let iter=0; iter<26; iter++){
+    for(const [i,j,l] of springLines){
+      const target = distMat[i][j]*scale;
+      const dx=pos[j].x-pos[i].x, dy=pos[j].y-pos[i].y;
+      const dd=Math.hypot(dx,dy)||1;
+      const diff = (dd-target)/dd*0.03;
+      pos[i].x += dx*diff; pos[i].y += dy*diff;
+      pos[j].x -= dx*diff; pos[j].y -= dy*diff;
+    }
+    nodeEls.forEach((n,i)=>{ n.setAttribute('cx',pos[i].x); n.setAttribute('cy',pos[i].y); });
+    nameEls.forEach((n,i)=>{ n.setAttribute('x',pos[i].x); n.setAttribute('y',pos[i].y-14); });
+    springLines.forEach(([i,j,l])=>{ l.setAttribute('x1',pos[i].x); l.setAttribute('y1',pos[i].y); l.setAttribute('x2',pos[j].x); l.setAttribute('y2',pos[j].y); });
+    await wait(35);
+  }
+
+  caption(g, 90, 640, "Forget the original features entirely \u2014 just place points in 2D so their", {size:14.5});
+  caption(g, 90, 662, "on-screen distances match the real pairwise distances as closely as possible.", {size:14.5});
+  mathLine(g, 90, 695, [{t:'rm',s:'minimize  \u03a3 ('},{s:'d'},{t:'sub',s:'ij'},{t:'rm',s:' \u2212 \u2016'},{s:'y'},{t:'sub',s:'i'},{t:'rm',s:' \u2212 '},{s:'y'},{t:'sub',s:'j'},{t:'rm',s:'\u2016)\u00b2'}], {size:17});
+}});
+
+/* ---------- 19. SVD & FACTOR ANALYSIS ---------- */
+SLIDES.push({ label:"SVD & Factor Analysis", async build(g){
+  await header(g, "Matrix decomposition", "SVD & Factor Analysis");
+  await wait(80);
+  function grid(parent, x,y,rows,cols,cell,seed,colorFn){
+    const cellsEls=[];
+    for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){
+      const v = pseudo(r*13+c*7+seed);
+      const rect = E('rect',{x:x+c*cell, y:y+r*cell, width:cell-2, height:cell-2, rx:2, fill: colorFn(v), opacity:0}, parent);
+      cellsEls.push(rect);
+    }
+    return cellsEls;
+  }
+  const cell=20;
+  const X = grid(g, 120, 260, 6, 5, cell, 3, v=> `rgba(111,168,220,${0.15+v*0.6})`);
+  await Promise.all(X.map((c,i)=> tweenAttr(c,{opacity:1},{duration:20,delay:i*20})));
+  T(g, 120+5*cell/2, 246, "X", {fill:C.text, size:15, italic:true, anchor:'middle', font:"'Fraunces',serif"});
+  T(g, 120+5*cell+18, 260+6*cell/2+5, "=", {fill:C.dim, size:20, anchor:'middle'});
+  await wait(400);
+
+  const U = grid(g, 400, 260, 6, 3, cell, 11, v=> `rgba(217,160,102,${0.15+v*0.6})`);
+  T(g, 400+3*cell/2, 246, "U", {fill:C.amber, size:15, italic:true, anchor:'middle', font:"'Fraunces',serif"});
+  const S = grid(g, 400+3*cell+16, 260, 3, 3, cell, 23, (v,idx)=> `rgba(154,142,196,0.15)`);
+  T(g, 400+3*cell+16+3*cell/2, 246, "Σ", {fill:C.violet, size:16, anchor:'middle'});
+  const V = grid(g, 400+6*cell+32, 260, 3, 5, cell, 37, v=> `rgba(199,123,145,${0.15+v*0.6})`);
+  T(g, 400+6*cell+32+5*cell/2, 246, "Vᵀ", {fill:C.rose, size:15, anchor:'middle'});
+  await Promise.all([...U,...S,...V].map((c,i)=> tweenAttr(c,{opacity:1},{duration:20,delay:i*15})));
+  // highlight diagonal of Sigma
+  for(let i=0;i<3;i++){ S[i*3+i].setAttribute('fill','rgba(154,142,196,0.85)'); }
+  await wait(500);
+
+  caption(g, 120, 460, "X = U Σ Vᵀ  —  every matrix splits into rotate · stretch · rotate.", {size:15});
+
+  // truncated SVD: singular value bars, cut small ones
+  const barX=120, barY=650, bw=40, gap=14;
+  const svals=[95,70,40,18,9,4];
+  const bars = svals.map((v,i)=> E('rect',{x:barX+i*(bw+gap), y:barY, width:bw, height:0, fill:C.violet, opacity:.85}, g));
+  await Promise.all(bars.map((b,i)=> tweenAttr(b,{height:v, y:barY-v},{duration:350, delay:i*80, easing:Ease.outCubic})));
+  const cutLine = E('line',{x1:barX+2*(bw+gap)-8,y1:barY-120,x2:barX+2*(bw+gap)-8,y2:barY+8, stroke:C.red,'stroke-width':1.6,'stroke-dasharray':'4,4', opacity:0},g);
+  await tweenAttr(cutLine,{opacity:.9},{duration:300});
+  await Promise.all(bars.slice(2).map(b=> tweenAttr(b,{opacity:.15},{duration:400})));
+  T(g, barX+2*(bw+gap)-8, barY-132, "keep the big signals, drop the rest", {fill:C.dim, size:12.5, anchor:'middle'});
+
+  footnote(g, 700, 600, "Factor Analysis: similar goal, but models each feature's own noise separately — more statistical, less purely geometric.", 460);
+}});
+
+/* ---------- 20. APRIORI ---------- */
+SLIDES.push({ label:"Association Rule Mining — Apriori", async build(g){
+  await header(g, "Association rule mining", "Apriori — what goes together?");
+  await wait(80);
+  const baskets = [
+    ["bread","milk"],
+    ["bread","butter","milk"],
+    ["beer","diaper"],
+    ["bread","milk","butter"],
+    ["beer","diaper","chips"],
+  ];
+  const startY=190, rowH=64;
+  const itemColor = {bread:C.amber, milk:C.blue, butter:C.green, beer:C.rose, diaper:C.violet, chips:C.dim};
+  const counts = {};
+  baskets.forEach((b,ri)=>{
+    const y = startY + ri*rowH;
+    const rowLabel = T(g, 90, y+6, `basket ${ri+1}`, {fill:C.dim2, size:12.5});
+    fadeIn(rowLabel,{duration:300, delay:ri*80});
+    b.forEach((item,ci)=>{
+      const x = 220 + ci*118;
+      const chip = panel(g, x, y-20, 100, 32, {rx:16, fill:'#161a20', stroke:itemColor[item], opacity:0});
+      const txt = T(g, x+50, y+1, item, {fill:itemColor[item], size:13, anchor:'middle'});
+      fadeIn(chip,{duration:300, delay:ri*80+ci*60});
+      fadeIn(txt,{duration:300, delay:ri*80+ci*60});
+    });
+  });
+  await wait(baskets.length*100+700);
+
+  // count bread & milk co-occurrence
+  const counterBg = panel(g, 760, 200, 400, 150, {opacity:0});
+  await fadeIn(counterBg,{duration:350});
+  T(g, 790, 240, "counting {bread, milk} together", {fill:C.dim, size:14});
+  const bigCount = T(g, 790, 305, "0 / 5 baskets", {fill:C.text, size:26, weight:600, font:"'JetBrains Mono',monospace"});
+  fadeIn(bigCount,{duration:300});
+  let cnt=0;
+  for(let ri=0; ri<baskets.length; ri++){
+    const has = baskets[ri].includes('bread') && baskets[ri].includes('milk');
+    if(has){
+      cnt++;
+      const y=startY+ri*rowH;
+      const hl = panel(g, 210, y-26, 260, 44, {rx:20, fill:'none', stroke:C.text, opacity:0});
+      await tweenAttr(hl,{opacity:.6},{duration:200});
+      bigCount.textContent = `${cnt} / 5 baskets`;
+      await wait(250);
+      await fadeOut(hl,{duration:200});
+    }
+  }
+  await wait(300);
+
+  mathLine(g, 760, 400, [{t:'rm',s:'support = '},{s:'3'},{t:'rm',s:'⁄'},{s:'5'},{t:'rm',s:' = 0.6'}], {size:20});
+  mathLine(g, 760, 440, [{t:'rm',s:'confidence(bread→milk) = '},{s:'3'},{t:'rm',s:'⁄'},{s:'3'},{t:'rm',s:' = 1.0'}], {size:20});
+  caption(g, 760, 475, "of every basket with bread, milk was always also there.", {size:13.5});
+
+  footnote(g, 760, 560, "FP-Growth & ECLAT find the same frequent itemsets faster — without repeatedly re-scanning the whole dataset.");
+}});
+
+/* ---------- 19b. MATH: SVD GEOMETRY ---------- */
+SLIDES.push({ label:"Math \u2014 what SVD really does", async build(g){
+  await header(g, "The math \u00b7 SVD", "Rotate \u00b7 stretch \u00b7 rotate");
+  await wait(80);
+
+  const cx=340, cy=400, s=90;
+  const square = E('polygon',{points:`${cx-s},${cy-s} ${cx+s},${cy-s} ${cx+s},${cy+s} ${cx-s},${cy+s}`, fill:'rgba(111,168,220,0.14)', stroke:C.blue, 'stroke-width':2, opacity:0}, g);
+  await tweenAttr(square,{opacity:1},{duration:400});
+  T(g, cx, cy-s-16, "unit square", {fill:C.dim2, size:12.5, anchor:'middle'});
+  await wait(450);
+
+  function setTransform(rot1, sx, sy, rot2){
+    square.setAttribute('transform', `translate(${cx},${cy}) rotate(${rot2}) scale(${sx},${sy}) rotate(${rot1}) translate(${-cx},${-cy})`);
+  }
+  T(g, 680, 250, "V\u1d40 \u2014 rotate to align axes", {fill:C.rose, size:16});
+  await animate({duration:700, easing:Ease.inOutCubic, onUpdate:(t)=> setTransform(-32*t, 1,1,0)});
+  await wait(400);
+
+  T(g, 680, 290, "\u03a3 \u2014 stretch along those axes", {fill:C.amber, size:16});
+  await animate({duration:700, easing:Ease.inOutCubic, onUpdate:(t)=> setTransform(-32, 1+0.7*t, 1-0.35*t, 0)});
+  await wait(400);
+
+  T(g, 680, 330, "U \u2014 rotate again into place", {fill:C.blue, size:16});
+  await animate({duration:700, easing:Ease.inOutCubic, onUpdate:(t)=> setTransform(-32, 1.7, 0.65, 50*t)});
+  await wait(500);
+
+  mathLine(g, 90, 620, [{s:'X'},{t:'rm',s:' = '},{s:'U',fill:C.blue},{s:'\u03a3',fill:C.amber},{s:'V',fill:C.rose},{t:'sup',s:'T',fill:C.rose}], {size:26});
+  caption(g, 90, 650, "every matrix is secretly just: rotate, stretch along some axes, rotate again.", {size:14.5});
+}});
+
+/* ---------- 20b. FP-GROWTH ---------- */
+SLIDES.push({ label:"FP-Growth", async build(g){
+  await header(g, "Association rule mining", "FP-Growth \u2014 no candidate explosion");
+  await wait(80);
+  caption(g, 90, 180, "Apriori re-scans the whole dataset again and again for every itemset size.", {size:14.5});
+  caption(g, 90, 202, "FP-Growth compresses everything into one tree, built in a single pass.", {size:14.5});
+
+  const rootX=340, rootY=280;
+  const root = dot(g, rootX, rootY, 6, C.text, {opacity:0});
+  await tweenAttr(root,{opacity:1},{duration:300,easing:Ease.outBack});
+  T(g, rootX, rootY-16, "root", {fill:C.dim2, size:12, anchor:'middle'});
+
+  const nodes = {
+    bread: {x:rootX-120, y:390, col:C.amber, count:3, parent:'root'},
+    milk: {x:rootX-120, y:470, col:C.blue, count:3, parent:'bread'},
+    butter: {x:rootX-190, y:550, col:C.green, count:2, parent:'milk'},
+    beer: {x:rootX+120, y:390, col:C.rose, count:2, parent:'root'},
+    diaper: {x:rootX+120, y:470, col:C.violet, count:2, parent:'beer'},
+  };
+  const pos = {root:[rootX,rootY]};
+  for(const [key,n] of Object.entries(nodes)){
+    const [px,py] = pos[n.parent];
+    const line = E('line',{x1:px,y1:py,x2:px,y2:py, stroke:C.dim2,'stroke-width':1.4, opacity:0}, g);
+    await tweenAttr(line,{opacity:.8},{duration:200});
+    await tweenAttr(line,{x2:n.x,y2:n.y},{duration:400});
+    const nd = dot(g, n.x, n.y, 12, n.col, {opacity:0});
+    await tweenAttr(nd,{opacity:.9},{duration:300,easing:Ease.outBack});
+    T(g, n.x, n.y-18, key, {fill:n.col, size:13, anchor:'middle'});
+    T(g, n.x, n.y+4, "\u00d7"+n.count, {fill:'#0a0b0d', size:11, weight:600, anchor:'middle'});
+    pos[key]=[n.x,n.y];
+  }
+  caption(g, 90, 640, "Shared prefixes (like \u201cbread \u2192 milk\u201d) merge into one branch \u2014", {size:14.5});
+  caption(g, 90, 662, "frequent itemsets are then read straight off the tree's branches and counts.", {size:14.5});
+}});
+
+/* ---------- 20c. ECLAT ---------- */
+SLIDES.push({ label:"ECLAT", async build(g){
+  await header(g, "Association rule mining", "ECLAT \u2014 vertical intersections");
+  await wait(80);
+  caption(g, 90, 180, "Flip the table: for every item, track which baskets contain it.", {size:14.5});
+
+  const items = [
+    {name:'bread', col:C.amber, ids:[1,2,4]},
+    {name:'milk', col:C.blue, ids:[1,2,4]},
+    {name:'butter', col:C.green, ids:[2,4]},
+    {name:'beer', col:C.rose, ids:[3,5]},
+  ];
+  const rowY0=250, rowH=90;
+  for(let i=0;i<items.length;i++){
+    const y=rowY0+i*rowH;
+    fadeIn(T(g, 100, y+6, items[i].name, {fill:items[i].col, size:15, weight:600}), {duration:300, delay:i*100});
+    for(let b=1;b<=5;b++){
+      const has = items[i].ids.includes(b);
+      const x = 230+b*70;
+      const chip = panel(g, x, y-18, 50, 34, {rx:8, fill: has?'rgba(255,255,255,0.03)':'transparent', stroke: has?items[i].col:C.grid, opacity:0});
+      fadeIn(chip,{duration:250, delay:i*100+b*40});
+      const t2 = T(g, x+25, y+5, has?String(b):'\u2014', {fill: has?items[i].col:C.dim2, size:13, anchor:'middle'});
+      fadeIn(t2,{duration:250, delay:i*100+b*40});
+    }
+  }
+  await wait(items.length*100+5*40+500);
+
+  caption(g, 90, 608, "Intersect bread's basket list \u2229 milk's basket list:", {size:14.5});
+  const interBox = panel(g, 90, 624, 440, 40, {rx:10, fill:'rgba(111,168,220,0.08)', stroke:C.blue, opacity:0});
+  await fadeIn(interBox,{duration:400});
+  const interTxt = T(g, 110, 649, "{1,2,4} \u2229 {1,2,4} = {1,2,4}  \u2192  support = 3/5", {fill:C.blue, size:15});
+  fadeIn(interTxt,{duration:400});
+  footnote(g, 90, 690, "No re-scanning the raw data \u2014 just fast set intersections on ID lists.");
+}});
+
+/* ---------- 20d. MATH: SUPPORT/CONFIDENCE/LIFT ---------- */
+SLIDES.push({ label:"Math \u2014 support, confidence, lift", async build(g){
+  await header(g, "The math \u00b7 association rules", "Support, Confidence, Lift");
+  await wait(80);
+
+  const rows=[
+    termRow(g, 90, 210, [{t:'rm',s:'support('},{s:'A'},{t:'rm',s:') = count('},{s:'A'},{t:'rm',s:') / '},{s:'N'}], "how common is A across all baskets?", C.blue, {gap:280,size:19}),
+    termRow(g, 90, 254, [{t:'rm',s:'confidence('},{s:'A'},{t:'rm',s:'\u2192'},{s:'B'},{t:'rm',s:') = support('},{s:'A'},{t:'rm',s:'\u222a'},{s:'B'},{t:'rm',s:') / support('},{s:'A'},{t:'rm',s:')'}], "given A, how often does B follow?", C.amber, {gap:400,size:19}),
+    termRow(g, 90, 298, [{t:'rm',s:'lift('},{s:'A'},{t:'rm',s:'\u2192'},{s:'B'},{t:'rm',s:') = confidence('},{s:'A'},{t:'rm',s:'\u2192'},{s:'B'},{t:'rm',s:') / support('},{s:'B'},{t:'rm',s:')'}], "> 1 means A and B co-occur more than by chance", C.rose, {gap:400,size:19}),
+  ];
+  await revealRows(rows,250);
+  await wait(300);
+
+  fadeIn(panel(g, 90, 380, 1000, 220, {opacity:0}), {duration:400});
+  T(g, 120, 420, "5 baskets \u2014 bread appears in 3, milk in 3, both together in 3, beer in 2", {fill:C.dim, size:14});
+  const lines = [
+    "support(bread) = 3/5 = 0.6",
+    "confidence(bread\u2192milk) = 3/3 = 1.0",
+    "lift(bread\u2192milk) = 1.0 / 0.6 = 1.67   \u2192  strongly associated",
+    "lift(bread\u2192beer) = 0 / 0.4 = 0        \u2192  never occur together",
+  ];
+  for(let i=0;i<lines.length;i++){
+    const t = T(g, 120, 456+i*36, lines[i], {fill: i===2?C.green:(i===3?C.dim2:C.text), size:15, font:"'JetBrains Mono',monospace"});
+    fadeIn(t,{duration:350, delay:i*120});
+  }
+  await wait(700);
+}});
+
+/* ---------- 21. ISOLATION FOREST ---------- */
+SLIDES.push({ label:"Anomaly Detection — Isolation Forest", async build(g){
+  await header(g, "Anomaly detection", "Isolation Forest");
+  await wait(80);
+  const boxW=470, boxH=400;
+  function scenePanel(x0,y0,title,col){
+    fadeIn(panel(g, x0, y0, boxW, boxH, {opacity:0}), {duration:400});
+    T(g, x0+22, y0+38, title, {fill:col, size:16.5, weight:600, font:"'Fraunces',serif"});
+  }
+  scenePanel(90, 190, "Anomaly — isolated in 2 cuts", C.red);
+  scenePanel(90+boxW+40, 190, "Normal point — needs many cuts", C.green);
+
+  // left scene: dense cluster + one outlier
+  const l0x=90, l0y=190;
+  const cluster = scatterBlob(l0x+180, l0y+250, 22, 90, 5);
+  const outlier = [l0x+400, l0y+80];
+  const cdots = cluster.map(p=> dot(g,p[0],p[1],3.8,C.dim,{opacity:0}));
+  const odot = dot(g, outlier[0], outlier[1], 5, C.red, {opacity:0});
+  await Promise.all([...cdots.map((d,i)=> tweenAttr(d,{opacity:.8},{duration:20,delay:i*14})), tweenAttr(odot,{opacity:1},{duration:400,delay:400})]);
+  await wait(400);
+  const cutsL = [
+    {x1:l0x+330,y1:l0y+66,x2:l0x+330,y2:l0y+380},
+    {x1:l0x+330,y1:l0y+150,x2:l0x+452,y2:l0y+150},
+  ];
+  for(const c of cutsL){
+    const ln = E('line',{...c, stroke:C.red,'stroke-width':1.6,'stroke-dasharray':'5,4', opacity:0},g);
+    await tweenAttr(ln,{opacity:.85},{duration:250});
+    await drawOn(ln,{duration:400});
+  }
+  T(g, outlier[0], outlier[1]-16, "isolated!", {fill:C.red, size:12.5, anchor:'middle'});
+
+  // right scene: point inside dense cluster, many cuts needed
+  const r0x=90+boxW+40, r0y=190;
+  const cluster2 = scatterBlob(r0x+235, r0y+250, 26, 130, 61);
+  const target = cluster2[10];
+  const cdots2 = cluster2.map((p,i)=> dot(g,p[0],p[1], i===10?5:3.8, i===10?C.green:C.dim,{opacity:0}));
+  await Promise.all(cdots2.map((d,i)=> tweenAttr(d,{opacity:.85},{duration:20,delay:i*10})));
+  await wait(400);
+  let box=[r0x+30,r0y+70,r0x+440,r0y+380];
+  for(let i=0;i<5;i++){
+    const vertical = i%2===0;
+    let cutPos;
+    if(vertical){ cutPos = (box[0]+box[2])/2 + (target[0]>(box[0]+box[2])/2? 40:-40); }
+    else { cutPos = (box[1]+box[3])/2 + (target[1]>(box[1]+box[3])/2? 40:-40); }
+    const ln = E('line',{
+      x1: vertical?cutPos:box[0], y1: vertical?box[1]:cutPos,
+      x2: vertical?cutPos:box[2], y2: vertical?box[3]:cutPos,
+      stroke:C.green,'stroke-width':1.4,'stroke-dasharray':'4,4', opacity:0}, g);
+    await tweenAttr(ln,{opacity:.7},{duration:180});
+    await drawOn(ln,{duration:260});
+    if(vertical){ if(target[0]>cutPos) box[0]=cutPos; else box[2]=cutPos; }
+    else { if(target[1]>cutPos) box[1]=cutPos; else box[3]=cutPos; }
+  }
+  T(g, target[0], target[1]-14, "still surrounded…", {fill:C.green, size:12, anchor:'middle'});
+
+  caption(g, 90, 645, "Anomalies sit alone — a couple of random cuts isolate them. Normal points hide inside the crowd and take many more.", {size:14.5});
+  footnote(g, 90, 672, "Related methods: One-Class SVM (learns a boundary), Local Outlier Factor (compares local density), Elliptic Envelope (fits a robust Gaussian).");
+}});
+
+/* ---------- 21b. ONE-CLASS SVM ---------- */
+SLIDES.push({ label:"One-Class SVM", async build(g){
+  await header(g, "Anomaly detection", "One-Class SVM");
+  await wait(80);
+  const cx=440, cy=400;
+  const cloud = scatterBlob(cx, cy, 28, 130, 91);
+  const outlier = [cx+260, cy-160];
+  const dots = cloud.map(p=> dot(g,p[0],p[1],4.2,C.blue,{opacity:0}));
+  const odot = dot(g, outlier[0], outlier[1], 5.5, C.gray, {opacity:0});
+  await Promise.all(dots.map((d,i)=> tweenAttr(d,{opacity:.85},{duration:250,delay:i*16})));
+  await tweenAttr(odot,{opacity:1},{duration:350, delay:400});
+  await wait(400);
+
+  const boundary = E('circle',{cx,cy,r:4,fill:'none',stroke:C.amber,'stroke-width':2, opacity:0}, g);
+  await tweenAttr(boundary,{opacity:.9},{duration:250});
+  await tweenAttr(boundary,{r:175},{duration:700, easing:Ease.outCubic});
+  caption(g, 90, 610, "Learns a boundary that wraps the dense \u201cnormal\u201d region with maximum margin.", {size:14.5});
+  await wait(500);
+  odot.setAttribute('fill', C.red);
+  fadeIn(T(g, outlier[0]+14, outlier[1], "outside the boundary \u2192 anomaly", {fill:C.red, size:12.5}), {duration:350});
+
+  footnote(g, 90, 655, "In practice the boundary is fit in a kernel-transformed space, so it can wrap curved, non-circular regions too.");
+}});
+
+/* ---------- 21c. LOCAL OUTLIER FACTOR ---------- */
+SLIDES.push({ label:"Local Outlier Factor (LOF)", async build(g){
+  await header(g, "Anomaly detection", "Local Outlier Factor (LOF)");
+  await wait(80);
+  const dense = scatterBlob(300, 360, 18, 60, 15);
+  const sparse = scatterBlob(760, 480, 10, 130, 27);
+  const lonely = [900, 260];
+  const allDots = [...dense.map(p=>({p,type:'dense'})), ...sparse.map(p=>({p,type:'sparse'})), {p:lonely,type:'lonely'}];
+  const dotEls = allDots.map(o=> dot(g,o.p[0],o.p[1],4.2,o.type==='dense'?C.blue:(o.type==='sparse'?C.amber:C.gray),{opacity:0}));
+  await Promise.all(dotEls.map((d,i)=> tweenAttr(d,{opacity:.85},{duration:250,delay:i*18})));
+  await wait(400);
+
+  const p1 = dense[3];
+  const ringA = ring(g, p1[0], p1[1], 4, C.green, {sw:1.6});
+  await tweenAttr(ringA,{opacity:1,r:34},{duration:500,easing:Ease.outCubic});
+  const gaugeA = T(g, p1[0], p1[1]-46, "density ratio \u2248 1.0", {fill:C.green, size:12.5, anchor:'middle'});
+  fadeIn(gaugeA,{duration:300});
+  await wait(700);
+  await Promise.all([fadeOut(ringA,{duration:300}), fadeOut(gaugeA,{duration:300})]);
+
+  const ringB = ring(g, lonely[0], lonely[1], 4, C.red, {sw:1.6});
+  await tweenAttr(ringB,{opacity:1,r:70},{duration:600,easing:Ease.outCubic});
+  fadeIn(T(g, lonely[0], lonely[1]-82, "density ratio \u2248 2.6 \u2192 outlier", {fill:C.red, size:12.5, anchor:'middle'}), {duration:300});
+  const lonelyDot = dotEls[dotEls.length-1];
+  lonelyDot.setAttribute('fill', C.red);
+  lonelyDot.setAttribute('r',6);
+
+  caption(g, 90, 630, "LOF compares a point's local density to its neighbors' density \u2014", {size:14.5});
+  caption(g, 90, 652, "even a point that isn't globally sparse can stand out locally.", {size:14.5});
+}});
+
+/* ---------- 21d. ELLIPTIC ENVELOPE ---------- */
+SLIDES.push({ label:"Elliptic Envelope", async build(g){
+  await header(g, "Anomaly detection", "Elliptic Envelope");
+  await wait(80);
+  const cx=500, cy=400;
+  const cloudRel = scatterBlob(0, 0, 30, 90, 61);
+  const th=-0.4;
+  const cloud = cloudRel.map(p=>{
+    const sx=p[0]*1.8, sy=p[1]*0.8;
+    return [cx+sx*Math.cos(th)-sy*Math.sin(th), cy+sx*Math.sin(th)+sy*Math.cos(th)];
+  });
+  const outliers = [[cx+270,cy-190],[cx-260,cy+200]];
+  const dots = cloud.map(p=> dot(g,p[0],p[1],4.2,C.green,{opacity:0}));
+  const oDots = outliers.map(p=> dot(g,p[0],p[1],5,C.gray,{opacity:0}));
+  await Promise.all(dots.map((d,i)=> tweenAttr(d,{opacity:.85},{duration:250,delay:i*14})));
+  await Promise.all(oDots.map((d,i)=> tweenAttr(d,{opacity:1},{duration:350,delay:400+i*150})));
+  await wait(400);
+
+  const ell = E('ellipse',{cx,cy,rx:6,ry:6, fill:'none', stroke:C.amber, 'stroke-width':2, opacity:0, transform:`rotate(-23 ${cx} ${cy})`}, g);
+  await tweenAttr(ell,{opacity:.9},{duration:250});
+  await tweenAttr(ell,{rx:195,ry:95},{duration:700,easing:Ease.outCubic});
+  caption(g, 90, 610, "Fits a robust ellipse to the bulk of the data, ignoring the few points", {size:14.5});
+  caption(g, 90, 632, "that would otherwise stretch it \u2014 then flags anything too far outside.", {size:14.5});
+  await wait(500);
+  oDots.forEach(d=> d.setAttribute('fill', C.red));
+
+  mathLine(g, 90, 675, [{s:'D'},{t:'rm',s:'('},{s:'x'},{t:'rm',s:') = \u221a(('},{s:'x'},{t:'rm',s:' \u2212 '},{s:'\u03bc'},{t:'rm',s:')\u1d40 '},{s:'\u03a3'},{t:'sup',s:'-1'},{t:'rm',s:' ('},{s:'x'},{t:'rm',s:' \u2212 '},{s:'\u03bc'},{t:'rm',s:'))'}], {size:17});
+}});
+
+/* ---------- 21e. MATH: MAHALANOBIS DISTANCE ---------- */
+SLIDES.push({ label:"Math \u2014 Mahalanobis distance", async build(g){
+  await header(g, "The math \u00b7 anomaly detection", "Mahalanobis distance, unpacked");
+  await wait(80);
+
+  const cx=340, cy=400;
+  const cloudRel = scatterBlob(0,0,26,80,44);
+  const th=-0.35;
+  const cloud = cloudRel.map(p=>{
+    const sx=p[0]*2.0, sy=p[1]*0.7;
+    return [cx+sx*Math.cos(th)-sy*Math.sin(th), cy+sx*Math.sin(th)+sy*Math.cos(th)];
+  });
+  const dots = cloud.map(p=> dot(g,p[0],p[1],4,C.dim,{opacity:0}));
+  await Promise.all(dots.map((d,i)=> tweenAttr(d,{opacity:.7},{duration:250,delay:i*15})));
+  const ell = E('ellipse',{cx,cy,rx:6,ry:6,fill:'none',stroke:C.amber,'stroke-width':1.8,opacity:0, transform:`rotate(-20 ${cx} ${cy})`},g);
+  await tweenAttr(ell,{opacity:.85},{duration:250});
+  await tweenAttr(ell,{rx:170,ry:70},{duration:600,easing:Ease.outCubic});
+  await wait(400);
+
+  const longDirAngle = -20*Math.PI/180;
+  const ptLong = [cx+Math.cos(longDirAngle)*150, cy+Math.sin(longDirAngle)*150];
+  const shortAngle = longDirAngle+Math.PI/2;
+  const ptShort = [cx+Math.cos(shortAngle)*150, cy+Math.sin(shortAngle)*150];
+  const dLong = dot(g, ptLong[0], ptLong[1], 5.5, C.green, {opacity:0});
+  const dShort = dot(g, ptShort[0], ptShort[1], 5.5, C.red, {opacity:0});
+  await Promise.all([tweenAttr(dLong,{opacity:1},{duration:300}), tweenAttr(dShort,{opacity:1},{duration:300})]);
+  const lnLong=E('line',{x1:cx,y1:cy,x2:ptLong[0],y2:ptLong[1],stroke:C.green,'stroke-width':1.4,'stroke-dasharray':'4,4',opacity:.7},g);
+  const lnShort=E('line',{x1:cx,y1:cy,x2:ptShort[0],y2:ptShort[1],stroke:C.red,'stroke-width':1.4,'stroke-dasharray':'4,4',opacity:.7},g);
+  g.insertBefore(lnLong, dots[0]); g.insertBefore(lnShort, dots[0]);
+  T(g, ptLong[0]+12, ptLong[1]-6, "inside the ellipse \u2014 \u201cnormal\u201d", {fill:C.green, size:12.5});
+  T(g, ptShort[0]+12, ptShort[1]+18, "outside \u2014 flagged anomalous", {fill:C.red, size:12.5});
+  await wait(600);
+
+  T(g, 90, 610, "Same raw (Euclidean) distance from the center \u2014 150px either way.", {fill:C.dim, size:14.5});
+  T(g, 90, 634, "But one direction is \u201cexpected\u201d (long axis), the other isn't (short axis).", {fill:C.dim, size:14.5});
+
+  mathLine(g, 720, 260, [{s:'D'},{t:'rm',s:'('},{s:'x'},{t:'rm',s:') = '},{s:'\u221a'},{t:'rm',s:'(('},{s:'x'},{t:'rm',s:'\u2212'},{s:'\u03bc'},{t:'rm',s:')\u1d40 '},{s:'\u03a3'},{t:'sup',s:'-1'},{t:'rm',s:' ('},{s:'x'},{t:'rm',s:'\u2212'},{s:'\u03bc'},{t:'rm',s:'))'}], {size:19});
+  const rows=[ termRow(g, 720, 320, [{s:'\u03a3'},{t:'sup',s:'-1'}], "inverse covariance \u2014 rescales each direction by its spread", C.violet, {gap:80,size:19}) ];
+  await revealRows(rows,0);
+  caption(g, 720, 380, "so the ellipse becomes the new 'unit circle' of distance.", {size:13.5});
+}});
+
+/* ---------- 22. KDE ---------- */
+SLIDES.push({ label:"Density Estimation — KDE", async build(g){
+  await header(g, "Density estimation", "Kernel Density Estimation");
+  await wait(80);
+  const axY=560, axX0=120, axX1=1160;
+  E('line',{x1:axX0,y1:axY,x2:axX1,y2:axY,stroke:C.grid2,'stroke-width':1.4},g);
+  const xs=[0.08,0.14,0.22,0.34,0.36,0.4,0.55,0.6,0.63,0.8,0.86];
+  const pts = xs.map(f=> axX0+f*(axX1-axX0));
+  const ticks = pts.map(x=> dot(g,x,axY,4,C.dim,{opacity:0}));
+  await Promise.all(ticks.map((d,i)=> tweenAttr(d,{opacity:1},{duration:250,delay:i*70})));
+  caption(g, axX0, axY+36, "data points on a line", {size:13.5});
+  await wait(400);
+
+  const bw=46, kh=90;
+  function bump(x0, w, h){
+    const N=24; let d=`M ${x0-w} ${axY} `;
+    for(let i=0;i<=N;i++){
+      const t=i/N, xx=x0-w+t*2*w;
+      const yy = axY - h*Math.exp(-Math.pow((xx-x0)/(w*0.42),2));
+      d+=`L ${xx} ${yy} `;
+    }
+    d += `L ${x0+w} ${axY} Z`;
+    return d;
+  }
+  const kernelPaths = pts.map(x=> E('path',{d:bump(x,bw,kh), fill:C.blue, 'fill-opacity':0.10, stroke:C.blue, 'stroke-width':1, opacity:0}, g));
+  await Promise.all(kernelPaths.map((p,i)=> tweenAttr(p,{opacity:1},{duration:280, delay:i*90})));
+  caption(g, axX0, axY+58, "...place a small bell curve (kernel) on each one", {size:13.5});
+  await wait(600);
+
+  // sum into smooth density curve
+  const N=140;
+  let d = '';
+  for(let i=0;i<=N;i++){
+    const xx = axX0 + i/N*(axX1-axX0);
+    let yy=0;
+    pts.forEach(px=>{ yy += kh*Math.exp(-Math.pow((xx-px)/(bw*0.42),2)); });
+    yy = Math.min(yy, 260);
+    d += (i===0?'M ':'L ') + xx + ' ' + (axY-yy) + ' ';
+  }
+  const sumCurve = E('path',{d, fill:'none', stroke:C.amber, 'stroke-width':2.6, opacity:0}, g);
+  await tweenAttr(sumCurve,{opacity:1},{duration:200});
+  await drawOn(sumCurve,{duration:900, easing:Ease.outCubic});
+  await Promise.all(kernelPaths.map(p=> tweenAttr(p,{'fill-opacity':0.03,'opacity':.35},{duration:400})));
+
+  T(g, axX1-40, 240, "density estimate", {fill:C.amber, size:13.5, anchor:'end'});
+  mathLine(g, 90, 660, [{s:'f'},{t:'rm',s:'('},{s:'x'},{t:'rm',s:') = '},{t:'rm', s:'(1/nh) Σ K(('},{s:'x'},{t:'rm',s:' − '},{s:'x'},{t:'sub',s:'i'},{t:'rm',s:')/h)'}], {size:19});
+  caption(g, 90, 682, "bandwidth h too small → spiky. too large → blurs every bump together.", {size:13});
+}});
+
+/* ---------- 23. TOPIC MODELING — LDA ---------- */
+SLIDES.push({ label:"Topic Modeling — LDA", async build(g){
+  await header(g, "Topic modeling", "Latent Dirichlet Allocation");
+  await wait(80);
+  const docs = [
+    {name:"Doc 1", mix:[0.7,0.2,0.1]},
+    {name:"Doc 2", mix:[0.15,0.75,0.1]},
+    {name:"Doc 3", mix:[0.3,0.3,0.4]},
+  ];
+  const topicCol=[C.blue, C.amber, C.rose];
+  const topicName=["Sports","Politics","Weather"];
+  const dx0=110, dy0=220, dw=90, dh=130, gapD=60;
+  for(let i=0;i<docs.length;i++){
+    const x=dx0+i*(dw+gapD);
+    const card = panel(g, x, dy0, dw, dh, {rx:8, opacity:0});
+    await fadeIn(card,{duration:300});
+    T(g, x+dw/2, dy0-14, docs[i].name, {fill:C.text, size:13.5, anchor:'middle'});
+    for(let l=0;l<6;l++) E('line',{x1:x+12,y1:dy0+18+l*16,x2:x+dw-12,y2:dy0+18+l*16, stroke:C.grid2,'stroke-width':2},g);
+  }
+  await wait(400);
+
+  const barY0=440, barH=90, barW=250;
+  for(let i=0;i<docs.length;i++){
+    const x=dx0+i*(dw+gapD)-(barW-dw)/2;
+    T(g, x+barW/2, barY0-12, "topic mixture", {fill:C.dim2, size:11.5, anchor:'middle'});
+    let acc=0;
+    for(let k=0;k<3;k++){
+      const w = docs[i].mix[k]*barW;
+      const seg = E('rect',{x:x+acc, y:barY0, width:0, height:22, fill:topicCol[k], opacity:.9}, g);
+      await tweenAttr(seg,{width:w},{duration:400});
+      acc+=w;
+    }
+  }
+  await wait(400);
+
+  T(g, 90, 605, "Topics", {fill:C.dim2, size:13, weight:600, ls:'1px'});
+  const topicWords = [
+    ["ball","team","score","coach","league"],
+    ["vote","policy","senate","election","law"],
+    ["rain","storm","forecast","cloud","wind"],
+  ];
+  topicWords.forEach((words, k)=>{
+    const ty = 635 + k*0;
+    const tx = 90 + k*380;
+    T(g, tx, 635, `● ${topicName[k]}`, {fill:topicCol[k], size:14, weight:600});
+    words.forEach((w,wi)=>{
+      const wt = T(g, tx, 660+wi*0, "", {}); // placeholder not used
+    });
+    const chipRow = words.map((w,wi)=> T(g, tx + wi*68, 662, w, {fill:C.dim, size:11.5}));
+    chipRow.forEach((c,ci)=> fadeIn(c,{duration:250, delay:k*150+ci*60}));
+  });
+
+  caption(g, 90, 200, "Each document = a blend of topics. Each topic = a blend of words. LDA learns both from scratch.", {size:14.5});
+  footnote(g, 90, 695, "LSA: factorizes the word-count matrix with SVD.   NMF: similar, but keeps everything non-negative → more interpretable topics.");
+}});
+
+/* ---------- 23b. LSA ---------- */
+SLIDES.push({ label:"Latent Semantic Analysis (LSA)", async build(g){
+  await header(g, "Topic modeling", "Latent Semantic Analysis (LSA)");
+  await wait(80);
+  caption(g, 90, 180, "Build a term\u2013document matrix (word counts), then run plain SVD on it.", {size:14.5});
+
+  const words=['ball','vote','rain','coach','senate'];
+  const docsN=4, cell=42, gx=110, gy=240;
+  for(let r=0;r<words.length;r++){
+    T(g, gx-14, gy+r*cell+cell/2+4, words[r], {fill:C.dim2, size:12, anchor:'end'});
+    for(let c=0;c<docsN;c++){
+      const v = pseudo(r*7+c*3+5);
+      const rect = E('rect',{x:gx+c*cell, y:gy+r*cell, width:cell-3, height:cell-3, fill:`rgba(111,168,220,${0.08+v*0.55})`, opacity:0}, g);
+      fadeIn(rect,{duration:20,delay:(r*docsN+c)*30});
+    }
+  }
+  for(let c=0;c<docsN;c++) T(g, gx+c*cell+cell/2-4, gy-12, "Doc"+(c+1), {fill:C.dim2, size:11, anchor:'middle'});
+  await wait(words.length*docsN*30+400);
+
+  const arrowX0=gx+docsN*cell+50;
+  const ar = E('line',{x1:arrowX0,y1:gy+70,x2:arrowX0,y2:gy+70,stroke:C.dim2,'stroke-width':1.6},g);
+  await tweenAttr(ar,{x2:arrowX0+70,y2:gy+70},{duration:350});
+  T(g, arrowX0+35, gy+50, "SVD", {fill:C.dim, size:12.5, anchor:'middle'});
+
+  const rx=arrowX0+130;
+  T(g, rx, gy-12, "topics (mixed signs)", {fill:C.dim2, size:12, anchor:'start'});
+  const topicBars=[[0.6,-0.2],[0.3,0.5],[-0.4,0.3],[0.5,-0.3],[0.2,0.6]];
+  topicBars.forEach((row,r)=>{
+    row.forEach((v,c)=>{
+      const bwv=50, bh=16;
+      const barX=rx+c*70, barY=gy+r*cell+cell/2;
+      const w=Math.abs(v)*bwv;
+      const rect = E('rect',{x: v>=0?barX:barX-w, y:barY-bh/2, width:0, height:bh, fill: v>=0?C.blue:C.red, opacity:.8}, g);
+      tweenAttr(rect,{width:w},{duration:400, delay:400+r*80});
+    });
+  });
+  await wait(1200);
+  caption(g, 90, 620, "Fast and simple \u2014 but components can go negative, so the resulting", {size:14.5});
+  caption(g, 90, 642, "\u201ctopics\u201d don't always read as an intuitive list of words.", {size:14.5});
+}});
+
+/* ---------- 23c. NMF ---------- */
+SLIDES.push({ label:"Non-negative Matrix Factorization (NMF)", async build(g){
+  await header(g, "Topic modeling", "Non-negative Matrix Factorization (NMF)");
+  await wait(80);
+  caption(g, 90, 180, "Same factorization idea as LSA \u2014 but every number must stay \u2265 0.", {size:14.5});
+
+  const gx=110, gy=240, cell=42, rows=5, cols=4;
+  const words=['ball','vote','rain','coach','senate'];
+  for(let r=0;r<rows;r++){
+    T(g, gx-14, gy+r*cell+cell/2+4, words[r], {fill:C.dim2, size:12, anchor:'end'});
+    for(let c=0;c<cols;c++){
+      const v = pseudo(r*11+c*5+9);
+      const rect = E('rect',{x:gx+c*cell,y:gy+r*cell,width:cell-3,height:cell-3, fill:`rgba(199,123,145,${0.08+v*0.55})`, opacity:0}, g);
+      fadeIn(rect,{duration:20,delay:(r*cols+c)*30});
+    }
+  }
+  for(let c=0;c<cols;c++) T(g, gx+c*cell+cell/2-4, gy-12, "Doc"+(c+1), {fill:C.dim2, size:11, anchor:'middle'});
+  await wait(rows*cols*30+400);
+
+  const arrowX0=gx+cols*cell+50;
+  const ar = E('line',{x1:arrowX0,y1:gy+90,x2:arrowX0,y2:gy+90,stroke:C.dim2,'stroke-width':1.6},g);
+  await tweenAttr(ar,{x2:arrowX0+70,y2:gy+90},{duration:350});
+  T(g, arrowX0+35, gy+70, "NMF", {fill:C.dim, size:12.5, anchor:'middle'});
+
+  const rx=arrowX0+130;
+  T(g, rx, gy-12, "W \u00b7 H  (all non-negative)", {fill:C.dim2, size:12, anchor:'start'});
+  const topicBars=[[0.7,0.05],[0.1,0.4],[0.0,0.35],[0.55,0.1],[0.05,0.6]];
+  topicBars.forEach((row,r)=>{
+    row.forEach((v,c)=>{
+      const barX=rx+c*70, barY=gy+r*cell+cell/2, bwv=60*v, bh=16;
+      const rect = E('rect',{x:barX,y:barY-bh/2,width:0,height:bh, fill: c===0?C.rose:C.amber, opacity:.85}, g);
+      tweenAttr(rect,{width:bwv},{duration:400, delay:400+r*80});
+    });
+  });
+  await wait(1200);
+
+  caption(g, 90, 630, "No cancellation \u2014 parts only add up. Topics come out reading like", {size:14.5});
+  caption(g, 90, 652, "clean, intuitive lists of the words that define them.", {size:14.5});
+}});
+
+/* ---------- 24. CLOSING MAP ---------- */
+SLIDES.push({ label:"The big picture", async build(g){
+  await header(g, "The big picture", "Unsupervised learning, mapped");
+  await wait(60);
+  const cx=640, cy=420;
+  const core = dot(g, cx, cy, 11, C.text, {opacity:0});
+  await tweenAttr(core,{opacity:1},{duration:350,easing:Ease.outBack});
+
+  const branches = [
+    {name:"Clustering", col:C.blue, angle:-100, items:["K-Means","DBSCAN","GMM","Hierarchical","+more"]},
+    {name:"Dim. Reduction", col:C.amber, angle:-30, items:["PCA","t-SNE","UMAP","SVD"]},
+    {name:"Association Rules", col:C.green, angle:30, items:["Apriori","FP-Growth","ECLAT"]},
+    {name:"Anomaly Detection", col:C.red, angle:80, items:["Isolation Forest","LOF","One-Class SVM"]},
+    {name:"Density Estimation", col:C.violet, angle:150, items:["KDE","GMM"]},
+    {name:"Topic Modeling", col:C.rose, angle:-155, items:["LDA","LSA","NMF"]},
+  ];
+  for(const b of branches){
+    const rad=b.angle*Math.PI/180;
+    const ex=cx+Math.cos(rad)*250, ey=cy+Math.sin(rad)*175;
+    const clampX=Math.max(140,Math.min(1150,ex)), clampY=Math.max(175,Math.min(670,ey));
+    const line = E('line',{x1:cx,y1:cy,x2:cx,y2:cy,stroke:b.col,'stroke-width':1.8, opacity:.85},g);
+    await tweenAttr(line,{x2:clampX,y2:clampY},{duration:380,easing:Ease.outCubic});
+    const node = dot(g, clampX, clampY, 6.5, b.col, {opacity:0});
+    await tweenAttr(node,{opacity:1},{duration:220,easing:Ease.outBack});
+    const anchor = clampX>=cx? 'start':'end';
+    const tx = clampX>=cx? clampX+14 : clampX-14;
+    fadeIn(T(g, tx, clampY-6, b.name, {fill:b.col, size:14.5, weight:600, anchor}), {duration:280});
+    const chip = T(g, tx, clampY+13, b.items.join("  ·  "), {fill:C.dim, size:11.5, anchor});
+    fadeIn(chip,{duration:280,delay:100});
+  }
+  await wait(300);
+  const quote = T(g, cx, 685, "\u201cIf you can't explain it simply, you don't understand it yet.\u201d — R. Feynman", {fill:C.dim2, size:13, anchor:'middle', italic:true, font:"'Fraunces',serif"});
+  fadeIn(quote, {duration:600});
+}});
+
+/* =========================================================================
+   THEORY  +  MATH  (one entry per slide, same order as SLIDES.push above)
+   ========================================================================= */
+const THEORY = [
+/*0 Title*/ {kicker:"FIELD OVERVIEW", title:"Unsupervised Learning", def:"A branch of machine learning where the algorithm is given data with no labels or target answers, and must discover structure — groups, axes, rules, or densities — entirely on its own.", points:["No 'right answer' is given during training — success is measured by how useful or coherent the discovered structure is.","Six major families: clustering, dimensionality reduction, association rules, anomaly detection, density estimation, topic modeling.","Often used as an exploratory first step before supervised learning, or as the whole solution when labels don't exist."], use:"Exploratory data analysis, customer segmentation, compressing data, flagging fraud, recommender systems — any setting where labeling data is too expensive or simply impossible.", warn:"Harder to evaluate objectively than supervised learning — there's no ground truth to check against, so results need domain judgement."},
+/*1 Core idea*/ {kicker:"SUPERVISED VS UNSUPERVISED", title:"No Teacher, Just Data", def:"Supervised learning fits a model to match a known answer key. Unsupervised learning has no answer key — it just looks for whatever pattern is already sitting in the data.", points:["Supervised: minimizes error against known labels (e.g. 'cat' vs 'dog').","Unsupervised: minimizes some internal criterion — compactness, density, reconstruction error — with no labels at all.","The same raw data can often be explored both ways, depending on whether labels happen to exist."], use:"Situations where labeling every example is impractical: millions of transactions, raw sensor logs, unstructured text.", warn:"Because there's no 'correct' grouping to check against, two reasonable analyses can find genuinely different valid structure in the same data."},
+/*2 Clustering big idea*/ {kicker:"CLUSTERING FUNDAMENTALS", title:"Group by Closeness", def:"Clustering assumes that points which are 'close' to each other (by some distance measure) probably belong together, and points that are far apart probably don't.", points:["Requires choosing a distance/similarity metric before anything else — that choice quietly decides what 'similar' even means.","Different clustering families make different geometric assumptions: round blobs (K-Means), chains of density (DBSCAN), nested structure (Hierarchical).","There is no universally 'best' clustering algorithm — the right choice depends on the expected shape of the clusters."], use:"Customer segmentation, image color quantization, grouping similar documents, biological taxonomy from gene expression.", warn:"An unscaled feature (income in dollars next to age in years) can dominate the distance calculation and silently ruin the clustering."},
+/*3 Math distance*/ {kicker:"GEOMETRY OF SIMILARITY", title:"Distance Metrics", def:"A distance metric turns 'how similar are two points' into a single number, so an algorithm can compare and rank similarity mathematically.", points:["Euclidean distance is the default — it matches physical, geometric intuition.","Manhattan distance is more robust when features sit on a grid-like or count-based scale.","Cosine distance cares only about direction, not magnitude — crucial in sparse, high-dimensional settings like text."], use:"Euclidean for continuous physical measurements; Manhattan for high-dimensional counts/grids; Cosine for text embeddings and any 'shape not size' comparison.", warn:"Different metrics can produce genuinely different clusters from the same data — always ask which notion of 'closeness' actually matches your problem."},
+/*4 K-Means*/ {kicker:"PARTITIONING", title:"K-Means", def:"K-Means splits data into K groups by repeatedly assigning each point to its nearest centroid, then moving each centroid to the average of its group.", points:["You must choose K (the number of clusters) in advance.","Really just two alternating steps — assign, then update — known as Lloyd's algorithm.","Each iteration can only decrease (or hold) the total within-cluster distance, so it always converges — just not always to the best possible solution."], use:"Fast, simple segmentation of large, roughly round/blob-shaped clusters — customer segments, image compression, vector quantization.", warn:"Sensitive to the random starting centroids and to outliers; struggles badly with non-spherical clusters."},
+/*5 Math K-Means obj*/ {kicker:"OPTIMIZATION", title:"The K-Means Objective", def:"K-Means is secretly an optimization problem: find the K centroids minimizing the total squared distance from every point to its assigned centroid.", points:["This total is called the 'inertia' or within-cluster sum of squares (WCSS).","Assigning to the nearest centroid, and moving centroids to the mean, are each individually optimal — but together only guarantee a local optimum.","Running K-Means multiple times (or using k-means++ initialization) reduces the risk of a bad local minimum."], use:"Use inertia as the y-axis of an elbow plot to help pick K.", warn:"Inertia always decreases as K increases, even meaninglessly — it can't be used alone to choose K without looking for a 'bend'."},
+/*6 MB & Medoids*/ {kicker:"K-MEANS VARIANTS", title:"Faster and Tougher K-Means", def:"Two practical tweaks on K-Means: one trades a little accuracy for a lot of speed, the other trades a little speed for a lot of robustness.", points:["Mini-Batch K-Means updates centroids using small random samples instead of the full dataset each round.","K-Medoids forces the cluster center to be an actual data point (a medoid), not an average.","Because K-Medoids uses real points, it can work with any distance metric — not just Euclidean."], use:"Mini-Batch K-Means for huge or streaming datasets; K-Medoids for smaller datasets with outliers or non-Euclidean distances.", warn:"Mini-Batch trades cluster quality for speed; K-Medoids is much slower per-iteration since testing candidate medoids is expensive."},
+/*7 Agglomerative*/ {kicker:"HIERARCHICAL · BOTTOM-UP", title:"Agglomerative Clustering", def:"Starts with every point as its own cluster, then repeatedly merges the two closest clusters until one giant cluster remains — recording the merge order as a tree.", points:["The dendrogram lets you inspect clustering at every granularity at once.","No need to choose K upfront — cut the dendrogram at the height giving the number of clusters you want.","The definition of 'closest cluster' (linkage) changes the shape of clusters you get."], use:"Small-to-medium datasets where you want nested structure — biological taxonomies, organizational hierarchies, document topic trees.", warn:"Naively O(n²) or worse in time/memory; once a merge happens, it can never be undone."},
+/*8 Divisive*/ {kicker:"HIERARCHICAL · TOP-DOWN", title:"Divisive Clustering", def:"The mirror image of agglomerative clustering: start with everything in one cluster, then repeatedly split the least-cohesive cluster into two.", points:["At each step it must consider many possible ways to split a cluster — far more expensive than merging the closest pair.","In principle can produce more balanced, globally-informed splits than agglomerative's greedy merging.","Rarely implemented in mainstream libraries because of its cost."], use:"Mostly a teaching concept and specialized research use; agglomerative is used almost everywhere in practice instead.", warn:"Cost grows very fast with dataset size — checking every possible split is intractable, so practical versions use heuristics."},
+/*9 DBSCAN*/ {kicker:"DENSITY-BASED", title:"DBSCAN", def:"Defines clusters as dense regions of points separated by sparser regions — instead of by distance to a center.", points:["Two parameters: ε (how close counts as 'nearby') and minPts (how many nearby points make an area 'dense').","Points are core (dense neighborhood), border (near a core point but not dense itself), or noise (neither).","Because clusters grow by chaining nearby dense points, DBSCAN naturally finds arbitrarily shaped clusters."], use:"Spatial data and any dataset where clusters are irregular shapes (like the classic 'two moons' problem).", warn:"Struggles when clusters have very different densities — one ε can't be right for both a tight and a loose cluster at once."},
+/*10 HDBSCAN/OPTICS*/ {kicker:"DBSCAN FAMILY", title:"Handling Varying Density", def:"Both methods generalize DBSCAN to avoid picking one fixed ε that has to work everywhere in the dataset.", points:["HDBSCAN runs DBSCAN conceptually across every possible ε and keeps only clusters that stay stable across a range of scales.","OPTICS orders points by 'reachability distance', producing a plot where valleys reveal clusters at whatever density they occur.","Both trade a bit more computation for a lot more flexibility versus vanilla DBSCAN."], use:"Real-world spatial or sensor data where cluster density genuinely varies across the dataset.", warn:"More hyperparameters and harder to explain than plain DBSCAN, though usually more robust in practice."},
+/*11 Mean Shift*/ {kicker:"MODE-SEEKING", title:"Mean Shift", def:"Treats the data as samples from an unknown density, and finds clusters by having every point climb uphill toward the nearest peak (mode) of that density.", points:["No need to specify the number of clusters — it falls out naturally as however many density peaks exist.","The 'bandwidth' parameter controls how wide the density-estimation kernel is.","Every point that climbs to the same peak is assigned to the same cluster."], use:"Image segmentation and computer vision tasks where cluster count truly isn't known in advance.", warn:"Expensive on large datasets — every point iteratively searches for its peak; very sensitive to the bandwidth choice."},
+/*12 GMM*/ {kicker:"PROBABILISTIC", title:"Gaussian Mixture Model", def:"Assumes the data was generated by a mix of several overlapping Gaussian (bell-curve) distributions, and tries to recover each one's parameters.", points:["Produces 'soft' cluster assignments — a probability of belonging to each cluster, not just one hard label.","Fit using Expectation-Maximization (EM): alternately estimate soft assignments (E-step), then update each Gaussian's parameters (M-step).","K-Means is a special case of GMM where every cluster is forced to be a perfectly round, equally-sized blob."], use:"When clusters are elliptical rather than round, or when you need a confidence for each assignment, not just a hard label.", warn:"More parameters to fit than K-Means, so it needs more data and can overfit; still sensitive to initialization and choice of K."},
+/*13 Math Gaussian*/ {kicker:"PROBABILITY DENSITY", title:"The Gaussian, Unpacked", def:"The Gaussian formula converts a raw distance from the mean into a probability density — the taller the curve at a point, the more 'expected' that point is.", points:["μ shifts the curve left/right; σ stretches or squeezes its width.","The squared exponent term makes the curve fall off fast and symmetrically away from the mean.","The 1/(σ√2π) constant exists purely so the total area under the curve equals exactly 1."], use:"Same shape underlies GMM, Elliptic Envelope, Kalman filters, and the 'normal approximation' used across statistics.", warn:"Assumes the underlying data really is bell-shaped; skewed or multi-modal data will be modeled poorly by a single Gaussian."},
+/*14 Spectral*/ {kicker:"GRAPH-BASED", title:"Spectral Clustering", def:"Converts clustering into a graph-cutting problem: build a similarity graph between points, then find the cut that separates it into the least-connected pieces.", points:["Uses the eigenvectors of the graph Laplacian to re-embed data into a space where clusters become simple to separate.","After that embedding, a plain algorithm like K-Means runs on the transformed coordinates.","Can find clusters of essentially any shape, because it never assumes blobs — only graph connectivity."], use:"Non-convex cluster shapes (rings, moons, spirals) that defeat K-Means and GMM outright.", warn:"Requires an eigendecomposition of an n×n matrix — expensive and memory-heavy for large datasets."},
+/*15 BIRCH etc*/ {kicker:"SCALABLE & ALTERNATIVE METHODS", title:"BIRCH, Affinity Propagation, Fuzzy C-Means", def:"Three more clustering approaches, each solving a different practical pain point: scale, choosing K, and hard-vs-soft assignment.", points:["BIRCH incrementally summarizes huge datasets into a compact tree of 'clustering features' before doing any real clustering.","Affinity Propagation lets data points 'vote' for the best representative among themselves, discovering K automatically.","Fuzzy C-Means is K-Means with soft, percentage-based memberships instead of hard assignments."], use:"BIRCH for streaming/memory-constrained huge datasets; Affinity Propagation when K is unknown; Fuzzy C-Means when partial membership is meaningful.", warn:"Affinity Propagation is O(n²) memory and slow to converge; BIRCH is order-sensitive; Fuzzy C-Means still needs K chosen in advance."},
+/*16 Recap map*/ {kicker:"SYNTHESIS", title:"Choosing a Clustering Family", def:"Every clustering algorithm is really a bet on the shape of your clusters and how much you know in advance — this map groups them by that bet.", points:["Partitioning methods assume round, evenly-sized blobs and need K chosen upfront.","Density methods assume clusters are separated by sparse regions and can be any shape.","Hierarchical and graph-based methods trade speed for flexibility and interpretability."], use:"A first filter: think about your data's likely shape and whether K is known before picking an algorithm to try.", warn:"In practice, try 2–3 candidates and compare with a metric like silhouette score — theory narrows the field, it rarely picks a single winner."},
+/*17 Choosing K*/ {kicker:"MODEL SELECTION", title:"How Many Clusters?", def:"Since most clustering methods can't tell you the 'right' K on their own, we use secondary diagnostics computed after clustering at several K values.", points:["The elbow method looks at where adding more clusters stops meaningfully reducing error.","The silhouette score directly measures how well-separated and cohesive the clusters are, per point.","Neither is perfect alone — many practitioners look at both, plus domain knowledge."], use:"Any time a clustering algorithm (K-Means, GMM) requires you to specify K in advance.", warn:"Elbow plots can have an ambiguous or missing 'bend'; silhouette score is expensive (O(n²)) on very large datasets."},
+/*18 Math silhouette*/ {kicker:"CLUSTER QUALITY METRIC", title:"Reading the Silhouette Score", def:"For every point, this score compares 'how close is it to its own cluster' against 'how close is it to the nearest other cluster' — squeezed into one number from −1 to 1.", points:["a(i): the point's average distance to its own cluster — smaller is tighter, more cohesive.","b(i): its average distance to the nearest neighboring cluster — bigger means better separated.","Averaging s(i) over every point gives one overall quality number for a whole clustering."], use:"Comparing different values of K, or entirely different clustering algorithms, on the same dataset.", warn:"A high silhouette score doesn't guarantee the clusters are meaningful to a human — it only measures geometric compactness and separation."},
+/*19 Curse*/ {kicker:"WHY DIMENSIONS HURT", title:"The Curse of Dimensionality", def:"As you add more features (dimensions), the volume of the space grows exponentially — the same number of data points become exponentially sparser.", points:["In high dimensions, the distance between the closest and farthest neighbor of a point shrinks toward zero, relatively.","Distance-based methods (K-Means, KNN, DBSCAN) all quietly rely on distances being meaningful, so they degrade in high dimensions.","This is the core motivation for the entire field of dimensionality reduction."], use:"A reason to reduce dimensionality before applying distance-based clustering or anomaly detection to high-dimensional data.", warn:"There's no fixed 'too many dimensions' threshold — it depends on how much data you have and how correlated the features are."},
+/*20 Dim reduction big idea*/ {kicker:"DIMENSIONALITY REDUCTION", title:"Fewer Numbers, Same Story", def:"Real-world data with many features often lies near a much simpler, lower-dimensional shape — dimensionality reduction finds and describes that shape directly.", points:["Two strategies: feature extraction (build new, fewer combined features) and feature selection (drop the least useful raw features).","Linear methods (PCA, SVD) assume the simpler shape is a flat plane; nonlinear methods (t-SNE, Isomap, LLE) allow a curved manifold.","Reduces storage, speeds up downstream algorithms, fights the curse of dimensionality, enables visualization."], use:"Compressing data, visualizing high-dimensional data in 2D/3D, removing redundant/correlated features before modeling.", warn:"Reduction always loses some information — the goal is to lose as little useful information as possible, not to lose none."},
+/*21 PCA*/ {kicker:"LINEAR REDUCTION", title:"Principal Component Analysis", def:"Finds the directions along which the data varies most, and re-expresses the data using those directions as new axes — dropping the ones that barely vary.", points:["PC1 is the single direction of maximum variance in the whole dataset.","Each subsequent component is next-best, constrained perpendicular (uncorrelated) to all previous ones.","Purely linear — it can only 'see' straight-line relationships between features."], use:"Compressing correlated numeric features, noise reduction, visualization, and preprocessing before clustering or regression.", warn:"Sensitive to feature scale — always standardize first, or a large-magnitude feature dominates the variance calculation for no good reason."},
+/*22 PCA variance*/ {kicker:"MODEL SELECTION FOR PCA", title:"How Many Components?", def:"Each principal component explains a certain percentage of the dataset's total variance — this lets you trade off compression against information loss.", points:["A scree plot shows the variance explained by each component, usually dropping off sharply after the first few.","The cumulative variance curve tells you exactly how much information you'd keep at each cutoff.","A common rule of thumb: keep enough components to reach 90–95% cumulative explained variance."], use:"Deciding exactly how aggressively to compress a dataset before feeding it into a downstream model.", warn:"Chasing 99%+ variance often keeps noisy, low-value components — the goal is a good trade-off, not maximum retained variance."},
+/*23 Math eigenvectors*/ {kicker:"LINEAR ALGEBRA", title:"Why Eigenvectors?", def:"The eigenvectors of the covariance matrix are exactly the directions where the data's spread is 'pure' — moving along one never mixes into another direction.", points:["The covariance matrix captures how every pair of features moves together.","An eigenvector of that matrix is a direction the matrix only stretches, never rotates.","Its eigenvalue is exactly how much variance lies along that direction — exactly what PCA wants to rank by."], use:"This exact eigen-decomposition is what every PCA implementation computes under the hood (often via SVD for numerical stability).", warn:"Assumes the covariance matrix is well-defined — needs enough data relative to the number of features, or the estimate becomes unstable."},
+/*24 PCA variants*/ {kicker:"PCA FAMILY", title:"Beyond Plain PCA", def:"Three adaptations of PCA for situations plain PCA can't handle well: nonlinearity, streaming data, and interpretability.", points:["Kernel PCA implicitly maps data into a higher-dimensional space where a straight PCA line becomes possible again.","Incremental PCA updates its components a batch at a time, without holding the full dataset in memory.","Sparse PCA forces most loadings to zero, so each component depends on only a few original features."], use:"Kernel PCA for curved/nonlinear data; Incremental PCA for streaming pipelines; Sparse PCA when components must be explainable via a handful of features.", warn:"Kernel PCA's kernel choice is another hyperparameter to tune; Sparse PCA's optimization is non-convex and sensitive to its sparsity penalty."},
+/*25 tSNE/UMAP*/ {kicker:"MANIFOLD VISUALIZATION", title:"t-SNE & UMAP", def:"Both build a low-dimensional layout by trying to preserve which points were 'neighbors' in the original high-dimensional space, rather than exact distances.", points:["t-SNE converts high-D distances into neighbor probabilities, then finds a 2D layout matching those probabilities as closely as possible.","UMAP is conceptually similar but grounded in topology, runs faster, and tends to preserve more global structure.","Both are primarily visualization tools — output axes and inter-cluster distances usually aren't independently meaningful."], use:"Visually exploring high-dimensional data (word embeddings, single-cell genomics, image features) to spot clusters by eye.", warn:"Cluster sizes and gaps in a t-SNE/UMAP plot are often visually misleading — don't over-interpret them quantitatively."},
+/*26 Isomap*/ {kicker:"MANIFOLD LEARNING", title:"Isomap", def:"An extension of MDS that measures distance along the curved data manifold, instead of cutting straight through empty space.", points:["Builds a neighborhood graph, then computes distance between any two points as the shortest path through that graph.","This 'geodesic' distance respects the true shape of a curved manifold, unlike straight-line distance.","Finally applies classical MDS to lay the data out in low dimensions using these geodesic distances."], use:"Data known to lie on a smooth, well-sampled curved manifold — classic 'swiss roll' style visualization problems.", warn:"A single mistaken 'shortcut' edge in the neighborhood graph can badly distort geodesic distances for many points at once."},
+/*27 LLE*/ {kicker:"MANIFOLD LEARNING", title:"Locally Linear Embedding", def:"Assumes that, locally, every point can be approximated as a weighted combination of its nearest neighbors — and that relationship should survive dimensionality reduction.", points:["Step 1: find each point's k nearest neighbors and solve for weights that best reconstruct it from them.","Step 2: find low-dimensional coordinates that can be reconstructed by neighbors using those exact same weights.","Because it only uses local relationships, it can 'unfold' a curved manifold without any global distance calculation."], use:"Similar territory to Isomap — often preferred when only local structure matters, not global distances.", warn:"Very sensitive to the neighborhood size k, and to noise, since each point depends entirely on a small local neighborhood."},
+/*28 MDS*/ {kicker:"MANIFOLD LEARNING", title:"Multidimensional Scaling", def:"Given only a table of pairwise distances (not even original coordinates), MDS finds a low-dimensional layout reproducing those distances as faithfully as possible.", points:["Classical MDS solves this directly via eigen-decomposition of the (double-centered) distance matrix.","Non-metric MDS only preserves the rank order of distances, not their exact values.","Because it works from a distance matrix, MDS is compatible with any distance metric — even ones with no obvious coordinate space."], use:"When you have similarity/dissimilarity judgments (survey data, DNA distance, perceptual similarity) but not raw feature vectors.", warn:"Computing the full pairwise distance matrix, and its eigen-decomposition, gets expensive fast as the number of points grows."},
+/*29 SVD & FA*/ {kicker:"MATRIX DECOMPOSITION", title:"SVD & Factor Analysis", def:"Both decompose a data matrix into simpler pieces that reveal its underlying structure — SVD does it purely geometrically, Factor Analysis does it as a statistical model.", points:["SVD works on any matrix at all — a general-purpose tool underlying PCA, recommender systems, and image compression.","Truncated SVD keeps only the largest singular values, giving the best possible low-rank approximation of the matrix.","Factor Analysis explicitly separates 'shared' variance (factors) from feature-specific noise — an assumption SVD/PCA don't make."], use:"SVD/Truncated SVD for compression, recommenders, and text (LSA); Factor Analysis when modeling per-feature measurement noise matters.", warn:"Factor Analysis fits are less numerically stable and 'factors' require more statistical care to interpret than PCA components."},
+/*30 Apriori*/ {kicker:"ASSOCIATION RULE MINING", title:"Apriori", def:"Finds sets of items that frequently appear together in transactions, by growing candidate itemsets one item at a time and pruning early with a simple but powerful rule.", points:["The Apriori property: if an itemset is frequent, every subset must also be frequent — this prunes huge portions of the search space instantly.","The algorithm alternates between generating slightly larger candidate itemsets and scanning the data to count them.","Produces rules like 'if a customer buys bread and butter, they're also likely to buy milk'."], use:"Market basket analysis, recommendations ('customers who bought X also bought Y'), co-occurrence pattern mining.", warn:"Repeatedly re-scanning the full dataset for every itemset size makes it slow on large or high-cardinality datasets."},
+/*31 Math SVD geometry*/ {kicker:"GEOMETRIC INTUITION", title:"SVD as Geometry", def:"Any matrix transformation, no matter how complicated, can always be broken into exactly three simple geometric moves: rotate, stretch, rotate again.", points:["Vᵀ rotates the input space to align with the 'natural' axes of the transformation.","Σ stretches or shrinks along those aligned axes — by exactly the singular values.","U then rotates the stretched result into its final orientation in the output space."], use:"This decomposition underlies PCA, image compression, recommender systems, noise reduction, and robust least-squares solving.", warn:"Computing a full SVD is expensive for very large matrices; truncated/randomized SVD variants exist specifically to speed this up."},
+/*32 FP-Growth*/ {kicker:"ASSOCIATION RULE MINING", title:"FP-Growth", def:"Mines the exact same frequent itemsets as Apriori, but compresses the whole dataset into a single tree first — so it never needs to re-scan the raw data.", points:["Items are frequency-sorted, then inserted into a shared prefix tree (FP-tree), merging identical prefixes to save space.","Frequent itemsets are extracted by recursively walking the tree from each item, using small 'conditional' sub-trees.","Typically an order of magnitude faster than Apriori, especially on dense datasets."], use:"Large-scale market basket or log-pattern mining where Apriori's repeated full-database scans become a bottleneck.", warn:"The FP-tree can still become large if the dataset has very little shared structure between transactions."},
+/*33 ECLAT*/ {kicker:"ASSOCIATION RULE MINING", title:"ECLAT", def:"Flips the data layout: instead of 'basket → items', it stores 'item → list of baskets containing it' — turning itemset counting into fast set intersections.", points:["Support of an itemset is just the size of the intersection of its items' basket-ID lists.","Uses depth-first search, which tends to use less memory than Apriori's breadth-first candidate generation.","Works especially well when the vertical ID lists (or their differences, 'diffsets') fit comfortably in memory."], use:"Mid-sized transactional datasets where a fast, memory-resident, depth-first alternative to Apriori/FP-Growth is preferred.", warn:"Basket-ID lists can get very large for extremely common items, reducing the memory benefit."},
+/*34 Math support/conf/lift*/ {kicker:"RULE QUALITY METRICS", title:"Support, Confidence, Lift", def:"Three numbers that together decide whether a discovered rule ('A implies B') is common, reliable, and actually meaningful rather than coincidental.", points:["Support: how often the itemset appears at all — filters out rare, statistically unreliable patterns.","Confidence: given A happened, how often B also happened — misleading alone if B is just popular on its own.","Lift corrects for that: lift > 1 means A and B genuinely co-occur more than random chance would predict."], use:"Filtering thousands of candidate rules down to the handful that are both common and genuinely meaningful.", warn:"High confidence with lift ≈ 1 usually just means B is popular overall — always check lift, not confidence alone."},
+/*35 Isolation Forest*/ {kicker:"ANOMALY DETECTION", title:"Isolation Forest", def:"Instead of modeling what 'normal' looks like, it directly measures how easy each point is to isolate with random cuts — anomalies isolate almost immediately.", points:["Builds many random binary trees, each splitting the data on a random feature at a random threshold.","A point's anomaly score is based on the average number of splits (path length) needed to isolate it across all trees.","Because it never computes distances, it scales well to high-dimensional data where distance-based methods struggle."], use:"Fraud detection, sensor/log anomaly detection, and any high-dimensional setting needing a fast, scalable outlier detector.", warn:"Can struggle with 'local' anomalies that are only unusual relative to a nearby cluster, not the dataset as a whole."},
+/*36 One-Class SVM*/ {kicker:"ANOMALY DETECTION", title:"One-Class SVM", def:"Learns a single tight boundary that wraps around the bulk of the 'normal' data — anything falling outside it is flagged as an anomaly.", points:["Uses the same kernel trick as standard SVMs, so the boundary can be a complex, curved shape.","The ν (nu) parameter trades off how tightly the boundary wraps the data against how many points it may treat as outliers.","Doesn't need any anomalous examples to train on — only 'normal' data."], use:"Novelty/outlier detection when only normal examples are available — common in manufacturing QC and intrusion detection.", warn:"Doesn't scale gracefully to very large datasets; the right kernel/parameters are tricky to tune without labeled anomalies to validate against."},
+/*37 LOF*/ {kicker:"ANOMALY DETECTION", title:"Local Outlier Factor", def:"Flags a point as anomalous not by comparing it to the whole dataset, but by comparing its local density to the local density of its own neighbors.", points:["Computes each point's 'local reachability density' — roughly, how packed-in its neighborhood is.","The LOF score is the ratio of a point's density to the average density of its neighbors.","A ratio near 1 means the point fits its neighborhood; well above 1 means it's noticeably sparser than its surroundings."], use:"Datasets with clusters of varying density, where a globally-sparse threshold would miss local outliers.", warn:"Naively O(n²) to compute; results are also sensitive to the chosen neighborhood size."},
+/*38 Elliptic Envelope*/ {kicker:"ANOMALY DETECTION", title:"Elliptic Envelope", def:"Assumes normal data roughly follows a single Gaussian blob, robustly fits an ellipse to it (ignoring likely outliers while fitting), then flags anything too far outside.", points:["Uses the Minimum Covariance Determinant (MCD) estimator, specifically designed not to be fooled by the outliers it's detecting.","'Too far outside' is measured in Mahalanobis distance, not plain Euclidean distance.","Simple, fast, and interpretable — but only as good as its single-Gaussian assumption."], use:"Low-dimensional, roughly unimodal, roughly Gaussian data — a fast baseline anomaly detector.", warn:"Breaks down on multi-modal data (several separate normal clusters) or heavily non-Gaussian distributions."},
+/*39 Math Mahalanobis*/ {kicker:"STATISTICAL DISTANCE", title:"Mahalanobis Distance", def:"A version of distance that accounts for how the data is actually spread out — 'far' in a rarely-varying direction counts for more than 'far' in a commonly-varying one.", points:["Rescales every direction by the inverse covariance matrix, making the data's natural spread the new 'unit circle'.","Reduces to ordinary Euclidean distance if features are uncorrelated with equal variance.","Its squared value follows a known chi-squared distribution under a Gaussian assumption, giving a principled cutoff for 'too far'."], use:"Any outlier/novelty method assuming roughly Gaussian data (Elliptic Envelope, some GMM-based scoring) uses this instead of Euclidean distance.", warn:"Requires a well-estimated covariance matrix — unstable with too few data points relative to the number of features."},
+/*40 KDE*/ {kicker:"DENSITY ESTIMATION", title:"Kernel Density Estimation", def:"Estimates the underlying probability density of data by placing a small 'bump' (kernel) on every data point and summing them into one smooth curve.", points:["The kernel shape (usually Gaussian) matters much less than the bandwidth — how wide each bump is.","Too small a bandwidth gives a spiky, overfit density; too large blurs everything together.","Unlike GMM, KDE makes no assumption about how many 'bumps' the true density has — it's fully nonparametric."], use:"Visualizing distribution shape, smooth histograms, and as a building block in anomaly detection (low density = unusual).", warn:"Suffers badly from the curse of dimensionality — it becomes unreliable well before 10–20 dimensions."},
+/*41 LDA topics*/ {kicker:"TOPIC MODELING", title:"Latent Dirichlet Allocation", def:"A generative probabilistic model assuming every document is a mixture of topics, and every topic is a mixture of words — then it works backwards from the words to infer both mixtures.", points:["Uses Dirichlet priors, which naturally encourage each document/topic to be dominated by just a few topics/words.","Inference is done via iterative algorithms like variational inference or Gibbs sampling — there's no closed-form answer.","The number of topics, K, is a hyperparameter chosen before fitting, much like K in K-Means."], use:"Discovering themes in large text corpora — news archives, research papers, customer reviews — without manual labeling.", warn:"Treats documents as a 'bag of words' with no word order, and needs reasonably large, well-preprocessed corpora."},
+/*42 LSA*/ {kicker:"TOPIC MODELING", title:"Latent Semantic Analysis", def:"Applies plain SVD directly to a term-document matrix of word counts, treating 'topics' simply as the top directions of variance in word usage.", points:["Purely linear-algebraic — no probability model, no iterative fitting, just one SVD computation.","Because SVD allows negative values, resulting 'topics' can be harder to read as intuitive word lists than LDA's or NMF's.","Very fast and deterministic — the same input always gives exactly the same output."], use:"Quick synonym-aware document similarity and search when speed matters more than interpretability.", warn:"Largely superseded by NMF, LDA, or modern embeddings for tasks where topics themselves need to be human-readable."},
+/*43 NMF*/ {kicker:"TOPIC MODELING", title:"Non-negative Matrix Factorization", def:"Factorizes the term-document matrix the same way LSA does, but adds one crucial constraint: every number in the factors must be zero or positive.", points:["This non-negativity forces a 'parts-based' representation — topics can only add words together, never cancel them out.","Solved with iterative multiplicative update rules rather than a single clean SVD step.","Resulting topics tend to read as clean, intuitive word lists, which is why NMF is popular for human-facing summaries."], use:"Topic modeling and feature extraction where interpretability matters — also used for parts-based image features.", warn:"Non-convex optimization — different initializations can converge to different solutions; K is still a hyperparameter."},
+/*44 Closing*/ {kicker:"SYNTHESIS", title:"Putting It All Together", def:"Every technique in this deck answers one of six questions about unlabeled data: how is it grouped, how can it be compressed, what patterns co-occur, what's unusual, how is it distributed, or what themes does it contain.", points:["Start from the question you're actually asking, not the algorithm you already know — that narrows the field immediately.","Most families have a 'default first try' (K-Means, PCA, Apriori, Isolation Forest, KDE, LDA/NMF) and several specialized variants.","Because there's no ground truth in unsupervised learning, always validate against domain knowledge, visualization, and multiple metrics."], use:"As a mental map for picking the right first algorithm to try on a brand-new, unlabeled dataset.", warn:"No single algorithm here is strictly 'best' — the right one always depends on your data's shape, size, and your actual question."},
+];
+
+const MATH = [
+/*0*/ {eq:"min  Loss( structure , data )", why:"There is no single equation for 'unsupervised learning' — instead, every family below picks its own definition of hidden structure and its own loss to minimize.", how:"Read this as a template: clustering plugs in cluster assignments and distance; dimensionality reduction plugs in a low-D representation and reconstruction error; and so on.", use:"This is why comparing 'which unsupervised algorithm is best' is meaningless without first fixing the objective you actually care about."},
+/*1*/ {eq:"supervised: min Σ L(f(xᵢ), yᵢ)     unsupervised: min Σ L(xᵢ, structure)", why:"Writing both objectives side by side makes the real difference obvious: the right-hand term yᵢ (the label) simply doesn't exist in the unsupervised version.", how:"If you have trustworthy yᵢ values, you're in the left world; if you only have xᵢ, you're in the right world — that alone decides which family of techniques applies.", use:"A quick first check on any new dataset: do I actually have reliable labels, or am I about to convince myself some proxy label is good enough?"},
+/*2*/ {eq:"argmin (assignment)  Σᵢ Σ_{j∈cluster(i)} dist(xᵢ, xⱼ)", why:"This is the shared skeleton underneath every clustering method — keep points assigned to the same group close to each other, on average.", how:"Every specific algorithm (K-Means, DBSCAN, hierarchical...) is this same idea with a different, cheaper-to-compute stand-in for 'distance to everyone else in my group'.", use:"K-Means replaces the inner sum with distance-to-one-centroid; that swap is exactly what makes K-Means fast enough to run on millions of points."},
+/*3*/ {eq:"d_E = √Σ(xᵢ−yᵢ)²      d_M = Σ|xᵢ−yᵢ|      d_C = 1 − (x·y)/(‖x‖‖y‖)", why:"These three formulas formalize 'closeness' — a prerequisite for literally every distance-based method in this deck (K-Means, DBSCAN, hierarchical, LOF...).", how:"Euclidean measures a straight ruler distance; Manhattan sums per-axis steps like city-block travel; Cosine measures the angle between two vectors, ignoring their length entirely.", use:"Search engines, recommender systems, and clustering pipelines each pick whichever metric matches their features' natural geometry (e.g. cosine for word/document vectors)."},
+/*4*/ {eq:"J = Σₖ Σ_{x∈Cₖ} ‖x − μₖ‖²", why:"K-Means needs one single number to know whether one arrangement of centroids is better than another — this is that number.", how:"Outer sum over every cluster, inner sum over every point inside that cluster, plus the squared distance of that point from its own centroid.", use:"This is scikit-learn's `.inertia_` — used directly to build an elbow plot for choosing K."},
+/*5*/ {eq:"J = Σₖ Σ_{x∈Cₖ} ‖x − μₖ‖²   (same objective, examined via Lloyd's algorithm)", why:"Lloyd's algorithm — assign, then update — is provably a fast way to locally minimize this exact function; that's why K-Means works with such a simple two-step loop.", how:"Notice J only decreases (or stays flat) every single iteration, never increases — that's exactly why the algorithm is mathematically guaranteed to converge.", use:"The J value plotted across K is the standard elbow chart; the drop in J from one iteration to the next is what a convergence check monitors."},
+/*6*/ {eq:"Mini-Batch:  μₖ ← μₖ + η·(x − μₖ),  η = 1/(points assigned so far)     K-Medoids:  minimize Σᵢ dist(xᵢ, m_{k(i)})", why:"Mini-batch replaces the exact mean update with a cheap running-average nudge; K-Medoids replaces 'mean' with 'the real point minimizing total distance to the group' so outliers can't drag it.", how:"η shrinks over time so each new mini-batch has less influence on the centroid — exactly like a learning-rate decay in gradient descent.", use:"Mini-Batch K-Means is what scikit-learn's `MiniBatchKMeans` and most large-scale clustering pipelines use in production."},
+/*7*/ {eq:"single: min d(a,b)   complete: max d(a,b)   average: mean d(a,b)   Ward: min increase in within-cluster variance", why:"The choice of linkage is the objective function of hierarchical clustering — it defines exactly what 'closest cluster' means at every merge step.", how:"Single linkage can chain together long, thin clusters; complete linkage forces tight, compact clusters; Ward tends to produce the most balanced, K-Means-like clusters.", use:"Ward linkage is the most common general-purpose default; single linkage is useful for detecting elongated, chain-like structures."},
+/*8*/ {eq:"argmax over all splits (A,B) of a cluster:  separation(A,B) − cohesion loss", why:"Divisive clustering must search over an exponential number of possible splits at every step — this is exactly why it's rarely implemented exactly as written.", how:"In practice, a cheap proxy is used instead (e.g. run 2-means on the cluster) rather than literally checking every possible way to split it.", use:"Mostly theoretical, and in some specialized recursive-bisection text-clustering tools."},
+/*9*/ {eq:"N_ε(x) = { y : dist(x,y) ≤ ε }        x is core if |N_ε(x)| ≥ minPts", why:"This pair of definitions is the entire algorithm — cluster growth and noise labeling both follow mechanically from just these two rules.", how:"A cluster is the union of every point reachable through a chain of overlapping ε-neighborhoods, anchored by at least one core point.", use:"These same ε / minPts definitions reappear, generalized across every scale at once, inside HDBSCAN."},
+/*10*/ {eq:"reachability-dist(x) = max( core-dist(x), dist(x, nearest processed point) )", why:"This single quantity lets OPTICS order all points into a plot where valleys correspond to clusters at whatever density they naturally occur, without fixing one global ε.", how:"HDBSCAN builds a hierarchy of these reachability relationships across every scale, then automatically keeps whichever clusters stay stable the longest.", use:"OPTICS reachability plots are a diagnostic analysts read before even choosing a clustering algorithm, to estimate how many density levels exist."},
+/*11*/ {eq:"m(x) = ( Σᵢ K(xᵢ−x)·xᵢ ) / ( Σᵢ K(xᵢ−x) )      then shift:  x ← m(x)", why:"m(x) is the weighted average of nearby points — literally the local center of mass of the density — so repeatedly moving toward it walks uphill toward a density peak.", how:"K is a kernel (usually Gaussian) weighting nearby points more heavily than far ones; iterating this formula is exactly the hill-climbing seen in the animation.", use:"The same mean-shift vector powers object tracking in computer vision (e.g. the classic CamShift algorithm)."},
+/*12*/ {eq:"γᵢₖ = πₖ N(xᵢ|μₖ,Σₖ) / Σⱼ πⱼ N(xᵢ|μⱼ,Σⱼ)", why:"γᵢₖ is literally 'what fraction of point i's probability mass came from cluster k' — that fraction becomes its soft membership weight during the E-step.", how:"Numerator: how well cluster k alone explains this point. Denominator: how well every cluster together explains it. The ratio is a proper probability that sums to 1 across k.", use:"These responsibilities are exactly what `.predict_proba()` returns on a fitted Gaussian Mixture Model."},
+/*13*/ {eq:"f(x) = 1/(σ√2π) · exp( −(x−μ)² / 2σ² )", why:"Derived from requiring a symmetric, bell-shaped curve with area exactly 1 that matches an observed mean and variance — and the Central Limit Theorem is why so much real-world data ends up looking exactly like this.", how:"Read it as: take the distance from the mean (x−μ), square and scale it by the spread, flip it negative, then exponentiate so it decays instead of grows as you move away from μ.", use:"The same formula underlies GMM, Elliptic Envelope, Kalman filters, control charts, and the 68-95-99.7 rule used across statistics."},
+/*14*/ {eq:"L = D − W       solve  Lv = λv,  keep the eigenvectors of the smallest λ's", why:"The smallest eigenvectors of the Laplacian correspond to the 'smoothest' ways to split the graph — mathematically, the cuts separating the fewest, weakest connections.", how:"Each point gets new coordinates from its position in this eigenvector space; clusters tangled in the original space often become simple, separable blobs here.", use:"The same graph-Laplacian eigen-trick underlies image segmentation and community detection in social networks."},
+/*15*/ {eq:"CF = (N, LS, SS)   —   count, linear sum, squared sum", why:"BIRCH never stores raw points, only these three numbers per sub-cluster — enough to exactly compute mean, variance, and merge two sub-clusters, without ever revisiting the original data.", how:"N is how many points; LS is their coordinate sum (gives the mean); SS is the sum of squares (gives the variance) — classic 'sufficient statistics'.", use:"This CF-tree trick is why BIRCH can cluster datasets far too large to fit in memory, in a single pass."},
+/*16*/ {eq:"objective(family) = argmin / argmax over a structure-specific criterion", why:"Every algorithm on this map is ultimately a different choice of what to optimize and what shape of structure to allow — grouping by objective is more useful than grouping by name.", how:"Compare the underlying objective across families to see which assumptions two algorithms actually share, even if their names sound unrelated.", use:"A fast way to guess which algorithm's assumptions match a new dataset, before writing any code."},
+/*17*/ {eq:"silhouette(K) = (1/n) Σᵢ s(i)        elbow: K* ≈ argmax_K curvature(WCSS(K))", why:"Neither curve alone is guaranteed to have one obvious best K — these are heuristics for extracting a recommendation out of an otherwise noisy, monotonic curve.", how:"Look for where WCSS's rate of decrease sharply slows (the 'elbow'), and cross-check against where the average silhouette score peaks.", use:"scikit-learn's `silhouette_score()` and plotting `.inertia_` across K is the standard practical implementation of exactly this."},
+/*18*/ {eq:"s(i) = ( b(i) − a(i) ) / max( a(i), b(i) )", why:"Subtracting cohesion from separation and normalizing by the larger of the two squeezes an unbounded distance comparison into a clean, comparable −1 to 1 range.", how:"a(i) small and b(i) large → s(i) near +1 (great fit). a(i) ≈ b(i) → s(i) near 0 (borderline). a(i) > b(i) → s(i) negative (probably the wrong cluster).", use:"Averaging s(i) across a whole dataset gives the single number typically reported as 'the silhouette score' for a clustering."},
+/*19*/ {eq:"lim_{d→∞}  (dist_max − dist_min) / dist_min → 0", why:"This is a proven mathematical fact about how volume behaves as dimension grows — not just approximate intuition.", how:"As more independent random coordinates are added, the variance in total squared distance shrinks relative to its mean, so all pairwise distances start to look almost equal.", use:"This exact result is the formal justification cited whenever someone says 'reduce dimensionality before using KNN/K-Means on this dataset.'"},
+/*20*/ {eq:"X ≈ f(Z),   Z ∈ ℝᵏ,   k ≪ d", why:"This is the shared assumption behind every dimensionality reduction method in this deck: the true 'story' of the data (Z) needs far fewer numbers than the raw features (X) suggest.", how:"f can be linear (PCA/SVD — a matrix multiply) or nonlinear (t-SNE/UMAP/Isomap — a more complex, often only implicit, mapping).", use:"Compression, visualization, feature engineering, and speeding up any algorithm that scales badly with the number of features."},
+/*21*/ {eq:"maximize  Var(w·X)   subject to  ‖w‖ = 1", why:"Maximizing variance turns out to be mathematically identical to minimizing the total squared reconstruction error if you later project back to the original space.", how:"Read it as: try every possible unit-length direction w, and keep the one where the data, viewed along it, is most spread out.", use:"This exact optimization, solved via eigen-decomposition of the covariance matrix, is what every PCA library call computes."},
+/*22*/ {eq:"explained_ratioₖ = λₖ / Σⱼλⱼ        cumulativeₖ = Σ_{i≤k} λᵢ / Σⱼλⱼ", why:"Since total variance is fixed once the data is fixed, this ratio is simply 'what fraction of the whole pie does this component represent' — a natural, unit-free number.", how:"Sort eigenvalues largest to smallest first; components already come out ordered by how much variance they capture, so cumulating them is a running total.", use:"scikit-learn exposes this directly as `.explained_variance_ratio_`, usually plotted as a scree plot."},
+/*23*/ {eq:"Cov(X) v = λ v", why:"Directions that the covariance matrix only stretches (never rotates) are exactly the directions along which the data's spread is 'pure' and independent of any other direction — precisely what PCA needs to rank.", how:"Cov(X) describes how features move together; v is a candidate direction; λ measures how much variance ends up along that direction once you find it.", use:"Solved via eigen-decomposition (or, more numerically stably, via SVD) in every real PCA implementation."},
+/*24*/ {eq:"Kernel PCA:  K(xᵢ,xⱼ) = φ(xᵢ)·φ(xⱼ)   (φ never computed explicitly)      Sparse PCA:  PCA objective + λ‖w‖₁", why:"The kernel trick lets Kernel PCA behave as if it computed PCA in a huge, even infinite-dimensional, feature space using only pairwise kernel evaluations; Sparse PCA's extra penalty term pushes most loadings to exactly zero.", how:"In Kernel PCA, K(xᵢ,xⱼ) silently replaces every dot product in the PCA math. In Sparse PCA, increasing λ trades some captured variance for a simpler, more interpretable component.", use:"The kernel trick — same idea, same formula shape — also underlies SVMs and Gaussian Processes."},
+/*25*/ {eq:"minimize  KL(P‖Q) = Σ pᵢⱼ log(pᵢⱼ / qᵢⱼ)", why:"Turns 'preserve neighbors' into a concrete optimization: define a probability pᵢⱼ of being neighbors in high-D, a probability qᵢⱼ in low-D, then minimize how different those two distributions are.", how:"qᵢⱼ uses a heavy-tailed Student-t distribution instead of Gaussian, specifically to leave enough room in 2D for moderately distant points — this is what prevents everything crushing into one blob.", use:"This KL-divergence-minimization pattern recurs across ML wherever one distribution needs to mimic another (variational autoencoders, knowledge distillation)."},
+/*26*/ {eq:"d_geo(xᵢ,xⱼ) = shortest path in the k-NN graph, edge weights = local Euclidean distance", why:"Ordinary MDS just needs a distance matrix as input — Isomap's only real contribution is computing a better distance matrix (geodesic, not straight-line) before handing it to classical MDS.", how:"This is exactly Dijkstra's shortest-path algorithm run on a k-nearest-neighbor graph, with edge weights equal to raw Euclidean distance between connected points.", use:"Graph shortest-path distance as a stand-in for 'true' distance also appears throughout network science and routing."},
+/*27*/ {eq:"step 1: min Σᵢ‖xᵢ − Σⱼwᵢⱼxⱼ‖²   (Σⱼwᵢⱼ=1)     step 2: min Σᵢ‖yᵢ − Σⱼwᵢⱼyⱼ‖²  over y", why:"Step 1 finds the best local linear description of each point using its neighbors; step 2 finds low-D coordinates that make that exact same description still true — this is the leap that 'unfolds' the manifold.", how:"Step 1 is solved with simple linear least-squares per point; step 2 is solved via an eigen-decomposition, similar in spirit to spectral clustering's Laplacian eigenproblem.", use:"This 'fit locally, then embed globally' two-stage pattern also appears in modern graph and network embedding methods."},
+/*28*/ {eq:"minimize  stress = Σ_{i<j} ( dᵢⱼ − ‖yᵢ − yⱼ‖ )²", why:"'Stress' is simply the total squared mismatch between the real, given distances and the distances in a proposed low-D layout — minimizing it directly optimizes for geometric faithfulness.", how:"Classical MDS solves this in closed form via eigen-decomposition; iterative versions nudge points a little at a time (like a spring relaxing) to gradually reduce stress.", use:"The same stress-minimization idea, generalized, is the mathematical basis of force-directed graph layout algorithms used to draw network diagrams."},
+/*29*/ {eq:"X = UΣVᵀ  (SVD)          X = ΛF + ε,  ε ~ N(0,ψ)  (Factor Analysis)", why:"SVD is an exact algebraic identity true for any matrix; Factor Analysis is instead a probabilistic model of how the data was generated, including per-feature noise ψ, so it must be fit rather than simply computed.", how:"In Factor Analysis, loadings Λ map a few shared factors F onto every observed feature, while ψᵢ absorbs whatever variance is unique to feature i alone.", use:"SVD's exactness makes it the numerically preferred way to actually compute PCA in most libraries, even though PCA is usually explained via the covariance matrix."},
+/*30*/ {eq:"if X ⊆ Y and Y is frequent, then X is frequent   (used in reverse to prune)", why:"This one monotonicity property lets Apriori skip checking the vast majority of possible itemsets — without it you'd have to test every one of the 2ⁿ possible subsets of items.", how:"Candidates are only built by extending itemsets that survived the previous round's frequency check; infrequent itemsets are pruned immediately and never extended further.", use:"This exact anti-monotonicity pruning idea is reused, in different disguises, inside both FP-Growth and ECLAT."},
+/*31*/ {eq:"X = UΣVᵀ", why:"Every matrix, however complex, factors uniquely into an orthogonal rotation, a diagonal stretch, and another orthogonal rotation — geometry, not algebra, is the real content here.", how:"Trace it right to left: Vᵀ rotates first, Σ stretches next, U rotates last — exactly the three-step animation.", use:"This decomposition underlies PCA, image compression, recommender systems, noise reduction, and robust least-squares solving."},
+/*32*/ {eq:"no closed-form equation — build the FP-tree once (O(n)), then recurse over conditional pattern bases", why:"There's no single formula here because FP-Growth's advantage is entirely about data structure and search strategy, not a different mathematical objective than Apriori's.", how:"For each item, collect every tree path reaching it (its conditional pattern base), then treat that as a smaller mining sub-problem, recursively.", use:"This recursive divide-and-conquer pattern — mine a compressed structure, then recurse into smaller sub-problems — is a common speed-up strategy across data mining generally."},
+/*33*/ {eq:"support(X) = |TID(X)| / N       TID(X∪{i}) = TID(X) ∩ TID({i})", why:"Since support is purely about how many baskets contain an itemset, and basket-ID sets combine by intersection when adding an item, counting becomes pure set arithmetic — no re-reading of transactions needed.", how:"TID(X) is the list of basket IDs containing itemset X; intersecting two TID lists directly gives you the TID list (and hence the support) of their combined itemset.", use:"Vertical/TID-list representations like this also power extremely fast filtering inside bitmap-indexed databases."},
+/*34*/ {eq:"support(A)=count(A)/N     confidence(A→B)=support(A∪B)/support(A)     lift(A→B)=confidence(A→B)/support(B)", why:"Confidence alone is misleading whenever B is simply popular on its own; dividing by support(B) — giving lift — corrects for that baseline popularity.", how:"Support filters for 'common enough to matter'; confidence measures 'reliable enough to act on'; lift measures 'actually related, not just coincidentally frequent'.", use:"Recommendation engines typically rank candidate rules by lift (or a similar corrected metric), not raw confidence, to avoid always recommending best-sellers."},
+/*35*/ {eq:"s(x,n) = 2^(−E(h(x))/c(n)),     c(n) = 2H(n−1) − 2(n−1)/n", why:"E(h(x)) is the average path length needed to isolate x across all trees; c(n) is the expected path length for a normal point, used purely to normalize the score into a clean 0–1 range.", how:"Short average path length → score near 1 (anomaly). Path length near c(n) → score near 0.5 (normal). Much longer than average → score near 0 (deeply embedded, extremely normal).", use:"scikit-learn's `IsolationForest.decision_function()` returns a value derived directly from this exact formula."},
+/*36*/ {eq:"minimize (1/2)‖w‖² + (1/νn)Σξᵢ − ρ,   subject to  w·φ(xᵢ) ≥ ρ − ξᵢ", why:"This asks for the hyperplane, in kernel feature space, as far from the origin as possible (maximizing ρ) while still keeping most points on the correct side — ν directly controls the allowed violation fraction.", how:"ξᵢ are 'slack' variables letting a small, ν-controlled fraction of points sit on the wrong side without breaking the optimization; φ(x) is the (often implicit) kernel feature mapping.", use:"Exactly the same margin-maximization machinery as a standard two-class SVM, just applied against the origin instead of against a second class."},
+/*37*/ {eq:"LOF_k(x) = ( Σ_{y∈N_k(x)} lrd(y)/lrd(x) ) / |N_k(x)|", why:"Dividing x's own local density by the average local density of its neighbors directly answers 'is this point in a normal or unusually sparse spot relative to its neighborhood' — sensitive to local, not just global, outliers.", how:"lrd (local reachability density) is roughly the inverse of the average distance to a point's neighbors — dense neighborhoods have high lrd, sparse ones have low lrd.", use:"scikit-learn's `LocalOutlierFactor.negative_outlier_factor_` is a direct (negated) implementation of this exact ratio."},
+/*38*/ {eq:"D²(x) = (x−μ̂)ᵀ Σ̂⁻¹ (x−μ̂),   flag if D² > χ²_{d,1−α}", why:"Since D² follows a known chi-squared distribution when the data really is Gaussian, this gives a statistically principled cutoff — not an arbitrary threshold — for how far is 'too far'.", how:"μ̂ and Σ̂ come from the robust MCD estimator (not the ordinary sample mean/covariance), so the outliers being detected can't influence the very boundary meant to catch them.", use:"This same chi-squared cutoff logic underlies statistical process-control charts used in manufacturing quality assurance."},
+/*39*/ {eq:"D(x) = √( (x−μ)ᵀ Σ⁻¹ (x−μ) )", why:"Ordinary distance treats every direction as equally likely; multiplying by the inverse covariance rescales each direction by how much the data actually varies along it, before measuring distance.", how:"If Σ is the identity matrix (uncorrelated, equal-variance features), this collapses to plain Euclidean distance — Mahalanobis is a strict generalization, not a different idea.", use:"Any anomaly-detection method assuming roughly Gaussian data leans on this exact distance instead of Euclidean distance."},
+/*40*/ {eq:"f̂(x) = (1/nh) Σᵢ K( (x−xᵢ)/h )", why:"Each term is a tiny, normalized 'bump' of probability centered on one data point; summing and averaging all n of them builds a density estimate without ever assuming a fixed number of clusters or a fixed shape.", how:"h (bandwidth) rescales how wide each bump is before summing — it's the single most important tuning parameter, far more than which kernel K you choose.", use:"The same weighted-local-average pattern reappears, generalized, in kernel regression and in Mean Shift's climbing formula earlier in this deck."},
+/*41*/ {eq:"θ_d~Dir(α),  φ_k~Dir(β),  z_{d,n}~Cat(θ_d),  w_{d,n}~Cat(φ_{z})", why:"Writing down this exact generative story is what lets us mathematically work backwards — via Bayesian inference — from the observed words to the most probable hidden topic mixtures.", how:"Read top to bottom: pick a topic mixture θ_d for a document, then for every word slot pick a topic z from that mixture, then pick an actual word from that topic's word distribution φ.", use:"This 'Dirichlet prior over a categorical distribution' pattern is a standard building block across Bayesian machine learning generally, not unique to text."},
+/*42*/ {eq:"X ≈ U_kΣ_kV_kᵀ   (the same SVD, applied to a term-document matrix)", why:"There's no new math here — LSA's entire contribution is choosing what matrix to run SVD on (word counts, often TF-IDF weighted) and how to interpret the resulting U/V.", how:"Rows of U_k give each word a topic-vector; rows of V_k give each document a topic-vector; similar vectors mean semantically similar words or documents.", use:"Cosine similarity between rows of V_k is the classic way LSA measures document similarity — reusing the exact metric from the distance-metrics slide."},
+/*43*/ {eq:"minimize ‖X − WH‖²_F     subject to  W ≥ 0, H ≥ 0", why:"Adding the non-negativity constraint forces the factorization to build documents/topics purely by adding non-negative parts together, never cancelling — this is exactly what makes NMF's topics read as clean, additive word lists.", how:"Solved iteratively via multiplicative update rules that are mathematically guaranteed to never push a value below zero, unlike a naive gradient step.", use:"The same non-negative, parts-based factorization is used for extracting interpretable facial features from images in classic computer vision research."},
+/*44*/ {eq:"argmin Σ loss( data , simplified structure )   — one shape, many families", why:"Seeing every technique in this deck as 'minimize a mismatch between raw data and some proposed simpler structure' is the single unifying idea that makes 45 seemingly different algorithms feel like variations on one theme.", how:"For any new algorithm you meet, ask: what's its structure (clusters? axes? rules? a boundary? a density? topics?) and what's its mismatch (distance? variance? support? path length? density ratio? KL-divergence?).", use:"This is exactly the kind of first-principles thinking Feynman championed — reduce something complex to the simplest form that still explains it."},
+];
+
+/* =========================================================================
+   PLAYER
+   ========================================================================= */
+const stage = document.getElementById('stage');
+const mainG = E('g', {}, stage);
+const stageWrapEl = document.getElementById('stageWrap');
+const theoryPanel = document.getElementById('theoryPanel');
+const theoryToggle = document.getElementById('theoryToggle');
+const theoryInnerEl = document.getElementById('theoryInner');
+let idx = 0;
+let panelOpen = true;
+
+function fitStage(){
+  const w = Math.max(stageWrapEl.clientWidth - 20, 40);
+  const h = Math.max(stageWrapEl.clientHeight - 20, 40);
+  let sw, sh;
+  if(w/h > 16/9){ sh = h; sw = h*16/9; } else { sw = w; sh = w*9/16; }
+  stage.style.width = sw+'px';
+  stage.style.height = sh+'px';
+}
+window.addEventListener('resize', fitStage);
+if(window.ResizeObserver) new ResizeObserver(fitStage).observe(stageWrapEl);
+
+function setPanel(open){
+  panelOpen = open;
+  theoryPanel.classList.toggle('collapsed', !open);
+  theoryToggle.classList.toggle('open', open);
+  let n=0; const id=setInterval(()=>{ fitStage(); n++; if(n>16) clearInterval(id); }, 20);
+}
+theoryToggle.addEventListener('click', ()=> setPanel(!panelOpen));
+
+function setTab(tab){
+  const isTheory = tab==='theory';
+  document.getElementById('tabTheoryBtn').classList.toggle('active', isTheory);
+  document.getElementById('tabMathBtn').classList.toggle('active', !isTheory);
+  document.getElementById('paneTheory').style.display = isTheory? '' : 'none';
+  document.getElementById('paneMath').style.display = isTheory? 'none' : '';
+  theoryInnerEl.scrollTop = 0;
+}
+document.getElementById('tabTheoryBtn').addEventListener('click', ()=> setTab('theory'));
+document.getElementById('tabMathBtn').addEventListener('click', ()=> setTab('math'));
+
+function renderPanel(i){
+  const th = THEORY[i] || THEORY[THEORY.length-1];
+  const mt = MATH[i] || MATH[MATH.length-1];
+  document.getElementById('thKicker').textContent = th.kicker;
+  document.getElementById('thTitle').textContent = th.title;
+  document.getElementById('thDef').textContent = th.def;
+  const ul = document.getElementById('thPoints'); ul.innerHTML='';
+  th.points.forEach(p=>{ const li=document.createElement('li'); li.textContent=p; ul.appendChild(li); });
+  document.getElementById('thUse').textContent = th.use;
+  document.getElementById('thWarn').textContent = th.warn;
+
+  document.getElementById('mEq').textContent = mt.eq;
+  document.getElementById('mWhy').textContent = mt.why;
+  document.getElementById('mHow').textContent = mt.how;
+  document.getElementById('mUse').textContent = mt.use;
+}
+
+function updateChrome(){
+  document.getElementById('counter').textContent = String(idx+1).padStart(2,'0') + ' / ' + SLIDES.length;
+  document.getElementById('slideLabel').textContent = SLIDES[idx].label;
+  document.getElementById('barFill').style.width = ((idx+1)/SLIDES.length*100) + '%';
+  document.getElementById('prevBtn').style.opacity = idx===0 ? 0.35 : 1;
+  document.getElementById('nextBtn').style.opacity = idx===SLIDES.length-1 ? 0.35 : 1;
+  renderPanel(idx);
+}
+
+function goTo(i, replay){
+  if(i<0 || i>=SLIDES.length) return;
+  if(i===idx && !replay) return;
+  idx=i;
+  CURRENT_TOKEN++;
+  clear(mainG);
+  updateChrome();
+  Promise.resolve().then(()=> SLIDES[idx].build(mainG)).catch(err=> console.error(err));
+}
+
+document.getElementById('nextBtn').addEventListener('click', ()=> goTo(idx+1));
+document.getElementById('prevBtn').addEventListener('click', ()=> goTo(idx-1));
+document.getElementById('replayBtn').addEventListener('click', ()=> goTo(idx, true));
+
+window.addEventListener('keydown', (e)=>{
+  if(e.key==='ArrowRight' || e.key===' '){ e.preventDefault(); goTo(idx+1); }
+  else if(e.key==='ArrowLeft'){ e.preventDefault(); goTo(idx-1); }
+  else if(e.key==='r' || e.key==='R'){ goTo(idx, true); }
+  else if(e.key==='t' || e.key==='T'){ setPanel(!panelOpen); }
+});
+
+fitStage();
+goTo(0, true);
+</script>
+</body>
+</html>

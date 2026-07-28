@@ -1,0 +1,1237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>The Math Behind Unsupervised Learning — First Principles</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0b0d; --panel:#12151a; --grid:#1c2026; --grid2:#242932;
+    --text:#eef1f3; --dim:#8b93a1; --dim2:#565f6c;
+    --blue:#6fa8dc; --amber:#d9a066; --rose:#c97b91; --green:#7fb88f; --violet:#9a8fc4; --red:#c9706f; --gray:#556070;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;background:var(--bg);overflow:hidden;font-family:'Inter',sans-serif;-webkit-font-smoothing:antialiased;}
+  #app{position:fixed;inset:0;display:flex;flex-direction:column;}
+  #stageWrap{position:relative;flex:1;display:flex;align-items:center;justify-content:center;padding:10px 10px 64px;}
+  svg#stage{width:100%;height:100%;max-width:calc((100vh - 74px) * 16 / 9);max-height:calc(100vw * 9 / 16);display:block;background:
+    radial-gradient(ellipse at 20% 10%, rgba(154,142,196,0.06), transparent 55%),
+    radial-gradient(ellipse at 85% 90%, rgba(111,168,220,0.05), transparent 55%),
+    var(--bg);
+    border-radius:6px;}
+  .brand{position:fixed;top:18px;left:24px;display:flex;align-items:center;gap:9px;color:var(--dim2);font-size:11px;letter-spacing:2.5px;font-weight:600;z-index:5;user-select:none;}
+  .brand .dotwrap{width:14px;height:14px;position:relative;}
+  .brand .dotwrap .p{position:absolute;width:4px;height:4px;border-radius:50%;background:var(--violet);top:0;left:5px;animation:orbit 4s linear infinite;transform-origin:2px 7px;}
+  @keyframes orbit{ from{transform:rotate(0deg);} to{transform:rotate(360deg);} }
+  #chrome{position:fixed;left:0;right:0;bottom:0;height:64px;display:flex;align-items:center;gap:18px;padding:0 26px;z-index:5;
+    background:linear-gradient(to top, rgba(0,0,0,0.75), rgba(0,0,0,0));}
+  .navbtn{width:34px;height:34px;border-radius:50%;border:1px solid #2a2f38;background:#14171c;color:var(--dim);
+    display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s ease;flex:0 0 auto;}
+  .navbtn:hover{border-color:var(--violet);color:var(--text);background:#171c22;}
+  .navbtn svg{width:14px;height:14px;}
+  .navbtn.replay svg{width:13px;height:13px;}
+  #barTrack{flex:1;height:2px;background:var(--grid);border-radius:2px;position:relative;overflow:hidden;}
+  #barFill{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,var(--violet),var(--blue));width:0%;transition:width .35s ease;}
+  #counter{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--dim2);letter-spacing:1px;min-width:64px;text-align:right;}
+  #slideLabel{font-family:'Inter',sans-serif;font-size:12px;color:var(--dim);min-width:220px;letter-spacing:.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .hint{position:fixed;top:18px;right:24px;font-size:11px;color:var(--dim2);letter-spacing:1px;z-index:5;font-family:'JetBrains Mono',monospace;}
+  ::selection{background:rgba(154,142,196,.25);}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="brand"><span class="dotwrap"><span class="p"></span></span>MATH FROM FIRST PRINCIPLES</div>
+  <div class="hint" id="hint">← →  navigate  ·  R replay</div>
+  <div id="stageWrap">
+    <svg id="stage" viewBox="0 0 1280 720" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
+  <div id="chrome">
+    <button class="navbtn" id="prevBtn" title="Previous (←)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+    <button class="navbtn replay" id="replayBtn" title="Replay animation (R)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 .49-9.5L1 10"/></svg></button>
+    <div id="slideLabel"></div>
+    <div id="barTrack"><div id="barFill"></div></div>
+    <div id="counter"></div>
+    <button class="navbtn" id="nextBtn" title="Next (→)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></button>
+  </div>
+</div>
+
+<script>
+/* =========================================================================
+   ENGINE  (same core used across the deck series)
+   ========================================================================= */
+const SVGNS = "http://www.w3.org/2000/svg";
+const REDUCED = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const C = {
+  bg:'#0a0b0d', panel:'#12151a', grid:'#1c2026', grid2:'#242932',
+  text:'#eef1f3', dim:'#8b93a1', dim2:'#5b6472',
+  blue:'#6fa8dc', amber:'#d9a066', rose:'#c97b91', green:'#7fb88f', violet:'#9a8fc4', red:'#c9706f', gray:'#556070'
+};
+const PALETTE = [C.blue, C.amber, C.rose, C.green, C.violet, C.red];
+
+function E(tag, attrs={}, parent){
+  const el = document.createElementNS(SVGNS, tag);
+  for (const k in attrs) if(attrs[k]!==undefined) el.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(el);
+  return el;
+}
+function clear(el){ while(el.firstChild) el.removeChild(el.firstChild); }
+
+const Ease = {
+  linear: t=>t,
+  outCubic: t=>1-Math.pow(1-t,3),
+  inCubic: t=>t*t*t,
+  inOutCubic: t=> t<0.5 ? 4*t*t*t : 1-Math.pow(-2*t+2,3)/2,
+  outQuad: t=>1-(1-t)*(1-t),
+  outBack: t=>{const c1=1.70158,c3=c1+1; return 1+c3*Math.pow(t-1,3)+c1*Math.pow(t-1,2);},
+  outElastic: t=>{const c4=(2*Math.PI)/3.4; return t===0?0:t===1?1:Math.pow(2,-9*t)*Math.sin((t*10-0.75)*c4)+1;}
+};
+
+let CURRENT_TOKEN = 0;
+
+function animate(opts){
+  const {delay=0, easing=Ease.inOutCubic, onUpdate, onComplete} = opts;
+  const duration = REDUCED ? 1 : (opts.duration || 700);
+  const token = CURRENT_TOKEN;
+  return new Promise(resolve=>{
+    setTimeout(()=>{
+      if(token!==CURRENT_TOKEN) return resolve();
+      let start=null;
+      function frame(ts){
+        if(token!==CURRENT_TOKEN) return resolve();
+        if(start===null) start=ts;
+        const t=Math.min((ts-start)/duration,1);
+        onUpdate(easing(t));
+        if(t<1){ requestAnimationFrame(frame); } else { onComplete&&onComplete(); resolve(); }
+      }
+      requestAnimationFrame(frame);
+    }, REDUCED?0:delay);
+  });
+}
+function wait(ms){ return new Promise(resolve=> setTimeout(resolve, REDUCED?0:ms)); }
+
+function tweenAttr(el, to, opts={}){
+  const from={};
+  for(const k in to) from[k]=parseFloat(el.getAttribute(k))||0;
+  return animate({...opts, onUpdate:(t)=>{ for(const k in to) el.setAttribute(k, (from[k]+(to[k]-from[k])*t).toFixed(3)); }});
+}
+function fadeIn(el, opts={}){ el.setAttribute('opacity',0); return tweenAttr(el,{opacity:1}, opts); }
+function fadeOut(el, opts={}){ return tweenAttr(el,{opacity:0}, opts); }
+
+function riseInY(el, attrY, opts={}){
+  const target = parseFloat(el.getAttribute(attrY));
+  const dy = opts.dy ?? 14;
+  el.setAttribute(attrY, target+dy);
+  el.setAttribute('opacity',0);
+  return animate({...opts, onUpdate:(t)=>{
+    el.setAttribute(attrY, target+dy*(1-t));
+    el.setAttribute('opacity', (opts.maxOpacity??1)*t);
+  }});
+}
+
+function drawOn(el, opts={}){
+  let len=140;
+  try{ len = el.getTotalLength(); }catch(e){}
+  el.setAttribute('stroke-dasharray', len);
+  el.setAttribute('stroke-dashoffset', len);
+  el.setAttribute('opacity', opts.opacity ?? 1);
+  return tweenAttr(el, {'stroke-dashoffset':0}, opts);
+}
+
+function moveXY(el, ax, ay, x1, y1, opts={}){
+  const x0=parseFloat(el.getAttribute(ax)), y0=parseFloat(el.getAttribute(ay));
+  return animate({...opts, onUpdate:(t)=>{
+    el.setAttribute(ax, (x0+(x1-x0)*t).toFixed(2));
+    el.setAttribute(ay, (y0+(y1-y0)*t).toFixed(2));
+  }});
+}
+
+function pseudo(n){ const x=Math.sin(n*12.9898)*43758.5453123; return x-Math.floor(x); }
+
+function T(parent, x, y, str, opts={}){
+  const t = E('text', {x, y, fill: opts.fill||C.text, 'font-family': opts.font||"'Inter',sans-serif",
+    'font-size': opts.size||18, 'font-weight': opts.weight||400, 'letter-spacing': opts.ls||'0px',
+    'text-anchor': opts.anchor||'start', 'font-style': opts.italic?'italic':'normal'}, parent);
+  t.textContent = str;
+  return t;
+}
+
+/* mathLine: builds a styled equation from parts; returns the <text> el with
+   el.parts[i] = the tspan for parts[i], so callers can highlight a specific term. */
+function mathLine(parent, x, y, parts, opts={}){
+  const g = E('text', {x,y, fill:opts.fill||C.text, 'font-family':"'Fraunces',Georgia,serif", 'font-size':opts.size||24, 'font-style':'italic', 'text-anchor':opts.anchor||'start'}, parent);
+  const tspans=[];
+  parts.forEach(p=>{
+    const ts = E('tspan', {}, g);
+    ts.textContent = p.s;
+    if(p.t==='sub'){ ts.setAttribute('baseline-shift','-28%'); ts.setAttribute('font-size','66%'); ts.setAttribute('font-style','italic'); }
+    else if(p.t==='sup'){ ts.setAttribute('baseline-shift','42%'); ts.setAttribute('font-size','62%'); ts.setAttribute('font-style','italic'); }
+    else if(p.t==='rm'){ ts.setAttribute('font-style','normal'); }
+    else if(p.t==='dim'){ ts.setAttribute('fill',C.dim); ts.setAttribute('font-style','normal'); ts.setAttribute('font-family',"'Inter',sans-serif"); }
+    if(p.fill) ts.setAttribute('fill', p.fill);
+    tspans.push(ts);
+  });
+  g.parts = tspans;
+  return g;
+}
+
+function boxHighlight(el, color, pad){
+  pad = pad ?? 7;
+  let b;
+  try{ b = el.getBBox(); }catch(e){ b = {x:0,y:-14,width:20,height:18}; }
+  const r = E('rect', {x:b.x-pad, y:b.y-pad, width:b.width+2*pad, height:b.height+2*pad, rx:7,
+    fill:'none', stroke:color, 'stroke-width':2, opacity:0}, el.parentNode);
+  return r;
+}
+async function flash(el, color, opts={}){
+  const r = boxHighlight(el, color, opts.pad);
+  await tweenAttr(r, {opacity:.9}, {duration:250});
+  if(opts.hold!==0) await wait(opts.hold ?? 550);
+  if(opts.keep) return r;
+  await fadeOut(r, {duration:250});
+  r.remove();
+  return null;
+}
+
+async function header(g, kicker, title){
+  const k = T(g, 90, 62, kicker.toUpperCase(), {fill:C.dim2, size:12.5, weight:600, ls:'2.6px'});
+  const ti = T(g, 88, 108, title, {fill:C.text, size:36, weight:600, font:"'Fraunces',serif"});
+  const rule = E('line', {x1:90,y1:130,x2:90,y2:130, stroke:C.violet, 'stroke-width':3, 'stroke-linecap':'round', opacity:.85}, g);
+  fadeIn(k,{duration:380});
+  await riseInY(ti,'y',{duration:520, dy:16, easing:Ease.outCubic});
+  await tweenAttr(rule, {x2:154}, {duration:420, easing:Ease.outCubic});
+}
+function caption(g, x, y, str, opts={}){ return T(g, x, y, str, {fill:C.dim, size:15.5, ...opts}); }
+function note(g, x, y, str, opts={}){ return T(g, x, y, str, {fill:C.dim2, size:13, italic:true, ...opts}); }
+function footnote(g, x, y, str){
+  const t = E('text', {x,y, fill:C.dim2, 'font-family':"'Inter',sans-serif",'font-size':13.5}, g);
+  t.textContent = str; return t;
+}
+function stepTag(g, x, y, n, color){
+  const grp = E('g', {opacity:0}, g);
+  E('circle', {cx:x, cy:y-6, r:11, fill:'none', stroke:color, 'stroke-width':1.6}, grp);
+  T(grp, x, y-1, String(n), {fill:color, size:12.5, weight:700, anchor:'middle', font:"'JetBrains Mono',monospace"});
+  return grp;
+}
+
+/* shape helpers ---------------------------------------------------------- */
+function dot(parent, x, y, r, color, opts={}){
+  return E('circle', {cx:x, cy:y, r, fill:color, opacity:opts.opacity??0, stroke:opts.stroke||'none', 'stroke-width':opts.sw||0}, parent);
+}
+function ring(parent, x, y, r, color, opts={}){
+  return E('circle', {cx:x, cy:y, r, fill:'none', stroke:color, 'stroke-width':opts.sw||1.4, opacity:opts.opacity??0, 'stroke-dasharray':opts.dash||''}, parent);
+}
+function panel(parent, x, y, w, h, opts={}){
+  return E('rect', {x,y,width:w,height:h, rx:opts.rx??12, fill:opts.fill||C.panel, stroke:opts.stroke||C.grid, 'stroke-width':opts.sw||1, opacity:opts.opacity??0}, parent);
+}
+function arrow(parent, x1,y1,x2,y2, color, opts={}){
+  const g = E('g', {opacity:opts.opacity??1}, parent);
+  E('line', {x1,y1,x2,y2, stroke:color, 'stroke-width':opts.sw||1.8}, g);
+  const ang = Math.atan2(y2-y1, x2-x1);
+  const ah = 8;
+  const p1 = [x2-ah*Math.cos(ang-0.4), y2-ah*Math.sin(ang-0.4)];
+  const p2 = [x2-ah*Math.cos(ang+0.4), y2-ah*Math.sin(ang+0.4)];
+  E('path', {d:`M ${x2} ${y2} L ${p1[0]} ${p1[1]} M ${x2} ${y2} L ${p2[0]} ${p2[1]}`, stroke:color, 'stroke-width':opts.sw||1.8, 'stroke-linecap':'round'}, g);
+  return g;
+}
+function scatterBlob(cx, cy, n, spread, seed=0){
+  const pts=[];
+  for(let i=0;i<n;i++){
+    const a = pseudo(i*1.37+seed)*Math.PI*2;
+    const r = spread*Math.sqrt(pseudo(i*7.13+seed+1));
+    pts.push([cx+Math.cos(a)*r, cy+Math.sin(a)*r*0.82]);
+  }
+  return pts;
+}
+function mean(pts){ let sx=0,sy=0; pts.forEach(p=>{sx+=p[0];sy+=p[1];}); return [sx/pts.length, sy/pts.length]; }
+function dist(a,b){ return Math.hypot(a[0]-b[0], a[1]-b[1]); }
+
+/* =========================================================================
+   SLIDES
+   ========================================================================= */
+const SLIDES = [];
+
+/* ---------- 1. TITLE ---------- */
+SLIDES.push({ label:"Title", async build(g){
+  const eyebrow = T(g, 640, 210, "FOR BEGINNERS · EVERY FORMULA DERIVED, NOT JUST STATED", {fill:C.dim2, size:13, weight:600, ls:'2.6px', anchor:'middle'});
+  fadeIn(eyebrow, {duration:500});
+
+  const t1 = T(g, 640, 300, "The Math Behind", {fill:C.text, size:56, weight:600, font:"'Fraunces',serif", anchor:'middle'});
+  const t2 = T(g, 640, 372, "Unsupervised Learning", {fill:C.violet, size:56, weight:600, font:"'Fraunces',serif", anchor:'middle', italic:true});
+  await riseInY(t1,'y',{duration:600, dy:20, easing:Ease.outCubic});
+  await riseInY(t2,'y',{duration:600, dy:20, easing:Ease.outCubic, delay:60});
+
+  const sub = T(g, 640, 415, "Built from first principles — one algebra step at a time.", {fill:C.dim, size:17, anchor:'middle'});
+  fadeIn(sub, {duration:600, delay:150});
+  await wait(500);
+
+  // small live demo: a parabola with a ball settling at the minimum — teaser for the whole deck's method
+  const ax0=440, ax1=840, ay=560, amp=110;
+  E('line', {x1:ax0, y1:ay, x2:ax1, y2:ay, stroke:C.grid2, 'stroke-width':1.2}, g);
+  const N=60; let d='M '+ax0+' '+ay;
+  for(let i=1;i<=N;i++){
+    const t=i/N, x=ax0+t*(ax1-ax0);
+    const xn=(t-0.5)*2;
+    const y=ay-amp*(1-xn*xn);
+    d+= ' L '+x+' '+y;
+  }
+  const curve = E('path', {d, fill:'none', stroke:C.violet, 'stroke-width':2, opacity:0}, g);
+  await tweenAttr(curve, {opacity:.85}, {duration:300});
+  await drawOn(curve, {duration:700, easing:Ease.outCubic});
+  const ball = dot(g, ax0, ay, 7, C.amber, {opacity:1});
+  const cx=(ax0+ax1)/2;
+  await moveXY(ball, 'cx','cy', ax0+30, ay-14, {duration:1});
+  await animate({duration:1100, easing:Ease.outElastic, onUpdate:(t)=>{
+    const x = ax0+30 + (cx-30-ax0)*t;
+    const xn = ((x-ax0)/(ax1-ax0)-0.5)*2;
+    const y = ay-amp*(1-xn*xn);
+    ball.setAttribute('cx', x); ball.setAttribute('cy', y);
+  }});
+  note(g, cx, ay+40, "minimum = where the slope is exactly zero — the idea behind almost everything ahead", {anchor:'middle', size:13});
+}});
+
+/* ---------- 2. WHAT IS A DATA POINT ---------- */
+SLIDES.push({ label:"What is a data point?", async build(g){
+  await header(g, "Building block 1", "What is a Data Point?");
+  await wait(80);
+
+  const ox=320, oy=520, scale=60;
+  E('line', {x1:ox-40, y1:oy, x2:ox+360, y2:oy, stroke:C.grid2, 'stroke-width':1.2}, g);
+  E('line', {x1:ox, y1:oy+40, x2:ox, y2:oy-320, stroke:C.grid2, 'stroke-width':1.2}, g);
+  T(g, ox+368, oy+5, "x₁", {fill:C.dim2, size:14, italic:true});
+  T(g, ox-14, oy-330, "x₂", {fill:C.dim2, size:14, italic:true});
+
+  const px=3, py=4;
+  const line = E('line', {x1:ox, y1:oy, x2:ox, y2:oy, stroke:C.blue, 'stroke-width':2.4, opacity:.95}, g);
+  const head = E('path', {d:'M 0 0', fill:C.blue, opacity:0}, g);
+  await animate({duration:700, easing:Ease.outCubic, onUpdate:(t)=>{
+    const x = ox+px*scale*t, y = oy-py*scale*t;
+    line.setAttribute('x2', x); line.setAttribute('y2', y);
+  }});
+  const ang = Math.atan2(-py, px);
+  const hx=ox+px*scale, hy=oy-py*scale, ah=9;
+  head.setAttribute('d', `M ${hx} ${hy} L ${hx-ah*Math.cos(ang-0.4)} ${hy-ah*Math.sin(ang-0.4)} L ${hx-ah*Math.cos(ang+0.4)} ${hy-ah*Math.sin(ang+0.4)} Z`);
+  await fadeIn(head, {duration:200});
+
+  const ptDot = dot(g, hx, hy, 5.5, C.blue, {opacity:1});
+  const tag = T(g, hx+14, hy-6, "(3, 4)", {fill:C.blue, size:15, font:"'JetBrains Mono',monospace"});
+  fadeIn(tag, {duration:300});
+  await wait(400);
+
+  const rows = [
+    [90, 300, "A data point is just a list of numbers.", C.text],
+    [90, 336, "In 2D, that list has 2 numbers: (x₁, x₂) — like the arrow you just saw.", C.dim],
+    [90, 372, "In 100 dimensions, it's a list of 100 numbers. Same idea, more numbers.", C.dim],
+    [90, 408, "Every formula in this deck works exactly the same way, however many numbers x has.", C.dim],
+  ];
+  for (const [x,y,str,fill] of rows){
+    const t = T(g, x, y, str, {fill, size: fill===C.text?19:16});
+    await riseInY(t, 'y', {duration:420, dy:14, easing:Ease.outCubic});
+    await wait(150);
+  }
+
+  const eq = mathLine(g, 90, 500, [
+    {t:'rm', s:'x = ('}, {s:'x'}, {t:'sub', s:'1'}, {t:'rm', s:', '}, {s:'x'}, {t:'sub', s:'2'}, {t:'rm', s:', … , '}, {s:'x'}, {t:'sub', s:'n'}, {t:'rm', s:')'}
+  ], {size:26, fill:C.violet});
+  await fadeIn(eq, {duration:500});
+  note(g, 90, 528, "just a compact way to write 'a list of n numbers' — nothing more mysterious than that.");
+}});
+
+/* ---------- 3. PYTHAGOREAN THEOREM -> DISTANCE ---------- */
+SLIDES.push({ label:"Pythagorean theorem → distance", async build(g){
+  await header(g, "Building block 2", "Measuring Distance");
+  await wait(80);
+
+  const ax=180, ay=560, bx=460, by=560, cx=460, cy=320;
+  // right triangle
+  const l1 = E('line', {x1:ax,y1:ay,x2:ax,y2:ay, stroke:C.text, 'stroke-width':2}, g);
+  const l2 = E('line', {x1:bx,y1:by,x2:bx,y2:by, stroke:C.text, 'stroke-width':2}, g);
+  const l3 = E('line', {x1:ax,y1:ay,x2:ax,y2:ay, stroke:C.amber, 'stroke-width':2.4}, g);
+  await tweenAttr(l1, {x2:bx,y2:by}, {duration:450});
+  await tweenAttr(l2, {x2:cx,y2:cy}, {duration:450});
+  await tweenAttr(l3, {x2:cx,y2:cy}, {duration:550});
+  E('path', {d:`M ${bx-16} ${by} L ${bx-16} ${by-16} L ${bx} ${by-16}`, fill:'none', stroke:C.dim2, 'stroke-width':1.4}, g);
+  T(g, (ax+bx)/2, ay+26, "a", {fill:C.dim, size:16, italic:true, anchor:'middle'});
+  T(g, bx+16, (by+cy)/2, "b", {fill:C.dim, size:16, italic:true, anchor:'middle'});
+  T(g, (ax+cx)/2-22, (ay+cy)/2-14, "c", {fill:C.amber, size:17, italic:true, anchor:'middle'});
+  await wait(400);
+
+  // squares on each side (classic visual proof motif)
+  const sq1 = E('rect', {x:ax, y:ay, width:bx-ax, height:36, fill:C.blue, 'fill-opacity':0.18, stroke:C.blue, 'stroke-width':1.2, opacity:0}, g);
+  const sq2 = E('rect', {x:bx, y:cy, width:36, height:by-cy, fill:C.rose, 'fill-opacity':0.18, stroke:C.rose, 'stroke-width':1.2, opacity:0}, g);
+  await Promise.all([tweenAttr(sq1,{opacity:1},{duration:350}), tweenAttr(sq2,{opacity:1},{duration:350})]);
+  await wait(500);
+
+  caption(g, 700, 220, "Pythagorean theorem:", {size:14.5, fill:C.dim2});
+  const pyth = mathLine(g, 700, 260, [{s:'a'},{t:'sup',s:'2'},{t:'rm',s:' + '},{s:'b'},{t:'sup',s:'2'},{t:'rm',s:' = '},{s:'c'},{t:'sup',s:'2'}], {size:28, fill:C.amber});
+  await fadeIn(pyth, {duration:500});
+  await wait(500);
+
+  note(g, 700, 300, "the two legs of a right triangle always relate to the hypotenuse this way.");
+  await wait(700);
+
+  // map a,b,c to two data points
+  caption(g, 700, 360, "Now let a and b be the gaps between two points:", {size:14.5, fill:C.dim2});
+  const step1 = mathLine(g, 700, 400, [{s:'a'},{t:'rm',s:' = '},{s:'x'},{t:'sub',s:'2'},{t:'rm',s:' − '},{s:'x'},{t:'sub',s:'1'},{t:'rm',s:'    '},{s:'b'},{t:'rm',s:' = '},{s:'y'},{t:'sub',s:'2'},{t:'rm',s:' − '},{s:'y'},{t:'sub',s:'1'}], {size:20});
+  await fadeIn(step1, {duration:450});
+  await wait(500);
+
+  const step2 = mathLine(g, 700, 445, [{s:'c'},{t:'sup',s:'2'},{t:'rm',s:' = ('},{s:'x'},{t:'sub',s:'2'},{t:'rm',s:'−'},{s:'x'},{t:'sub',s:'1'},{t:'rm',s:')² + ('},{s:'y'},{t:'sub',s:'2'},{t:'rm',s:'−'},{s:'y'},{t:'sub',s:'1'},{t:'rm',s:')²'}], {size:19});
+  await fadeIn(step2, {duration:450});
+  await wait(400);
+
+  const step3 = mathLine(g, 700, 490, [{t:'rm', s:'distance = '}, {s:'c'}, {t:'rm', s:' = '}, {s:'√'}, {t:'rm', s:'(('}, {s:'x'},{t:'sub',s:'2'},{t:'rm',s:'−'},{s:'x'},{t:'sub',s:'1'},{t:'rm',s:')² + ('},{s:'y'},{t:'sub',s:'2'},{t:'rm',s:'−'},{s:'y'},{t:'sub',s:'1'},{t:'rm',s:')²)'}
+  ], {size:19, fill:C.violet});
+  await fadeIn(step3, {duration:500});
+  await flash(step3, C.violet);
+
+  await wait(300);
+  const gen = mathLine(g, 700, 545, [{t:'rm',s:'in '},{s:'n'},{t:'rm',s:' dimensions:   '},{s:'d'},{t:'rm',s:' = '},{s:'√'},{t:'rm',s:'Σ ('},{s:'x'},{t:'sub',s:'i'},{t:'rm',s:' − '},{s:'y'},{t:'sub',s:'i'},{t:'rm',s:')²'}], {size:20, fill:C.violet});
+  await fadeIn(gen, {duration:500});
+  note(g, 700, 575, "the exact same theorem — just added up over every dimension instead of 2.");
+}});
+
+/* ---------- 4. WHAT DOES MINIMIZE MEAN ---------- */
+SLIDES.push({ label:"What does \"minimize\" mean?", async build(g){
+  await header(g, "Building block 3", 'What Does "Minimize" Mean?');
+  await wait(80);
+
+  const ax0=140, ax1=760, ay=560, amp=280;
+  E('line', {x1:ax0,y1:ay,x2:ax1,y2:ay, stroke:C.grid2, 'stroke-width':1.2}, g);
+  function fx(xn){ return amp*xn*xn; }              // f(x) = (x-3)^2 in normalized coords
+  function fpx(xn){ return 2*amp*xn/ ((ax1-ax0)/2); } // slope scaled to pixel space (approx, for visual tangent)
+  const N=80; let d='M '+ax0+' '+(ay-amp);
+  for(let i=0;i<=N;i++){
+    const t=i/N, xn=(t-0.5)*2;
+    const x=ax0+t*(ax1-ax0), y=ay-fx(xn)*0.0;
+  }
+  d=''; const pts=[];
+  for(let i=0;i<=N;i++){
+    const t=i/N, xn=(t-0.5)*2;
+    const x=ax0+t*(ax1-ax0);
+    const y=ay - (amp - fx(xn));
+    pts.push([x,y]);
+    d += (i===0?'M ':'L ')+x+' '+y;
+  }
+  const curve = E('path', {d, fill:'none', stroke:C.blue, 'stroke-width':2.2, opacity:0}, g);
+  await tweenAttr(curve,{opacity:.9},{duration:300});
+  await drawOn(curve, {duration:750, easing:Ease.outCubic});
+  T(g, (ax0+ax1)/2, ay+34, "x", {fill:C.dim2, size:14, italic:true, anchor:'middle'});
+  T(g, ax0-16, ay-amp-10, "f(x)", {fill:C.dim2, size:13, italic:true});
+
+  const minX=(ax0+ax1)/2, minY=ay-amp;
+  const ball = dot(g, ax0, ay, 7, C.amber, {opacity:1});
+  const tangent = E('line', {x1:0,y1:0,x2:0,y2:0, stroke:C.rose, 'stroke-width':1.8, opacity:0}, g);
+
+  const steps=40;
+  for(let i=0;i<=steps;i++){
+    const t=i/steps;
+    const xn=(t-0.5)*2;
+    const x=ax0+t*(ax1-ax0);
+    const y=ay-(amp-fx(xn));
+    ball.setAttribute('cx',x); ball.setAttribute('cy',y);
+    const slope = (2*amp*xn) / ((ax1-ax0)/2);         // d/dx of the parabola, in pixel terms
+    const len=70;
+    const norm = Math.sqrt(1+slope*slope);
+    tangent.setAttribute('opacity', 0.9);
+    tangent.setAttribute('x1', x-len/norm); tangent.setAttribute('y1', y+len*slope/norm);
+    tangent.setAttribute('x2', x+len/norm); tangent.setAttribute('y2', y-len*slope/norm);
+    await wait(18);
+  }
+  await flash(tangent, C.rose, {hold:700});
+  note(g, minX, minY-70, "flat tangent = zero slope = the minimum", {anchor:'middle', size:13.5, fill:C.rose});
+  await wait(300);
+
+  const rows = [
+    mathLine(g, 820, 210, [{s:'f'},{t:'rm',s:'('},{s:'x'},{t:'rm',s:') = ('},{s:'x'},{t:'rm',s:' − 3)²'}], {size:22}),
+    mathLine(g, 820, 254, [{s:'f'},{t:'sup',s:"'"},{t:'rm',s:'('},{s:'x'},{t:'rm',s:') = 2('},{s:'x'},{t:'rm',s:' − 3)      '},{t:'dim',s:'← the slope, at any x'}], {size:20}),
+    mathLine(g, 820, 298, [{t:'rm',s:'set slope = 0:   2('},{s:'x'},{t:'rm',s:' − 3) = 0'}], {size:20}),
+    mathLine(g, 820, 342, [{t:'rm',s:'solve:   '},{s:'x'},{t:'rm',s:' = 3    '},{t:'dim',s:'← the minimum'}], {size:20, fill:C.amber}),
+  ];
+  for(const r of rows){ await fadeIn(r,{duration:400}); await wait(280); }
+  await flash(rows[3], C.amber);
+
+  caption(g, 820, 400, "This exact trick — take the slope, set it to zero, solve —", {size:14.5});
+  caption(g, 820, 424, "is how we'll derive nearly every formula in this deck.", {size:14.5});
+}});
+
+/* ---------- 5. WHY THE MEAN MINIMIZES SQUARED ERROR ---------- */
+SLIDES.push({ label:"Why the mean minimizes squared error", async build(g){
+  await header(g, "Core derivation", "Why the Mean Minimizes Squared Error");
+  await wait(80);
+
+  const ax0=120, ax1=560, ay=270;
+  E('line', {x1:ax0,y1:ay,x2:ax1,y2:ay, stroke:C.grid2, 'stroke-width':1.4}, g);
+  const xs=[0.15,0.35,0.42,0.6,0.8];
+  const pts = xs.map(f=> ax0+f*(ax1-ax0));
+  const dots = pts.map(x=> dot(g, x, ay, 5, C.blue, {opacity:0}));
+  await Promise.all(dots.map((d,i)=> tweenAttr(d,{opacity:1},{duration:300, delay:i*70})));
+  const trueMean = pts.reduce((a,b)=>a+b,0)/pts.length;
+
+  const slider = dot(g, ax0, ay, 8, C.amber, {opacity:1});
+  T(g, ax0-2, ay+34, "μ", {fill:C.amber, size:15, italic:true, anchor:'middle', font:"'Fraunces',serif"});
+  const muLabel = T(g, ax0, ay+34, "μ", {fill:C.amber, size:15, italic:true, anchor:'middle', font:"'Fraunces',serif"});
+
+  // little cost curve below, built live as mu sweeps
+  const cx0=120, cx1=560, cy0=420, ch=150;
+  E('line', {x1:cx0,y1:cy0,x2:cx1,y2:cy0, stroke:C.grid2, 'stroke-width':1.2}, g);
+  T(g, cx0-16, cy0-ch-10, "cost", {fill:C.dim2, size:12.5});
+  T(g, (cx0+cx1)/2, cy0+28, "μ", {fill:C.dim2, size:13, italic:true, anchor:'middle'});
+  const costPath = E('path', {d:'M '+cx0+' '+cy0, fill:'none', stroke:C.rose, 'stroke-width':2, opacity:.9}, g);
+  function costAt(muPix){
+    return pts.reduce((s,p)=> s + Math.pow((p-muPix)/40, 2), 0);
+  }
+  const maxCost = Math.max(...pts.map(p=>costAt(ax0)), costAt(ax1));
+  let d='M '+cx0+' '+cy0;
+  const steps=50;
+  for(let i=0;i<=steps;i++){
+    const t=i/steps, muPix = ax0+t*(ax1-ax0);
+    const c = costAt(muPix);
+    const y = cy0 - (c/maxCost)*ch;
+    d += ' L '+ (cx0+t*(cx1-cx0)) +' '+y;
+    slider.setAttribute('cx', muPix); slider.setAttribute('cy', ay); muLabel.setAttribute('x', muPix);
+    costPath.setAttribute('d', d);
+    await wait(14);
+  }
+  const meanPix = trueMean;
+  const meanCostY = cy0 - (costAt(meanPix)/maxCost)*ch;
+  const meanMarker = dot(g, cx0+((meanPix-ax0)/(ax1-ax0))*(cx1-cx0), meanCostY, 5, C.green, {opacity:0});
+  await tweenAttr(meanMarker, {opacity:1}, {duration:300, easing:Ease.outBack});
+  await moveXY(slider, 'cx','cy', meanPix, ay, {duration:500, easing:Ease.outCubic});
+  muLabel.setAttribute('x', meanPix);
+  note(g, (cx0+cx1)/2, cy0+50, "the cost curve bottoms out exactly at the average", {anchor:'middle', size:13});
+  await wait(500);
+
+  const steps2 = [
+    mathLine(g, 660, 210, [{s:'f'},{t:'rm',s:'('},{s:'μ'},{t:'rm',s:') = Σ ('},{s:'x'},{t:'sub',s:'i'},{t:'rm',s:' − '},{s:'μ'},{t:'rm',s:')²      '},{t:'dim',s:'← total squared error'}], {size:19}),
+    mathLine(g, 660, 254, [{s:'f'},{t:'sup',s:"'"},{t:'rm',s:'('},{s:'μ'},{t:'rm',s:') = −2 Σ ('},{s:'x'},{t:'sub',s:'i'},{t:'rm',s:' − '},{s:'μ'},{t:'rm',s:')      '},{t:'dim',s:'← differentiate each term'}], {size:19}),
+    mathLine(g, 660, 298, [{t:'rm',s:'set to 0:   −2 Σ ('},{s:'x'},{t:'sub',s:'i'},{t:'rm',s:' − '},{s:'μ'},{t:'rm',s:') = 0'}], {size:19}),
+    mathLine(g, 660, 342, [{t:'rm',s:'divide by −2:   Σ '},{s:'x'},{t:'sub',s:'i'},{t:'rm',s:' − '},{s:'n'},{s:'μ'},{t:'rm',s:' = 0'}], {size:19}),
+    mathLine(g, 660, 386, [{t:'rm',s:'solve:   '},{s:'μ'},{t:'rm',s:' = (1/'},{s:'n'},{t:'rm',s:') Σ '},{s:'x'},{t:'sub',s:'i'},{t:'rm',s:'      '},{t:'dim',s:'← the average!'}], {size:20, fill:C.amber}),
+  ];
+  for(const s of steps2){ await fadeIn(s,{duration:400}); await wait(260); }
+  await flash(steps2[4], C.amber, {hold:700});
+
+  caption(g, 660, 440, "The number that minimizes total squared distance is exactly the mean.", {size:15});
+  caption(g, 660, 464, "This is why K-Means moves each centroid to the average of its group.", {size:15});
+}});
+
+/* ---------- 6. BUILDING THE K-MEANS OBJECTIVE ---------- */
+SLIDES.push({ label:"Building the K-Means objective", async build(g){
+  await header(g, "Putting it together", "Building the K-Means Objective");
+  await wait(80);
+
+  caption(g, 90, 190, "We now have both pieces we need:", {size:15.5});
+  const p1 = mathLine(g, 110, 230, [{s:'d'},{t:'rm',s:'('},{s:'x'},{t:'rm',s:', '},{s:'μ'},{t:'rm',s:') = ‖'},{s:'x'},{t:'rm',s:' − '},{s:'μ'},{t:'rm',s:'‖      '},{t:'dim',s:'← distance (slide 3)'}], {size:20});
+  const p2 = mathLine(g, 110, 268, [{t:'rm',s:'best '},{s:'μ'},{t:'rm',s:' = mean of the points      '},{t:'dim',s:'← minimizer (slide 5)'}], {size:20});
+  await fadeIn(p1,{duration:400}); await wait(200);
+  await fadeIn(p2,{duration:400}); await wait(400);
+
+  caption(g, 90, 320, "K-Means just applies both ideas to K groups instead of one:", {size:15.5});
+  await wait(300);
+
+  const eqY = 400;
+  const eq = mathLine(g, 640, eqY, [
+    {s:'J', fill:C.text}, {t:'rm', s:' = ', fill:C.text},
+    {s:'Σ', fill:C.amber}, {t:'sub', s:'k', fill:C.amber},
+    {t:'rm', s:' Σ ', fill:C.blue}, {t:'sub', s:'x∈C', fill:C.blue},
+    {t:'rm', s:' ‖', fill:C.rose}, {s:'x', fill:C.rose}, {t:'rm', s:' − ', fill:C.rose}, {s:'μ', fill:C.rose}, {t:'sub', s:'k', fill:C.rose}, {t:'rm', s:'‖²', fill:C.rose},
+  ], {size:40, anchor:'middle'});
+  await fadeIn(eq, {duration:500});
+  await wait(500);
+
+  const rows = [
+    [C.amber, "outer sum — one term for every cluster k"],
+    [C.blue, "inner sum — one term for every point in that cluster"],
+    [C.rose, "the squared distance we derived in slide 3, using the mean we derived in slide 5"],
+  ];
+  const ys=[500,536,572];
+  for(let i=0;i<rows.length;i++){
+    const dotm = dot(g, 120, ys[i]-5, 5, rows[i][0], {opacity:0});
+    await tweenAttr(dotm,{opacity:1},{duration:250});
+    const txt = T(g, 140, ys[i], rows[i][1], {fill:C.dim, size:15});
+    await riseInY(txt,'y',{duration:350, dy:10, easing:Ease.outCubic});
+    await wait(200);
+  }
+
+  await wait(300);
+  caption(g, 90, 640, "Nothing new here — J is just the mean-minimization trick, run once per cluster.", {size:15});
+}});
+
+/* ---------- 7. VARIANCE ---------- */
+SLIDES.push({ label:"Variance — measuring spread", async build(g){
+  await header(g, "Measuring spread", "Variance");
+  await wait(80);
+
+  const ax0=140, ax1=760, ay=380;
+  E('line', {x1:ax0,y1:ay,x2:ax1,y2:ay, stroke:C.grid2, 'stroke-width':1.2}, g);
+
+  const tightPts=[0.42,0.46,0.5,0.54,0.58].map(f=> ax0+f*(ax1-ax0));
+  const wildPts=[0.1,0.25,0.5,0.75,0.9].map(f=> ax0+f*(ax1-ax0));
+
+  T(g, 90, ay-40, "tight:", {fill:C.dim2, size:13.5});
+  const d1 = tightPts.map(x=> dot(g,x,ay-40,4.5,C.blue,{opacity:0}));
+  await Promise.all(d1.map((d,i)=> tweenAttr(d,{opacity:1},{duration:250,delay:i*60})));
+
+  T(g, 90, ay+40, "spread out:", {fill:C.dim2, size:13.5});
+  const d2 = wildPts.map(x=> dot(g,x,ay+40,4.5,C.amber,{opacity:0}));
+  await Promise.all(d2.map((d,i)=> tweenAttr(d,{opacity:1},{duration:250,delay:i*60})));
+  await wait(500);
+
+  function variance(arr){ const m=arr.reduce((a,b)=>a+b,0)/arr.length; return arr.reduce((s,x)=>s+(x-m)**2,0)/arr.length; }
+  const v1 = variance(tightPts.map(x=>(x-ax0)/(ax1-ax0)*10));
+  const v2 = variance(wildPts.map(x=>(x-ax0)/(ax1-ax0)*10));
+
+  const t1 = T(g, ax1+30, ay-36, `Var ≈ ${v1.toFixed(2)}`, {fill:C.blue, size:15, font:"'JetBrains Mono',monospace"});
+  const t2 = T(g, ax1+30, ay+44, `Var ≈ ${v2.toFixed(2)}`, {fill:C.amber, size:15, font:"'JetBrains Mono',monospace"});
+  fadeIn(t1,{duration:400}); fadeIn(t2,{duration:400});
+  await wait(600);
+
+  caption(g, 90, 500, "Variance answers: on average, how far are points from the mean — squared?", {size:15.5});
+  await wait(300);
+
+  const eq = mathLine(g, 90, 560, [
+    {t:'rm', s:'Var('}, {s:'X'}, {t:'rm', s:') = (1/'}, {s:'n'}, {t:'rm', s:') Σ ('}, {s:'x'}, {t:'sub', s:'i'}, {t:'rm', s:' − '}, {s:'μ'}, {t:'rm', s:')²'}
+  ], {size:26, fill:C.violet});
+  await fadeIn(eq, {duration:500});
+  note(g, 90, 590, "look familiar? It's the exact cost function from slide 5 — just averaged instead of summed,");
+  note(g, 90, 610, "and now used to measure spread instead of to find the best center.");
+}});
+
+/* ---------- 8. COVARIANCE ---------- */
+SLIDES.push({ label:"Covariance — do two variables move together?", async build(g){
+  await header(g, "Do two variables move together?", "Covariance");
+  await wait(80);
+
+  const cx=340, cy=400, s=180;
+  E('line', {x1:cx-s,y1:cy,x2:cx+s,y2:cy, stroke:C.grid2, 'stroke-width':1.2}, g);
+  E('line', {x1:cx,y1:cy-s,x2:cx,y2:cy+s, stroke:C.grid2, 'stroke-width':1.2}, g);
+  T(g, cx+s+14, cy+5, "x", {fill:C.dim2, size:13, italic:true});
+  T(g, cx-6, cy-s-12, "y", {fill:C.dim2, size:13, italic:true});
+  ["+ +","− +","− −","+ −"].forEach((lab,i)=>{
+    const ang = [45,135,225,315][i]*Math.PI/180;
+    T(g, cx+Math.cos(ang)*s*0.55, cy-Math.sin(ang)*s*0.55, lab, {fill:C.dim2, size:12, anchor:'middle'});
+  });
+
+  const rng=(i,seed)=> pseudo(i*3.1+seed);
+  const posPts=[]; for(let i=0;i<24;i++){ const x=(rng(i,5)-0.5)*2, y=x*0.7+(rng(i,9)-0.5)*0.5; posPts.push([cx+x*s*0.8, cy-y*s*0.8]); }
+  const dots = posPts.map(p=> dot(g,p[0],p[1],4.5,C.gray,{opacity:0}));
+  await Promise.all(dots.map((d,i)=> tweenAttr(d,{opacity:.9},{duration:250,delay:i*20})));
+  await wait(400);
+
+  caption(g, 700, 210, "for each point, multiply its two deviations:", {size:14.5, fill:C.dim2});
+  const term = mathLine(g, 700, 250, [{t:'rm',s:'('},{s:'x'},{t:'sub',s:'i'},{t:'rm',s:'−'},{s:'μ'},{t:'sub',s:'x'},{t:'rm',s:')('},{s:'y'},{t:'sub',s:'i'},{t:'rm',s:'−'},{s:'μ'},{t:'sub',s:'y'},{t:'rm',s:')'}], {size:21});
+  await fadeIn(term, {duration:450});
+  await wait(500);
+
+  const proms=[];
+  posPts.forEach((p,i)=>{
+    const dx=p[0]-cx, dy=cy-p[1];
+    const positive = (dx>0 && dy>0) || (dx<0 && dy<0);
+    proms.push(tweenAttr(dots[i], {r:5.5}, {duration:300, delay:i*15}).then(()=> dots[i].setAttribute('fill', positive? C.green : C.rose)));
+  });
+  await Promise.all(proms);
+  note(g, 700, 300, "same-side deviations (both above or both below mean) → positive product", {fill:C.green, size:13});
+  note(g, 700, 320, "opposite-side deviations → negative product", {fill:C.rose, size:13});
+  await wait(600);
+
+  const eq = mathLine(g, 700, 400, [
+    {t:'rm', s:'Cov('}, {s:'X'}, {t:'rm', s:', '}, {s:'Y'}, {t:'rm', s:') = (1/'}, {s:'n'}, {t:'rm', s:') Σ ('}, {s:'x'}, {t:'sub', s:'i'}, {t:'rm', s:'−'}, {s:'μ'}, {t:'sub', s:'x'}, {t:'rm', s:')('}, {s:'y'}, {t:'sub', s:'i'}, {t:'rm', s:'−'}, {s:'μ'}, {t:'sub', s:'y'}, {t:'rm', s:')'}
+  ], {size:19, fill:C.violet});
+  await fadeIn(eq, {duration:500});
+  caption(g, 700, 445, "positive → move together.  negative → move oppositely.  ≈0 → unrelated.", {size:14});
+}});
+
+/* ---------- 9. THE COVARIANCE MATRIX ---------- */
+SLIDES.push({ label:"The covariance matrix", async build(g){
+  await header(g, "Assembling the pieces", "The Covariance Matrix");
+  await wait(80);
+
+  caption(g, 90, 190, "For 2 variables, there are 3 numbers to track: Var(X), Var(Y), and Cov(X,Y).", {size:15.5});
+  await wait(400);
+
+  const gx=140, gy=250, cell=64;
+  const labels=[["Var(X)",C.blue],["Cov(X,Y)",C.violet],["Cov(X,Y)",C.violet],["Var(Y)",C.amber]];
+  const cellsEl=[];
+  for(let r=0;r<2;r++) for(let c=0;c<2;c++){
+    const idx=r*2+c;
+    const rect = E('rect', {x:gx+c*cell, y:gy+r*cell, width:cell-4, height:cell-4, rx:8, fill:'rgba(154,142,196,0.08)', stroke:labels[idx][1], 'stroke-width':1.4, opacity:0}, g);
+    cellsEl.push(rect);
+    const txt = T(g, gx+c*cell+(cell-4)/2, gy+r*cell+(cell-4)/2+5, labels[idx][0], {fill:labels[idx][1], size:12, anchor:'middle'});
+    fadeIn(txt, {duration:300, delay:idx*150});
+    fadeIn(rect, {duration:300, delay:idx*150});
+  }
+  await wait(900);
+
+  const eq = mathLine(g, 380, gy+cell+50, [
+    {s:'Σ'}, {t:'rm', s:' = '}
+  ], {size:26, anchor:'start'});
+  await fadeIn(eq, {duration:400});
+
+  note(g, 90, gy+cell+90, "notice it's symmetric — Cov(X,Y) always equals Cov(Y,X), so the two off-diagonal cells match.", {size:13.5});
+  await wait(500);
+
+  caption(g, 700, 210, "geometrically, this matrix describes an ellipse", {size:15});
+  const ecx=880, ecy=420;
+  const cloudRel = scatterBlob(0,0,26,80,7);
+  const th=-0.4;
+  const cloud = cloudRel.map(p=>{
+    const sx=p[0]*1.9, sy=p[1]*0.8;
+    return [ecx+sx*Math.cos(th)-sy*Math.sin(th), ecy+sx*Math.sin(th)+sy*Math.cos(th)];
+  });
+  const dots = cloud.map(p=> dot(g,p[0],p[1],3.6,C.dim,{opacity:0}));
+  await Promise.all(dots.map((d,i)=> tweenAttr(d,{opacity:.75},{duration:250,delay:i*15})));
+  const ell = E('ellipse', {cx:ecx,cy:ecy,rx:6,ry:6, fill:'none', stroke:C.violet, 'stroke-width':2, opacity:0, transform:`rotate(-23 ${ecx} ${ecy})`}, g);
+  await tweenAttr(ell,{opacity:.9},{duration:250});
+  await tweenAttr(ell,{rx:150,ry:65},{duration:650,easing:Ease.outCubic});
+  note(g, 700, 560, "wide + tilted ellipse = strong covariance. circle = no covariance at all.", {size:13.5});
+}});
+
+/* ---------- 10. MATRICES AS TRANSFORMATIONS ---------- */
+SLIDES.push({ label:"Matrices as transformations", async build(g){
+  await header(g, "Linear algebra foundation", "A Matrix Is a Machine That Moves Points");
+  await wait(80);
+
+  const cx=340, cy=400, s=110;
+  const square = E('polygon', {points:`${cx-s},${cy-s} ${cx+s},${cy-s} ${cx+s},${cy+s} ${cx-s},${cy+s}`, fill:'rgba(111,168,220,.12)', stroke:C.blue, 'stroke-width':2, opacity:0}, g);
+  const ex = arrow(g, cx, cy, cx+s, cy, C.rose, {opacity:0});
+  const ey = arrow(g, cx, cy, cx, cy-s, C.green, {opacity:0});
+  await tweenAttr(square,{opacity:1},{duration:400});
+  await Promise.all([tweenAttr(ex,{opacity:1},{duration:300}), tweenAttr(ey,{opacity:1},{duration:300})]);
+  T(g, cx, cy-s-18, "unit square + its two basis directions", {fill:C.dim2, size:12.5, anchor:'middle'});
+  await wait(500);
+
+  const A = mathLine(g, 700, 250, [{s:'A'},{t:'rm',s:' = ['},{s:'2'},{t:'rm',s:'   '},{s:'1'},{t:'rm',s:' ; '},{s:'0'},{t:'rm',s:'   '},{s:'1'},{t:'rm',s:']'}], {size:22});
+  await fadeIn(A,{duration:400});
+  caption(g, 700, 285, "apply A to every point in the square:", {size:14.5});
+  await wait(500);
+
+  function setT(shearT, scaleT){
+    const shear = shearT, sc = 1+0.4*scaleT;
+    square.setAttribute('transform', `translate(${cx},${cy}) matrix(${sc} 0 ${shear} 1 0 0) translate(${-cx},${-cy})`);
+  }
+  await animate({duration:900, easing:Ease.inOutCubic, onUpdate:(t)=> setT(t*0.5, t)});
+  clear(ex); clear(ey);
+  const ex2 = arrow(g, cx, cy, cx+s*1.4, cy, C.rose, {});
+  const ey2 = arrow(g, cx, cy, cx+s*0.5, cy-s, C.green, {});
+  await wait(500);
+
+  note(g, 700, 340, "most directions get both rotated AND stretched.", {size:14});
+  note(g, 700, 364, "but is there a direction that only stretches — with no rotation at all?", {size:14, fill:C.violet});
+  await wait(400);
+  caption(g, 700, 420, "that special direction is exactly what the next slide finds.", {size:14});
+}});
+
+/* ---------- 11. EIGENVECTORS AND EIGENVALUES ---------- */
+SLIDES.push({ label:"Eigenvectors & eigenvalues from scratch", async build(g){
+  await header(g, "Linear algebra foundation", "Eigenvectors & Eigenvalues");
+  await wait(80);
+
+  const eq = mathLine(g, 640, 200, [{s:'A'},{s:'v'},{t:'rm',s:' = '},{s:'λ'},{s:'v'}], {size:34, anchor:'middle', fill:C.violet});
+  await fadeIn(eq, {duration:500});
+  note(g, 640, 226, "a direction v that A only stretches (by λ) — never rotates", {anchor:'middle', size:13.5});
+  await wait(500);
+
+  caption(g, 90, 280, "Worked example:  A = [[2,1],[1,2]]", {size:16, font:"'JetBrains Mono',monospace", fill:C.text});
+  await wait(300);
+
+  const rows = [
+    mathLine(g, 90, 330, [{t:'rm',s:'A'},{s:'v'},{t:'rm',s:' − '},{s:'λ'},{s:'v'},{t:'rm',s:' = 0    →    ('},{s:'A'},{t:'rm',s:' − '},{s:'λ'},{s:'I'},{t:'rm',s:')'},{s:'v'},{t:'rm',s:' = 0'}], {size:19}),
+    mathLine(g, 90, 370, [{t:'rm',s:'for a nonzero '},{s:'v'},{t:'rm',s:' to exist:   det('},{s:'A'},{t:'rm',s:' − '},{s:'λ'},{s:'I'},{t:'rm',s:') = 0'}], {size:19}),
+    mathLine(g, 90, 410, [{t:'rm',s:'det [[2−'},{s:'λ'},{t:'rm',s:', 1], [1, 2−'},{s:'λ'},{t:'rm',s:']] = (2−'},{s:'λ'},{t:'rm',s:')² − 1 = 0'}], {size:19}),
+    mathLine(g, 90, 450, [{t:'rm',s:'expand & solve:   '},{s:'λ'},{t:'rm',s:' = 1   or   '},{s:'λ'},{t:'rm',s:' = 3'}], {size:20, fill:C.amber}),
+  ];
+  for(const r of rows){ await fadeIn(r,{duration:400}); await wait(280); }
+  await flash(rows[3], C.amber);
+  await wait(400);
+
+  const rows2 = [
+    mathLine(g, 90, 505, [{t:'rm',s:'plug '},{s:'λ'},{t:'rm',s:'=3 back into ('},{s:'A'},{t:'rm',s:'−'},{s:'λ'},{s:'I'},{t:'rm',s:')'},{s:'v'},{t:'rm',s:'=0  →  '},{s:'v'},{t:'rm',s:' ∝ (1, 1)'}], {size:18, fill:C.green}),
+    mathLine(g, 90, 540, [{t:'rm',s:'plug '},{s:'λ'},{t:'rm',s:'=1 back in  →  '},{s:'v'},{t:'rm',s:' ∝ (1, −1)'}], {size:18, fill:C.rose}),
+  ];
+  for(const r of rows2){ await fadeIn(r,{duration:400}); await wait(250); }
+  await wait(400);
+
+  // visualize the two eigen-directions on a small square
+  const cx=900, cy=430, s=90;
+  panel(g, cx-160, 300, 320, 300, {opacity:0});
+  const sq = E('polygon', {points:`${cx-s},${cy-s} ${cx+s},${cy-s} ${cx+s},${cy+s} ${cx-s},${cy+s}`, fill:'none', stroke:C.dim2, 'stroke-width':1.3, opacity:0}, g);
+  await tweenAttr(sq,{opacity:.6},{duration:300});
+  const v1 = arrow(g, cx, cy, cx+s*0.7, cy-s*0.7, C.green, {opacity:0}); v1.setAttribute('opacity',1);
+  const v2 = arrow(g, cx, cy, cx+s*0.7, cy+s*0.7, C.rose, {opacity:0}); v2.setAttribute('opacity',1);
+  await wait(300);
+  T(g, cx+s*0.7+14, cy-s*0.7-4, "λ=3 direction: stretched ×3", {fill:C.green, size:12.5});
+  T(g, cx+s*0.7+14, cy+s*0.7+16, "λ=1 direction: stretched ×1", {fill:C.rose, size:12.5});
+  await wait(600);
+  note(g, cx, 620, "these two directions are the ONLY ones A doesn't rotate — just what we set out to find.", {anchor:'middle', size:13});
+}});
+
+/* ---------- 12. DERIVING PCA STEP 1 ---------- */
+SLIDES.push({ label:"Deriving PCA — the optimization problem", async build(g){
+  await header(g, "Deriving PCA · Step 1", "What Are We Even Optimizing?");
+  await wait(80);
+
+  caption(g, 90, 190, "Goal: find a direction w to project the data onto, that keeps the most variance.", {size:16});
+  await wait(400);
+
+  const cx=340, cy=420, s=170;
+  const cloudRel = scatterBlob(0,0,28,1,3);
+  const th=-0.35;
+  const cloud = cloudRel.map(p=>{ const sx=p[0]*2.4, sy=p[1]*0.9; return [cx+sx*Math.cos(th)-sy*Math.sin(th), cy+sx*Math.sin(th)+sy*Math.cos(th)]; });
+  const dots = cloud.map(p=> dot(g,p[0],p[1],4,C.gray,{opacity:0}));
+  await Promise.all(dots.map((d,i)=> tweenAttr(d,{opacity:.8},{duration:250,delay:i*15})));
+
+  const wLine = E('line', {x1:cx-s,y1:cy,x2:cx+s,y2:cy, stroke:C.violet, 'stroke-width':2.4, opacity:0}, g);
+  await tweenAttr(wLine,{opacity:.9},{duration:400});
+  T(g, cx+s+14, cy, "w", {fill:C.violet, size:16, italic:true});
+  await wait(500);
+
+  const eq1 = mathLine(g, 700, 230, [{t:'rm',s:'maximize   Var('},{s:'X'},{s:'w'},{t:'rm',s:')'}], {size:24});
+  await fadeIn(eq1, {duration:450});
+  await wait(500);
+
+  caption(g, 700, 280, "but wait — if we let w grow huge, variance explodes to infinity too!", {size:14.5, fill:C.rose});
+  await wait(300);
+
+  // show w growing, projection variance exploding
+  await animate({duration:900, easing:Ease.inOutCubic, onUpdate:(t)=>{
+    const scale = 1 + t*1.3;
+    wLine.setAttribute('x1', cx-s*scale); wLine.setAttribute('x2', cx+s*scale);
+  }});
+  note(g, 700, 320, "so we need a rule that stops w from just scaling up forever.", {size:14});
+  await wait(500);
+
+  const eq2 = mathLine(g, 700, 380, [
+    {t:'rm',s:'maximize   Var('},{s:'X'},{s:'w'},{t:'rm',s:')     subject to   ‖'},{s:'w'},{t:'rm',s:'‖ = 1'}
+  ], {size:22, fill:C.amber});
+  await fadeIn(eq2, {duration:500});
+  await flash(eq2, C.amber);
+
+  caption(g, 700, 430, "‖w‖=1 means w is only allowed to point somewhere — not stretch.", {size:14.5});
+  caption(g, 700, 454, "Now the only freedom left is direction. That's exactly what PCA needs to choose.", {size:14.5});
+}});
+
+/* ---------- 13. DERIVING PCA STEP 2 ---------- */
+SLIDES.push({ label:"Deriving PCA — Lagrange multipliers", async build(g){
+  await header(g, "Deriving PCA · Step 2", "From Constraint to Eigenvector Equation");
+  await wait(80);
+
+  caption(g, 90, 190, "To optimize with a constraint, we fold it into one expression using a", {size:15.5});
+  caption(g, 90, 214, "Lagrange multiplier λ — a trick for turning constrained problems into unconstrained ones.", {size:15.5});
+  await wait(500);
+
+  const rows = [
+    mathLine(g, 90, 280, [{s:'L'},{t:'rm',s:'('},{s:'w'},{t:'rm',s:', '},{s:'λ'},{t:'rm',s:') = '},{s:'w'},{t:'sup',s:'T'},{t:'rm',s:' Cov('},{s:'X'},{t:'rm',s:')'},{s:'w'},{t:'rm',s:'  −  '},{s:'λ'},{t:'rm',s:'('},{s:'w'},{t:'sup',s:'T'},{s:'w'},{t:'rm',s:' − 1)'}], {size:21}),
+    mathLine(g, 90, 320, [{t:'rm',s:'take the derivative w.r.t. '},{s:'w'},{t:'rm',s:', set it to 0:'}], {size:16, fill:C.dim}),
+    mathLine(g, 90, 360, [{t:'rm',s:'2 Cov('},{s:'X'},{t:'rm',s:')'},{s:'w'},{t:'rm',s:'  −  2'},{s:'λ'},{s:'w'},{t:'rm',s:' = 0'}], {size:21}),
+    mathLine(g, 90, 400, [{t:'rm',s:'divide by 2:      Cov('},{s:'X'},{t:'rm',s:')'},{s:'w'},{t:'rm',s:' = '},{s:'λ'},{s:'w'}], {size:24, fill:C.amber}),
+  ];
+  for(const r of rows){ await fadeIn(r,{duration:420}); await wait(280); }
+  await flash(rows[3], C.amber, {hold:700});
+  await wait(300);
+
+  caption(g, 90, 460, "Recognize that shape? It's exactly the eigenvector equation from two slides ago —", {size:15.5, fill:C.violet});
+  caption(g, 90, 484, "just with Cov(X) playing the role of A.", {size:15.5, fill:C.violet});
+  await wait(600);
+
+  const box = panel(g, 640, 250, 480, 240, {opacity:0, fill:'rgba(154,142,196,0.06)', stroke:C.violet});
+  await fadeIn(box, {duration:400});
+  const concl = [
+    "PC1 (the best direction) is the eigenvector",
+    "of Cov(X) with the LARGEST eigenvalue λ.",
+    "",
+    "That λ tells you exactly how much variance",
+    "you capture by projecting onto it.",
+  ];
+  concl.forEach((line,i)=>{
+    if(line) fadeIn(T(g, 670, 300+i*32, line, {fill:C.text, size:16}), {duration:400, delay:i*150});
+  });
+  await wait(1200);
+  footnote(g, 90, 640, "This is the whole derivation — PCA is just the mean-minimization trick's cousin, applied with a constraint.");
+}});
+
+/* ---------- 14. EXPLAINED VARIANCE RATIO ---------- */
+SLIDES.push({ label:"Explained variance ratio", async build(g){
+  await header(g, "A quick, useful ratio", "Explained Variance Ratio");
+  await wait(80);
+
+  caption(g, 90, 190, "Once you have all the eigenvalues, this ratio tells you how much of the", {size:15.5});
+  caption(g, 90, 214, "total variance each principal component actually explains.", {size:15.5});
+  await wait(400);
+
+  const eq = mathLine(g, 90, 270, [
+    {t:'rm', s:'explained ratio'}, {t:'sub', s:'k'}, {t:'rm', s:' = '}, {s:'λ'}, {t:'sub', s:'k'}, {t:'rm', s:' / Σ '}, {s:'λ'}
+  ], {size:26, fill:C.violet});
+  await fadeIn(eq, {duration:500});
+  await wait(500);
+
+  caption(g, 90, 330, "Worked example: eigenvalues λ = [8, 3, 1] →  total = 12", {size:15.5, font:"'JetBrains Mono',monospace"});
+  await wait(400);
+
+  const bx0=90, by0=560, bw=460;
+  const vals=[8,3,1]; const total=vals.reduce((a,b)=>a+b,0);
+  const barW=90, gap=(bw-3*barW)/4;
+  let cum=0;
+  for(let i=0;i<3;i++){
+    const x=bx0+gap+i*(barW+gap);
+    const h = (vals[i]/total)*220;
+    const bar = E('rect', {x, y:by0, width:barW, height:0, fill:PALETTE[i], opacity:.85}, g);
+    await tweenAttr(bar, {height:h, y:by0-h}, {duration:400, easing:Ease.outCubic});
+    T(g, x+barW/2, by0+20, `PC${i+1}`, {fill:C.dim2, size:12.5, anchor:'middle'});
+    T(g, x+barW/2, by0-h-10, `${(vals[i]/total*100).toFixed(0)}%`, {fill:C.text, size:13.5, anchor:'middle'});
+    cum += vals[i]/total;
+    await wait(200);
+  }
+  note(g, bx0, 720-40, `PC1 alone explains 8/12 = 67% of all the variance in the data.`, {size:14});
+
+  const cy0=180, cx0=680;
+  caption(g, cx0, cy0, "cumulative view:", {size:14, fill:C.dim2});
+  let running=0;
+  for(let i=0;i<3;i++){
+    running += vals[i]/total;
+    const y = cy0+40+i*34;
+    const bar = E('rect', {x:cx0, y:y-14, width:0, height:22, fill:C.violet, opacity:.85}, g);
+    await tweenAttr(bar, {width: running*300}, {duration:400});
+    T(g, cx0+running*300+10, y+3, `${(running*100).toFixed(0)}%`, {fill:C.text, size:13});
+    await wait(150);
+  }
+}});
+
+/* ---------- 15. PROBABILITY DENSITY BASICS ---------- */
+SLIDES.push({ label:"Probability density basics", async build(g){
+  await header(g, "Foundation for the Gaussian", "What Makes a Valid Probability Curve?");
+  await wait(80);
+
+  caption(g, 90, 190, "Before building the Gaussian formula, two rules any density curve must obey:", {size:15.5});
+  await wait(400);
+
+  const ax0=200, ax1=900, ay=460;
+  E('line', {x1:ax0,y1:ay,x2:ax1,y2:ay, stroke:C.grid2, 'stroke-width':1.2}, g);
+  function bump(mu,h,w){
+    const N=60; let d='M '+ax0+' '+ay;
+    for(let i=0;i<=N;i++){ const t=i/N, x=ax0+t*(ax1-ax0); const xv=(x-(ax0+ax1)/2)/80; const y=ay-h*Math.exp(-Math.pow((xv-mu),2)/(2*w*w)); d+=' L '+x+' '+y; }
+    d+=' L '+ax1+' '+ay+' Z'; return d;
+  }
+  const curve = E('path', {d:bump(0,180,1), fill:C.blue, 'fill-opacity':0.18, stroke:C.blue, 'stroke-width':2, opacity:0}, g);
+  await tweenAttr(curve, {opacity:1}, {duration:500});
+  await wait(400);
+
+  T(g, (ax0+ax1)/2, ay+34, "x", {fill:C.dim2, size:13, italic:true, anchor:'middle'});
+  const rule1 = T(g, 950, 330, "Rule 1: never dips below zero", {fill:C.green, size:15});
+  fadeIn(rule1, {duration:400});
+  await wait(600);
+  const rule2 = T(g, 950, 370, "Rule 2: total area underneath = 1", {fill:C.amber, size:15});
+  fadeIn(rule2, {duration:400});
+  await wait(400);
+
+  note(g, 950, 410, "(exactly 1 — not more, not less: it represents", {size:13});
+  note(g, 950, 430, "100% certainty the outcome is *somewhere*)", {size:13});
+  await wait(600);
+
+  caption(g, 90, 560, "This is why the Gaussian formula needs a special 'normalizing' piece —", {size:15});
+  caption(g, 90, 584, "without it, the bell curve's area wouldn't equal 1. We'll build that next.", {size:15});
+}});
+
+/* ---------- 16. BUILDING THE GAUSSIAN FORMULA ---------- */
+SLIDES.push({ label:"Building the Gaussian formula from scratch", async build(g){
+  await header(g, "Building it piece by piece", "The Gaussian Formula, From Scratch");
+  await wait(80);
+
+  const ax0=140, ax1=760, ay=560, unit=90;
+  E('line', {x1:ax0,y1:ay,x2:ax1,y2:ay, stroke:C.grid2, 'stroke-width':1.2}, g);
+  T(g, (ax0+ax1)/2, ay+30, "x", {fill:C.dim2, size:13, italic:true, anchor:'middle'});
+  const cx=(ax0+ax1)/2;
+
+  function curveFor(mu, sigma, h){
+    const N=80; let d='';
+    for(let i=0;i<=N;i++){
+      const t=i/N, x=ax0+t*(ax1-ax0);
+      const xv=(x-cx)/unit;
+      const y=ay-h*Math.exp(-Math.pow(xv-mu,2)/(2*sigma*sigma));
+      d += (i===0?'M ':'L ')+x+' '+y;
+    }
+    return d;
+  }
+
+  const path = E('path', {d:curveFor(0,1,0), fill:'none', stroke:C.blue, 'stroke-width':2.4, opacity:.95}, g);
+  const stepLabel = T(g, cx, 210, "step 1:  y = e^(−x²)", {fill:C.blue, size:19, anchor:'middle', font:"'JetBrains Mono',monospace"});
+  note(g, cx, 234, "squaring makes it symmetric & always positive — negative errors count the same as positive ones", {anchor:'middle', size:13});
+  await animate({duration:800, easing:Ease.outCubic, onUpdate:(t)=>{ path.setAttribute('d', curveFor(0,1,180*t)); }});
+  await wait(700);
+
+  stepLabel.textContent = "step 2:  y = e^(−x²/2σ²)  — control the width";
+  note(g, cx, 234, "σ (sigma) scales the spread — bigger σ = wider, flatter bump", {anchor:'middle', size:13});
+  await animate({duration:1000, easing:Ease.inOutCubic, onUpdate:(t)=>{
+    const sigma = 1 + Math.sin(t*Math.PI*2)*0.5;
+    path.setAttribute('d', curveFor(0, Math.max(sigma,0.4), 180));
+  }});
+  path.setAttribute('d', curveFor(0,1,180));
+  await wait(500);
+
+  stepLabel.textContent = "step 3:  y = e^(−(x−μ)²/2σ²)  — slide the center";
+  note(g, cx, 234, "μ (mu) shifts the whole bump left or right", {anchor:'middle', size:13});
+  await animate({duration:900, easing:Ease.inOutCubic, onUpdate:(t)=>{
+    const mu = Math.sin(t*Math.PI*2)*1.4;
+    path.setAttribute('d', curveFor(mu,1,180));
+  }});
+  path.setAttribute('d', curveFor(0,1,180));
+  await wait(500);
+
+  stepLabel.textContent = "step 4:  divide by σ√2π  — force the area to equal 1";
+  note(g, cx, 234, "without this, taller/narrower bumps would have different total areas", {anchor:'middle', size:13});
+  await wait(600);
+  await tweenAttr(path, {opacity:.35}, {duration:300});
+  const path2 = E('path', {d:curveFor(0,1,155), fill:'none', stroke:C.amber, 'stroke-width':2.4, opacity:0}, g);
+  await tweenAttr(path2, {opacity:1}, {duration:400});
+  note(g, cx, 590, "normalized — now the shaded area underneath equals exactly 1", {anchor:'middle', size:13, fill:C.amber});
+  await wait(600);
+
+  const finalEq = mathLine(g, 850, 320, [
+    {s:'f'},{t:'rm',s:'('},{s:'x'},{t:'rm',s:') = '},
+  ], {size:22, fill:C.violet});
+  const finalEq2 = mathLine(g, 850, 360, [
+    {t:'rm',s:'1 / ('},{s:'σ'},{t:'rm',s:'√2π)  ·  exp(−('},{s:'x'},{t:'rm',s:'−'},{s:'μ'},{t:'rm',s:')² / 2'},{s:'σ'},{t:'sup',s:'2'},{t:'rm',s:')'}
+  ], {size:19, fill:C.violet});
+  await fadeIn(finalEq, {duration:400});
+  await fadeIn(finalEq2, {duration:400});
+  await flash(finalEq2, C.violet, {hold:600});
+  footnote(g, 850, 420, "four pieces, four jobs: shape · width · center · valid area.");
+}});
+
+/* ---------- 17. FROM ONE GAUSSIAN TO A MIXTURE ---------- */
+SLIDES.push({ label:"From one Gaussian to a mixture", async build(g){
+  await header(g, "One bump isn't enough", "From One Gaussian to a Mixture");
+  await wait(80);
+
+  const ax0=140, ax1=1140, ay=520, unit=70;
+  E('line', {x1:ax0,y1:ay,x2:ax1,y2:ay, stroke:C.grid2, 'stroke-width':1.2}, g);
+  const comps = [{mu:-4, sigma:0.8, h:120, col:C.blue}, {mu:0, sigma:1.1, h:170, col:C.amber}, {mu:3.5, sigma:0.7, h:90, col:C.rose}];
+  const cx=(ax0+ax1)/2;
+  function bumpPath(mu,sigma,h){
+    const N=70; let d='M '+ax0+' '+ay;
+    for(let i=0;i<=N;i++){ const t=i/N, x=ax0+t*(ax1-ax0); const xv=(x-cx)/unit; const y=ay-h*Math.exp(-Math.pow(xv-mu,2)/(2*sigma*sigma)); d+=' L '+x+' '+y; }
+    d+=' L '+ax1+' '+ay+' Z'; return d;
+  }
+  const paths = comps.map(c=> E('path', {d:bumpPath(c.mu,c.sigma,0), fill:c.col, 'fill-opacity':0.16, stroke:c.col, 'stroke-width':2, opacity:0}, g));
+  for(let i=0;i<paths.length;i++){
+    await tweenAttr(paths[i], {opacity:1}, {duration:300});
+    await animate({duration:500, easing:Ease.outCubic, onUpdate:(t)=>{ paths[i].setAttribute('d', bumpPath(comps[i].mu,comps[i].sigma,comps[i].h*t)); }});
+    T(g, cx+comps[i].mu*unit, ay-comps[i].h-14, `π${i+1}`, {fill:comps[i].col, size:14, italic:true, anchor:'middle', font:"'Fraunces',serif"});
+    await wait(250);
+  }
+  note(g, cx, 190, "each bump has its own weight π — how tall/important that cluster is", {anchor:'middle', size:14});
+  await wait(500);
+
+  const eqPi = mathLine(g, cx, 230, [{s:'π'},{t:'sub',s:'1'},{t:'rm',s:' + '},{s:'π'},{t:'sub',s:'2'},{t:'rm',s:' + '},{s:'π'},{t:'sub',s:'3'},{t:'rm',s:' = 1     '},{t:'dim',s:'← weights must add up to a whole'}], {size:20, anchor:'middle'});
+  await fadeIn(eqPi, {duration:450});
+  await wait(600);
+
+  // sum into one curve
+  const N=140; let d='';
+  for(let i=0;i<=N;i++){
+    const t=i/N, x=ax0+t*(ax1-ax0), xv=(x-cx)/unit;
+    let y=0;
+    comps.forEach(c=> y += c.h*Math.exp(-Math.pow(xv-c.mu,2)/(2*c.sigma*c.sigma)));
+    d += (i===0?'M ':'L ')+x+' '+(ay-y*0.62);
+  }
+  const sumCurve = E('path', {d, fill:'none', stroke:C.text, 'stroke-width':2.6, opacity:0}, g);
+  await tweenAttr(sumCurve, {opacity:1}, {duration:250});
+  await drawOn(sumCurve, {duration:900, easing:Ease.outCubic});
+  await Promise.all(paths.map(p=> tweenAttr(p, {'fill-opacity':0.05, opacity:.4}, {duration:400})));
+
+  const eq = mathLine(g, cx, 640, [
+    {s:'p'},{t:'rm',s:'('},{s:'x'},{t:'rm',s:') = Σ'},{s:'π'},{t:'sub',s:'k'},{t:'rm',s:' · N('},{s:'x'},{t:'rm',s:' | '},{s:'μ'},{t:'sub',s:'k'},{t:'rm',s:', '},{s:'σ'},{t:'sub',s:'k'},{t:'rm',s:')'}
+  ], {size:22, fill:C.violet, anchor:'middle'});
+  await fadeIn(eq, {duration:500});
+}});
+
+/* ---------- 18. BAYES' THEOREM ---------- */
+SLIDES.push({ label:"Bayes' theorem — the basic rule", async build(g){
+  await header(g, "One more foundation piece", "Bayes' Theorem");
+  await wait(80);
+
+  caption(g, 90, 190, "Two ways to describe the same overlap between events A and B:", {size:15.5});
+  await wait(400);
+
+  const c1x=340, c2x=520, cy=350, r=130;
+  const circA = ring(g, c1x, cy, r, C.blue, {sw:2});
+  const circB = ring(g, c2x, cy, r, C.rose, {sw:2});
+  await Promise.all([tweenAttr(circA,{opacity:.85},{duration:400}), tweenAttr(circB,{opacity:.85},{duration:400})]);
+  T(g, c1x-r*0.7, cy-r*0.7, "A", {fill:C.blue, size:20, italic:true});
+  T(g, c2x+r*0.7, cy-r*0.7, "B", {fill:C.rose, size:20, italic:true});
+  T(g, (c1x+c2x)/2, cy, "A∩B", {fill:C.text, size:14, anchor:'middle'});
+  await wait(500);
+
+  const p1 = mathLine(g, 700, 260, [{s:'P'},{t:'rm',s:'('},{s:'A'},{t:'rm',s:'|'},{s:'B'},{t:'rm',s:') = P('},{s:'A'},{t:'rm',s:'∩'},{s:'B'},{t:'rm',s:') / P('},{s:'B'},{t:'rm',s:')'}], {size:19});
+  const p2 = mathLine(g, 700, 300, [{s:'P'},{t:'rm',s:'('},{s:'B'},{t:'rm',s:'|'},{s:'A'},{t:'rm',s:') = P('},{s:'A'},{t:'rm',s:'∩'},{s:'B'},{t:'rm',s:') / P('},{s:'A'},{t:'rm',s:')'}], {size:19});
+  await fadeIn(p1,{duration:400}); await wait(250);
+  await fadeIn(p2,{duration:400}); await wait(400);
+
+  caption(g, 700, 350, "both equal P(A∩B) — so set them equal to each other:", {size:14.5});
+  await wait(300);
+
+  const p3 = mathLine(g, 700, 395, [{t:'rm',s:'P('},{s:'A'},{t:'rm',s:'|'},{s:'B'},{t:'rm',s:')·P('},{s:'B'},{t:'rm',s:') = P('},{s:'B'},{t:'rm',s:'|'},{s:'A'},{t:'rm',s:')·P('},{s:'A'},{t:'rm',s:')'}], {size:19});
+  await fadeIn(p3,{duration:450}); await wait(400);
+
+  const p4 = mathLine(g, 700, 445, [{s:'P'},{t:'rm',s:'('},{s:'A'},{t:'rm',s:'|'},{s:'B'},{t:'rm',s:') = '},{s:'P'},{t:'rm',s:'('},{s:'B'},{t:'rm',s:'|'},{s:'A'},{t:'rm',s:')·P('},{s:'A'},{t:'rm',s:') / P('},{s:'B'},{t:'rm',s:')'}], {size:22, fill:C.amber});
+  await fadeIn(p4,{duration:500});
+  await flash(p4, C.amber, {hold:700});
+  note(g, 700, 480, "Bayes' theorem: it lets you 'flip' which event you're conditioning on.", {size:13.5});
+}});
+
+/* ---------- 19. DERIVING GMM RESPONSIBILITIES ---------- */
+SLIDES.push({ label:"Deriving GMM responsibilities", async build(g){
+  await header(g, "Applying Bayes to a mixture", "Deriving the GMM Responsibility Formula");
+  await wait(80);
+
+  caption(g, 90, 190, "We want: given a point x, what's the probability it came from cluster k?", {size:16});
+  const want = mathLine(g, 90, 230, [{s:'P'},{t:'rm',s:'(cluster = '},{s:'k'},{t:'rm',s:' | '},{s:'x'},{t:'rm',s:')'}], {size:22, fill:C.violet});
+  await fadeIn(want, {duration:450});
+  await wait(500);
+
+  caption(g, 90, 290, "Apply Bayes' theorem from the last slide, with A = \"cluster k\" and B = \"x\":", {size:15});
+  await wait(400);
+
+  const bayes = mathLine(g, 90, 340, [
+    {s:'P'},{t:'rm',s:'('},{s:'k'},{t:'rm',s:'|'},{s:'x'},{t:'rm',s:') = P('},{s:'x'},{t:'rm',s:'|'},{s:'k'},{t:'rm',s:')·P('},{s:'k'},{t:'rm',s:') / P('},{s:'x'},{t:'rm',s:')'}
+  ], {size:22});
+  await fadeIn(bayes, {duration:500});
+  await wait(500);
+
+  const rowsY=[410,450,490];
+  const rows=[
+    ["P(x|k)  =  N(x | μₖ, Σₖ)", C.blue, "the Gaussian formula from slide 16 — how likely x is, under cluster k"],
+    ["P(k)  =  πₖ", C.amber, "the mixture weight from slide 17 — how big cluster k's slice is"],
+    ["P(x)  =  Σⱼ πⱼ N(x | μⱼ, Σⱼ)", C.rose, "total probability — sum over every cluster's contribution"],
+  ];
+  for(let i=0;i<rows.length;i++){
+    const t1 = T(g, 90, rowsY[i], rows[i][0], {fill:rows[i][1], size:17, font:"'JetBrains Mono',monospace"});
+    await riseInY(t1, 'y', {duration:350, dy:12, easing:Ease.outCubic});
+    T(g, 480, rowsY[i], rows[i][2], {fill:C.dim, size:13.5});
+    await wait(280);
+  }
+  await wait(400);
+
+  caption(g, 90, 560, "Substitute all three into Bayes' formula:", {size:15});
+  const final = mathLine(g, 90, 610, [
+    {s:'γ'},{t:'sub',s:'ik'},{t:'rm',s:' = '},{s:'π'},{t:'sub',s:'k'},{t:'rm',s:' N('},{s:'x'},{t:'sub',s:'i'},{t:'rm',s:'|'},{s:'μ'},{t:'sub',s:'k'},{t:'rm',s:',Σ'},{t:'sub',s:'k'},{t:'rm',s:') / Σ'},{s:'π'},{t:'sub',s:'j'},{t:'rm',s:' N('},{s:'x'},{t:'sub',s:'i'},{t:'rm',s:'|'},{s:'μ'},{t:'sub',s:'j'},{t:'rm',s:',Σ'},{t:'sub',s:'j'},{t:'rm',s:')'}
+  ], {size:20, fill:C.violet});
+  await fadeIn(final, {duration:500});
+  await flash(final, C.violet, {hold:700});
+  footnote(g, 90, 660, "this is nothing but Bayes' theorem, applied to a mixture of Gaussians — the responsibility used in every GMM E-step.");
+}});
+
+/* ---------- 20. SVD FROM EIGENVECTORS ---------- */
+SLIDES.push({ label:"SVD from eigenvectors", async build(g){
+  await header(g, "Connecting back to eigenvectors", "SVD, Built From What You Already Know");
+  await wait(80);
+
+  caption(g, 90, 190, "Problem: eigenvectors need a square matrix. Most data matrices A aren't square.", {size:15.5});
+  await wait(400);
+  caption(g, 90, 214, "Trick: even if A isn't square, AᵀA and AAᵀ always are — and always symmetric.", {size:15.5, fill:C.violet});
+  await wait(500);
+
+  const rows = [
+    mathLine(g, 90, 280, [{t:'rm',s:'start from   '},{s:'A'},{t:'rm',s:' = '},{s:'U'},{s:'Σ'},{s:'V'},{t:'sup',s:'T'}], {size:22}),
+    mathLine(g, 90, 324, [{s:'A'},{t:'sup',s:'T'},{s:'A'},{t:'rm',s:' = ('},{s:'V'},{s:'Σ'},{s:'U'},{t:'sup',s:'T'},{t:'rm',s:')('},{s:'U'},{s:'Σ'},{s:'V'},{t:'sup',s:'T'},{t:'rm',s:')'}], {size:20}),
+    mathLine(g, 90, 368, [{t:'rm',s:'since '},{s:'U'},{t:'sup',s:'T'},{s:'U'},{t:'rm',s:' = '},{s:'I'},{t:'rm',s:' (U is orthogonal), this collapses to:'}], {size:16, fill:C.dim}),
+    mathLine(g, 90, 408, [{s:'A'},{t:'sup',s:'T'},{s:'A'},{t:'rm',s:' = '},{s:'V'},{s:'Σ'},{t:'sup',s:'2'},{s:'V'},{t:'sup',s:'T'},{t:'rm',s:'      '},{t:'dim',s:'← exactly the eigen-equation shape!'}], {size:22, fill:C.amber}),
+  ];
+  for(const r of rows){ await fadeIn(r,{duration:420}); await wait(280); }
+  await flash(rows[3], C.amber, {hold:700});
+  await wait(400);
+
+  const box = panel(g, 90, 460, 1080, 170, {opacity:0, fill:'rgba(154,142,196,0.06)', stroke:C.violet});
+  await fadeIn(box, {duration:400});
+  const concl = [
+    ["V's columns", C.rose, "are the eigenvectors of AᵀA"],
+    ["Σ² (singular values, squared)", C.amber, "are the eigenvalues of AᵀA"],
+    ["U's columns", C.blue, "are the eigenvectors of AAᵀ, the same way"],
+  ];
+  concl.forEach((c,i)=>{
+    const y=500+i*40;
+    const t1 = T(g, 120, y, c[0], {fill:c[1], size:16, weight:600});
+    const t2 = T(g, 380, y, c[2], {fill:C.dim, size:15});
+    fadeIn(t1,{duration:350,delay:i*180}); fadeIn(t2,{duration:350,delay:i*180+80});
+  });
+  await wait(1000);
+  footnote(g, 90, 655, "so SVD isn't a new idea — it's eigenvectors, applied twice, to make them work for any matrix at all.");
+}});
+
+/* ---------- 21. RECAP: THE PATTERN ---------- */
+SLIDES.push({ label:"Recap — the pattern behind every derivation", async build(g){
+  await header(g, "Zooming out", "The Pattern Behind Every Derivation");
+  await wait(80);
+
+  const stepsX=140, stepsY=220, stepGap=110;
+  const steps = ["Write down what you want\n(an objective function)", "Take the derivative\n(or use a Lagrange multiplier if constrained)", "Set that derivative to zero", "Solve — that's your answer"];
+  const cols=[C.blue, C.amber, C.rose, C.green];
+  for(let i=0;i<4;i++){
+    const x = stepsX + i*260;
+    const tag = stepTag(g, x, stepsY, i+1, cols[i]);
+    await tweenAttr(tag, {opacity:1}, {duration:300});
+    const lines = steps[i].split('\n');
+    lines.forEach((l,li)=> fadeIn(T(g, x, stepsY+30+li*20, l, {fill:C.dim, size:13, anchor:'middle'}), {duration:350}));
+    if(i<3){ const ar = arrow(g, x+40, stepsY-6, x+260-40, stepsY-6, C.dim2, {sw:1.4, opacity:0}); await tweenAttr(ar,{opacity:.7},{duration:250}); }
+    await wait(250);
+  }
+  await wait(400);
+
+  caption(g, 90, 380, "You've now seen this exact recipe produce three major results:", {size:15.5});
+  const uses = [
+    ["mean = (1/n)Σxᵢ", C.blue, "→ why K-Means moves centroids to the average"],
+    ["Cov(X)v = λv", C.amber, "→ why PCA's best direction is an eigenvector"],
+    ["γᵢₖ from Bayes' theorem", C.rose, "→ why GMM assigns soft cluster probabilities"],
+  ];
+  uses.forEach((u,i)=>{
+    const y=430+i*40;
+    fadeIn(T(g, 110, y, u[0], {fill:u[1], size:17, font:"'JetBrains Mono',monospace"}), {duration:400, delay:i*200});
+    fadeIn(T(g, 420, y, u[2], {fill:C.dim, size:15}), {duration:400, delay:i*200+100});
+  });
+  await wait(1200);
+
+  const quote = T(g, 640, 640, "\u201cWhat I cannot create, I do not understand.\u201d — Richard Feynman", {fill:C.dim2, size:14, italic:true, anchor:'middle', font:"'Fraunces',serif"});
+  fadeIn(quote, {duration:600});
+}});
+
+/* =========================================================================
+   PLAYER
+   ========================================================================= */
+const stage = document.getElementById('stage');
+const mainG = E('g', {}, stage);
+let idx = 0;
+
+function updateChrome(){
+  document.getElementById('counter').textContent = String(idx+1).padStart(2,'0') + ' / ' + SLIDES.length;
+  document.getElementById('slideLabel').textContent = SLIDES[idx].label;
+  document.getElementById('barFill').style.width = ((idx+1)/SLIDES.length*100) + '%';
+  document.getElementById('prevBtn').style.opacity = idx===0 ? 0.35 : 1;
+  document.getElementById('nextBtn').style.opacity = idx===SLIDES.length-1 ? 0.35 : 1;
+}
+
+function goTo(i, replay){
+  if(i<0 || i>=SLIDES.length) return;
+  if(i===idx && !replay) return;
+  idx=i;
+  CURRENT_TOKEN++;
+  clear(mainG);
+  updateChrome();
+  Promise.resolve().then(()=> SLIDES[idx].build(mainG)).catch(err=> console.error(err));
+}
+
+document.getElementById('nextBtn').addEventListener('click', ()=> goTo(idx+1));
+document.getElementById('prevBtn').addEventListener('click', ()=> goTo(idx-1));
+document.getElementById('replayBtn').addEventListener('click', ()=> goTo(idx, true));
+
+window.addEventListener('keydown', (e)=>{
+  if(e.key==='ArrowRight' || e.key===' '){ e.preventDefault(); goTo(idx+1); }
+  else if(e.key==='ArrowLeft'){ e.preventDefault(); goTo(idx-1); }
+  else if(e.key==='r' || e.key==='R'){ goTo(idx, true); }
+});
+
+goTo(0, true);
+</script>
+</body>
+</html>

@@ -1,0 +1,1205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>The Math Behind LLMs — Built From the Ground Up</title>
+<style>
+:root{
+  --bg:#08080c;
+  --panel:#111117;
+  --panel2:#15151d;
+  --border:#25252f;
+  --text:#d8d8e0;
+  --text-dim:#8888a0;
+  --teal:#4fd1c5;
+  --amber:#e0a458;
+  --blue:#63b3ed;
+  --purple:#b794f4;
+  --rose:#e08a8a;
+  --green:#68d391;
+  --red:#e57373;
+  --gray:#9aa0b0;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+  overflow:hidden;
+  user-select:none;
+}
+#app{position:relative;width:100vw;height:100vh;display:flex;flex-direction:column;}
+
+/* header */
+#hdr{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 28px;border-bottom:1px solid var(--border);
+  background:linear-gradient(180deg,#0a0a10,#08080c);
+  flex:0 0 auto;
+}
+#hdr .chap{color:var(--text-dim);font-size:12px;letter-spacing:2px;text-transform:uppercase;}
+#hdr .ttl{font-size:19px;font-weight:600;color:#f0f0f5;margin-top:2px;}
+#hdr .sub{font-size:12.5px;color:var(--text-dim);margin-top:2px;}
+#dots{display:flex;gap:5px;flex-wrap:wrap;max-width:320px;justify-content:flex-end;}
+.dot{width:6px;height:6px;border-radius:50%;background:#2a2a35;transition:all .25s;}
+.dot.active{background:var(--teal);width:16px;border-radius:3px;}
+.dot.done{background:#454555;}
+
+/* main split */
+#main{flex:1 1 auto;display:flex;min-height:0;}
+#canvasWrap{flex:0 0 58%;position:relative;border-right:1px solid var(--border);}
+canvas{width:100%;height:100%;display:block;}
+#panel{flex:1 1 42%;padding:22px 26px;overflow-y:auto;background:var(--panel);}
+#panel::-webkit-scrollbar{width:8px;}
+#panel::-webkit-scrollbar-thumb{background:#26262f;border-radius:4px;}
+
+.p-lead{font-size:14.5px;line-height:1.6;color:#c8c8d4;margin-bottom:14px;}
+.p-bullets{list-style:none;margin-bottom:16px;}
+.p-bullets li{
+  font-size:13.5px;line-height:1.55;color:var(--text-dim);
+  padding-left:16px;position:relative;margin-bottom:8px;
+}
+.p-bullets li::before{content:"›";position:absolute;left:0;color:var(--accent,var(--teal));font-weight:700;}
+.p-bullets b{color:#e2e2ea;font-weight:600;}
+
+.formula-box{
+  background:var(--panel2);border:1px solid var(--border);border-left:3px solid var(--accent,var(--teal));
+  border-radius:6px;padding:14px 16px;margin:14px 0 10px 0;
+}
+.formula-box .flabel{font-size:10.5px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-dim);margin-bottom:8px;}
+.formula-box .feq{
+  font-family:'Cambria Math',Cambria,'Times New Roman',serif;font-size:17px;color:#f0e8d0;
+  text-align:center;padding:6px 0;letter-spacing:.3px;
+}
+.formula-box .fnote{font-size:11.5px;color:var(--text-dim);margin-top:8px;line-height:1.5;}
+
+details.why{
+  background:var(--panel2);border:1px solid var(--border);border-radius:6px;
+  margin-bottom:10px;overflow:hidden;
+}
+details.why summary{
+  padding:10px 14px;cursor:pointer;font-size:12.5px;font-weight:600;color:var(--accent,var(--teal));
+  list-style:none;display:flex;align-items:center;gap:8px;
+}
+details.why summary::-webkit-details-marker{display:none;}
+details.why summary::before{content:"+";display:inline-block;width:14px;color:var(--text-dim);font-weight:400;}
+details.why[open] summary::before{content:"−";}
+details.why .why-body{padding:0 16px 14px 16px;font-size:12.5px;line-height:1.6;color:var(--text-dim);}
+details.why .why-body h4{color:#c8c8d4;font-size:11.5px;margin:10px 0 4px 0;text-transform:uppercase;letter-spacing:1px;}
+details.why .why-body p{margin-bottom:6px;}
+
+.tag-row{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;}
+.tag{font-size:10px;padding:3px 9px;border-radius:20px;border:1px solid var(--border);color:var(--text-dim);letter-spacing:.5px;}
+
+/* footer nav */
+#ftr{
+  flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;
+  padding:12px 28px;border-top:1px solid var(--border);background:#08080c;
+}
+.navbtn{
+  background:var(--panel2);border:1px solid var(--border);color:var(--text);
+  padding:8px 18px;border-radius:6px;font-size:13px;cursor:pointer;transition:all .15s;
+  display:flex;align-items:center;gap:6px;
+}
+.navbtn:hover{border-color:var(--teal);color:var(--teal);}
+.navbtn:disabled{opacity:.3;cursor:default;}
+.navbtn:disabled:hover{border-color:var(--border);color:var(--text);}
+#ftr .mid{font-size:11.5px;color:var(--text-dim);letter-spacing:1px;}
+kbd{background:#1a1a22;border:1px solid #2a2a34;border-radius:3px;padding:1px 5px;font-size:10px;color:var(--text-dim);}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="hdr">
+    <div>
+      <div class="chap" id="chapLbl">CHAPTER</div>
+      <div class="ttl" id="titleLbl">Title</div>
+      <div class="sub" id="subLbl">Subtitle</div>
+    </div>
+    <div id="dots"></div>
+  </div>
+  <div id="main">
+    <div id="canvasWrap"><canvas id="cv"></canvas></div>
+    <div id="panel"></div>
+  </div>
+  <div id="ftr">
+    <button class="navbtn" id="prevBtn">← Prev</button>
+    <div class="mid"><span id="pos">1 / 1</span> &nbsp;·&nbsp; <kbd>←</kbd> <kbd>→</kbd> <kbd>space</kbd> to navigate</div>
+    <button class="navbtn" id="nextBtn">Next →</button>
+  </div>
+</div>
+
+<script>
+/* ============================= UTIL ============================= */
+const COLORS = {teal:'#4fd1c5',amber:'#e0a458',blue:'#63b3ed',purple:'#b794f4',rose:'#e08a8a',green:'#68d391',red:'#e57373',gray:'#9aa0b0',ink:'#f0f0f5',dim:'#55555f'};
+function ease(t){t=Math.max(0,Math.min(1,t));return 1-Math.pow(1-t,3);}
+function easeInOut(t){t=Math.max(0,Math.min(1,t));return t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;}
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+function lerp(a,b,t){return a+(b-a)*t;}
+
+function rrect(ctx,x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);
+  ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();
+}
+function box(ctx,x,y,w,h,opts){
+  opts=opts||{};
+  const r=opts.r!==undefined?opts.r:8;
+  rrect(ctx,x,y,w,h,r);
+  if(opts.fill){ctx.fillStyle=opts.fill;ctx.globalAlpha=opts.alpha!==undefined?opts.alpha:1;ctx.fill();ctx.globalAlpha=1;}
+  if(opts.stroke){ctx.strokeStyle=opts.stroke;ctx.lineWidth=opts.lw||1.5;ctx.stroke();}
+}
+function txt(ctx,s,x,y,opts){
+  opts=opts||{};
+  ctx.font=(opts.weight||400)+' '+(opts.size||13)+'px -apple-system,Segoe UI,Arial';
+  ctx.fillStyle=opts.color||COLORS.ink;
+  ctx.textAlign=opts.align||'center';
+  ctx.textBaseline=opts.baseline||'middle';
+  ctx.globalAlpha=opts.alpha!==undefined?opts.alpha:1;
+  ctx.fillText(s,x,y);
+  ctx.globalAlpha=1;
+}
+function line(ctx,x1,y1,x2,y2,opts){
+  opts=opts||{};
+  ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);
+  ctx.strokeStyle=opts.color||COLORS.gray;ctx.lineWidth=opts.lw||1.5;
+  if(opts.dash)ctx.setLineDash(opts.dash); else ctx.setLineDash([]);
+  ctx.globalAlpha=opts.alpha!==undefined?opts.alpha:1;
+  ctx.stroke();ctx.globalAlpha=1;ctx.setLineDash([]);
+}
+function arrow(ctx,x1,y1,x2,y2,opts){
+  opts=opts||{};
+  const p=opts.progress!==undefined?clamp(opts.progress,0,1):1;
+  const ex=lerp(x1,x2,p), ey=lerp(y1,y2,p);
+  line(ctx,x1,y1,ex,ey,opts);
+  if(p>0.05){
+    const ang=Math.atan2(ey-y1,ex-x1);
+    const sz=opts.head||6;
+    ctx.beginPath();
+    ctx.moveTo(ex,ey);
+    ctx.lineTo(ex-sz*Math.cos(ang-0.4),ey-sz*Math.sin(ang-0.4));
+    ctx.lineTo(ex-sz*Math.cos(ang+0.4),ey-sz*Math.sin(ang+0.4));
+    ctx.closePath();
+    ctx.fillStyle=opts.color||COLORS.gray;ctx.globalAlpha=opts.alpha!==undefined?opts.alpha:1;
+    ctx.fill();ctx.globalAlpha=1;
+  }
+}
+function bg(ctx,W,H,t,seed){
+  ctx.fillStyle='#08080c';ctx.fillRect(0,0,W,H);
+  const n=26;seed=seed||0;
+  for(let i=0;i<n;i++){
+    const fx = (Math.sin(i*12.9898+seed)*43758.5453)%1;
+    const fy = (Math.sin(i*78.233+seed)*12543.123)%1;
+    const bx = ((fx<0?fx+1:fx))*W;
+    const byBase = ((fy<0?fy+1:fy))*H;
+    const by = ((byBase + t*10*(0.3+ (i%5)*0.1)) % (H+30))-15;
+    const r = 0.6+ (i%4)*0.35;
+    ctx.beginPath();ctx.arc(bx,by,r,0,7);
+    ctx.fillStyle='rgba(150,160,190,'+(0.10+ (i%3)*0.05)+')';
+    ctx.fill();
+  }
+}
+function grid(W,H){return {W,H,cx:W/2,cy:H/2};}
+
+/* token bubble */
+function tokenBubble(ctx,x,y,label,color,alpha,scale){
+  scale=scale||1;alpha=alpha===undefined?1:alpha;
+  const w=Math.max(30,label.length*8.2+16)*scale, h=26*scale;
+  ctx.save();ctx.translate(x,y);
+  box(ctx,-w/2,-h/2,w,h,{fill:color+'22',stroke:color,lw:1.4,r:6,alpha:alpha});
+  txt(ctx,label,0,1,{size:12.5*scale,color:color,weight:600,alpha:alpha});
+  ctx.restore();
+}
+
+
+/* ---- annotated formula breakdown helpers ---- */
+function layoutFormula(ctx, segs, cx, y, size){
+  ctx.font = '700 '+size+'px Cambria, Georgia, "Times New Roman", serif';
+  const widths = segs.map(s=>ctx.measureText(s.t).width);
+  const totalW = widths.reduce((a,b)=>a+b,0);
+  let x = cx - totalW/2;
+  return segs.map((s,i)=>{
+    const w = widths[i];
+    const pos = Object.assign({}, s, {x:x+w/2, w:w, y:y, size:size});
+    x += w;
+    return pos;
+  });
+}
+function drawFormula(ctx, positions, alpha){
+  positions.forEach(p=>{
+    txt(ctx, p.t, p.x, p.y, {size:p.size, color:p.c||COLORS.ink, weight:700, alpha:(alpha===undefined?1:alpha)});
+  });
+}
+function highlightTerm(ctx, pos, appear, labelText, labelY){
+  if(appear<=0) return;
+  box(ctx, pos.x-pos.w/2-7, pos.y-pos.size*0.62, pos.w+14, pos.size*0.88, {fill:(pos.c||COLORS.teal)+'22', stroke:pos.c||COLORS.teal, r:5, alpha:appear, lw:1.4});
+  line(ctx, pos.x, pos.y+pos.size*0.3, pos.x, labelY-8, {color:pos.c||COLORS.teal, alpha:appear*0.7});
+  const lines = labelText.split('\n');
+  lines.forEach((ln,li)=>{
+    txt(ctx, ln, pos.x, labelY+li*13, {size:10.5, color:pos.c||COLORS.teal, alpha:appear, weight:600});
+  });
+}
+
+/* ============================= SLIDES ============================= */
+const S=[];
+
+S.push({chap:"Foundations", title:"The Math Behind LLMs", sub:"Built from the ground up \u2014 no formula appears until you've seen where it comes from", accent:COLORS.teal,
+panel:`
+<div class="p-lead">Every equation in the main deck — cross-entropy, attention, the reward model, KL divergence — reduces to a small handful of simple ideas, combined. This deck builds each one from scratch: basic building blocks first, then the real formulas, term by term.</div>
+<ul class="p-bullets">
+<li><b>Part 1 — Toolkit:</b> exponents, logs, summation, vectors, dot products, matrices, probability</li>
+<li><b>Part 2 — Calculus:</b> derivatives, the chain rule, gradients, gradient descent</li>
+<li><b>Part 3 — Assembly:</b> cross-entropy, attention, the preference model, KL divergence, backpropagation — built piece by piece from Parts 1 & 2</li>
+</ul>
+<div class="formula-box"><div class="flabel">The whole toolkit, in six ideas</div>
+<div class="feq">e^x &nbsp;·&nbsp; log &nbsp;·&nbsp; Σ &nbsp;·&nbsp; a·b &nbsp;·&nbsp; ∇ &nbsp;·&nbsp; chain rule</div>
+<div class="fnote">Every formula in the main deck is these six ideas, combined in a different order.</div></div>`,
+draw(ctx,W,H,t){
+  bg(ctx,W,H,t,80);
+  const cx=W/2, cy=H*0.42;
+  const e0=ease(clamp(t/0.8,0,1));
+  txt(ctx,'six ideas',cx,cy-60,{size:13,color:COLORS.teal,weight:700,alpha:e0});
+  const symbols=[{s:'e\u02e3',c:COLORS.amber},{s:'log',c:COLORS.blue},{s:'\u03a3',c:COLORS.purple},{s:'a\u00b7b',c:COLORS.green},{s:'\u2207',c:COLORS.rose},{s:'chain',c:COLORS.teal}];
+  const R=Math.min(W,H)*0.24;
+  symbols.forEach((sym,i)=>{
+    const ang=-Math.PI/2+i*(2*Math.PI/symbols.length);
+    const appear=ease(clamp((t-0.3-i*0.15)/0.5,0,1));
+    if(appear<=0)return;
+    const x=cx+Math.cos(ang)*R*appear, y=cy+Math.sin(ang)*R*appear;
+    tokenBubble(ctx,x,y,sym.s,sym.c,appear,1.1);
+  });
+  const e2=ease(clamp((t-1.6)/0.7,0,1));
+  if(e2>0){
+    box(ctx,cx-90,cy-20,180,40,{fill:'#141420',stroke:'#888',alpha:e2,r:8});
+    txt(ctx,'every LLM formula',cx,cy,{size:11.5,color:'#ddd',alpha:e2});
+    symbols.forEach((sym,i)=>{
+      const ang=-Math.PI/2+i*(2*Math.PI/symbols.length);
+      const x=cx+Math.cos(ang)*R, y=cy+Math.sin(ang)*R;
+      line(ctx,x,y,cx,cy,{color:sym.c,alpha:0.15*e2});
+    });
+  }
+}});
+
+
+S.push({chap:"Foundations", title:"If You Can't Derive It, You Don't Own It", sub:"Feynman's test for real understanding", accent:COLORS.amber,
+panel:`
+<div class="p-lead">It's tempting to treat formulas like magic incantations — memorize the shape, plug in numbers, move on. But every equation ahead is built from a small set of simple ideas. Once you see the pieces, the "scary" formulas stop being scary.</div>
+<ul class="p-bullets">
+<li>Every formula in this deck reduces to: numbers, sums, multiplication, and one or two clever functions (exp, log)</li>
+<li>We'll build each formula from its simplest possible version up to the exact version used in an LLM</li>
+<li>The goal isn't memorization — it's being able to reconstruct the formula yourself, from the idea, whenever you need it</li>
+</ul>
+<div class="formula-box"><div class="flabel">The approach, every slide</div>
+<div class="feq">basic idea → basic idea → combine → the real formula</div>
+<div class="fnote">If a step ever feels like a leap, it isn't one — go back one slide and the piece will be there.</div></div>
+<details class="why"><summary>Why bother, if libraries do this for you?</summary><div class="why-body">
+<h4>Reasoning</h4><p>You can call <code>softmax()</code> without knowing what's inside it — until something breaks, or you need to modify it, or you're trying to reason about *why* a model behaves a certain way. Understanding the pieces is what turns "I use this" into "I understand this."</p>
+<h4>Real world</h4><p>Every debugging story about a training run that silently diverged, or a loss that mysteriously spiked, traces back to someone understanding — or not understanding — exactly this math.</p></div></details>`,
+draw(ctx,W,H,t){
+  bg(ctx,W,H,t,81);
+  const cx=W/2;
+  const e0=ease(clamp(t/0.6,0,1));
+  txt(ctx,'"What I cannot create, I do not understand."',cx,H*0.32,{size:15,color:'#ddd',alpha:e0,weight:600});
+  const e1=ease(clamp((t-0.8)/0.6,0,1));
+  if(e1>0)txt(ctx,'\u2014 Richard Feynman',cx,H*0.4,{size:11.5,color:'#888',alpha:e1});
+  const e2=ease(clamp((t-1.6)/0.6,0,1));
+  if(e2>0){
+    const stages=['memorize the shape','plug in numbers','???','real understanding'];
+    stages.forEach((s,i)=>{
+      const a=ease(clamp((t-1.8-i*0.3)/0.5,0,1));
+      if(a<=0)return;
+      const y=H*0.58+i*36;
+      const isGap = i===2;
+      txt(ctx,s,cx,y,{size:12,color:isGap?COLORS.rose:'#aaa',alpha:a,weight:isGap?700:400});
+    });
+  }
+}});
+
+S.push({chap:"1 \u00b7 Number Toolkit", title:"Exponents: Repeated Multiplication, and Growth", sub:"The function behind every softmax, sigmoid, and probability in this deck", accent:COLORS.amber,
+panel:`
+<div class="p-lead">x² means "multiply x by itself twice." e^x extends that idea to a special, extremely useful base: Euler's number e ≈ 2.718. It shows up everywhere in ML because of one property: its own rate of change equals its own value.</div>
+<ul class="p-bullets">
+<li>e⁰ = 1, e¹ ≈ 2.72, e² ≈ 7.39 — small changes in the exponent cause fast changes in the output</li>
+<li>e^x is always positive, no matter how negative x gets — perfect for turning any real number into a positive "score"</li>
+<li>This positivity is exactly why softmax and sigmoid both start with e^(something)</li>
+</ul>
+<div class="formula-box"><div class="flabel">All you need to remember</div>
+<div class="feq">e^x is always positive · grows fast · e⁰ = 1</div>
+<div class="fnote">You don't need the infinite-series definition to use e^x day to day — just these three facts.</div></div>
+<details class="why"><summary>Why not just use x² or 2^x instead?</summary><div class="why-body">
+<h4>Reasoning</h4><p>Any positive base works to turn numbers positive, but e has a uniquely clean derivative — the slope of e^x at any point is e^x itself. That makes the calculus in later gradient steps dramatically simpler.</p>
+<h4>Real world</h4><p>In this pipeline, e^x appears inside softmax (attention weights, next-token probabilities), inside sigmoid (the reward model, DPO), and inside cross-entropy loss (through the log that inverts it).</p></div></details>`,
+draw(ctx,W,H,t){
+  bg(ctx,W,H,t,82);
+  const cx0=W*0.16, cy0=H*0.82, plotW=W*0.7, plotH=H*0.58;
+  line(ctx,cx0,cy0,cx0+plotW,cy0,{color:'#333'});
+  line(ctx,cx0,cy0,cx0,cy0-plotH,{color:'#333'});
+  txt(ctx,'x',cx0+plotW+14,cy0,{size:12,color:'#777'});
+  txt(ctx,'e\u02e3',cx0-18,cy0-plotH-6,{size:12,color:'#777'});
+  const xMin=-3, xMax=2;
+  const yMax=8;
+  function toX(x){ return cx0 + (x-xMin)/(xMax-xMin)*plotW; }
+  function toY(y){ return cy0 - Math.min(y,yMax)/yMax*plotH; }
+  const zeroX = toX(0);
+  line(ctx,zeroX,cy0,zeroX,cy0-plotH,{color:'#222',dash:[3,3]});
+  const e=ease(clamp(t/1.4,0,1));
+  ctx.beginPath();
+  const N=100;
+  for(let i=0;i<=N;i++){
+    const f=i/N; if(f>e)break;
+    const x=xMin+f*(xMax-xMin);
+    const y=Math.exp(x);
+    const px=toX(x), py=toY(y);
+    if(i===0)ctx.moveTo(px,py);else ctx.lineTo(px,py);
+  }
+  ctx.strokeStyle=COLORS.amber;ctx.lineWidth=2.4;ctx.stroke();
+  const markers=[-2,0,1,2];
+  markers.forEach((x,i)=>{
+    const a=ease(clamp((t-1.5-i*0.3)/0.5,0,1));
+    if(a<=0)return;
+    const y=Math.exp(x);
+    const px=toX(x), py=toY(y);
+    ctx.beginPath();ctx.arc(px,py,4,0,7);ctx.fillStyle=COLORS.amber;ctx.globalAlpha=a;ctx.fill();ctx.globalAlpha=1;
+    txt(ctx,`e^${x}\u2248${y.toFixed(2)}`,px,py-16,{size:9.5,color:COLORS.amber,alpha:a});
+  });
+}});
+
+
+S.push({chap:"1 \u00b7 Number Toolkit", title:"Logarithms: Undoing the Exponent", sub:"The function behind every loss value in this deck", accent:COLORS.amber,
+panel:`
+<div class="p-lead">If e^x turns an exponent into a big number, log(x) does the reverse: it asks "what exponent would I need on e to get x?" Logs turn multiplication into addition, and — critically for us — turn tiny probabilities into large, well-behaved loss numbers.</div>
+<ul class="p-bullets">
+<li>log(1) = 0 — a probability of 1 (certainty) costs nothing</li>
+<li>log(x) → −∞ as x → 0 — near-zero probability is punished extremely harshly</li>
+<li>log(a·b) = log(a) + log(b) — this is why a product of probabilities can become a sum</li>
+</ul>
+<div class="formula-box"><div class="flabel">Inverse of exp</div>
+<div class="feq">log(e^x) = x&nbsp;&nbsp;&nbsp;&nbsp;e^{log(x)} = x</div>
+<div class="fnote">log and exp undo each other — applying one cancels the other out.</div></div>
+<details class="why"><summary>Why does ML care about turning products into sums?</summary><div class="why-body">
+<h4>Reasoning</h4><p>The probability of a whole sequence of tokens is a product of many small probabilities, which quickly underflows to a numerically unusable near-zero number on a computer. Taking the log converts that fragile product into a stable, easy-to-work-with sum.</p>
+<h4>Real world</h4><p>This is exactly why −log(p) is usable as cross-entropy loss, and why "log-probability" is the actual currency of every training loop, not raw probability.</p></div></details>`,
+draw(ctx,W,H,t){
+  bg(ctx,W,H,t,83);
+  const cx0=W*0.16, cy0=H*0.5, plotW=W*0.7, plotH=H*0.4;
+  line(ctx,cx0,cy0,cx0+plotW,cy0,{color:'#333'});
+  line(ctx,cx0,cy0-plotH,cx0,cy0+plotH,{color:'#333'});
+  const xMin=0.02, xMax=2.2;
+  function toX(x){ return cx0 + (x-xMin)/(xMax-xMin)*plotW; }
+  function toY(y){ return cy0 - Math.max(-1,Math.min(1,y/3))*plotH; }
+  const e=ease(clamp(t/1.4,0,1));
+  ctx.beginPath();
+  const N=150;
+  for(let i=0;i<=N;i++){
+    const f=i/N; if(f>e)break;
+    const x=xMin+f*(xMax-xMin);
+    const y=Math.log(x);
+    const px=toX(x), py=toY(y);
+    if(i===0)ctx.moveTo(px,py);else ctx.lineTo(px,py);
+  }
+  ctx.strokeStyle=COLORS.blue;ctx.lineWidth=2.4;ctx.stroke();
+  const e2=ease(clamp((t-1.6)/0.5,0,1));
+  if(e2>0){
+    const px=toX(1), py=toY(0);
+    ctx.beginPath();ctx.arc(px,py,4,0,7);ctx.fillStyle=COLORS.blue;ctx.fill();
+    txt(ctx,'log(1) = 0',px,py-16,{size:10.5,color:COLORS.blue,alpha:e2});
+  }
+  const e3=ease(clamp((t-2.2)/0.5,0,1));
+  if(e3>0){
+    txt(ctx,'log(x) \u2192 \u2212\u221e as x \u2192 0',toX(0.15),toY(-1)+16,{size:10.5,color:COLORS.rose,alpha:e3});
+  }
+}});
+
+S.push({chap:"1 \u00b7 Number Toolkit", title:"\u03a3: A Shorthand for Add All of These Up", sub:"The most common symbol in every formula you'll see", accent:COLORS.purple,
+panel:`
+<div class="p-lead">Σ (sigma) just means "add up a list of things." Instead of writing x1+x2+x3+...+xn, we write one compact line that says exactly which terms to add and how many there are.</div>
+<ul class="p-bullets">
+<li>The number below Σ says where to start counting (often i=1)</li>
+<li>The number above Σ says where to stop (often n, the total count)</li>
+<li>Whatever's to the right of Σ is the thing being added, once per value of i</li>
+</ul>
+<div class="formula-box"><div class="flabel">Definition</div>
+<div class="feq">Σ<sub>i=1</sub><sup>n</sup> x<sub>i</sub> = x<sub>1</sub> + x<sub>2</sub> + … + x<sub>n</sub></div>
+<div class="fnote">Read left to right: "sum, from i equals 1 to n, of x sub i."</div></div>
+<details class="why"><summary>Why not just write it out with dots (...) every time?</summary><div class="why-body">
+<h4>Reasoning</h4><p>Real formulas sum over thousands or millions of terms — every token in a sequence, every weight in a matrix. Writing "..." doesn't specify exactly what's being summed or how many terms there are; Σ notation is unambiguous whether n is 3 or 3 billion.</p>
+<h4>Real world</h4><p>Σ appears inside cross-entropy loss (summing over tokens), inside attention (summing weighted values), and inside almost every loss function in the main deck.</p></div></details>`,
+draw(ctx,W,H,t){
+  bg(ctx,W,H,t,84);
+  const cx=W/2;
+  const vals=[3,7,2,5,4];
+  const n=vals.length;
+  const gap=W*0.55/n, startX=cx-(gap*(n-1))/2, y=H*0.28;
+  let running=0;
+  const e0=ease(clamp(t/0.5,0,1));
+  txt(ctx,'\u03a3 x\u1d62  for i = 1 to '+n,cx,H*0.14,{size:13,color:COLORS.purple,alpha:e0,weight:700});
+  vals.forEach((v,i)=>{
+    const appear=ease(clamp((t-0.5-i*0.5)/0.5,0,1));
+    if(appear<=0)return;
+    tokenBubble(ctx,startX+i*gap,y,'x'+(i+1)+'='+v,COLORS.purple,appear,0.85);
+    const collectA=ease(clamp((t-0.9-i*0.5)/0.4,0,1));
+    if(collectA>0){
+      running += 0; // display handled below via cumulative calc
+    }
+  });
+  const e2=ease(clamp((t-0.9)/0.1,0,1));
+  // running total display, recompute cumulative sum up to current time
+  let cum=0, shown=0;
+  for(let i=0;i<n;i++){
+    const collectA=clamp((t-0.9-i*0.5)/0.4,0,1);
+    if(collectA>0){ cum += vals[i]*Math.min(1,collectA); shown=i+1; }
+  }
+  const e3=ease(clamp((t-1.0)/0.3,0,1));
+  if(e3>0){
+    box(ctx,cx-70,H*0.58,140,50,{fill:COLORS.purple+'18',stroke:COLORS.purple,alpha:e3,r:8});
+    txt(ctx,'running total',cx,H*0.58+16,{size:10,color:COLORS.purple,alpha:e3});
+    txt(ctx,cum.toFixed(0),cx,H*0.58+34,{size:18,color:COLORS.purple,alpha:e3,weight:700});
+  }
+  const e4=ease(clamp((t-3.6)/0.5,0,1));
+  if(e4>0)txt(ctx,'\u03a3 x\u1d62 = '+vals.reduce((a,b)=>a+b,0),cx,H*0.78,{size:13,color:'#ccc',alpha:e4,weight:600});
+}});
+
+
+S.push({chap:"2 \u00b7 Space & Similarity", title:"Vectors: A List of Numbers as a Point in Space", sub:"This is what a token embedding actually is", accent:COLORS.teal,
+panel:`
+<div class="p-lead">A vector is just an ordered list of numbers — but geometrically, you can picture it as an arrow from the origin to a point. Two numbers = a point on a page. Hundreds of numbers = a point in a space you can't draw, but the same intuition still applies.</div>
+<ul class="p-bullets">
+<li>A vector's length (magnitude) tells you "how big" it is</li>
+<li>Two vectors can be added (combine their directions) or scaled (stretch/shrink without changing direction)</li>
+<li>An embedding is exactly this: a vector representing a token's "position" in meaning-space</li>
+</ul>
+<div class="formula-box"><div class="flabel">Length of a vector</div>
+<div class="feq">‖v‖ = √( Σ<sub>i</sub> v<sub>i</sub>² )</div>
+<div class="fnote">This is just the Pythagorean theorem, generalized from 2 dimensions to however many you have.</div></div>
+<details class="why"><summary>Why represent words as points in space at all?</summary><div class="why-body">
+<h4>Reasoning</h4><p>Arithmetic on numbers is easy for a computer, but arithmetic on "meaning" isn't defined. By placing words as vectors, distance and direction become stand-ins for semantic relationships, so "how similar are these two words" becomes an ordinary geometry problem the model can learn to shape.</p>
+<h4>Real world</h4><p>This is the exact idea behind token embeddings from the main deck — the embedding table literally stores one vector per token.</p></div></details>`,
+draw(ctx,W,H,t){
+  bg(ctx,W,H,t,85);
+  const cx=W*0.5, cy=H*0.55, scale=Math.min(W,H)*0.14;
+  line(ctx,cx-scale*3,cy,cx+scale*3,cy,{color:'#333'});
+  line(ctx,cx,cy-scale*3,cx,cy+scale*3,{color:'#333'});
+  const v=[2.5,1.5];
+  const e0=ease(clamp(t/0.6,0,1));
+  if(e0>0){
+    arrow(ctx,cx,cy,cx+v[0]*scale*e0,cy-v[1]*scale*e0,{color:COLORS.teal,progress:1,head:8,lw:2.5});
+    txt(ctx,'v = ('+v[0]+', '+v[1]+')',cx+v[0]*scale+30,cy-v[1]*scale-10,{size:11,color:COLORS.teal,alpha:e0});
+  }
+  const e1=ease(clamp((t-0.9)/0.6,0,1));
+  if(e1>0){
+    const len=Math.sqrt(v[0]*v[0]+v[1]*v[1]);
+    txt(ctx,'‖v‖ = \u221a(2.5\u00b2+1.5\u00b2) \u2248 '+len.toFixed(2),cx,H*0.85,{size:12,color:COLORS.teal,alpha:e1,weight:600});
+    line(ctx,cx,cy,cx+v[0]*scale,cy,{color:'#555',dash:[3,3],alpha:e1});
+    line(ctx,cx+v[0]*scale,cy,cx+v[0]*scale,cy-v[1]*scale,{color:'#555',dash:[3,3],alpha:e1});
+  }
+}});
+
+S.push({chap:"2 \u00b7 Space & Similarity", title:"Dot Product: How Much Do Two Vectors Point the Same Way?", sub:"The single operation underneath attention and cosine similarity", accent:COLORS.blue,
+panel:`
+<div class="p-lead">The dot product multiplies two vectors' matching components and adds up the results. The output is one number — large and positive when the vectors point in similar directions, near zero when unrelated, negative when pointing opposite ways.</div>
+<ul class="p-bullets">
+<li>Component-wise: multiply each pair, then sum (that Σ from a few slides ago)</li>
+<li>Geometrically: dot product = ‖a‖ · ‖b‖ · cos(angle between them)</li>
+<li>This is exactly why dot products measure "how relevant is this token to that token"</li>
+</ul>
+<div class="formula-box"><div class="flabel">Two equivalent forms</div>
+<div class="feq">a · b = Σ<sub>i</sub> a<sub>i</sub>b<sub>i</sub>  =  ‖a‖‖b‖cos(θ)</div>
+<div class="fnote">One algebraic way to compute it, one geometric way to understand it — same number either way.</div></div>
+<details class="why"><summary>Why does a sum-of-products capture "similarity"?</summary><div class="why-body">
+<h4>Reasoning</h4><p>When two vectors point the same direction, their matching components tend to share the same sign, so every term in the sum adds constructively, producing a large positive total. When they're unrelated or opposite, positive and negative products cancel toward zero — the arithmetic itself encodes the geometry.</p>
+<h4>Real world</h4><p>This exact operation, Q·K, is the very first step inside the attention formula — how a query token measures relevance to every key token.</p></div></details>`,
+draw(ctx,W,H,t){
+  bg(ctx,W,H,t,86);
+  const cx=W*0.5, cy=H*0.5, R=Math.min(W,H)*0.28;
+  const cases=[
+    {ang:0.25, label:'similar direction', val:'large positive'},
+    {ang:Math.PI/2, label:'unrelated (perpendicular)', val:'\u2248 0'},
+    {ang:Math.PI*0.85, label:'opposite direction', val:'negative'}
+  ];
+  const caseIdx = Math.min(cases.length-1, Math.floor(t/1.6));
+  const c=cases[caseIdx];
+  const localT = t - caseIdx*1.6;
+  const e0=ease(clamp(localT/0.6,0,1));
+  line(ctx,cx-R,cy,cx+R,cy,{color:'#333'});
+  line(ctx,cx,cy-R,cx,cy+R,{color:'#333'});
+  arrow(ctx,cx,cy,cx+R*0.7,cy,{color:COLORS.blue,progress:e0,lw:2.2});
+  const ang2=c.ang*ease(clamp(localT/1.0,0,1));
+  arrow(ctx,cx,cy,cx+R*0.7*Math.cos(ang2),cy-R*0.7*Math.sin(ang2),{color:COLORS.amber,progress:1,lw:2.2});
+  const e2=ease(clamp((localT-0.7)/0.5,0,1));
+  if(e2>0){
+    txt(ctx,c.label,cx,cy+R+30,{size:12,color:'#ccc',alpha:e2,weight:600});
+    txt(ctx,'a\u00b7b = '+c.val,cx,cy+R+50,{size:12,color:COLORS.amber,alpha:e2,weight:700});
+  }
+}});
+
+
+S.push({chap:"2 \u00b7 Space & Similarity", title:"Matrices: A Grid of Numbers, and How They Combine", sub:"Doing thousands of dot products in one operation", accent:COLORS.blue,
+panel:`
+<div class="p-lead">A matrix is a grid of numbers — think of each row (or column) as a vector. Matrix multiplication takes every row of one matrix and dot-products it against every column of another, producing a new grid of results all at once.</div>
+<ul class="p-bullets">
+<li>To multiply A (n×m) by B (m×p), the inner dimensions (m) must match — each entry of the result is one dot product</li>
+<li>The result has shape n×p: n rows from A, p columns from B</li>
+<li>This is how a network processes many tokens, and many dimensions, in one fast operation</li>
+</ul>
+<div class="formula-box"><div class="flabel">Entry-by-entry definition</div>
+<div class="feq">C<sub>ij</sub> = Σ<sub>k</sub> A<sub>ik</sub> B<sub>kj</sub></div>
+<div class="fnote">Entry (i,j) of the result = dot product of row i of A with column j of B.</div></div>
+<details class="why"><summary>Why does ML lean so heavily on this specific operation?</summary><div class="why-body">
+<h4>Reasoning</h4><p>Nearly every step in a neural network — projecting tokens into Q/K/V, mixing attention weights with values, applying a feed-forward layer — is fundamentally "take a bunch of dot products at once," and matrix multiplication is exactly that, implemented in hardware (GPUs) to run millions of these in parallel.</p>
+<h4>Real world</h4><p>When the attention formula computes Q·K^T, it isn't one dot product — it's an entire matrix of them, one per pair of tokens, computed in a single matrix multiplication.</p></div></details>`,
+draw(ctx,W,H,t){
+  bg(ctx,W,H,t,87);
+  const cell=30;
+  const A=[[1,2],[3,1],[0,2]];
+  const B=[[2,1,0],[1,0,2]];
+  const ax=W*0.16, ay=H*0.3;
+  const bx=W*0.46, by=H*0.16;
+  const e0=ease(clamp(t/0.6,0,1));
+  txt(ctx,'A (3\u00d72)',ax+cell,ay-22,{size:10.5,color:COLORS.blue,alpha:e0});
+  A.forEach((row,r)=>row.forEach((v,c)=>{
+    box(ctx,ax+c*cell,ay+r*cell,cell-2,cell-2,{fill:'#141420',stroke:COLORS.blue,alpha:e0,r:2});
+    txt(ctx,v,ax+c*cell+cell/2-1,ay+r*cell+cell/2-1,{size:11,color:'#ccc',alpha:e0});
+  }));
+  txt(ctx,'B (2\u00d73)',bx+cell*1.5,by-14,{size:10.5,color:COLORS.amber,alpha:e0});
+  B.forEach((row,r)=>row.forEach((v,c)=>{
+    box(ctx,bx+c*cell,by+r*cell,cell-2,cell-2,{fill:'#141420',stroke:COLORS.amber,alpha:e0,r:2});
+    txt(ctx,v,bx+c*cell+cell/2-1,by+r*cell+cell/2-1,{size:11,color:'#ccc',alpha:e0});
+  }));
+  const cx0=W*0.76, cy0=H*0.3;
+  const Cres=[[4,1,4],[7,3,2],[2,0,4]];
+  const e1=ease(clamp((t-0.8)/0.6,0,1));
+  if(e1>0)txt(ctx,'C (3\u00d73)',cx0+cell*1.5,cy0-22,{size:10.5,color:COLORS.green,alpha:e1});
+  const cellIdx = Math.floor(clamp((t-1.2)/0.5,0,1)*9);
+  for(let r=0;r<3;r++)for(let c=0;c<3;c++){
+    const idx=r*3+c;
+    const a=ease(clamp((t-1.2-idx*0.3)/0.4,0,1));
+    if(a<=0)continue;
+    box(ctx,cx0+c*cell,cy0+r*cell,cell-2,cell-2,{fill:COLORS.green+'22',stroke:COLORS.green,alpha:a,r:2});
+    txt(ctx,Cres[r][c],cx0+c*cell+cell/2-1,cy0+r*cell+cell/2-1,{size:11,color:COLORS.green,alpha:a});
+    if(a<1 && a>0){
+      // highlight source row/col
+      for(let k=0;k<2;k++){
+        box(ctx,ax+k*cell,ay+r*cell,cell-2,cell-2,{stroke:COLORS.green,fill:'transparent',alpha:a,r:2,lw:2});
+        box(ctx,bx+c*cell,by+k*cell,cell-2,cell-2,{stroke:COLORS.green,fill:'transparent',alpha:a,r:2,lw:2});
+      }
+    }
+  }
+}});
+
+S.push({chap:"3 \u00b7 Probability & Uncertainty", title:"Probability Distributions: Splitting 100% Among Options", sub:"What a model's output actually is", accent:COLORS.purple,
+panel:`
+<div class="p-lead">A probability distribution assigns a non-negative number to every possible outcome, such that all the numbers add up to exactly 1. When a language model "predicts the next token," it produces an entire distribution like this over the whole vocabulary.</div>
+<ul class="p-bullets">
+<li>Every value must be ≥ 0 — no negative probabilities</li>
+<li>All values must sum to exactly 1 — the "100%" has to go somewhere</li>
+<li>A "confident" distribution puts most of its mass on one outcome; a "flat" one spreads it evenly</li>
+</ul>
+<div class="formula-box"><div class="flabel">The two rules</div>
+<div class="feq">Σ<sub>i</sub> p<sub>i</sub> = 1&nbsp;&nbsp;&nbsp;&nbsp;p<sub>i</sub> ≥ 0 for all i</div>
+<div class="fnote">These two rules are the entire definition of a valid probability distribution — nothing more is required.</div></div>
+<details class="why"><summary>Why output a full distribution instead of just one word?</summary><div class="why-body">
+<h4>Reasoning</h4><p>Language is genuinely ambiguous — many different next words can be reasonable. Forcing the model to commit to one deterministic answer would throw away real uncertainty; a distribution lets it express "probably X, but Y is plausible too."</p>
+<h4>Real world</h4><p>The softmax function, coming up next, is precisely the tool that turns a model's raw internal numbers into a valid distribution satisfying both rules above.</p></div></details>`,
+draw(ctx,W,H,t){
+  bg(ctx,W,H,t,88);
+  const cx=W/2;
+  const words=['the','a','cat','dog','runs'];
+  const probs=[0.4,0.25,0.15,0.12,0.08];
+  const bx=W*0.16, by=H*0.32, bw=W*0.5, bh=H*0.4;
+  let cum=0;
+  words.forEach((w,i)=>{
+    const appear=ease(clamp((t-i*0.35)/0.5,0,1));
+    if(appear<=0)return;
+    const cw=bw/words.length;
+    const h=probs[i]*bh*2.3*appear;
+    box(ctx,bx+i*cw+6,by+bh-h,cw-12,h,{fill:COLORS.purple+'55',stroke:COLORS.purple,r:3});
+    txt(ctx,w,bx+i*cw+cw/2-6,by+bh+14,{size:10,color:'#999',alpha:appear});
+    txt(ctx,probs[i],bx+i*cw+cw/2-6,by+bh-h-10,{size:9.5,color:COLORS.purple,alpha:appear});
+  });
+  // running total bar on the right
+  const e2=ease(clamp((t-1.0)/2.0,0,1));
+  let running=0;
+  for(let i=0;i<words.length;i++){
+    const a=clamp((t-i*0.35)/0.5,0,1);
+    running += probs[i]*a;
+  }
+  const rx=W*0.78, ry=by, rw=40, rh=bh;
+  box(ctx,rx,ry,rw,rh,{fill:'#141420',stroke:'#555',r:4});
+  box(ctx,rx,ry+rh-running*rh,rw,running*rh,{fill:COLORS.green+'55',stroke:COLORS.green,r:4});
+  txt(ctx,'total: '+running.toFixed(2),rx+rw/2,ry+rh+20,{size:10.5,color:COLORS.green});
+}});
+
+
+S.push({chap:"3 \u00b7 Probability & Uncertainty", title:"Sigmoid: Squashing the Number Line Into (0,1)", sub:"From base form to the function used in the reward model", accent:COLORS.rose,
+panel:`
+<div class="p-lead">Suppose you have a raw score that can be any real number — very negative, very positive, anything. Sigmoid squashes it into a value strictly between 0 and 1, suitable as a probability. Let's build it from scratch.</div>
+<ul class="p-bullets">
+<li>Start with e^(−x): for large positive x this is tiny; for large negative x this is huge</li>
+<li>Add 1: 1 + e^(−x) is always ≥ 1, never zero</li>
+<li>Take the reciprocal: 1/(1+e^(−x)) is squeezed between 0 and 1 — sigmoid</li>
+</ul>
+<div class="formula-box"><div class="flabel">Sigmoid</div>
+<div class="feq">σ(x) = 1 / (1 + e<sup>−x</sup>)</div>
+<div class="fnote">σ(0)=0.5 (max uncertainty), σ(+∞)→1, σ(−∞)→0 — exactly the shape a probability needs.</div></div>
+<details class="why"><summary>Why this specific combination, not something simpler?</summary><div class="why-body">
+<h4>Reasoning</h4><p>Sigmoid is the natural function that comes from assuming "the log-odds of an event are a linear function of the input." Solving for the probability under that assumption produces exactly this formula, and it has a beautifully simple derivative — which matters once gradients enter the picture.</p>
+<h4>Real world</h4><p>Sigmoid is exactly the function used in the Bradley-Terry reward model (σ(r_A−r_B)) and in DPO's loss — both convert a raw score difference into a preference probability.</p></div></details>`,
+draw(ctx,W,H,t){
+  bg(ctx,W,H,t,89);
+  const cx0=W*0.16, cy0=H*0.7, plotW=W*0.7, plotH=H*0.5;
+  line(ctx,cx0,cy0,cx0+plotW,cy0,{color:'#333'});
+  line(ctx,cx0,cy0-plotH,cx0,cy0+0.15*plotH,{color:'#333'});
+  const xMin=-6,xMax=6;
+  function toX(x){return cx0+(x-xMin)/(xMax-xMin)*plotW;}
+  function toY(y){return cy0 - y*plotH;}
+  const e=ease(clamp(t/1.4,0,1));
+  ctx.beginPath();
+  const N=120;
+  for(let i=0;i<=N;i++){
+    const f=i/N; if(f>e)break;
+    const x=xMin+f*(xMax-xMin);
+    const y=1/(1+Math.exp(-x));
+    const px=toX(x), py=toY(y);
+    if(i===0)ctx.moveTo(px,py);else ctx.lineTo(px,py);
+  }
+  ctx.strokeStyle=COLORS.rose;ctx.lineWidth=2.4;ctx.stroke();
+  line(ctx,cx0,toY(1),cx0+plotW,toY(1),{color:'#444',dash:[3,3]});
+  line(ctx,cx0,toY(0),cx0+plotW,toY(0),{color:'#444',dash:[3,3]});
+  const e2=ease(clamp((t-1.6)/0.5,0,1));
+  if(e2>0){
+    const px=toX(0),py=toY(0.5);
+    ctx.beginPath();ctx.arc(px,py,4,0,7);ctx.fillStyle=COLORS.rose;ctx.fill();
+    txt(ctx,'\u03c3(0) = 0.5',px,py-16,{size:10.5,color:COLORS.rose,alpha:e2});
+  }
+}});
+
+S.push({chap:"3 \u00b7 Probability & Uncertainty", title:"Softmax: Turning a List of Scores Into a Distribution", sub:"From base form to the function used in every next-token prediction", accent:COLORS.purple,
+panel:`
+<div class="p-lead">Sigmoid handles "yes or no" (two outcomes). Softmax generalizes the same idea to any number of outcomes at once — like choosing among 50,000 possible next tokens.</div>
+<ul class="p-bullets">
+<li><b>Step 1:</b> exponentiate every score, e^{z_i} — guarantees everything is positive</li>
+<li><b>Step 2:</b> add them all up, Σ_j e^{z_j} — this total becomes the "whole pie"</li>
+<li><b>Step 3:</b> divide each exponentiated score by that total — each result is now a valid probability</li>
+</ul>
+<div class="formula-box"><div class="flabel">Softmax</div>
+<div class="feq">softmax(z)<sub>i</sub> = e<sup>z<sub>i</sub></sup> / Σ<sub>j</sub> e<sup>z<sub>j</sub></sup></div>
+<div class="fnote">The biggest input score gets the biggest slice of the probability "pie" — but every option keeps some nonzero probability.</div></div>
+<details class="why"><summary>Why exponentiate instead of just dividing raw scores by their sum?</summary><div class="why-body">
+<h4>Reasoning</h4><p>Raw scores can be negative, and dividing negative numbers by a sum doesn't reliably land in [0,1]. Exponentiating first guarantees positivity, and it also exaggerates differences between scores, making softmax naturally amplify the model's most confident guess.</p>
+<h4>Real world</h4><p>Softmax is the very last step that turns a model's raw output numbers into the next-token probability distribution, and it's also the normalizing step inside the attention formula.</p></div></details>`,
+draw(ctx,W,H,t){
+  bg(ctx,W,H,t,90);
+  const cx=W/2;
+  const words=['cat','dog','fox','moon'];
+  const raw=[2.0,1.2,-0.5,-2.0];
+  const bx=W*0.2, by=H*0.24, bw=W*0.6, bh=H*0.24;
+  const e0=ease(clamp(t/0.6,0,1));
+  txt(ctx,'raw scores (can be negative)',cx,by-18,{size:11,color:'#888',alpha:e0});
+  raw.forEach((v,i)=>{
+    const appear=ease(clamp((t-i*0.15)/0.4,0,1));
+    if(appear<=0)return;
+    const cw=bw/raw.length;
+    const h=Math.abs(v)*30*appear;
+    const y0 = v>0? by+bh/2-h : by+bh/2;
+    box(ctx,bx+i*cw+8,y0,cw-16,h,{fill:(v>0?COLORS.blue:COLORS.rose)+'55',stroke:v>0?COLORS.blue:COLORS.rose,r:2});
+    txt(ctx,words[i]+': '+v,bx+i*cw+cw/2-8,by+bh+16,{size:9.5,color:'#999',alpha:appear});
+  });
+  const exp=raw.map(Math.exp);
+  const total=exp.reduce((a,b)=>a+b,0);
+  const probs=exp.map(v=>v/total);
+  const by2=H*0.62;
+  const e2=ease(clamp((t-1.4)/0.7,0,1));
+  if(e2>0){
+    txt(ctx,'after exp() then divide by total \u2192 softmax',cx,by2-16,{size:11,color:COLORS.purple,alpha:e2});
+    probs.forEach((p,i)=>{
+      const a=ease(clamp((t-1.6-i*0.15)/0.4,0,1));
+      if(a<=0)return;
+      const cw=bw/probs.length;
+      const h=p*H*0.28*3*a;
+      box(ctx,bx+i*cw+8,by2+H*0.2-h,cw-16,h,{fill:COLORS.purple+'55',stroke:COLORS.purple,r:2});
+      txt(ctx,p.toFixed(2),bx+i*cw+cw/2-8,by2+H*0.2-h-10,{size:9.5,color:COLORS.purple,alpha:a});
+    });
+  }
+}});
+
+
+S.push({chap:"4 \u00b7 Calculus for Learning", title:"Derivatives: How Fast Is Something Changing?", sub:"The concept underneath every gradient in this deck", accent:COLORS.blue,
+panel:`
+<div class="p-lead">A derivative answers one question: if I nudge the input a tiny bit, how much does the output change, and in which direction? Geometrically, it's the slope of the curve at a single point.</div>
+<ul class="p-bullets">
+<li>If the derivative is positive, increasing the input increases the output</li>
+<li>If it's negative, increasing the input decreases the output</li>
+<li>If it's zero, you're at a flat spot — often a minimum or maximum</li>
+</ul>
+<div class="formula-box"><div class="flabel">Definition</div>
+<div class="feq">f'(x) = lim<sub>h→0</sub> [ f(x+h) − f(x) ] / h</div>
+<div class="fnote">Literally "rise over run" — the change in output divided by a vanishingly small change in input.</div></div>
+<details class="why"><summary>Why does a model need this idea at all?</summary><div class="why-body">
+<h4>Reasoning</h4><p>Training means adjusting millions of weights to reduce a loss value, and the derivative of the loss with respect to each weight tells you exactly which direction would make the loss go down — without derivatives, there's no principled way to know which way to adjust anything.</p>
+<h4>Real world</h4><p>This is the "slope" that gradient descent follows downhill, and what backpropagation computes for every single weight in a neural network.</p></div></details>`,
+draw(ctx,W,H,t){
+  bg(ctx,W,H,t,91);
+  const cx0=W*0.14, cy0=H*0.82, plotW=W*0.72, plotH=H*0.58;
+  line(ctx,cx0,cy0,cx0+plotW,cy0,{color:'#333'});
+  line(ctx,cx0,cy0-plotH,cx0,cy0,{color:'#333'});
+  function f(x){ return 0.02*(x-6)*(x-6)+0.3; }
+  function fp(x){ return 0.04*(x-6); }
+  function toX(x){ return cx0+x/12*plotW; }
+  function toY(y){ return cy0 - y*plotH*0.4; }
+  const e=ease(clamp(t/1.0,0,1));
+  ctx.beginPath();
+  for(let i=0;i<=100;i++){
+    const f2=i/100; if(f2>e)break;
+    const x=f2*12;
+    const px=toX(x), py=toY(f(x));
+    if(i===0)ctx.moveTo(px,py);else ctx.lineTo(px,py);
+  }
+  ctx.strokeStyle=COLORS.blue;ctx.lineWidth=2.2;ctx.stroke();
+  const xPos = 2 + 8*(0.5+0.5*Math.sin(t*0.8-1.5));
+  const e2=ease(clamp((t-1.2)/0.5,0,1));
+  if(e2>0){
+    const slope=fp(xPos);
+    const px=toX(xPos), py=toY(f(xPos));
+    const dx=1.5;
+    line(ctx,toX(xPos-dx),toY(f(xPos)-slope*dx),toX(xPos+dx),toY(f(xPos)+slope*dx),{color:COLORS.amber,lw:2,alpha:e2});
+    ctx.beginPath();ctx.arc(px,py,4,0,7);ctx.fillStyle=COLORS.amber;ctx.globalAlpha=e2;ctx.fill();ctx.globalAlpha=1;
+    txt(ctx,'slope = '+slope.toFixed(2),px,py-24,{size:10.5,color:COLORS.amber,alpha:e2});
+  }
+}});
+
+S.push({chap:"4 \u00b7 Calculus for Learning", title:"The Chain Rule: Differentiating Through a Pipeline", sub:"How influence passes through layers of computation", accent:COLORS.blue,
+panel:`
+<div class="p-lead">Real computations are rarely just one function — they're functions of functions (a token embedding feeds into attention, which feeds into a loss). The chain rule says: to find how the final output changes when you nudge the very first input, multiply the derivatives of each step along the way.</div>
+<ul class="p-bullets">
+<li>If y depends on u, and u depends on x, a small nudge to x causes a nudge to u, which causes a nudge to y</li>
+<li>Multiply each step's "sensitivity" together to get the total sensitivity from x all the way to y</li>
+<li>This lets you differentiate through arbitrarily long chains of computation, one link at a time</li>
+</ul>
+<div class="formula-box"><div class="flabel">Chain rule</div>
+<div class="feq">dy/dx = (dy/du) · (du/dx)</div>
+<div class="fnote">Each factor is a "local" derivative — easy to compute on its own — multiplying them chains the effect through the pipeline.</div></div>
+<details class="why"><summary>Why is this the single most important rule in deep learning?</summary><div class="why-body">
+<h4>Reasoning</h4><p>A neural network is a long chain of simple operations stacked together, and the chain rule is the only reason it's tractable to compute how the final loss depends on a weight buried dozens of layers deep.</p>
+<h4>Real world</h4><p>"Backpropagation" — the algorithm that trains every neural network, including every LLM — is nothing more than the chain rule applied systematically, layer by layer.</p></div></details>`,
+draw(ctx,W,H,t){
+  bg(ctx,W,H,t,92);
+  const cx=W/2, y=H*0.4;
+  const stages=[{l:'x',c:COLORS.teal},{l:'u',c:COLORS.amber},{l:'y',c:COLORS.rose}];
+  const gap=W*0.5;
+  const startX=cx-gap/2;
+  stages.forEach((s,i)=>{
+    const appear=ease(clamp((t-i*0.4)/0.5,0,1));
+    if(appear<=0)return;
+    const x=startX+i*gap;
+    box(ctx,x-30,y-25,60,50,{fill:s.c+'22',stroke:s.c,alpha:appear,r:8});
+    txt(ctx,s.l,x,y,{size:18,color:s.c,alpha:appear,weight:700});
+    if(i>0){
+      const ap=ease(clamp((t-i*0.4-0.2)/0.4,0,1));
+      arrow(ctx,startX+(i-1)*gap+30,y,x-30,y,{color:'#666',progress:ap});
+      const label=i===1?'du/dx':'dy/du';
+      if(ap>0.3)txt(ctx,label,startX+(i-0.5)*gap,y-38,{size:10.5,color:'#999',alpha:ap});
+    }
+  });
+  const e2=ease(clamp((t-1.6)/0.6,0,1));
+  if(e2>0){
+    box(ctx,cx-90,y+70,180,40,{fill:'#141420',stroke:'#888',alpha:e2,r:8});
+    txt(ctx,'dy/dx = (dy/du)\u00b7(du/dx)',cx,y+90,{size:12,color:'#ddd',alpha:e2,weight:600});
+  }
+}});
+
+
+S.push({chap:"4 \u00b7 Calculus for Learning", title:"Gradients: The Derivative, Generalized to Many Inputs", sub:"What a model actually computes for millions of weights at once", accent:COLORS.rose,
+panel:`
+<div class="p-lead">A real model doesn't have one input — it has millions of weights. The gradient is simply the derivative with respect to every single one of those weights, computed all at once — a vector pointing in the direction of steepest increase.</div>
+<ul class="p-bullets">
+<li>Each entry: "how much does the loss change if I nudge this one weight, holding everything else fixed"</li>
+<li>The gradient vector, as a whole, points in the direction that increases the loss fastest</li>
+<li>To decrease the loss, move in the exact opposite direction: negative the gradient</li>
+</ul>
+<div class="formula-box"><div class="flabel">The gradient vector</div>
+<div class="feq">∇L = ( ∂L/∂w<sub>1</sub>, ∂L/∂w<sub>2</sub>, …, ∂L/∂w<sub>n</sub> )</div>
+<div class="fnote">∂ ("partial") means "derivative with respect to just this one variable, treating the others as fixed."</div></div>
+<details class="why"><summary>Why a vector instead of a single derivative?</summary><div class="why-body">
+<h4>Reasoning</h4><p>With millions of weights, each has its own independent effect on the loss — bundling all those sensitivities into one vector lets you describe, and then act on, the entire multi-million-dimensional adjustment in one clean object.</p>
+<h4>Real world</h4><p>This is exactly what "gradient clipping" clips — the length of this vector — and it's the raw input every optimizer, including Adam, consumes every training step.</p></div></details>`,
+draw(ctx,W,H,t){
+  bg(ctx,W,H,t,93);
+  const cx=W*0.5, cy=H*0.5, R=Math.min(W,H)*0.3;
+  const e0=ease(clamp(t/0.6,0,1));
+  for(let i=5;i>=1;i--){
+    ctx.beginPath();
+    ctx.ellipse(cx,cy,R*0.18*i,R*0.12*i,0.4,0,7);
+    ctx.strokeStyle='rgba(150,150,170,'+(0.15*e0)+')';ctx.lineWidth=1;ctx.stroke();
+  }
+  const pointAng=0.7;
+  const px=cx+Math.cos(pointAng)*R*0.5, py=cy+Math.sin(pointAng)*R*0.35;
+  const e1=ease(clamp((t-0.8)/0.5,0,1));
+  if(e1>0){
+    ctx.beginPath();ctx.arc(px,py,4,0,7);ctx.fillStyle='#ddd';ctx.fill();
+    arrow(ctx,px,py,px+40,py+22,{color:COLORS.rose,progress:e1,lw:2.2,head:7});
+    txt(ctx,'\u2207L (uphill)',px+60,py+30,{size:10.5,color:COLORS.rose,alpha:e1});
+  }
+  const e2=ease(clamp((t-1.6)/0.5,0,1));
+  if(e2>0){
+    arrow(ctx,px,py,px-40,py-22,{color:COLORS.green,progress:e2,lw:2.2,head:7});
+    txt(ctx,'\u2212\u2207L (downhill, what we follow)',px-140,py-32,{size:10.5,color:COLORS.green,alpha:e2});
+  }
+}});
+
+S.push({chap:"4 \u00b7 Calculus for Learning", title:"Gradient Descent: Following the Slope to a Minimum", sub:"From the gradient to an actual training step", accent:COLORS.green,
+panel:`
+<div class="p-lead">Now that we know the gradient points uphill, gradient descent is almost embarrassingly simple: take a small step in the opposite direction, recompute the gradient, and repeat — like walking downhill in fog by always stepping toward wherever feels steepest downward right now.</div>
+<ul class="p-bullets">
+<li><b>Step 1:</b> compute the gradient of the loss at your current weights</li>
+<li><b>Step 2:</b> take a small step opposite to that gradient — the step size is the learning rate</li>
+<li><b>Step 3:</b> repeat, from your new position, until the loss stops improving</li>
+</ul>
+<div class="formula-box"><div class="flabel">The update rule</div>
+<div class="feq">w ← w − η · ∇L</div>
+<div class="fnote">η (eta) is the learning rate — too big and you overshoot the minimum; too small and training crawls.</div></div>
+<details class="why"><summary>Why not just jump straight to the minimum in one step?</summary><div class="why-body">
+<h4>Reasoning</h4><p>The gradient only tells you the slope at your current exact position — it says nothing reliable far away, so one big leap based on local information alone could easily overshoot into a worse region. Small, repeated, locally-informed steps are robust on complicated, high-dimensional loss surfaces.</p>
+<h4>Real world</h4><p>Every single weight update in every stage of the LLM pipeline — pretraining, SFT, RLHF, DPO, LoRA fine-tuning — is, underneath everything else, fundamentally this one update rule.</p></div></details>`,
+draw(ctx,W,H,t){
+  bg(ctx,W,H,t,94);
+  const cx=W*0.5, cy=H*0.5, R=Math.min(W,H)*0.32;
+  for(let i=6;i>=1;i--){
+    ctx.beginPath();
+    ctx.ellipse(cx,cy,R*0.15*i,R*0.15*i,0,0,7);
+    ctx.strokeStyle='rgba(150,150,170,0.15)';ctx.lineWidth=1;ctx.stroke();
+  }
+  let pos=[cx+R*0.75,cy-R*0.5];
+  const path=[pos.slice()];
+  for(let i=0;i<7;i++){
+    const dx=cx-pos[0], dy=cy-pos[1];
+    pos=[pos[0]+dx*0.35,pos[1]+dy*0.35];
+    path.push(pos.slice());
+  }
+  const nShow=Math.floor(clamp(t/0.4,0,1)*path.length);
+  for(let i=1;i<=Math.min(nShow,path.length-1);i++){
+    const a=ease(clamp((t-i*0.4)/0.3,0,1));
+    if(a<=0)continue;
+    line(ctx,path[i-1][0],path[i-1][1],path[i][0],path[i][1],{color:COLORS.green,alpha:a,lw:2});
+    ctx.beginPath();ctx.arc(path[i][0],path[i][1],3.5,0,7);ctx.fillStyle=COLORS.green;ctx.globalAlpha=a;ctx.fill();ctx.globalAlpha=1;
+  }
+  const e2=ease(clamp((t-3.2)/0.5,0,1));
+  if(e2>0){
+    ctx.beginPath();ctx.arc(cx,cy,5,0,7);ctx.fillStyle='white';ctx.globalAlpha=e2;ctx.fill();ctx.globalAlpha=1;
+    txt(ctx,'minimum',cx,cy+22,{size:10.5,color:'#ddd',alpha:e2});
+  }
+}});
+
+S.push({chap:"5 \u00b7 Assembling the Real Formulas", title:"Deriving Cross-Entropy Loss, Piece by Piece", sub:"Probability + logarithm + negative sign + summation = the loss that trains every LLM", accent:COLORS.blue,
+panel:`
+<div class="p-lead">We now have every ingredient. Let's assemble cross-entropy loss from pieces you've already learned, one term at a time.</div>
+<ul class="p-bullets">
+<li>Start with p, the probability the model assigned to the correct token (probability distributions)</li>
+<li>Take log(p): 0 when p=1 (perfect), a huge negative number when p is near 0</li>
+<li>Negate it: −log(p) is now 0 when perfect, and a huge positive "cost" when wrong</li>
+<li>Sum over every token in the sequence: total loss for the whole sequence</li>
+</ul>
+<div class="formula-box"><div class="flabel">Cross-entropy loss</div>
+<div class="feq">L = − Σ<sub>i</sub> log( p<sub>i</sub> )</div>
+<div class="fnote">p_i is the probability the model gave the actual i-th token — everything else is machinery from the last few slides.</div></div>
+<details class="why"><summary>Why exactly these pieces, and not something else?</summary><div class="why-body">
+<h4>Reasoning</h4><p>We need a cost that's zero for a perfect prediction, grows without bound for a confidently wrong one, and sums cleanly across many tokens. log(p) alone satisfies the first two, negating it turns "reward" into "cost," and Σ combines many tokens into one number to minimize.</p>
+<h4>Real world</h4><p>This is word-for-word the training objective used in pretraining, instruction tuning, and distillation throughout the main deck.</p></div></details>`,
+draw(ctx,W,H,t){
+  bg(ctx,W,H,t,95);
+  const cx=W/2, y=H*0.42, size=32;
+  const segs=[{t:'\u2212',c:'#999'},{t:'\u03a3',c:COLORS.purple},{t:'log',c:COLORS.blue},{t:'(p\u1d62)',c:COLORS.teal}];
+  const positions=layoutFormula(ctx,segs,cx,y,size);
+  const e0=ease(clamp(t/0.6,0,1));
+  drawFormula(ctx,positions,e0);
+  const explains=[
+    {idx:3, label:'probability of\nthe correct token', delay:1.0},
+    {idx:2, label:'log: 0 if perfect,\n\u2212\u221e if wrong', delay:1.9},
+    {idx:0, label:'negate: now a\npositive "cost"', delay:2.8},
+    {idx:1, label:'sum over every\ntoken in sequence', delay:3.7}
+  ];
+  explains.forEach(ex=>{
+    const a=ease(clamp((t-ex.delay)/0.6,0,1));
+    highlightTerm(ctx,positions[ex.idx],a,ex.label,H*0.62);
+  });
+}});
+
+
+S.push({chap:"5 \u00b7 Assembling the Real Formulas", title:"Deriving the Attention Formula, Piece by Piece", sub:"Dot product + scaling + softmax + weighted sum = attention", accent:COLORS.blue,
+panel:`
+<div class="p-lead">Let's assemble the single most important formula in the transformer architecture from ingredients you already have.</div>
+<ul class="p-bullets">
+<li>Start with Q·K^T: a matrix of dot products — how relevant is every token to every other token</li>
+<li>Divide by √d_k: keeps scores from growing too large as vector dimension increases</li>
+<li>Apply softmax to each row: turns raw relevance into a valid probability distribution</li>
+<li>Multiply by V: blend every token's Value vector, weighted by attention received</li>
+</ul>
+<div class="formula-box"><div class="flabel">Attention</div>
+<div class="feq">Attention(Q,K,V) = softmax( QK<sup>T</sup> / √d<sub>k</sub> ) · V</div>
+<div class="fnote">Read left to right: relevance scores \u2192 scaled \u2192 normalized into weights \u2192 used to blend the Values.</div></div>
+<details class="why"><summary>Why does each piece need to be exactly where it is?</summary><div class="why-body">
+<h4>Reasoning</h4><p>Without √d_k scaling, large-dimension dot products push softmax into a near one-hot, low-gradient regime; without softmax, the weights wouldn't sum to 1; without the final multiply by V, you'd have relevance scores but no content being combined. Every piece is load-bearing.</p>
+<h4>Real world</h4><p>This exact formula, unchanged, runs inside every attention layer of every transformer-based LLM, millions of times per forward pass.</p></div></details>`,
+draw(ctx,W,H,t){
+  bg(ctx,W,H,t,96);
+  const cx=W/2, y=H*0.4, size=26;
+  const segs=[{t:'softmax(',c:COLORS.purple},{t:'QK\u1d40',c:COLORS.teal},{t:'/\u221ad\u2096',c:COLORS.amber},{t:')\u00b7',c:'#999'},{t:'V',c:COLORS.rose}];
+  const positions=layoutFormula(ctx,segs,cx,y,size);
+  const e0=ease(clamp(t/0.6,0,1));
+  drawFormula(ctx,positions,e0);
+  const explains=[
+    {idx:1, label:'relevance score\nfor every pair', delay:1.0},
+    {idx:2, label:'scale down so softmax\nstays well-behaved', delay:1.9},
+    {idx:0, label:'normalize into\nattention weights', delay:2.8},
+    {idx:4, label:'blend Values by\nthose weights', delay:3.7}
+  ];
+  explains.forEach(ex=>{
+    const a=ease(clamp((t-ex.delay)/0.6,0,1));
+    highlightTerm(ctx,positions[ex.idx],a,ex.label,H*0.6);
+  });
+}});
+
+S.push({chap:"5 \u00b7 Assembling the Real Formulas", title:"Deriving the Bradley-Terry Preference Formula", sub:"Sigmoid + a score difference = how RLHF and DPO both learn preferences", accent:COLORS.rose,
+panel:`
+<div class="p-lead">Both the RLHF reward model and DPO ultimately rely on the same small piece of math. Let's build it up.</div>
+<ul class="p-bullets">
+<li>Start with two scores: r_A and r_B, one for each of two responses</li>
+<li>Take their difference: r_A − r_B — positive means A scored higher, negative means B did</li>
+<li>Feed that difference into sigmoid: squashes it into a valid probability between 0 and 1</li>
+</ul>
+<div class="formula-box"><div class="flabel">Preference probability</div>
+<div class="feq">P(A ≻ B) = σ( r<sub>A</sub> − r<sub>B</sub> )</div>
+<div class="fnote">This single line is the entire mathematical foundation of "preference learning" in the main deck.</div></div>
+<details class="why"><summary>Why sigmoid of a *difference*, specifically?</summary><div class="why-body">
+<h4>Reasoning</h4><p>We only ever have relative preference data ("A was chosen over B"), never an absolute quality score, so the only meaningful input is the gap between the two scores. Sigmoid converts that gap into a valid probability, with equal scores (gap=0) giving exactly 50/50, matching genuine indifference.</p>
+<h4>Real world</h4><p>The reward model in RLHF trains on exactly this equation, and DPO's loss is this same formula with the scores swapped for log-probability ratios.</p></div></details>`,
+draw(ctx,W,H,t){
+  bg(ctx,W,H,t,97);
+  const cx=W/2, y=H*0.4, size=30;
+  const segs=[{t:'\u03c3(',c:COLORS.rose},{t:'r_A',c:COLORS.green},{t:'\u2212',c:'#999'},{t:'r_B',c:COLORS.amber},{t:')',c:COLORS.rose}];
+  const positions=layoutFormula(ctx,segs,cx,y,size);
+  const e0=ease(clamp(t/0.6,0,1));
+  drawFormula(ctx,positions,e0);
+  const explains=[
+    {idx:1, label:'score of\nresponse A', delay:1.0},
+    {idx:3, label:'score of\nresponse B', delay:1.9},
+    {idx:2, label:'the gap between\nthe two scores', delay:2.8},
+    {idx:0, label:'squash into a\nvalid probability', delay:3.7}
+  ];
+  explains.forEach(ex=>{
+    const a=ease(clamp((t-ex.delay)/0.6,0,1));
+    highlightTerm(ctx,positions[ex.idx],a,ex.label,H*0.58);
+  });
+  const e2=ease(clamp((t-4.6)/0.6,0,1));
+  if(e2>0){
+    const examples=[{gap:3,p:0.95},{gap:0,p:0.50},{gap:-2,p:0.12}];
+    examples.forEach((ex,i)=>{
+      txt(ctx,`gap=${ex.gap} \u2192 P=${ex.p}`,cx+(i-1)*160,H*0.78,{size:10.5,color:'#999',alpha:e2});
+    });
+  }
+}});
+
+
+S.push({chap:"5 \u00b7 Assembling the Real Formulas", title:"KL Divergence: How Different Are Two Beliefs?", sub:"The 'leash' that keeps RLHF from drifting too far", accent:COLORS.amber,
+panel:`
+<div class="p-lead">Sometimes you need to measure not just "is this probability high or low" but "how different is this whole distribution from another one." KL divergence answers that, using ingredients you already have: log, ratios, and a weighted sum.</div>
+<ul class="p-bullets">
+<li>For every outcome, compare the new distribution p(x) to the old one q(x), as a ratio p(x)/q(x)</li>
+<li>Take the log of that ratio: zero if they agree exactly on this outcome, nonzero if they disagree</li>
+<li>Weight each outcome's log-ratio by how likely it is under p, and sum — outcomes p cares about most matter most</li>
+</ul>
+<div class="formula-box"><div class="flabel">KL divergence</div>
+<div class="feq">KL(p‖q) = Σ<sub>x</sub> p(x) · log( p(x)/q(x) )</div>
+<div class="fnote">KL is 0 only when p and q are identical everywhere; it grows the more they disagree.</div></div>
+<details class="why"><summary>Why not just subtract the two distributions directly?</summary><div class="why-body">
+<h4>Reasoning</h4><p>A plain difference treats "10% vs 5%" the same as "60% vs 55%," but the ratio-and-log construction makes KL sensitive to *relative* disagreement — matching how surprising it is when q assigns very different probability than p, especially where q thinks something is nearly impossible.</p>
+<h4>Real world</h4><p>This is exactly the KL(policy ‖ SFT model) penalty in RLHF's objective — the mathematical leash stopping the model from drifting into strange territory while chasing reward.</p></div></details>`,
+draw(ctx,W,H,t){
+  bg(ctx,W,H,t,98);
+  const cx=W/2, y=H*0.38, size=26;
+  const segs=[{t:'\u03a3\u2093',c:COLORS.purple},{t:'p(x)',c:COLORS.teal},{t:'\u00b7log(',c:COLORS.blue},{t:'p(x)/q(x)',c:COLORS.amber},{t:')',c:COLORS.blue}];
+  const positions=layoutFormula(ctx,segs,cx,y,size);
+  const e0=ease(clamp(t/0.6,0,1));
+  drawFormula(ctx,positions,e0);
+  const explains=[
+    {idx:1, label:'weight by how likely\nthis outcome is under p', delay:1.0},
+    {idx:3, label:'ratio: do p and q\nagree on this outcome?', delay:1.9},
+    {idx:2, label:'log of the ratio:\n0 if they agree', delay:2.8},
+    {idx:0, label:'sum across every\npossible outcome', delay:3.7}
+  ];
+  explains.forEach(ex=>{
+    const a=ease(clamp((t-ex.delay)/0.6,0,1));
+    highlightTerm(ctx,positions[ex.idx],a,ex.label,H*0.58);
+  });
+}});
+
+S.push({chap:"5 \u00b7 Assembling the Real Formulas", title:"Backpropagation: The Chain Rule, Applied to a Whole Network", sub:"How a single loss number updates millions of weights", accent:COLORS.green,
+panel:`
+<div class="p-lead">Backpropagation isn't a separate idea — it's the chain rule, applied systematically, one layer at a time, starting from the loss and working backward to every weight in the network.</div>
+<ul class="p-bullets">
+<li><b>Forward pass:</b> input flows through the network, layer by layer, producing a prediction and then a loss</li>
+<li><b>Backward pass:</b> starting at the loss, apply the chain rule at each layer, propagating "how much did this layer contribute to the error" back toward the input</li>
+<li>Each weight's gradient is the product of local derivatives along the path from that weight to the loss</li>
+</ul>
+<div class="formula-box"><div class="flabel">One weight's gradient</div>
+<div class="feq">∂L/∂w = (∂L/∂y) · (∂y/∂h) · (∂h/∂w)</div>
+<div class="fnote">One factor per layer between the weight w and the final loss L — the multi-step chain rule, at work.</div></div>
+<details class="why"><summary>Why is this considered the breakthrough that made deep learning practical?</summary><div class="why-body">
+<h4>Reasoning</h4><p>Computing each weight's gradient independently would be prohibitively expensive for millions of weights. Backpropagation reuses intermediate results computed once during the backward pass across all of them, computing every gradient in roughly the time of one forward pass.</p>
+<h4>Real world</h4><p>Every gradient descent step, for every stage of the pipeline in the main deck, depends on backpropagation to actually compute the gradient it then follows downhill.</p></div></details>`,
+draw(ctx,W,H,t){
+  bg(ctx,W,H,t,99);
+  const cx=W/2, y=H*0.32;
+  const layers=[{l:'input',c:'#888'},{l:'layer 1',c:COLORS.teal},{l:'layer 2',c:COLORS.blue},{l:'loss',c:COLORS.rose}];
+  const gap=W*0.72/(layers.length-1), startX=cx-gap*(layers.length-1)/2;
+  const eF=ease(clamp(t/1.2,0,1));
+  layers.forEach((s,i)=>{
+    const appear=ease(clamp((t-i*0.25)/0.4,0,1));
+    if(appear<=0)return;
+    const x=startX+i*gap;
+    box(ctx,x-40,y-22,80,44,{fill:s.c+'22',stroke:s.c,alpha:appear,r:6});
+    txt(ctx,s.l,x,y,{size:11,color:s.c,alpha:appear,weight:600});
+    if(i>0){
+      const ap=ease(clamp((t-i*0.25-0.15)/0.3,0,1));
+      arrow(ctx,startX+(i-1)*gap+40,y,x-40,y,{color:'#555',progress:ap});
+    }
+  });
+  const e2=ease(clamp((t-1.6)/0.2,0,1));
+  if(e2>0)txt(ctx,'forward pass \u2192',cx,y-42,{size:10.5,color:'#888',alpha:Math.min(e2,1)});
+  const e3=ease(clamp((t-2.0)/1.5,0,1));
+  if(e3>0){
+    const by=H*0.6;
+    for(let i=layers.length-1;i>0;i--){
+      const a=ease(clamp((t-2.0-(layers.length-1-i)*0.35)/0.4,0,1));
+      if(a<=0)continue;
+      const x1=startX+i*gap, x0=startX+(i-1)*gap;
+      arrow(ctx,x1-40,by,x0+40,by,{color:COLORS.green,progress:a,head:6});
+      txt(ctx,'\u2202L/\u2202...',x1-gap/2,by-14,{size:9.5,color:COLORS.green,alpha:a});
+    }
+    txt(ctx,'\u2190 backward pass (chain rule, layer by layer)',cx,by+22,{size:10.5,color:COLORS.green,alpha:e3});
+  }
+}});
+
+
+S.push({chap:"Summary", title:"Every Formula Was Built From Six Ideas", sub:"exp, log, \u03a3, dot product, gradients, and the chain rule", accent:COLORS.gray,
+panel:`
+<div class="p-lead">Zoom back out. Six simple ideas, combined in different orders, produced every formula in the LLM pipeline.</div>
+<ul class="p-bullets">
+<li><b>e^x & log</b> — turn any number into something positive, and turn products into sums</li>
+<li><b>Σ</b> — combine many terms (tokens, weights, outcomes) into one number</li>
+<li><b>dot product & matrices</b> — measure alignment, and do it for millions of pairs at once</li>
+<li><b>sigmoid & softmax</b> — turn raw scores into valid probabilities, for two outcomes or many</li>
+<li><b>derivatives, gradients, chain rule</b> — know which direction, and how far, to adjust every weight</li>
+</ul>
+<div class="formula-box"><div class="flabel">What they built, together</div>
+<div class="feq">cross-entropy · attention · preference model · KL divergence · backprop</div>
+<div class="fnote">Every one of these is just the toolkit above, assembled in a specific order for a specific purpose.</div></div>`,
+draw(ctx,W,H,t){
+  bg(ctx,W,H,t,100);
+  const cx=W/2, cy=H*0.52;
+  const inner=[{l:'e\u02e3/log',c:COLORS.amber},{l:'\u03a3',c:COLORS.purple},{l:'a\u00b7b',c:COLORS.blue},{l:'\u03c3/softmax',c:COLORS.rose},{l:'\u2207/chain rule',c:COLORS.green}];
+  const outer=[{l:'Cross-Entropy',c:COLORS.blue},{l:'Attention',c:COLORS.teal},{l:'Preference\nModel',c:COLORS.rose},{l:'KL\nDivergence',c:COLORS.amber},{l:'Backprop',c:COLORS.green}];
+  const R1=Math.min(W,H)*0.17, R2=Math.min(W,H)*0.36;
+  inner.forEach((it,i)=>{
+    const ang=-Math.PI/2+i*(2*Math.PI/inner.length);
+    const appear=ease(clamp((t-i*0.15)/0.4,0,1));
+    if(appear<=0)return;
+    const x=cx+Math.cos(ang)*R1*appear, y=cy+Math.sin(ang)*R1*appear;
+    tokenBubble(ctx,x,y,it.l,it.c,appear,0.85);
+  });
+  outer.forEach((it,i)=>{
+    const ang=-Math.PI/2+i*(2*Math.PI/outer.length)+0.3;
+    const appear=ease(clamp((t-1.0-i*0.2)/0.5,0,1));
+    if(appear<=0)return;
+    const x=cx+Math.cos(ang)*R2*appear, y=cy+Math.sin(ang)*R2*appear;
+    const inAng=-Math.PI/2+i*(2*Math.PI/inner.length);
+    const ix=cx+Math.cos(inAng)*R1, iy=cy+Math.sin(inAng)*R1;
+    line(ctx,ix,iy,x,y,{color:it.c,alpha:0.15*appear});
+    box(ctx,x-52,y-18,104,36,{fill:'#101018',stroke:it.c,alpha:appear,r:6});
+    it.l.split('\n').forEach((ln,li)=>txt(ctx,ln,x,y+(li-(it.l.split('\n').length-1)/2)*13,{size:9.5,color:it.c,alpha:appear}));
+  });
+}});
+
+/* ============================= ENGINE ============================= */
+let cur=0;
+const cv=document.getElementById('cv');
+const ctx=cv.getContext('2d');
+let dpr=Math.max(1,window.devicePixelRatio||1);
+let slideStart=performance.now();
+
+function resize(){
+  const wrap=document.getElementById('canvasWrap');
+  const w=wrap.clientWidth, h=wrap.clientHeight;
+  cv.width=w*dpr; cv.height=h*dpr;
+  cv.style.width=w+'px'; cv.style.height=h+'px';
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+window.addEventListener('resize',resize);
+
+function renderPanel(){
+  const s=S[cur];
+  document.getElementById('chapLbl').textContent=s.chap;
+  document.getElementById('titleLbl').textContent=s.title;
+  document.getElementById('subLbl').textContent=s.sub;
+  document.getElementById('panel').innerHTML=s.panel;
+  document.documentElement.style.setProperty('--accent-unused','');
+  // set accent color for accordions/bullets dynamically
+  const styleTag=document.getElementById('accentStyle')||(()=>{const t=document.createElement('style');t.id='accentStyle';document.head.appendChild(t);return t;})();
+  styleTag.textContent=`.p-bullets li::before{color:${s.accent};} details.why summary{color:${s.accent};} .formula-box{border-left-color:${s.accent};}`;
+  document.getElementById('panel').scrollTop=0;
+}
+function renderDots(){
+  const dotsEl=document.getElementById('dots');
+  dotsEl.innerHTML='';
+  S.forEach((s,i)=>{
+    const d=document.createElement('div');
+    d.className='dot'+(i===cur?' active':(i<cur?' done':''));
+    d.title=s.title;
+    d.addEventListener('click',()=>goTo(i));
+    dotsEl.appendChild(d);
+  });
+  document.getElementById('pos').textContent=(cur+1)+' / '+S.length;
+  document.getElementById('prevBtn').disabled = cur===0;
+  document.getElementById('nextBtn').disabled = cur===S.length-1;
+}
+function goTo(i){
+  if(i<0||i>=S.length||i===cur)return;
+  cur=i;
+  slideStart=performance.now();
+  renderPanel();
+  renderDots();
+}
+document.getElementById('prevBtn').addEventListener('click',()=>goTo(cur-1));
+document.getElementById('nextBtn').addEventListener('click',()=>goTo(cur+1));
+window.addEventListener('keydown',(e)=>{
+  if(e.key==='ArrowRight'||e.key===' ')goTo(cur+1);
+  else if(e.key==='ArrowLeft')goTo(cur-1);
+});
+let touchX=null;
+cv.addEventListener('touchstart',e=>{touchX=e.touches[0].clientX;});
+cv.addEventListener('touchend',e=>{
+  if(touchX===null)return;
+  const dx=e.changedTouches[0].clientX-touchX;
+  if(dx<-40)goTo(cur+1); else if(dx>40)goTo(cur-1);
+  touchX=null;
+});
+
+function loop(now){
+  const t=(now-slideStart)/1000;
+  const wrap=document.getElementById('canvasWrap');
+  const W=wrap.clientWidth, H=wrap.clientHeight;
+  try{ S[cur].draw(ctx,W,H,t); }catch(err){ /* fail-safe: don't crash the loop */ }
+  requestAnimationFrame(loop);
+}
+
+resize();
+renderPanel();
+renderDots();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

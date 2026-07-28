@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reinforcement Learning · Episode 4 — Rainbow DQN</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+:root{
+  --bg:#0a0a0a;
+  --bg-panel:#131518;
+  --bg-card:#16181b;
+  --border:#26292e;
+  --primary:#5b9bd5;
+  --primary-dim:#28425a;
+  --accent:#d9a441;
+  --accent-dim:#4a3d24;
+  --good:#6fa87d;
+  --bad:#b5605a;
+  --text:#e9e8e4;
+  --text-dim:#8b9096;
+  --text-faint:#565b61;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{
+  width:100%;height:100%;background:var(--bg);color:var(--text);
+  font-family:'Space Grotesk',system-ui,-apple-system,sans-serif;
+  overflow:hidden;
+}
+.mono{font-family:'JetBrains Mono',monospace;}
+
+#app{position:relative;width:100vw;height:100vh;}
+
+/* ---------- progress + counter ---------- */
+.progress-track{position:fixed;top:0;left:0;width:100%;height:3px;background:var(--border);z-index:50;}
+.progress-fill{height:100%;background:var(--primary);width:7.6%;transition:width .5s ease;}
+.slide-counter{
+  position:fixed;top:18px;right:28px;z-index:50;
+  font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--text-dim);
+  letter-spacing:.05em;
+}
+.deck-title-tag{
+  position:fixed;top:18px;left:28px;z-index:50;font-size:12px;color:var(--text-faint);
+  letter-spacing:.12em;text-transform:uppercase;
+}
+
+/* ---------- slides ---------- */
+.slides-container{position:relative;width:100%;height:100%;}
+.slide{
+  position:absolute;inset:0;
+  display:flex;flex-direction:column;align-items:center;justify-content:flex-start;
+  padding:80px 100px 90px;
+  opacity:0;pointer-events:none;
+  transform:translateY(24px);
+  transition:opacity .5s ease, transform .5s ease;
+  overflow-y:auto;
+}
+.slide::-webkit-scrollbar{width:6px;}
+.slide::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.slide-inner-center{margin-top:auto;margin-bottom:auto;width:100%;display:flex;flex-direction:column;align-items:center;}
+.slide.active{opacity:1;pointer-events:auto;transform:translateY(0);}
+
+.kicker{
+  font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.18em;
+  color:var(--accent);text-transform:uppercase;margin-bottom:14px;text-align:center;
+}
+h1{font-size:52px;font-weight:700;text-align:center;line-height:1.1;}
+h2{font-size:34px;font-weight:600;text-align:center;margin-bottom:8px;}
+.subtitle{font-size:17px;color:var(--text-dim);text-align:center;max-width:640px;margin-top:14px;line-height:1.5;}
+.accent-text{color:var(--primary);}
+
+/* ---------- nav controls ---------- */
+.nav-controls{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);display:flex;gap:14px;z-index:50;align-items:center;}
+.nav-btn{
+  width:42px;height:42px;border-radius:50%;border:1px solid var(--border);
+  background:var(--bg-panel);color:var(--text);font-size:18px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;transition:all .2s ease;
+}
+.nav-btn:hover{border-color:var(--primary);color:var(--primary);}
+.nav-btn:disabled{opacity:.25;cursor:default;}
+.nav-hint{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-faint);margin:0 6px;}
+
+/* ---------- equation box ---------- */
+.eq-box{
+  font-family:'JetBrains Mono',monospace;
+  background:var(--bg-panel);border:1px solid var(--border);border-left:3px solid var(--primary);
+  border-radius:6px;padding:18px 26px;font-size:19px;letter-spacing:.02em;
+  color:var(--text);margin:22px 0 10px;text-align:center;
+}
+.eq-box .td-error{color:var(--accent);}
+
+/* ---------- math expandable tab ---------- */
+.math-btn{
+  font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.06em;
+  background:none;border:1px solid var(--primary-dim);color:var(--primary);
+  padding:8px 16px;border-radius:20px;cursor:pointer;margin-top:6px;
+  display:flex;align-items:center;gap:8px;transition:all .2s ease;
+}
+.math-btn:hover{background:var(--primary-dim);}
+.math-btn .arrow{transition:transform .25s ease;display:inline-block;}
+.math-btn.open .arrow{transform:rotate(90deg);}
+.math-panel{
+  max-width:640px;max-height:0;overflow:hidden;
+  transition:max-height .4s ease, opacity .3s ease, margin .3s ease;
+  opacity:0;margin-top:0;
+}
+.math-panel.open{max-height:420px;opacity:1;margin-top:16px;overflow-y:auto;}
+.math-panel-inner{
+  background:var(--bg-card);border:1px solid var(--border);border-radius:8px;
+  padding:18px 22px;font-size:13.5px;line-height:1.65;color:var(--text-dim);
+}
+.math-panel-inner b{color:var(--text);font-weight:600;}
+.math-panel-inner .sec-label{
+  font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.1em;
+  color:var(--accent);text-transform:uppercase;display:block;margin:10px 0 4px;
+}
+.math-panel-inner .sec-label:first-child{margin-top:0;}
+
+/* ---------- cards ---------- */
+.card-row{display:flex;gap:20px;justify-content:center;flex-wrap:wrap;max-width:900px;}
+.card{
+  background:var(--bg-card);border:1px solid var(--border);border-radius:10px;
+  padding:22px 20px;width:190px;text-align:center;
+  opacity:0;transform:translateY(18px);transition:opacity .5s ease, transform .5s ease;
+}
+.card .sym{font-family:'JetBrains Mono',monospace;font-size:26px;color:var(--primary);margin-bottom:8px;}
+.card .name{font-weight:600;font-size:15px;margin-bottom:6px;}
+.card .desc{font-size:12.5px;color:var(--text-dim);line-height:1.5;}
+.slide.active .card{opacity:1;transform:translateY(0);}
+.slide.active .card:nth-child(1){transition-delay:.05s;}
+.slide.active .card:nth-child(2){transition-delay:.18s;}
+.slide.active .card:nth-child(3){transition-delay:.31s;}
+.slide.active .card:nth-child(4){transition-delay:.44s;}
+
+/* ---------- misconception flip cards ---------- */
+.flip-card{width:260px;height:150px;perspective:1000px;cursor:pointer;}
+.flip-inner{position:relative;width:100%;height:100%;transition:transform .6s;transform-style:preserve-3d;}
+.flip-card.flipped .flip-inner{transform:rotateY(180deg);}
+.flip-face{
+  position:absolute;inset:0;backface-visibility:hidden;border-radius:10px;
+  border:1px solid var(--border);padding:18px;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;text-align:center;
+}
+.flip-front{background:var(--bg-card);}
+.flip-front .tag{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--bad);letter-spacing:.1em;margin-bottom:8px;}
+.flip-front .txt{font-size:13.5px;color:var(--text);}
+.flip-back{background:var(--primary-dim);transform:rotateY(180deg);}
+.flip-back .tag{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--good);letter-spacing:.1em;margin-bottom:8px;}
+.flip-back .txt{font-size:12.5px;color:var(--text);line-height:1.5;}
+.tap-hint{font-size:10px;color:var(--text-faint);margin-top:8px;font-family:'JetBrains Mono',monospace;}
+
+/* ---------- diagram containers ---------- */
+.diagram{margin:20px 0;}
+svg text{font-family:'JetBrains Mono',monospace;fill:var(--text);}
+.caption{font-size:13px;color:var(--text-dim);text-align:center;margin-top:10px;max-width:560px;}
+
+/* ---------- reduced motion ---------- */
+@media (prefers-reduced-motion: reduce){
+  *{transition-duration:.01ms !important;animation-duration:.01ms !important;}
+}
+
+/* keyframes reused across slides */
+@keyframes fadeUp{from{opacity:0;transform:translateY(14px);}to{opacity:1;transform:translateY(0);}}
+@keyframes pulseGlow{0%,100%{opacity:.55;}50%{opacity:1;}}
+@keyframes dashDraw{to{stroke-dashoffset:0;}}
+@keyframes floatSlow{0%,100%{transform:translateY(0);}50%{transform:translateY(-6px);}}
+
+/* ---------- Episode 4 creative animation additions ---------- */
+@keyframes pulseScale{0%,100%{opacity:.85;transform:scale(1);}50%{opacity:1;transform:scale(1.06);}}
+.pulse-box{animation:pulseScale 1.6s ease-in-out infinite;transform-origin:center;}
+@keyframes pulseRingOut{0%{opacity:.7;transform:scale(.6);}100%{opacity:0;transform:scale(1.8);}}
+.pulse-ring{animation:pulseRingOut 1.6s ease-out infinite;transform-origin:center;}
+@keyframes stepDotGlow{0%,100%{opacity:.6;}50%{opacity:1;}}
+.step-dot{animation:stepDotGlow 1.8s ease-in-out infinite;}
+@keyframes riskyOscA{0%,100%{transform:translateY(0);}50%{transform:translateY(-5px);}}
+.risky-bar-a{animation:riskyOscA 1.4s ease-in-out infinite;transform-origin:bottom;}
+@keyframes riskyOscB{0%,100%{transform:translateY(0);}50%{transform:translateY(4px);}}
+.risky-bar-b{animation:riskyOscB 1.4s ease-in-out infinite;transform-origin:bottom;}
+@keyframes jitterFixed{0%{transform:translate(0,0);}20%{transform:translate(3px,-2px);}40%{transform:translate(-3px,2px);}60%{transform:translate(2px,3px);}80%{transform:translate(-2px,-3px);}100%{transform:translate(0,0);}}
+.jitter-fixed{animation:jitterFixed .6s steps(4) infinite;}
+@keyframes jitterDecay{0%{transform:translate(0,0) scale(1);opacity:.9;}50%{transform:translate(2px,-1px) scale(.9);opacity:.6;}100%{transform:translate(0,0) scale(1);opacity:.9;}}
+.jitter-decay{animation:jitterDecay 2.2s ease-in-out infinite;}
+
+.icon-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;max-width:760px;margin-top:10px;}
+.icon-item{
+  background:var(--bg-card);border:1px solid var(--border);border-radius:8px;
+  padding:16px;text-align:center;opacity:0;transform:translateY(12px);
+  transition:opacity .45s ease, transform .45s ease;
+}
+.slide.active .icon-item{opacity:1;transform:translateY(0);}
+.icon-item .glyph{font-size:22px;margin-bottom:6px;}
+.icon-item .lbl{font-size:12.5px;color:var(--text-dim);}
+
+.small-note{font-size:12px;color:var(--text-faint);margin-top:8px;text-align:center;font-family:'JetBrains Mono',monospace;}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+  <div class="deck-title-tag">Reinforcement Learning · Ep. 4</div>
+  <div class="slide-counter"><span id="counterCurrent">01</span> / <span id="counterTotal">18</span></div>
+
+  <div class="slides-container" id="slidesContainer">
+
+    <section class="slide active" data-slide="1"><div class="slide-inner-center">
+  <div class="kicker">Episode 4 · Value-Based Methods</div>
+  <h1><span class="accent-text">Rainbow</span> DQN</h1>
+  <p class="subtitle">No new core idea — just six proven, independent fixes, combined into a single agent.</p>
+</div></section>
+
+    <section class="slide" data-slide="2"><div class="slide-inner-center">
+  <div class="kicker">Where We Left Off</div>
+  <h2>What We Already Have</h2>
+  <div class="eq-box" style="font-size:13px;text-align:left;line-height:2;">
+    Double DQN: &nbsp;decouple action-selection (θ) from evaluation (θ⁻) &nbsp;→&nbsp; less overestimation bias<br>
+    Dueling DQN: &nbsp;Q(s,a) = V(s) + [A(s,a) − meanₐ' A(s,a')] &nbsp;→&nbsp; more efficient learning
+  </div>
+  <p class="caption">Rainbow keeps both of these exactly as they are, and adds four more.</p>
+</div></section>
+
+    <section class="slide" data-slide="3"><div class="slide-inner-center">
+  <div class="kicker">The Big Idea</div>
+  <h2>Six Proven Fixes, Combined Into One Agent</h2>
+  <p class="subtitle" style="max-width:600px;">Each of the six ingredients was published separately, solving one specific weakness of DQN. Rainbow's contribution wasn't inventing a seventh idea — it was showing that all six could be stacked together, and that doing so worked better than any single one alone.</p>
+</div></section>
+
+    <section class="slide" data-slide="4"><div class="slide-inner-center">
+  <div class="kicker">The Six Ingredients</div>
+  <h2>A Quick Map Before We Dive In</h2>
+  <div class="card-row" style="margin-top:10px;max-width:920px;">
+    <div class="card" style="width:170px;"><div class="sym">①</div><div class="name">Double DQN</div><div class="desc">already built — fixes overestimation bias</div></div>
+    <div class="card" style="width:170px;"><div class="sym">②</div><div class="name">Dueling DQN</div><div class="desc">already built — V+A architecture</div></div>
+    <div class="card" style="width:170px;"><div class="sym">③</div><div class="name">Prioritized Replay</div><div class="desc">learn more from surprising transitions</div></div>
+    <div class="card" style="width:170px;"><div class="sym">④</div><div class="name">Multi-Step Returns</div><div class="desc">bootstrap after n steps, not just 1</div></div>
+  </div>
+  <div class="card-row" style="margin-top:16px;max-width:500px;">
+    <div class="card" style="width:170px;"><div class="sym">⑤</div><div class="name">Distributional RL</div><div class="desc">learn a whole distribution of returns</div></div>
+    <div class="card" style="width:170px;"><div class="sym">⑥</div><div class="name">Noisy Networks</div><div class="desc">learned, state-dependent exploration</div></div>
+  </div>
+</div></section>
+
+    <section class="slide" data-slide="5"><div class="slide-inner-center">
+  <div class="eq-section-divider">Fix #3 — Prioritized Experience Replay</div>
+  <h2>Not All Experience Is Equally Useful</h2>
+  <svg class="diagram" width="440" height="120" viewBox="0 0 440 120">
+    <rect x="20" y="20" width="60" height="16" fill="none" stroke="var(--text-faint)" stroke-width="1.2"/>
+    <text x="90" y="32" font-size="9" fill="var(--text-dim)">tiny TD error — already learned well</text>
+    <rect x="20" y="45" width="60" height="16" fill="none" stroke="var(--text-faint)" stroke-width="1.2"/>
+    <text x="90" y="57" font-size="9" fill="var(--text-dim)">tiny TD error — already learned well</text>
+    <rect class="pulse-box" x="20" y="70" width="60" height="16" fill="var(--accent)" opacity=".85"/>
+    <text x="90" y="82" font-size="9" fill="var(--accent)">big TD error — a real surprise!</text>
+    <circle class="pulse-ring" cx="50" cy="78" r="10" fill="none" stroke="var(--accent)" stroke-width="1.2"/>
+    <path class="sample-hop" d="M50,90 C130,130 250,130 340,95" fill="none" stroke="var(--good)" stroke-width="1.4" stroke-dasharray="6 5" opacity=".8"/>
+    <text x="340" y="80" text-anchor="middle" font-size="9" fill="var(--good)">sampled again, and again...</text>
+  </svg>
+  <p class="caption" style="max-width:560px;">Uniform random sampling from the replay buffer treats a transition the network already predicts well exactly the same as one it got badly wrong — wasting training time on the former instead of focusing on the latter.</p>
+  <button class="math-btn" data-target="m5b"><span class="arrow">▸</span> How much of a difference does this actually make?</button>
+  <div class="math-panel" id="m5b"><div class="math-panel-inner">
+    <span class="sec-label">A concrete comparison</span>
+    Say 1 transition in 100 in the buffer has a large error and the rest are already well-predicted. Uniform sampling picks that important transition roughly 1% of the time. With priorities proportional to error (α=1) and that one transition's error being, say, 20× the typical size, it now gets sampled roughly 20× more often than uniform would — a large, direct increase in how much attention the network's biggest mistakes receive.
+    <span class="sec-label">Practical use</span>
+    This is why prioritized replay tends to speed up learning most on tasks with rare-but-important events — a rare large penalty or a rare breakthrough moment gets revisited far more than its rarity alone would allow under uniform sampling.
+  </div></div>
+</div></section>
+
+    <section class="slide" data-slide="6"><div class="slide-inner-center">
+  <div class="eq-section-divider">Fix #3 — Prioritized Experience Replay</div>
+  <h2>Priority &amp; Sampling Probability</h2>
+  <div class="eq-box" style="font-size:14px;">pᵢ = |δᵢ| + ε &nbsp;&nbsp;&nbsp;&nbsp; P(i) = pᵢ^α &nbsp;/&nbsp; Σₖ pₖ^α</div>
+  <button class="math-btn" data-target="m6"><span class="arrow">▸</span> Why base priority on the TD error?</button>
+  <div class="math-panel" id="m6"><div class="math-panel-inner">
+    <span class="sec-label">In plain terms, before any symbols</span>
+    δ (the TD error) measures how surprised the network was by a transition — big δ means "I got this quite wrong." Sampling proportionally to |δ| means transitions the network is most wrong about get replayed more often, exactly where more learning is needed.
+    <span class="sec-label">What the pieces do</span>
+    ε is a tiny constant ensuring even a transition with δ=0 still has some small chance of being sampled again (nothing is ever fully forgotten). α controls how strongly priority matters: α=0 gives back plain uniform sampling; α=1 samples strictly proportional to error size.
+    <span class="sec-label">Practical use</span>
+    This "spend more effort where you're most wrong" principle is the same idea behind adaptive study techniques — spend more time on the flashcards you keep getting wrong, not the ones you already know cold.
+  </div></div>
+</div></section>
+
+    <section class="slide" data-slide="7"><div class="slide-inner-center">
+  <div class="eq-section-divider">Fix #3 — Prioritized Experience Replay</div>
+  <h2>The Correction: Importance-Sampling Weights</h2>
+  <div class="eq-box" style="font-size:14px;">wᵢ &nbsp;=&nbsp; ( &nbsp;1/N &nbsp;·&nbsp; 1/P(i) &nbsp;)^β</div>
+  <button class="math-btn" data-target="m7"><span class="arrow">▸</span> Why does prioritizing samples need a correction at all?</button>
+  <div class="math-panel" id="m7"><div class="math-panel-inner">
+    <span class="sec-label">In plain terms, before any symbols</span>
+    Gradient descent's math assumes every training example is drawn with equal probability. Sampling high-error transitions more often quietly breaks that assumption — the training process now overweights exactly the transitions it oversamples, biasing the result if left uncorrected.
+    <span class="sec-label">How the weight fixes it</span>
+    wᵢ shrinks the gradient step for transitions that were oversampled (high P(i) → small wᵢ) and leaves rarely-sampled transitions with a relatively larger step — restoring, on average, the same effect as unbiased uniform sampling would have had.
+    <span class="sec-label">Why β gets annealed toward 1 over training</span>
+    Early in training, some bias is tolerated in exchange for faster learning from the biggest surprises. β is gradually increased to 1 over the course of training, so the correction becomes fully unbiased exactly when accuracy starts to matter most — near the end of training.
+    <span class="sec-label">Practical use</span>
+    This same "reweight to cancel out non-uniform sampling" trick, called importance sampling, is used broadly in statistics whenever you need an unbiased estimate from a deliberately skewed sample.
+  </div></div>
+</div></section>
+
+    <section class="slide" data-slide="8"><div class="slide-inner-center">
+  <div class="eq-section-divider">Fix #4 — Multi-Step Returns</div>
+  <h2>Look n Steps Ahead Before Bootstrapping</h2>
+  <svg class="diagram" width="480" height="100" viewBox="0 0 480 100">
+    <line x1="20" y1="55" x2="460" y2="55" stroke="var(--border)" stroke-width="1"/>
+    <circle class="step-dot" cx="40" cy="55" r="7" fill="var(--primary)"/><text x="40" y="35" text-anchor="middle" font-size="9" fill="var(--accent)">r₁</text>
+    <circle class="step-dot" cx="150" cy="55" r="7" fill="var(--primary)"/><text x="150" y="35" text-anchor="middle" font-size="9" fill="var(--accent)">r₂</text>
+    <circle class="step-dot" cx="260" cy="55" r="7" fill="var(--primary)"/><text x="260" y="35" text-anchor="middle" font-size="9" fill="var(--accent)">r₃</text>
+    <circle class="step-dot" cx="380" cy="55" r="9" fill="none" stroke="var(--good)" stroke-width="2"/><text x="380" y="35" text-anchor="middle" font-size="9" fill="var(--good)">bootstrap: Q(s,a) here</text>
+    <path class="step-flow" d="M40,55 L150,55 L260,55 L380,55" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-dasharray="340" stroke-dashoffset="340"/>
+  </svg>
+  <div class="eq-box" style="font-size:13.5px;">Gₜ⁽ⁿ⁾ = r₁ + γr₂ + ⋯ + γⁿ⁻¹rₙ &nbsp;+&nbsp; γⁿ &nbsp;maxₐ Q(sₜ₊ₙ,a)</div>
+  <button class="math-btn" data-target="m8"><span class="arrow">▸</span> Why not just always use n=1, like Episode 1's Q-learning?</button>
+  <div class="math-panel" id="m8"><div class="math-panel-inner">
+    <span class="sec-label">In plain terms, before any symbols</span>
+    Instead of bootstrapping off your own value estimate after just one real reward, collect n real rewards first, and only then lean on your value estimate for whatever comes after. More real signal, less reliance on a possibly-wrong guess.
+    <span class="sec-label">The tradeoff being tuned</span>
+    Larger n means more of the target comes from actual observed rewards (lower bias) but also more accumulated randomness from those extra steps (higher variance) — n is a dial between 1-step TD (Episode 1's Q-learning) and full Monte Carlo (wait for the whole episode).
+    <span class="sec-label">Why this helps concretely</span>
+    A reward earned 5 steps in the future normally takes 5 separate rounds of bootstrapping to "propagate" back to the action that caused it. A 5-step return delivers that same information in a single update — Rainbow typically uses a small n (e.g. 3), balancing faster credit assignment against added variance.
+  </div></div>
+</div></section>
+
+    <section class="slide" data-slide="9"><div class="slide-inner-center">
+  <div class="eq-section-divider">Fix #5 — Distributional RL</div>
+  <h2>Why Learn A Distribution, Not Just A Mean</h2>
+  <svg class="diagram" width="440" height="120" viewBox="0 0 440 120">
+    <rect x="40" y="60" width="60" height="40" fill="var(--primary)" opacity=".85"/>
+    <text x="70" y="115" text-anchor="middle" font-size="10" fill="var(--text-dim)">always exactly 10</text>
+    <rect class="risky-bar-a" x="220" y="30" width="30" height="70" fill="var(--good)" opacity=".7"/>
+    <rect class="risky-bar-b" x="260" y="90" width="30" height="10" fill="var(--bad)" opacity=".7"/>
+    <text x="255" y="115" text-anchor="middle" font-size="10" fill="var(--text-dim)">50%: 20 &nbsp;&nbsp; 50%: 0</text>
+  </svg>
+  <p class="caption" style="max-width:560px;">Both options average to a Q-value of 10 — but they describe very different situations. A single expected value can't tell them apart; only the full distribution of possible returns can.</p>
+  <button class="math-btn" data-target="m9b"><span class="arrow">▸</span> How would you actually measure "how different" they are?</button>
+  <div class="math-panel" id="m9b"><div class="math-panel-inner">
+    <span class="sec-label">The variance calculation</span>
+    Var(X) = 𝔼[(X − 𝔼[X])²]. For "always 10": every outcome equals the mean, so Var = 0 — perfectly predictable. For "50% chance of 20, 50% chance of 0": Var = 0.5×(20−10)² + 0.5×(0−10)² = 0.5×100 + 0.5×100 = 100 — a large spread around the same mean of 10.
+    <span class="sec-label">Why this is worth knowing, not just measuring</span>
+    Two actions can look identical to a plain Q-learner (both average to 10) while being very different choices in practice — one is a safe, reliable bet, the other is a coin flip between a big win and nothing. A distributional agent can, in principle, tell them apart and even be tuned to prefer the safer one when that matters.
+  </div></div>
+</div></section>
+
+    <section class="slide" data-slide="10"><div class="slide-inner-center">
+  <div class="eq-section-divider">Fix #5 — Distributional RL</div>
+  <h2>The Categorical Trick</h2>
+  <div class="eq-box" style="font-size:13px;">Z(s,a) &nbsp;≈&nbsp; Σᵢ &nbsp;pᵢ(s,a) &nbsp;·&nbsp; δ_zᵢ &nbsp;&nbsp;&nbsp;&nbsp; Q(s,a) = Σᵢ pᵢ(s,a)·zᵢ</div>
+  <button class="math-btn" data-target="m10"><span class="arrow">▸</span> How do you even represent "a distribution of returns" in a network?</button>
+  <div class="math-panel" id="m10"><div class="math-panel-inner">
+    <span class="sec-label">In plain terms, before any symbols</span>
+    Instead of the network outputting one number per action (its Q-value), it outputs a whole histogram per action: a fixed set of possible return values z₁,…,z_N (called atoms, e.g. evenly spaced from −10 to 10), each with a learned probability pᵢ of being the actual outcome.
+    <span class="sec-label">Getting back to a familiar Q-value when needed</span>
+    Q(s,a) is recovered exactly the way expectation was defined all the way back at the start: multiply each atom's value by its probability and add them up — Σᵢ pᵢ·zᵢ. Nothing about earlier episodes' math changes; this is just a richer object the Q-value is computed from.
+    <span class="sec-label">Practical use</span>
+    Empirically, forcing the network to predict a full distribution — not just its mean — turns out to produce better-shaped internal representations and more stable learning, even in tasks where only the mean is ultimately used to act.
+  </div></div>
+</div></section>
+
+    <section class="slide" data-slide="11"><div class="slide-inner-center">
+  <div class="eq-section-divider">Fix #5 — Distributional RL</div>
+  <h2>The Projection Step</h2>
+  <svg class="diagram" width="440" height="100" viewBox="0 0 440 100">
+    <line x1="30" y1="60" x2="410" y2="60" stroke="var(--border)" stroke-width="1"/>
+    <circle cx="80" cy="60" r="5" fill="var(--primary)"/><circle cx="150" cy="60" r="5" fill="var(--primary)"/><circle cx="220" cy="60" r="5" fill="var(--primary)"/><circle cx="290" cy="60" r="5" fill="var(--primary)"/>
+    <text x="185" y="40" text-anchor="middle" font-size="9" fill="var(--text-dim)">fixed atoms z₁...z_N</text>
+    <path d="M115,60 L108,60 M185,60 L178,60 M255,60 L248,60" stroke="var(--accent)" stroke-width="1.6" stroke-dasharray="3 2"/>
+    <text x="200" y="85" text-anchor="middle" font-size="9" fill="var(--accent)">reward + γ·(shifted, scaled) lands between atoms</text>
+  </svg>
+  <button class="math-btn" data-target="m11"><span class="arrow">▸</span> Why is applying the Bellman equation to a distribution tricky?</button>
+  <div class="math-panel" id="m11"><div class="math-panel-inner">
+    <span class="sec-label">The problem</span>
+    Applying the Bellman update to a distribution means shifting it by the reward r and scaling it by γ — but afterward, its probability mass no longer lines up neatly on the original fixed atoms z₁,…,z_N.
+    <span class="sec-label">The fix: projection</span>
+    Each shifted, scaled probability is split and redistributed proportionally onto the two nearest original atoms, so the result is representable in the same fixed histogram shape as before — a bit like rounding a measurement to the nearest marks on a fixed ruler, without losing the total probability.
+    <span class="sec-label">Practical use</span>
+    This projection step is the main piece of extra engineering distributional RL requires beyond ordinary DQN — everything else (network architecture, replay, etc.) stays the same.
+  </div></div>
+</div></section>
+
+    <section class="slide" data-slide="12"><div class="slide-inner-center">
+  <div class="eq-section-divider">Fix #6 — Noisy Networks</div>
+  <h2>Why ε-Greedy Is Kind Of A Blunt Instrument</h2>
+  <svg class="diagram" width="440" height="110" viewBox="0 0 440 110">
+    <text x="90" y="20" text-anchor="middle" font-size="10" fill="var(--text-dim)">ε-greedy: same jitter everywhere</text>
+    <circle class="jitter-fixed" cx="90" cy="60" r="8" fill="var(--bad)"/>
+    <circle class="jitter-fixed" cx="150" cy="60" r="8" fill="var(--bad)" style="animation-delay:.3s;"/>
+    <circle class="jitter-fixed" cx="60" cy="80" r="8" fill="var(--bad)" style="animation-delay:.6s;"/>
+    <text x="350" y="20" text-anchor="middle" font-size="10" fill="var(--text-dim)">noisy nets: jitter shrinks with confidence</text>
+    <circle class="jitter-decay" cx="320" cy="60" r="10" fill="var(--good)" opacity=".8"/>
+    <circle class="jitter-decay" cx="380" cy="70" r="4" fill="var(--good)" style="animation-delay:.4s;"/>
+  </svg>
+  <p class="subtitle" style="max-width:600px;">ε-greedy explores with the exact same random chance in every state, whether the agent is totally lost or supremely confident — and that chance has to be manually decayed on a fixed schedule, the same for every part of the state space.</p>
+  <button class="math-btn" data-target="m12b"><span class="arrow">▸</span> What's actually wrong with a fixed, hand-tuned schedule?</button>
+  <div class="math-panel" id="m12b"><div class="math-panel-inner">
+    <span class="sec-label">The mismatch</span>
+    A single global ε (or a single decay schedule) can't be "correct" everywhere at once — a part of the state space the agent barely understands would benefit from more exploration than a part it has already mastered, but a fixed ε treats them identically.
+    <span class="sec-label">Why this is hard to fix by hand</span>
+    You'd need a different exploration rate for every region of a potentially huge state space, updated as learning progresses — exactly the kind of thing better delegated to a learned parameter (σ, on the next slide) than a global hyperparameter tuned by a human in advance.
+  </div></div>
+</div></section>
+
+    <section class="slide" data-slide="13"><div class="slide-inner-center">
+  <div class="eq-section-divider">Fix #6 — Noisy Networks</div>
+  <h2>Learnable Noise Instead Of A Fixed ε</h2>
+  <div class="eq-box" style="font-size:13.5px;">y = &nbsp;(μ_w + σ_w ⊙ ε_w)&nbsp;x &nbsp;+&nbsp; (μ_b + σ_b ⊙ ε_b)</div>
+  <button class="math-btn" data-target="m13"><span class="arrow">▸</span> How does noise inside the network replace ε-greedy?</button>
+  <div class="math-panel" id="m13"><div class="math-panel-inner">
+    <span class="sec-label">In plain terms, before any symbols</span>
+    Instead of randomly picking an action from the outside (ε-greedy), inject random noise directly into some of the network's own weights, resampled on every forward pass. The randomness in the network's internal computation naturally produces varied action choices.
+    <span class="sec-label">What's new here</span>
+    Each such weight now has two learned numbers instead of one: μ (an ordinary weight) and σ (how much noise to mix in), plus a freshly-sampled random ε each forward pass. Gradient descent can adjust σ directly — shrinking it in states the network is confident about, and leaving it larger where the network is genuinely still uncertain.
+    <span class="sec-label">Why this beats a fixed, manually-decayed ε</span>
+    Exploration now automatically varies by state and adapts over training, without a hand-picked decay schedule. It's one less hyperparameter to tune, and it responds directly to what the network has actually learned so far, rather than a fixed clock.
+    <span class="sec-label">Practical use</span>
+    This trades one kind of randomness (external, uniform, hand-scheduled) for another (internal, learned, state-dependent) — a pattern that reappears anywhere "how much to explore" would ideally depend on genuine uncertainty rather than a fixed global rate.
+  </div></div>
+</div></section>
+
+    <section class="slide" data-slide="14"><div class="slide-inner-center">
+  <div class="kicker">Putting It All Together</div>
+  <h2>The Rainbow Agent</h2>
+  <svg class="diagram" width="560" height="200" viewBox="0 0 560 200">
+    <circle class="pulse-ring" cx="280" cy="100" r="18" fill="none" stroke="var(--good)" stroke-width="1.2" opacity=".5"/>
+    <circle cx="280" cy="100" r="14" fill="none" stroke="var(--text-dim)" stroke-width="1.6"/>
+    <text x="280" y="104" text-anchor="middle" font-size="9" fill="var(--text)">Q</text>
+    <path class="rb-line" d="M280,100 L150,40" stroke="var(--primary)" stroke-width="1.4" fill="none" stroke-dasharray="150" stroke-dashoffset="150"/>
+    <path class="rb-line" d="M280,100 L410,40" stroke="var(--primary)" stroke-width="1.4" fill="none" stroke-dasharray="150" stroke-dashoffset="150"/>
+    <path class="rb-line" d="M280,100 L110,110" stroke="var(--accent)" stroke-width="1.4" fill="none" stroke-dasharray="170" stroke-dashoffset="170"/>
+    <path class="rb-line" d="M280,100 L110,165" stroke="var(--accent)" stroke-width="1.4" fill="none" stroke-dasharray="190" stroke-dashoffset="190"/>
+    <path class="rb-line" d="M280,100 L450,110" stroke="var(--good)" stroke-width="1.4" fill="none" stroke-dasharray="170" stroke-dashoffset="170"/>
+    <path class="rb-line" d="M280,100 L450,165" stroke="var(--good)" stroke-width="1.4" fill="none" stroke-dasharray="190" stroke-dashoffset="190"/>
+    <text x="150" y="30" text-anchor="middle" font-size="10" fill="var(--primary)">Double</text>
+    <text x="410" y="30" text-anchor="middle" font-size="10" fill="var(--primary)">Dueling</text>
+    <text x="90" y="100" text-anchor="middle" font-size="10" fill="var(--accent)">Prioritized</text>
+    <text x="90" y="180" text-anchor="middle" font-size="10" fill="var(--accent)">Multi-Step</text>
+    <text x="470" y="100" text-anchor="middle" font-size="10" fill="var(--good)">Distributional</text>
+    <text x="470" y="180" text-anchor="middle" font-size="10" fill="var(--good)">Noisy Nets</text>
+  </svg>
+  <p class="caption" style="max-width:560px;">Same overall training loop as DQN — act, store, sample, compute loss, gradient step, periodically sync the target network — just with each piece replaced by its improved version.</p>
+</div></section>
+
+    <section class="slide" data-slide="15"><div class="slide-inner-center">
+  <div class="kicker">A Brief Note On History</div>
+  <h2>Which Ingredients Mattered Most?</h2>
+  <p class="subtitle" style="max-width:600px;">DeepMind's 2017 Rainbow paper tested removing each of the six components one at a time from the full combination. Prioritized replay and multi-step returns turned out to hurt performance the most when removed; noisy networks and distributional RL also contributed meaningfully, though somewhat less individually.</p>
+  <p class="caption" style="margin-top:14px;max-width:560px;">The broader lesson: these six fixes address genuinely different weaknesses, so their benefits compound rather than overlap — which is exactly why combining all six outperformed any single one alone.</p>
+</div></section>
+
+    <section class="slide" data-slide="16"><div class="slide-inner-center">
+  <div class="kicker">Common Misconceptions</div>
+  <h2>Tap a card to see the truth</h2>
+  <div class="card-row" style="margin-top:20px;">
+    <div class="flip-card" data-flip="1"><div class="flip-inner">
+      <div class="flip-face flip-front"><div class="tag">Myth</div><div class="txt">Rainbow introduces a fundamentally new learning algorithm.</div></div>
+      <div class="flip-face flip-back"><div class="tag">Truth</div><div class="txt">False — it's still Q-learning at its core. All six pieces are refinements to the target, the replay buffer, the network output, or the exploration strategy.</div></div>
+    </div><div class="tap-hint">tap</div></div>
+    <div class="flip-card" data-flip="2"><div class="flip-inner">
+      <div class="flip-face flip-front"><div class="tag">Myth</div><div class="txt">With Noisy Networks added, ε-greedy is still needed too.</div></div>
+      <div class="flip-face flip-back"><div class="tag">Truth</div><div class="txt">False — Noisy Networks replace ε-greedy entirely; Rainbow doesn't use both at once.</div></div>
+    </div><div class="tap-hint">tap</div></div>
+    <div class="flip-card" data-flip="3"><div class="flip-inner">
+      <div class="flip-face flip-front"><div class="tag">Myth</div><div class="txt">Distributional RL is only useful for measuring risk.</div></div>
+      <div class="flip-face flip-back"><div class="tag">Truth</div><div class="txt">False — even when only the mean Q-value is ultimately used to act, learning the full distribution empirically improves training stability and representation quality.</div></div>
+    </div><div class="tap-hint">tap</div></div>
+  </div>
+</div></section>
+
+    <section class="slide" data-slide="17"><div class="slide-inner-center">
+  <div class="kicker">Where This Shows Up</div>
+  <h2>Real-world relevance of Rainbow's ingredients</h2>
+  <div class="icon-grid">
+    <div class="icon-item"><div class="glyph">🎯</div><div class="lbl">High-performance game-playing agents</div></div>
+    <div class="icon-item"><div class="glyph">📈</div><div class="lbl">Risk-aware finance &amp; trading (distributional)</div></div>
+    <div class="icon-item"><div class="glyph">🔁</div><div class="lbl">Sample-scarce robotics (prioritized replay)</div></div>
+    <div class="icon-item"><div class="glyph">🧭</div><div class="lbl">Adaptive exploration in changing environments</div></div>
+    <div class="icon-item"><div class="glyph">🏭</div><div class="lbl">Industrial control with delayed rewards (multi-step)</div></div>
+    <div class="icon-item"><div class="glyph">🧩</div><div class="lbl">Any system stacking several proven, independent fixes</div></div>
+  </div>
+</div></section>
+
+    <section class="slide" data-slide="18"><div class="slide-inner-center">
+  <div class="kicker">Recap</div>
+  <h2>Six fixes, one agent</h2>
+  <div class="eq-box" style="font-size:12.5px;text-align:left;line-height:2;">
+    Double DQN + Dueling DQN &nbsp;(bias + architecture)<br>
+    + Prioritized Replay &nbsp;(learn more from surprises)<br>
+    + Multi-Step Returns &nbsp;(faster credit assignment)<br>
+    + Distributional RL &nbsp;(learn the whole outcome shape)<br>
+    + Noisy Networks &nbsp;(learned, adaptive exploration)
+  </div>
+  <p class="subtitle" style="margin-top:26px;">This closes out value-based methods. Next: <b style="color:var(--primary);">policy-based methods</b> — instead of learning Q-values and acting greedily, learn the policy π itself, directly. Starting with REINFORCE.</p>
+</div></section>
+
+  </div>
+
+  <div class="nav-controls">
+    <button class="nav-btn" id="prevBtn">‹</button>
+    <span class="nav-hint">← → / space</span>
+    <button class="nav-btn" id="nextBtn">›</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.slide'));
+  const total = slides.length;
+  let current = 1;
+
+  const progressFill = document.getElementById('progressFill');
+  const counterCurrent = document.getElementById('counterCurrent');
+  const counterTotal = document.getElementById('counterTotal');
+  counterTotal.textContent = String(total).padStart(2,'0');
+
+  const prevBtn = document.getElementById('prevBtn');
+  const nextBtn = document.getElementById('nextBtn');
+
+  function pad(n){ return String(n).padStart(2,'0'); }
+
+  function activate(n){
+    slides.forEach(s => s.classList.remove('active'));
+    // force reflow so animations restart on revisit
+    void document.body.offsetWidth;
+    const target = slides.find(s => Number(s.dataset.slide) === n);
+    if(target){
+      target.classList.add('active');
+      // restart SVG dash-draw animations within this slide
+      target.querySelectorAll('path[stroke-dasharray]').forEach(p => {
+        p.style.animation = 'none';
+        void p.offsetWidth;
+        p.style.animation = 'dashDraw 0.9s ease forwards';
+      });
+    }
+    progressFill.style.width = (n/total*100) + '%';
+    counterCurrent.textContent = pad(n);
+    prevBtn.disabled = n === 1;
+    nextBtn.disabled = n === total;
+  }
+
+  function next(){ if(current < total){ current++; activate(current); } }
+  function prev(){ if(current > 1){ current--; activate(current); } }
+
+  nextBtn.addEventListener('click', next);
+  prevBtn.addEventListener('click', prev);
+
+  document.addEventListener('keydown', (e) => {
+    if(['ArrowRight','ArrowDown',' '].includes(e.key)){ e.preventDefault(); next(); }
+    else if(['ArrowLeft','ArrowUp'].includes(e.key)){ e.preventDefault(); prev(); }
+  });
+
+  // basic touch swipe
+  let touchStartX = null;
+  document.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; });
+  document.addEventListener('touchend', e => {
+    if(touchStartX === null) return;
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    if(Math.abs(dx) > 50){ dx < 0 ? next() : prev(); }
+    touchStartX = null;
+  });
+
+  // math expandable tabs
+  document.querySelectorAll('.math-btn').forEach(btn => {
+    const textNode = Array.from(btn.childNodes).find(n => n.nodeType === Node.TEXT_NODE && n.textContent.trim().length);
+    const originalLabel = textNode ? textNode.textContent : '';
+    btn.addEventListener('click', () => {
+      const panel = document.getElementById(btn.dataset.target);
+      const opening = !panel.classList.contains('open');
+      panel.classList.toggle('open');
+      btn.classList.toggle('open');
+      if(textNode){ textNode.textContent = opening ? ' Hide the math' : originalLabel; }
+    });
+  });
+
+  // flip cards for misconceptions
+  document.querySelectorAll('.flip-card').forEach(card => {
+    card.addEventListener('click', () => card.classList.toggle('flipped'));
+  });
+
+  activate(1);
+})();
+</script>
+</body>
+</html>

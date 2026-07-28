@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Function Calling → MCP</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0b0b0d;
+  --panel:#151519;
+  --panel2:#1b1b21;
+  --line:#33333a;
+  --text:#e9e9ec;
+  --muted:#9a9aa4;
+  --blue:#5b7fb5;
+  --teal:#3f9090;
+  --amber:#c9a267;
+  --coral:#b5657a;
+  --green:#6a9c78;
+  --violet:#8b7bb5;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;overflow:hidden;height:100%;}
+.deck{position:relative;width:100vw;height:100vh;}
+.slide{
+  position:absolute;inset:0;
+  display:none;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  padding:40px 60px;
+}
+.slide.active{display:flex;}
+.slide-inner{width:100%;max-width:1100px;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+.eyebrow{color:var(--muted);font-size:14px;letter-spacing:3px;text-transform:uppercase;margin-bottom:6px;font-weight:500;}
+h1.title{font-size:44px;font-weight:700;margin:0 0 8px 0;text-align:center;}
+h2.subtitle{font-size:18px;font-weight:400;color:var(--muted);margin:0 0 20px 0;text-align:center;}
+.stage{width:100%;height:520px;display:flex;align-items:center;justify-content:center;}
+svg{width:100%;height:100%;overflow:visible;}
+.foot-note{margin-top:14px;color:var(--muted);font-size:15px;text-align:center;max-width:760px;line-height:1.5;}
+
+/* animation base states */
+.fade-up{opacity:0;transform:translateY(18px);}
+.fade{opacity:0;}
+.scale-in{opacity:0;transform:scale(.82);}
+.draw{stroke-dasharray:1;stroke-dashoffset:1;}
+.pop{opacity:0;transform:scale(.5);}
+
+.run .fade-up{animation:fadeUp .65s cubic-bezier(.2,.7,.3,1) forwards;animation-delay:var(--d,0s);}
+.run .fade{animation:fadeIn .6s ease forwards;animation-delay:var(--d,0s);}
+.run .scale-in{animation:scaleIn .55s cubic-bezier(.2,.7,.3,1) forwards;animation-delay:var(--d,0s);}
+.run .draw{animation:drawLine .9s ease forwards;animation-delay:var(--d,0s);}
+.run .pop{animation:popIn .5s cubic-bezier(.34,1.4,.4,1) forwards;animation-delay:var(--d,0s);}
+
+@keyframes fadeUp{to{opacity:1;transform:translateY(0);}}
+@keyframes fadeIn{to{opacity:1;}}
+@keyframes scaleIn{to{opacity:1;transform:scale(1);}}
+@keyframes drawLine{to{stroke-dashoffset:0;}}
+@keyframes popIn{to{opacity:1;transform:scale(1);}}
+@keyframes softPulse{0%,100%{opacity:.55;}50%{opacity:1;}}
+.pulse{animation:softPulse 2.6s ease-in-out infinite;}
+
+/* nav */
+.navbar{position:fixed;bottom:20px;left:0;right:0;display:flex;align-items:center;justify-content:center;gap:16px;z-index:50;}
+.nav-btn{background:var(--panel);border:1px solid var(--line);color:var(--text);width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:18px;transition:background .2s;}
+.nav-btn:hover{background:var(--panel2);}
+.dots{display:flex;gap:7px;}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--line);cursor:pointer;transition:background .2s,transform .2s;}
+.dot.active{background:var(--amber);transform:scale(1.3);}
+.counter{position:fixed;top:20px;right:26px;color:var(--muted);font-size:13px;letter-spacing:1px;z-index:50;}
+.replay-btn{position:fixed;top:20px;left:26px;background:var(--panel);border:1px solid var(--line);color:var(--muted);font-size:12px;padding:7px 14px;border-radius:20px;cursor:pointer;letter-spacing:1px;z-index:50;}
+.replay-btn:hover{color:var(--text);border-color:var(--muted);}
+.hint{position:fixed;bottom:70px;left:0;right:0;text-align:center;color:var(--line);font-size:12px;letter-spacing:1px;z-index:40;}
+
+/* svg text helpers */
+text{font-family:'Inter',sans-serif;fill:var(--text);}
+.mono{font-family:'Fira Code',monospace;}
+.lbl{font-size:15px;fill:var(--muted);}
+.lbl-strong{font-size:16px;fill:var(--text);font-weight:600;}
+.small{font-size:12px;fill:var(--muted);}
+
+/* table */
+table.cmp{width:100%;border-collapse:collapse;font-size:15px;}
+table.cmp th{color:var(--muted);font-weight:600;text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);font-size:13px;letter-spacing:1px;text-transform:uppercase;}
+table.cmp td{padding:12px 14px;border-bottom:1px solid #222226;vertical-align:top;}
+table.cmp tr td:first-child{color:var(--muted);width:22%;}
+table.cmp tr td:nth-child(2){color:var(--coral);}
+table.cmp tr td:nth-child(3){color:var(--teal);}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute">
+<defs>
+  <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"></path>
+  </marker>
+  <marker id="arrowAmber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="#c9a267"></path>
+  </marker>
+</defs>
+</svg>
+
+<div class="deck" id="deck">
+
+<!-- SLIDE 1 : TITLE -->
+<div class="slide active" data-idx="0">
+  <div class="slide-inner run">
+    <div class="eyebrow fade-up" style="--d:.05s">a slow, visual explanation</div>
+    <h1 class="title fade-up" style="--d:.15s">Function Calling → MCP</h1>
+    <h2 class="subtitle fade-up" style="--d:.3s">why language models needed a universal connector</h2>
+    <div class="stage">
+      <svg viewBox="0 0 1000 560">
+        <circle class="scale-in" style="--d:.45s" cx="500" cy="230" r="70" fill="none" stroke="var(--blue)" stroke-width="2"></circle>
+        <path class="draw" style="--d:.7s" d="M462,215 Q480,190 500,215 Q520,240 538,215" fill="none" stroke="var(--blue)" stroke-width="2"></path>
+        <path class="draw" style="--d:.85s" d="M462,245 Q480,225 500,245 Q520,265 538,245" fill="none" stroke="var(--blue)" stroke-width="2"></path>
+        <g class="fade" style="--d:1.1s">
+          <line x1="500" y1="300" x2="500" y2="340" stroke="var(--line)" stroke-width="2"></line>
+          <circle cx="500" cy="355" r="16" fill="var(--panel)" stroke="var(--amber)" stroke-width="2"></circle>
+          <path d="M494,355 l4,5 l9,-11" stroke="var(--amber)" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"></path>
+        </g>
+        <text x="500" y="440" text-anchor="middle" class="lbl fade" style="--d:1.4s">from text generator&#8201;&#8594;&#8201;to action taker</text>
+      </svg>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 2 : FROZEN BRAIN -->
+<div class="slide" data-idx="1">
+  <div class="slide-inner run">
+    <div class="eyebrow fade-up" style="--d:.05s">01 — the problem</div>
+    <h1 class="title fade-up" style="--d:.15s" style="font-size:32px">A brain in a jar</h1>
+    <div class="stage">
+      <svg viewBox="0 0 1000 560">
+        <!-- jar -->
+        <path class="scale-in" style="--d:.3s" d="M410,120 h180 v20 q80,10 80,110 v140 q0,60 -60,60 h-220 q-60,0 -60,-60 v-140 q0,-100 80,-110 z"
+              fill="var(--panel)" stroke="var(--line)" stroke-width="2"></path>
+        <!-- brain squiggle -->
+        <g class="fade" style="--d:.7s">
+          <path d="M460,240 Q475,210 500,240 Q525,210 540,240 Q555,265 540,290 Q555,310 535,325 Q510,340 500,320 Q490,340 465,325 Q445,310 460,290 Q445,265 460,240 Z"
+                fill="none" stroke="var(--blue)" stroke-width="2.5"></path>
+        </g>
+        <!-- ice cracks -->
+        <g class="fade" style="--d:.95s" stroke="var(--muted)" stroke-width="1" opacity="0.5">
+          <path d="M420,350 l30,-20"></path>
+          <path d="M560,360 l-25,-15"></path>
+          <path d="M440,150 l20,25"></path>
+        </g>
+        <text x="500" y="470" text-anchor="middle" class="lbl-strong fade" style="--d:1.15s">knowledge frozen at training time</text>
+
+        <!-- question bubbles -->
+        <g class="pop" style="--d:1.4s">
+          <rect x="80" y="130" width="220" height="70" rx="14" fill="var(--panel2)" stroke="var(--coral)" stroke-width="1.5"></rect>
+          <text x="190" y="160" text-anchor="middle" class="lbl">"What's the weather</text>
+          <text x="190" y="182" text-anchor="middle" class="lbl">in Chennai right now?"</text>
+        </g>
+        <g class="pop" style="--d:1.6s">
+          <rect x="700" y="130" width="220" height="70" rx="14" fill="var(--panel2)" stroke="var(--coral)" stroke-width="1.5"></rect>
+          <text x="810" y="160" text-anchor="middle" class="lbl">"What's the live price</text>
+          <text x="810" y="182" text-anchor="middle" class="lbl">of this stock?"</text>
+        </g>
+        <g class="pop" style="--d:1.9s">
+          <text x="500" y="230" text-anchor="middle" font-size="26" fill="var(--coral)">?</text>
+        </g>
+      </svg>
+    </div>
+    <div class="foot-note fade-up" style="--d:2.1s">An LLM only knows what it read during training. No live data. No hands to act with. It can only <em>talk</em>.</div>
+  </div>
+</div>
+
+<!-- SLIDE 3 : GIVE IT TOOLS -->
+<div class="slide" data-idx="2">
+  <div class="slide-inner run">
+    <div class="eyebrow fade-up" style="--d:.05s">02 — the idea</div>
+    <h1 class="title fade-up" style="--d:.15s" style="font-size:32px">Give the brain a hand</h1>
+    <div class="stage">
+      <svg viewBox="0 0 1000 560">
+        <circle class="scale-in" style="--d:.3s" cx="220" cy="280" r="65" fill="none" stroke="var(--blue)" stroke-width="2"></circle>
+        <path class="draw" style="--d:.55s" d="M188,265 Q205,245 220,265 Q235,285 250,265" fill="none" stroke="var(--blue)" stroke-width="2"></path>
+        <text x="220" y="380" text-anchor="middle" class="lbl">model</text>
+
+        <!-- arm -->
+        <path class="draw" style="--d:.8s" d="M285,280 h420" stroke="var(--amber)" stroke-width="3" marker-end="url(#arrowAmber)"></path>
+        <text x="500" y="255" text-anchor="middle" class="small fade" style="--d:1.1s">"call get_weather(city)"</text>
+
+        <!-- toolbox -->
+        <g class="scale-in" style="--d:1.2s">
+          <rect x="740" y="190" width="180" height="180" rx="12" fill="var(--panel)" stroke="var(--line)" stroke-width="2"></rect>
+        </g>
+        <g class="pop" style="--d:1.45s">
+          <circle cx="800" cy="240" r="18" fill="none" stroke="var(--teal)" stroke-width="2"></circle>
+          <path d="M800,228 v24 M788,240 h24" stroke="var(--teal)" stroke-width="2"></path>
+        </g>
+        <g class="pop" style="--d:1.6s">
+          <rect x="850" y="222" width="36" height="36" rx="4" fill="none" stroke="var(--green)" stroke-width="2"></rect>
+          <text x="868" y="246" text-anchor="middle" font-size="14" fill="var(--green)">°C</text>
+        </g>
+        <g class="pop" style="--d:1.75s">
+          <rect x="770" y="300" width="36" height="36" rx="4" fill="none" stroke="var(--violet)" stroke-width="2"></rect>
+          <text x="788" y="323" text-anchor="middle" font-size="12" fill="var(--violet)">DB</text>
+        </g>
+        <g class="pop" style="--d:1.9s">
+          <circle cx="868" cy="318" r="18" fill="none" stroke="var(--coral)" stroke-width="2"></circle>
+          <path d="M860,318 h16 M868,310 v16" stroke="var(--coral)" stroke-width="2"></path>
+        </g>
+        <text x="830" y="410" text-anchor="middle" class="lbl fade" style="--d:2.1s">real functions: weather, search, database…</text>
+      </svg>
+    </div>
+    <div class="foot-note fade-up" style="--d:2.3s"><strong style="color:var(--text)">Function calling:</strong> the model doesn't just describe an answer — it can name a real function and its arguments, and let your code run it.</div>
+  </div>
+</div>
+
+<!-- SLIDE 4 : THE LOOP -->
+<div class="slide" data-idx="3">
+  <div class="slide-inner run">
+    <div class="eyebrow fade-up" style="--d:.05s">03 — the mechanism</div>
+    <h1 class="title fade-up" style="--d:.15s" style="font-size:32px">The function-calling loop</h1>
+    <div class="stage">
+      <svg viewBox="0 0 1000 560">
+        <!-- 4 nodes around circle center 500,290 r 190 -->
+        <!-- node1 top -->
+        <g class="scale-in" style="--d:.3s">
+          <rect x="400" y="70" width="200" height="70" rx="10" fill="var(--panel)" stroke="var(--blue)" stroke-width="1.5"></rect>
+          <text x="500" y="100" text-anchor="middle" class="lbl-strong">1 · User asks</text>
+          <text x="500" y="122" text-anchor="middle" class="small">a question in plain text</text>
+        </g>
+        <!-- node2 right -->
+        <g class="scale-in" style="--d:1.0s">
+          <rect x="710" y="255" width="230" height="80" rx="10" fill="var(--panel)" stroke="var(--amber)" stroke-width="1.5"></rect>
+          <text x="825" y="285" text-anchor="middle" class="lbl-strong">2 · Model decides</text>
+          <text x="825" y="307" text-anchor="middle" class="small">emits a tool call as JSON</text>
+        </g>
+        <!-- node3 bottom -->
+        <g class="scale-in" style="--d:1.7s">
+          <rect x="400" y="440" width="200" height="70" rx="10" fill="var(--panel)" stroke="var(--teal)" stroke-width="1.5"></rect>
+          <text x="500" y="470" text-anchor="middle" class="lbl-strong">3 · Your code runs</text>
+          <text x="500" y="492" text-anchor="middle" class="small">the real function executes</text>
+        </g>
+        <!-- node4 left -->
+        <g class="scale-in" style="--d:2.4s">
+          <rect x="60" y="255" width="230" height="80" rx="10" fill="var(--panel)" stroke="var(--coral)" stroke-width="1.5"></rect>
+          <text x="175" y="285" text-anchor="middle" class="lbl-strong">4 · Result returns</text>
+          <text x="175" y="307" text-anchor="middle" class="small">model reads it &amp; replies</text>
+        </g>
+
+        <!-- arrows -->
+        <path class="draw" style="--d:.75s" d="M560,140 Q680,170 745,255" fill="none" stroke="var(--muted)" stroke-width="2" marker-end="url(#arrow)"></path>
+        <path class="draw" style="--d:1.45s" d="M790,335 Q680,420 600,455" fill="none" stroke="var(--muted)" stroke-width="2" marker-end="url(#arrow)"></path>
+        <path class="draw" style="--d:2.15s" d="M400,470 Q280,430 220,335" fill="none" stroke="var(--muted)" stroke-width="2" marker-end="url(#arrow)"></path>
+        <path class="draw" style="--d:2.85s" d="M175,255 Q260,150 400,110" fill="none" stroke="var(--muted)" stroke-width="2" marker-end="url(#arrow)"></path>
+
+        <g class="pop" style="--d:3.2s">
+          <circle cx="500" cy="290" r="4" fill="var(--amber)"></circle>
+          <text x="500" y="235" text-anchor="middle" class="small">repeats until the model has enough to answer</text>
+        </g>
+      </svg>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 5 : SCHEMA ANATOMY -->
+<div class="slide" data-idx="4">
+  <div class="slide-inner run">
+    <div class="eyebrow fade-up" style="--d:.05s">04 — under the hood</div>
+    <h1 class="title fade-up" style="--d:.15s" style="font-size:32px">Anatomy of a tool schema</h1>
+    <div class="stage">
+      <svg viewBox="0 0 1000 560">
+        <rect class="fade" style="--d:.3s" x="40" y="90" width="440" height="330" rx="10" fill="var(--panel)" stroke="var(--line)"></rect>
+        <g class="mono fade" style="--d:.45s" font-size="15">
+          <text x="65" y="125" fill="var(--muted)">&#123;</text>
+          <text x="85" y="155" fill="var(--text)">"name"<tspan fill="var(--muted)">: </tspan><tspan fill="var(--amber)">"get_weather"</tspan>,</text>
+          <text x="85" y="185" fill="var(--text)">"description"<tspan fill="var(--muted)">:</tspan></text>
+          <text x="100" y="210" fill="var(--teal)">"Get current weather</text>
+          <text x="100" y="232" fill="var(--teal)">&#160;for a city",</text>
+          <text x="85" y="262" fill="var(--text)">"parameters"<tspan fill="var(--muted)">: &#123;</tspan></text>
+          <text x="105" y="292" fill="var(--violet)">"location"<tspan fill="var(--muted)">: "string"</tspan></text>
+          <text x="85" y="322" fill="var(--muted)">&#125;</text>
+          <text x="65" y="352" fill="var(--muted)">&#125;</text>
+        </g>
+
+        <!-- callouts -->
+        <path class="draw" style="--d:.9s" d="M480,148 h60" stroke="var(--amber)" stroke-width="1.5" marker-end="url(#arrowAmber)"></path>
+        <g class="fade" style="--d:1.05s">
+          <text x="555" y="140" class="lbl-strong" fill="var(--amber)">name</text>
+          <text x="555" y="160" class="small">unique id the model uses</text>
+          <text x="555" y="178" class="small">to reference this tool</text>
+        </g>
+
+        <path class="draw" style="--d:1.3s" d="M480,215 h60" stroke="var(--teal)" stroke-width="1.5" marker-end="url(#arrow)"></path>
+        <g class="fade" style="--d:1.45s">
+          <text x="555" y="220" class="lbl-strong" fill="var(--teal)">description</text>
+          <text x="555" y="240" class="small">tells the model *when*</text>
+          <text x="555" y="258" class="small">this tool is relevant</text>
+        </g>
+
+        <path class="draw" style="--d:1.7s" d="M480,285 h60" stroke="var(--violet)" stroke-width="1.5" marker-end="url(#arrow)"></path>
+        <g class="fade" style="--d:1.85s">
+          <text x="555" y="290" class="lbl-strong" fill="var(--violet)">parameters</text>
+          <text x="555" y="310" class="small">the input shape — validated,</text>
+          <text x="555" y="328" class="small">not free-form text</text>
+        </g>
+      </svg>
+    </div>
+    <div class="foot-note fade-up" style="--d:2.1s">This little JSON contract is the whole interface. The model never sees your code — only this description.</div>
+  </div>
+</div>
+
+<!-- SLIDE 6 : WALKTHROUGH -->
+<div class="slide" data-idx="5">
+  <div class="slide-inner run">
+    <div class="eyebrow fade-up" style="--d:.05s">05 — a live example</div>
+    <h1 class="title fade-up" style="--d:.15s" style="font-size:32px">Watching it happen</h1>
+    <div class="stage">
+      <svg viewBox="0 0 1000 560">
+        <!-- vertical column of 6 steps -->
+        <!-- connecting spine -->
+        <line class="draw" style="--d:.3s" x1="500" y1="60" x2="500" y2="500" stroke="var(--line)" stroke-width="2"></line>
+
+        <g class="fade-up" style="--d:.4s">
+          <circle cx="500" cy="70" r="6" fill="var(--blue)"></circle>
+          <text x="520" y="76" class="lbl-strong">User: "Weather in Chennai?"</text>
+        </g>
+        <g class="fade-up" style="--d:.75s">
+          <circle cx="500" cy="150" r="6" fill="var(--amber)"></circle>
+          <text x="520" y="156" class="lbl-strong">Model decides:</text>
+          <text x="520" y="176" class="mono small">get_weather(location="Chennai")</text>
+        </g>
+        <g class="fade-up" style="--d:1.1s">
+          <circle cx="500" cy="230" r="6" fill="var(--teal)"></circle>
+          <text x="520" y="236" class="lbl-strong">Your code executes the call</text>
+        </g>
+        <g class="fade-up" style="--d:1.45s">
+          <circle cx="500" cy="310" r="6" fill="var(--violet)"></circle>
+          <text x="520" y="316" class="lbl-strong">Result:</text>
+          <text x="520" y="336" class="mono small">&#123; "temp": 31, "condition": "sunny" &#125;</text>
+        </g>
+        <g class="fade-up" style="--d:1.8s">
+          <circle cx="500" cy="390" r="6" fill="var(--coral)"></circle>
+          <text x="520" y="396" class="lbl-strong">Model reads the result</text>
+        </g>
+        <g class="fade-up" style="--d:2.15s">
+          <circle cx="500" cy="470" r="6" fill="var(--green)"></circle>
+          <text x="520" y="476" class="lbl-strong">Answer: "It's 31°C and sunny in Chennai."</text>
+        </g>
+      </svg>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 7 : N x M PROBLEM -->
+<div class="slide" data-idx="6">
+  <div class="slide-inner run">
+    <div class="eyebrow fade-up" style="--d:.05s">06 — a crack appears</div>
+    <h1 class="title fade-up" style="--d:.15s" style="font-size:32px">This doesn't scale</h1>
+    <div class="stage">
+      <svg viewBox="0 0 1000 560">
+        <!-- models left -->
+        <g class="scale-in" style="--d:.3s"><rect x="60" y="90" width="170" height="55" rx="8" fill="var(--panel)" stroke="var(--blue)"></rect><text x="145" y="123" text-anchor="middle" class="lbl-strong">GPT</text></g>
+        <g class="scale-in" style="--d:.4s"><rect x="60" y="255" width="170" height="55" rx="8" fill="var(--panel)" stroke="var(--blue)"></rect><text x="145" y="288" text-anchor="middle" class="lbl-strong">Claude</text></g>
+        <g class="scale-in" style="--d:.5s"><rect x="60" y="420" width="170" height="55" rx="8" fill="var(--panel)" stroke="var(--blue)"></rect><text x="145" y="453" text-anchor="middle" class="lbl-strong">Gemini</text></g>
+
+        <!-- tools right -->
+        <g class="scale-in" style="--d:.6s"><rect x="770" y="40" width="170" height="50" rx="8" fill="var(--panel)" stroke="var(--teal)"></rect><text x="855" y="70" text-anchor="middle" class="lbl-strong">Weather</text></g>
+        <g class="scale-in" style="--d:.68s"><rect x="770" y="160" width="170" height="50" rx="8" fill="var(--panel)" stroke="var(--teal)"></rect><text x="855" y="190" text-anchor="middle" class="lbl-strong">Search</text></g>
+        <g class="scale-in" style="--d:.76s"><rect x="770" y="330" width="170" height="50" rx="8" fill="var(--panel)" stroke="var(--teal)"></rect><text x="855" y="360" text-anchor="middle" class="lbl-strong">Calendar</text></g>
+        <g class="scale-in" style="--d:.84s"><rect x="770" y="460" width="170" height="50" rx="8" fill="var(--panel)" stroke="var(--teal)"></rect><text x="855" y="490" text-anchor="middle" class="lbl-strong">Database</text></g>
+
+        <!-- 12 connecting lines, staggered -->
+        <g stroke="var(--line)" stroke-width="1.3" fill="none">
+          <path class="draw" style="--d:1.0s"  d="M230,117 C450,90 600,65 770,65"></path>
+          <path class="draw" style="--d:1.06s" d="M230,117 C450,150 600,180 770,185"></path>
+          <path class="draw" style="--d:1.12s" d="M230,117 C450,230 600,320 770,355"></path>
+          <path class="draw" style="--d:1.18s" d="M230,117 C450,280 600,420 770,485"></path>
+
+          <path class="draw" style="--d:1.24s" d="M230,282 C450,180 600,90 770,65"></path>
+          <path class="draw" style="--d:1.30s" d="M230,282 C500,240 600,200 770,185"></path>
+          <path class="draw" style="--d:1.36s" d="M230,282 C450,300 600,340 770,355"></path>
+          <path class="draw" style="--d:1.42s" d="M230,282 C450,340 600,420 770,485"></path>
+
+          <path class="draw" style="--d:1.48s" d="M230,447 C450,330 600,150 770,65"></path>
+          <path class="draw" style="--d:1.54s" d="M230,447 C450,360 600,250 770,185"></path>
+          <path class="draw" style="--d:1.60s" d="M230,447 C450,400 600,370 770,355"></path>
+          <path class="draw" style="--d:1.66s" d="M230,447 C450,460 600,470 770,485"></path>
+        </g>
+
+        <g class="pop" style="--d:2.0s">
+          <rect x="330" y="230" width="340" height="70" rx="10" fill="var(--panel2)" stroke="var(--coral)" stroke-width="1.5"></rect>
+          <text x="500" y="258" text-anchor="middle" class="mono lbl-strong" fill="var(--coral)">3 models × 4 tools = 12</text>
+          <text x="500" y="280" text-anchor="middle" class="small">custom integrations, hand-maintained</text>
+        </g>
+      </svg>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 8 : DIFFERENT FORMATS -->
+<div class="slide" data-idx="7">
+  <div class="slide-inner run">
+    <div class="eyebrow fade-up" style="--d:.05s">07 — and every vendor differs</div>
+    <h1 class="title fade-up" style="--d:.15s" style="font-size:32px">Same tool, three dialects</h1>
+    <div class="stage">
+      <svg viewBox="0 0 1000 560">
+        <g class="fade-up" style="--d:.3s">
+          <rect x="30" y="70" width="290" height="330" rx="10" fill="var(--panel)" stroke="var(--blue)" stroke-width="1.5"></rect>
+          <text x="175" y="100" text-anchor="middle" class="lbl-strong" fill="var(--blue)">OpenAI</text>
+          <text x="55" y="140" class="mono small" fill="var(--coral)">"functions"<tspan fill="var(--muted)">: [</tspan></text>
+          <text x="70" y="165" class="mono small">&#123; "name": "get_weather",</text>
+          <text x="70" y="187" class="mono small">&#160;&#160;"parameters": &#123;...&#125; &#125;</text>
+          <text x="55" y="210" class="mono small" fill="var(--muted)">]</text>
+        </g>
+        <g class="fade-up" style="--d:.55s">
+          <rect x="355" y="70" width="290" height="330" rx="10" fill="var(--panel)" stroke="var(--amber)" stroke-width="1.5"></rect>
+          <text x="500" y="100" text-anchor="middle" class="lbl-strong" fill="var(--amber)">Anthropic</text>
+          <text x="380" y="140" class="mono small" fill="var(--coral)">"tools"<tspan fill="var(--muted)">: [</tspan></text>
+          <text x="395" y="165" class="mono small">&#123; "name": "get_weather",</text>
+          <text x="395" y="187" class="mono small">&#160;&#160;"input_schema": &#123;...&#125; &#125;</text>
+          <text x="380" y="210" class="mono small" fill="var(--muted)">]</text>
+        </g>
+        <g class="fade-up" style="--d:.8s">
+          <rect x="680" y="70" width="290" height="330" rx="10" fill="var(--panel)" stroke="var(--teal)" stroke-width="1.5"></rect>
+          <text x="825" y="100" text-anchor="middle" class="lbl-strong" fill="var(--teal)">Gemini</text>
+          <text x="705" y="140" class="mono small" fill="var(--coral)">"function_declarations"<tspan fill="var(--muted)">: [</tspan></text>
+          <text x="720" y="165" class="mono small">&#123; "name": "get_weather",</text>
+          <text x="720" y="187" class="mono small">&#160;&#160;"parameters": &#123;...&#125; &#125;</text>
+          <text x="705" y="210" class="mono small" fill="var(--muted)">]</text>
+        </g>
+        <g class="pop" style="--d:1.4s">
+          <text x="500" y="450" text-anchor="middle" class="lbl-strong" fill="var(--coral)">one tool → rewritten three different ways</text>
+        </g>
+      </svg>
+    </div>
+    <div class="foot-note fade-up" style="--d:1.7s">Function calling never became one standard — every vendor shaped it slightly differently.</div>
+  </div>
+</div>
+
+<!-- SLIDE 9 : NO SHARED STATE -->
+<div class="slide" data-idx="8">
+  <div class="slide-inner run">
+    <div class="eyebrow fade-up" style="--d:.05s">08 — a deeper limit</div>
+    <h1 class="title fade-up" style="--d:.15s" style="font-size:32px">Calls, not connections</h1>
+    <div class="stage">
+      <svg viewBox="0 0 1000 560">
+        <g class="scale-in" style="--d:.3s">
+          <circle cx="260" cy="270" r="60" fill="none" stroke="var(--blue)" stroke-width="2"></circle>
+          <text x="260" y="277" text-anchor="middle" class="lbl-strong">model</text>
+        </g>
+        <g class="scale-in" style="--d:.5s">
+          <rect x="640" y="220" width="150" height="100" rx="8" fill="var(--panel)" stroke="var(--muted)" stroke-width="1.5"></rect>
+          <text x="715" y="277" text-anchor="middle" class="lbl-strong">server</text>
+        </g>
+        <line class="draw" style="--d:.75s" x1="330" y1="270" x2="630" y2="270" stroke="var(--muted)" stroke-width="2" stroke-dasharray="6 6"></line>
+        <g class="pop" style="--d:1.0s">
+          <circle cx="480" cy="270" r="22" fill="var(--panel)" stroke="var(--coral)" stroke-width="2"></circle>
+          <text x="480" y="278" text-anchor="middle" font-size="20" fill="var(--coral)">?</text>
+        </g>
+
+        <g class="fade-up" style="--d:1.3s">
+          <circle cx="120" cy="420" r="5" fill="var(--coral)"></circle>
+          <text x="140" y="425" class="lbl">no way to ask "what tools exist right now"</text>
+        </g>
+        <g class="fade-up" style="--d:1.55s">
+          <circle cx="120" cy="460" r="5" fill="var(--coral)"></circle>
+          <text x="140" y="465" class="lbl">no persistent link to live systems or files</text>
+        </g>
+        <g class="fade-up" style="--d:1.8s">
+          <circle cx="120" cy="500" r="5" fill="var(--coral)"></circle>
+          <text x="140" y="505" class="lbl">every call starts from zero context</text>
+        </g>
+      </svg>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 10 : ENTER MCP / USB-C -->
+<div class="slide" data-idx="9">
+  <div class="slide-inner run">
+    <div class="eyebrow fade-up" style="--d:.05s">09 — the fix</div>
+    <h1 class="title fade-up" style="--d:.15s" style="font-size:32px">Enter MCP</h1>
+    <h2 class="subtitle fade-up" style="--d:.28s">the Model Context Protocol</h2>
+    <div class="stage">
+      <svg viewBox="0 0 1000 560">
+        <text x="230" y="70" text-anchor="middle" class="small fade" style="--d:.4s">before</text>
+        <text x="770" y="70" text-anchor="middle" class="small fade" style="--d:.4s">after</text>
+
+        <!-- before: messy plugs -->
+        <g class="fade-up" style="--d:.55s">
+          <path d="M170,140 h40 v20 h10 v20 h-10 v20 h-40 z" fill="none" stroke="var(--coral)" stroke-width="2"></path>
+          <text x="220" y="215" text-anchor="middle" class="small">micro-usb</text>
+        </g>
+        <g class="fade-up" style="--d:.75s">
+          <path d="M170,260 l25,-15 l25,15 v40 l-25,15 l-25,-15 z" fill="none" stroke="var(--coral)" stroke-width="2"></path>
+          <text x="220" y="335" text-anchor="middle" class="small">lightning</text>
+        </g>
+        <g class="fade-up" style="--d:.95s">
+          <rect x="170" y="380" width="70" height="45" fill="none" stroke="var(--coral)" stroke-width="2"></rect>
+          <text x="220" y="450" text-anchor="middle" class="small">vga</text>
+        </g>
+        <g class="pop" style="--d:1.2s">
+          <path d="M120,280 L340,280 M120,280 L150,260 M120,280 L150,300" stroke="var(--coral)" stroke-width="1.5" opacity="0"></path>
+          <text x="230" y="480" text-anchor="middle" class="lbl" fill="var(--coral)">different port, every device</text>
+        </g>
+
+        <!-- transform arrow -->
+        <path class="draw" style="--d:1.5s" d="M400,290 h180" stroke="var(--amber)" stroke-width="2.5" marker-end="url(#arrowAmber)"></path>
+
+        <!-- after: usb-c -->
+        <g class="scale-in" style="--d:1.85s">
+          <rect x="710" y="255" width="120" height="55" rx="14" fill="none" stroke="var(--green)" stroke-width="2.5"></rect>
+          <text x="770" y="290" text-anchor="middle" class="small" fill="var(--green)">MCP</text>
+        </g>
+        <g class="fade-up" style="--d:2.1s">
+          <path class="draw" style="--d:2.1s" d="M770,255 v-70" stroke="var(--line)" stroke-width="2" marker-end="url(#arrow)"></path>
+          <path class="draw" style="--d:2.2s" d="M830,282 h70" stroke="var(--line)" stroke-width="2" marker-end="url(#arrow)"></path>
+          <path class="draw" style="--d:2.3s" d="M770,310 v70" stroke="var(--line)" stroke-width="2" marker-end="url(#arrow)"></path>
+          <path class="draw" style="--d:2.4s" d="M710,282 h-70" stroke="var(--line)" stroke-width="2" marker-end="url(#arrow)"></path>
+        </g>
+        <text x="770" y="490" text-anchor="middle" class="lbl fade" style="--d:2.6s" fill="var(--green)">one protocol, any device</text>
+      </svg>
+    </div>
+    <div class="foot-note fade-up" style="--d:2.8s">MCP is an open, shared protocol so any model and any tool can speak the same language — no custom wiring per pair.</div>
+  </div>
+</div>
+
+<!-- SLIDE 11 : ARCHITECTURE -->
+<div class="slide" data-idx="10">
+  <div class="slide-inner run">
+    <div class="eyebrow fade-up" style="--d:.05s">10 — how it's structured</div>
+    <h1 class="title fade-up" style="--d:.15s" style="font-size:32px">Host · Client · Server</h1>
+    <div class="stage">
+      <svg viewBox="0 0 1000 560">
+        <g class="scale-in" style="--d:.3s">
+          <rect x="40" y="180" width="230" height="200" rx="10" fill="var(--panel)" stroke="var(--blue)" stroke-width="1.5"></rect>
+          <text x="155" y="210" text-anchor="middle" class="lbl-strong">Host</text>
+          <text x="155" y="230" text-anchor="middle" class="small">your app, e.g. Claude</text>
+          <rect x="65" y="260" width="180" height="70" rx="8" fill="var(--panel2)" stroke="var(--amber)" stroke-width="1.5"></rect>
+          <text x="155" y="290" text-anchor="middle" class="lbl">MCP</text>
+          <text x="155" y="310" text-anchor="middle" class="lbl">Client</text>
+        </g>
+
+        <path class="draw" style="--d:.75s" d="M275,280 h140" stroke="var(--muted)" stroke-width="2" stroke-dasharray="6 6" marker-end="url(#arrow)"></path>
+        <text x="345" y="260" text-anchor="middle" class="small fade" style="--d:.9s">MCP · JSON-RPC</text>
+
+        <g class="scale-in" style="--d:1.1s"><rect x="720" y="70" width="230" height="65" rx="8" fill="var(--panel)" stroke="var(--teal)" stroke-width="1.5"></rect><text x="835" y="105" text-anchor="middle" class="lbl-strong">Filesystem server</text></g>
+        <g class="scale-in" style="--d:1.25s"><rect x="720" y="195" width="230" height="65" rx="8" fill="var(--panel)" stroke="var(--teal)" stroke-width="1.5"></rect><text x="835" y="230" text-anchor="middle" class="lbl-strong">GitHub server</text></g>
+        <g class="scale-in" style="--d:1.4s"><rect x="720" y="320" width="230" height="65" rx="8" fill="var(--panel)" stroke="var(--teal)" stroke-width="1.5"></rect><text x="835" y="355" text-anchor="middle" class="lbl-strong">Database server</text></g>
+        <g class="scale-in" style="--d:1.55s"><rect x="720" y="445" width="230" height="65" rx="8" fill="var(--panel)" stroke="var(--teal)" stroke-width="1.5"></rect><text x="835" y="480" text-anchor="middle" class="lbl-strong">Weather server</text></g>
+
+        <path class="draw" style="--d:1.75s" d="M415,285 C550,220 620,150 715,105" fill="none" stroke="var(--line)" stroke-width="1.5" marker-end="url(#arrow)"></path>
+        <path class="draw" style="--d:1.85s" d="M415,290 C550,260 620,235 715,228" fill="none" stroke="var(--line)" stroke-width="1.5" marker-end="url(#arrow)"></path>
+        <path class="draw" style="--d:1.95s" d="M415,295 C550,320 620,340 715,353" fill="none" stroke="var(--line)" stroke-width="1.5" marker-end="url(#arrow)"></path>
+        <path class="draw" style="--d:2.05s" d="M415,300 C550,380 620,440 715,478" fill="none" stroke="var(--line)" stroke-width="1.5" marker-end="url(#arrow)"></path>
+
+        <text x="500" y="530" text-anchor="middle" class="small fade" style="--d:2.3s">one client. many interchangeable servers.</text>
+      </svg>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 12 : N+M MATH -->
+<div class="slide" data-idx="11">
+  <div class="slide-inner run">
+    <div class="eyebrow fade-up" style="--d:.05s">11 — the math actually changes</div>
+    <h1 class="title fade-up" style="--d:.15s" style="font-size:32px">N×M becomes N+M</h1>
+    <div class="stage">
+      <svg viewBox="0 0 1000 560">
+        <g class="scale-in" style="--d:.3s"><rect x="40" y="90" width="150" height="50" rx="8" fill="var(--panel)" stroke="var(--blue)"></rect><text x="115" y="120" text-anchor="middle" class="lbl-strong">GPT</text></g>
+        <g class="scale-in" style="--d:.4s"><rect x="40" y="255" width="150" height="50" rx="8" fill="var(--panel)" stroke="var(--blue)"></rect><text x="115" y="285" text-anchor="middle" class="lbl-strong">Claude</text></g>
+        <g class="scale-in" style="--d:.5s"><rect x="40" y="420" width="150" height="50" rx="8" fill="var(--panel)" stroke="var(--blue)"></rect><text x="115" y="450" text-anchor="middle" class="lbl-strong">Gemini</text></g>
+
+        <g class="scale-in" style="--d:.7s">
+          <rect x="435" y="255" width="130" height="55" rx="10" fill="var(--panel2)" stroke="var(--amber)" stroke-width="2"></rect>
+          <text x="500" y="288" text-anchor="middle" class="lbl-strong" fill="var(--amber)">MCP</text>
+        </g>
+
+        <g class="scale-in" style="--d:1.0s"><rect x="810" y="40" width="150" height="50" rx="8" fill="var(--panel)" stroke="var(--teal)"></rect><text x="885" y="70" text-anchor="middle" class="lbl-strong">Weather</text></g>
+        <g class="scale-in" style="--d:1.08s"><rect x="810" y="190" width="150" height="50" rx="8" fill="var(--panel)" stroke="var(--teal)"></rect><text x="885" y="220" text-anchor="middle" class="lbl-strong">Search</text></g>
+        <g class="scale-in" style="--d:1.16s"><rect x="810" y="330" width="150" height="50" rx="8" fill="var(--panel)" stroke="var(--teal)"></rect><text x="885" y="360" text-anchor="middle" class="lbl-strong">Calendar</text></g>
+        <g class="scale-in" style="--d:1.24s"><rect x="810" y="470" width="150" height="50" rx="8" fill="var(--panel)" stroke="var(--teal)"></rect><text x="885" y="500" text-anchor="middle" class="lbl-strong">Database</text></g>
+
+        <g stroke="var(--muted)" stroke-width="1.5" fill="none">
+          <path class="draw" style="--d:1.5s" d="M190,115 C300,150 380,220 435,265"></path>
+          <path class="draw" style="--d:1.56s" d="M190,280 h245"></path>
+          <path class="draw" style="--d:1.62s" d="M190,445 C300,400 380,320 435,300"></path>
+
+          <path class="draw" style="--d:1.7s" d="M565,270 C680,200 750,120 810,65"></path>
+          <path class="draw" style="--d:1.76s" d="M565,275 C680,240 750,220 810,215"></path>
+          <path class="draw" style="--d:1.82s" d="M565,285 C680,320 750,340 810,355"></path>
+          <path class="draw" style="--d:1.88s" d="M565,295 C680,380 750,440 810,490"></path>
+        </g>
+
+        <g class="pop" style="--d:2.2s">
+          <text x="500" y="410" text-anchor="middle" class="mono lbl-strong" fill="var(--muted)" style="text-decoration:line-through">3 × 4 = 12</text>
+          <text x="500" y="440" text-anchor="middle" class="mono lbl-strong" fill="var(--green)">3 + 4 = 7</text>
+        </g>
+      </svg>
+    </div>
+    <div class="foot-note fade-up" style="--d:2.5s">Each model implements the client once. Each tool implements the server once. Growth is additive, not multiplicative.</div>
+  </div>
+</div>
+
+<!-- SLIDE 13 : THREE PRIMITIVES -->
+<div class="slide" data-idx="12">
+  <div class="slide-inner run">
+    <div class="eyebrow fade-up" style="--d:.05s">12 — what a server can offer</div>
+    <h1 class="title fade-up" style="--d:.15s" style="font-size:32px">Three primitives</h1>
+    <div class="stage">
+      <svg viewBox="0 0 1000 560">
+        <g class="scale-in" style="--d:.3s">
+          <circle cx="200" cy="220" r="55" fill="none" stroke="var(--amber)" stroke-width="2"></circle>
+          <path d="M185,220 h30 M200,205 v30" stroke="var(--amber)" stroke-width="2"></path>
+        </g>
+        <text x="200" y="310" text-anchor="middle" class="lbl-strong fade" style="--d:.55s">Tools</text>
+        <text x="200" y="335" text-anchor="middle" class="small fade" style="--d:.65s">actions the model can take</text>
+
+        <g class="scale-in" style="--d:.75s">
+          <rect x="450" y="170" width="90" height="100" rx="6" fill="none" stroke="var(--teal)" stroke-width="2"></rect>
+          <line x1="465" y1="195" x2="525" y2="195" stroke="var(--teal)" stroke-width="1.5"></line>
+          <line x1="465" y1="215" x2="525" y2="215" stroke="var(--teal)" stroke-width="1.5"></line>
+          <line x1="465" y1="235" x2="505" y2="235" stroke="var(--teal)" stroke-width="1.5"></line>
+        </g>
+        <text x="500" y="310" text-anchor="middle" class="lbl-strong fade" style="--d:1.0s">Resources</text>
+        <text x="500" y="335" text-anchor="middle" class="small fade" style="--d:1.1s">live data the model can read</text>
+
+        <g class="scale-in" style="--d:1.2s">
+          <path d="M745,180 h110 v70 h-70 l-25,25 v-25 h-15 z" fill="none" stroke="var(--violet)" stroke-width="2"></path>
+        </g>
+        <text x="800" y="310" text-anchor="middle" class="lbl-strong fade" style="--d:1.45s">Prompts</text>
+        <text x="800" y="335" text-anchor="middle" class="small fade" style="--d:1.55s">reusable templates a server provides</text>
+
+        <text x="500" y="420" text-anchor="middle" class="foot-note fade-up" style="--d:1.85s">function calling only ever gave you the first one</text>
+      </svg>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 14 : COMPARISON TABLE -->
+<div class="slide" data-idx="13">
+  <div class="slide-inner run">
+    <div class="eyebrow fade-up" style="--d:.05s">13 — side by side</div>
+    <h1 class="title fade-up" style="--d:.15s" style="font-size:32px">Function calling vs MCP</h1>
+    <div style="width:100%;max-width:900px;">
+      <table class="cmp">
+        <thead><tr><th>Aspect</th><th>Function calling</th><th>MCP</th></tr></thead>
+        <tbody>
+          <tr class="fade-up" style="--d:.35s"><td>Standard</td><td>one per vendor</td><td>one shared, open spec</td></tr>
+          <tr class="fade-up" style="--d:.55s"><td>Discovery</td><td>tools hardcoded ahead of time</td><td>servers listed at connection time</td></tr>
+          <tr class="fade-up" style="--d:.75s"><td>Connection</td><td>stateless, single call</td><td>persistent client–server session</td></tr>
+          <tr class="fade-up" style="--d:.95s"><td>What's exposed</td><td>actions only</td><td>actions, data, and prompt templates</td></tr>
+          <tr class="fade-up" style="--d:1.15s"><td>Integration cost</td><td>N models × M tools</td><td>N models + M tools</td></tr>
+          <tr class="fade-up" style="--d:1.35s"><td>Reuse</td><td>rebuild per model</td><td>one server, any compliant client</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 15 : CLOSING -->
+<div class="slide" data-idx="14">
+  <div class="slide-inner run">
+    <div class="eyebrow fade-up" style="--d:.1s">in short</div>
+    <div class="stage" style="height:420px">
+      <svg viewBox="0 0 1000 560">
+        <text x="500" y="220" text-anchor="middle" font-size="30" font-weight="600" class="fade-up" style="--d:.3s">Function calling gave a model</text>
+        <text x="500" y="265" text-anchor="middle" font-size="30" font-weight="600" fill="var(--amber)" class="fade-up" style="--d:.6s">a hand.</text>
+        <text x="500" y="340" text-anchor="middle" font-size="30" font-weight="600" class="fade-up" style="--d:1.0s">MCP gave every hand</text>
+        <text x="500" y="385" text-anchor="middle" font-size="30" font-weight="600" fill="var(--green)" class="fade-up" style="--d:1.3s">a universal socket.</text>
+
+        <g class="pulse fade" style="--d:1.8s">
+          <circle cx="500" cy="470" r="10" fill="var(--teal)"></circle>
+        </g>
+      </svg>
+    </div>
+  </div>
+</div>
+
+</div><!-- /deck -->
+
+<div class="counter" id="counter">1 / 15</div>
+<button class="replay-btn" id="replayBtn">↺ replay</button>
+<div class="hint">use ← → or swipe</div>
+<div class="navbar">
+  <div class="nav-btn" id="prevBtn">‹</div>
+  <div class="dots" id="dots"></div>
+  <div class="nav-btn" id="nextBtn">›</div>
+</div>
+
+<script>
+const slides = Array.from(document.querySelectorAll('.slide'));
+const total = slides.length;
+let current = 0;
+
+const dotsWrap = document.getElementById('dots');
+slides.forEach((s,i)=>{
+  const d = document.createElement('div');
+  d.className = 'dot' + (i===0?' active':'');
+  d.addEventListener('click', ()=>goTo(i));
+  dotsWrap.appendChild(d);
+});
+const dots = Array.from(dotsWrap.children);
+const counter = document.getElementById('counter');
+
+function playSlide(i){
+  const inner = slides[i].querySelector('.slide-inner');
+  if(!inner) return;
+  inner.classList.remove('run');
+  void inner.offsetWidth;
+  inner.classList.add('run');
+}
+
+function goTo(i){
+  if(i<0 || i>=total || i===current && slides[i].classList.contains('active')) {
+    if(i===current){ playSlide(i); return; }
+  }
+  slides[current].classList.remove('active');
+  dots[current].classList.remove('active');
+  current = Math.max(0, Math.min(total-1, i));
+  slides[current].classList.add('active');
+  dots[current].classList.add('active');
+  counter.textContent = (current+1)+' / '+total;
+  playSlide(current);
+}
+
+document.getElementById('nextBtn').addEventListener('click', ()=>goTo(current+1));
+document.getElementById('prevBtn').addEventListener('click', ()=>goTo(current-1));
+document.getElementById('replayBtn').addEventListener('click', ()=>playSlide(current));
+
+window.addEventListener('keydown', (e)=>{
+  if(e.key==='ArrowRight' || e.key===' ') { e.preventDefault(); goTo(current+1); }
+  if(e.key==='ArrowLeft') { e.preventDefault(); goTo(current-1); }
+  if(e.key==='r' || e.key==='R') playSlide(current);
+});
+
+let touchStartX = null;
+window.addEventListener('touchstart', e=>{ touchStartX = e.touches[0].clientX; });
+window.addEventListener('touchend', e=>{
+  if(touchStartX===null) return;
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  if(Math.abs(dx) > 50){ dx < 0 ? goTo(current+1) : goTo(current-1); }
+  touchStartX = null;
+});
+
+playSlide(0);
+</script>
+</body>
+</html>

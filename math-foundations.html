@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Building Every Equation From Scratch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<style>
+:root{
+  --bg:#0d0d0d; --chalk:#eae7dc; --blue:#7fb3d5; --amber:#e0a458;
+  --rose:#d98a97; --green:#8fbc8f; --violet:#b39ddb; --muted:#8a8a80;
+  --dust:#3a3a35; --panel:#161613;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;height:100%;background:var(--bg);overflow:hidden;}
+body{font-family:'Inter',sans-serif;color:var(--chalk);
+  background:radial-gradient(circle at 20% 30%, rgba(255,255,255,0.015), transparent 40%),
+             radial-gradient(circle at 80% 70%, rgba(255,255,255,0.012), transparent 40%), var(--bg);}
+.mono{font-family:'JetBrains Mono',monospace;}
+#app{position:fixed;inset:0;display:flex;flex-direction:column;z-index:1;}
+#header{display:flex;align-items:center;justify-content:space-between;padding:14px 28px;border-bottom:1px solid var(--dust);flex-shrink:0;}
+#deckLabel{font-size:13px;letter-spacing:.12em;color:var(--muted);text-transform:uppercase;}
+#topicName{font-family:'Kalam',cursive;font-size:22px;margin-top:2px;}
+#headerRight{display:flex;align-items:center;gap:16px;}
+#counter{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--muted);}
+#progressTrack{width:140px;height:3px;background:var(--dust);border-radius:2px;overflow:hidden;}
+#progressFill{height:100%;background:var(--blue);width:0%;transition:width .4s ease;}
+#dots{display:flex;gap:6px;flex-wrap:wrap;max-width:300px;justify-content:flex-end;}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--dust);cursor:pointer;transition:background .2s, transform .2s;}
+.dot:hover{transform:scale(1.4);}
+.dot.active{background:var(--blue);}
+#stageWrap{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;padding:10px 40px;min-height:0;}
+#slideTitle{font-family:'Kalam',cursive;font-size:30px;margin:0 0 6px 0;text-align:center;}
+#slideSection{font-size:13px;color:var(--muted);margin-bottom:18px;text-transform:uppercase;letter-spacing:.1em;}
+#stepDots{display:flex;gap:10px;margin-bottom:26px;}
+.stepdot{width:9px;height:9px;border-radius:50%;border:1.5px solid var(--dust);transition:all .3s;}
+.stepdot.done{background:var(--dust);border-color:var(--dust);}
+.stepdot.active{background:var(--amber);border-color:var(--amber);transform:scale(1.3);}
+#eqBox{min-height:120px;display:flex;align-items:center;justify-content:center;width:100%;max-width:980px;padding:20px;}
+#eqBox .katex{font-size:2.1em;color:var(--chalk);}
+#eqCaption{font-size:17px;color:#cfcfc7;text-align:center;max-width:720px;min-height:52px;line-height:1.55;margin-top:10px;}
+#eqCaption b{color:var(--amber);}
+#controls{display:flex;align-items:center;justify-content:center;gap:14px;padding:14px;border-top:1px solid var(--dust);flex-shrink:0;}
+.btn{font-family:'Inter',sans-serif;font-size:14px;font-weight:500;color:var(--chalk);background:transparent;border:1px solid var(--dust);border-radius:6px;padding:9px 18px;cursor:pointer;transition:border-color .2s, background .2s;}
+.btn:hover:not(:disabled){border-color:var(--blue);background:rgba(127,179,213,0.08);}
+.btn:disabled{opacity:.3;cursor:default;}
+#hint{font-size:12px;color:var(--dust);margin-left:6px;font-family:'JetBrains Mono',monospace;}
+#mathTab{position:fixed;right:0;top:50%;transform:translateY(-50%);writing-mode:vertical-rl;text-orientation:mixed;background:var(--panel);border:1px solid var(--dust);border-right:none;border-radius:8px 0 0 8px;padding:16px 8px;cursor:pointer;color:var(--amber);font-family:'JetBrains Mono',monospace;font-size:13px;letter-spacing:.08em;z-index:50;transition:right .35s cubic-bezier(.4,0,.2,1);}
+#mathTab.open{right:440px;}
+#mathPanel{position:fixed;top:0;right:-460px;width:440px;max-width:88vw;height:100%;background:var(--panel);border-left:1px solid var(--dust);z-index:49;transition:right .35s cubic-bezier(.4,0,.2,1);overflow-y:auto;padding:60px 28px 40px 28px;}
+#mathPanel.open{right:0;}
+#mathPanel h3{font-family:'Kalam',cursive;color:var(--amber);font-size:22px;margin:0 0 12px 0;}
+#mathPanel h4{color:var(--blue);font-size:12px;text-transform:uppercase;letter-spacing:.1em;margin:20px 0 8px 0;}
+#mathPanel p{font-size:14px;line-height:1.65;color:#cfcfc7;margin:0 0 10px 0;}
+#mathPanel .eq{background:rgba(255,255,255,0.03);border:1px solid var(--dust);border-radius:6px;padding:12px 14px;margin:8px 0;overflow-x:auto;}
+#mathPanel .katex{color:var(--chalk);}
+#closeMath{position:absolute;top:16px;right:20px;background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;}
+::selection{background:var(--blue);color:#000;}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="header">
+    <div><div id="deckLabel">Math Foundations · Built From Scratch</div><div id="topicName">—</div></div>
+    <div id="headerRight"><div id="dots"></div><div id="progressTrack"><div id="progressFill"></div></div><div id="counter">1 / 1</div></div>
+  </div>
+  <div id="stageWrap">
+    <h1 id="slideTitle">—</h1>
+    <div id="slideSection"></div>
+    <div id="stepDots"></div>
+    <div id="eqBox"></div>
+    <div id="eqCaption"></div>
+  </div>
+  <div id="controls">
+    <button class="btn" id="prevBtn">← Prev</button>
+    <button class="btn" id="replayBtn">↻ Replay</button>
+    <button class="btn" id="nextBtn">Next →</button>
+    <span id="hint">arrows to navigate · M for math</span>
+  </div>
+</div>
+<div id="mathTab">Σ WHY THIS MATH</div>
+<div id="mathPanel"><button id="closeMath">✕</button><div id="mathPanelBody"></div></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<script>
+function he(tag, attrs){ const e=document.createElement(tag); if(attrs) for(const k in attrs) e.setAttribute(k,attrs[k]); return e; }
+function wait(ms){ return new Promise(r=>setTimeout(r,ms)); }
+function anim(node, kf, opts){ return node.animate(kf, Object.assign({duration:400, easing:'ease-in-out', fill:'both'}, opts||{})).finished.catch(()=>{}); }
+
+const SLIDES = [
+  {
+    section: `Welcome`,
+    title: `Building Every Equation From Scratch`,
+    stages: [
+      {tex:`x`, cap:`Everything starts with a number.`},
+      {tex:`y = f(x)`, cap:`A function is just a rule that turns one number into another.`},
+      {tex:`y = \\textcolor{#7fb3d5}{w}x + \\textcolor{#d98a97}{b}`, cap:`By the end of this deck, expressions like this will feel obvious — built piece by piece, never dropped on you all at once.`}
+    ],
+    math: `<h3>How this deck works</h3>
+<p>Every slide grows one equation, piece by piece. Each new piece gets its own color and its own short explanation \\u2014 nothing appears without being introduced first.</p>
+<h4>The rule for this deck</h4>
+<p>If a symbol shows up, the slide will have already told you what it means and why it is there, before asking you to read the full equation.</p>`
+  },
+  {
+    section: `The Absolute Basics`,
+    title: `What Is a Linear Function?`,
+    stages: [
+      {tex:`y = x`, cap:`The simplest possible rule: whatever x is, y copies it exactly.`},
+      {tex:`y = \\textcolor{#7fb3d5}{2}x`, cap:`Multiplying by a number scales the output — now y grows twice as fast as x.`},
+      {tex:`y = \\textcolor{#7fb3d5}{2}x + \\textcolor{#d98a97}{3}`, cap:`Adding a number shifts every output up by a fixed amount, no matter what x is.`},
+      {tex:`y = \\textcolor{#7fb3d5}{m}x + \\textcolor{#d98a97}{b}`, cap:`Written in general form: m controls the steepness (the slope), b controls where the line crosses the vertical axis (the intercept).`}
+    ],
+    math: `<h3>Why start here</h3>
+<p>Nearly every neuron in a neural network computes something that starts life as this exact shape: a number multiplied by a weight, plus a bias. Understanding <em>this</em> equation deeply is understanding the seed of everything that follows.</p>
+<h4>Reading m and b geometrically</h4>
+<p>m tells you: for every 1 step right, how many steps up (or down, if negative). b tells you: where the line sits when x is exactly 0. Change m and the line tilts; change b and the line slides up or down without tilting.</p>
+<h4>What comes next</h4>
+<p>The next slide extends "one input x" to "many inputs at once" \\u2014 the dot product \\u2014 which is the same idea, just with more numbers involved.</p>`
+  },
+  {
+    section: `From One Input to Many`,
+    title: `Vectors and the Dot Product`,
+    stages: [
+      {tex:`x_1, x_2, x_3`, cap:`Instead of one input, imagine three separate inputs — three pieces of evidence.`},
+      {tex:`w_1 x_1`, cap:`Give the first input its own importance, w1, and multiply.`},
+      {tex:`w_1 x_1 + w_2 x_2`, cap:`Do the same for the second input, and add it to the first.`},
+      {tex:`w_1 x_1 + w_2 x_2 + w_3 x_3`, cap:`Add the third. Every input contributes, scaled by how much it matters.`},
+      {tex:`\\sum_{i=1}^{3} w_i x_i \\;=\\; \\textcolor{#7fb3d5}{w} \\cdot \\textcolor{#e0a458}{x}`, cap:`This whole sum has a name: the dot product, written compactly as w · x. The sigma symbol just means “add up every term that follows, for each i.”`}
+    ],
+    math: `<h3>Why not just add the raw inputs?</h3>
+<p>Because not every input deserves equal weight. A weighted sum lets the model learn that x2 matters three times as much as x1, simply by learning w2 to be three times as large as w1 \\u2014 the weights <em>are</em> what the network learns.</p>
+<h4>The sigma notation, decoded</h4>
+<p>$\\sum_{i=1}^{n} w_i x_i$ reads as: "for i running from 1 to n, compute $w_i x_i$, and add all of those results together." It's just a compact way to write a sum that could otherwise be very long to spell out term by term.</p>
+<h4>A tiny worked example</h4>
+<p>If $w=(2,-1,0.5)$ and $x=(3,4,2)$, then $w\\cdot x = (2)(3)+(-1)(4)+(0.5)(2) = 6-4+1 = 3$. One single number, summarizing three separate pieces of weighted evidence.</p>`
+  },
+  {
+    section: `The Full Neuron Equation`,
+    title: `Weighted Sum + Bias`,
+    stages: [
+      {tex:`z = w \\cdot x`, cap:`Start with the dot product from the last slide — a single score built from weighted evidence.`},
+      {tex:`z = w \\cdot x + \\textcolor{#d98a97}{b}`, cap:`Add one more free number, the bias b, exactly like the +3 that shifted the line earlier.`},
+      {tex:`z = \\underbrace{w \\cdot x}_{\\text{weighted evidence}} + \\underbrace{b}_{\\text{shifts the threshold}}`, cap:`Together: a weighted vote from every input, plus a built-in nudge that does not depend on any input at all.`}
+    ],
+    math: `<h3>Why bother with a separate b at all?</h3>
+<p>Without b, the boundary $w\\cdot x=0$ is forced to pass through the origin \\u2014 every decision would have to balance perfectly around zero input. The bias frees the neuron to fire even when every input is small, or to stay silent even when inputs are large, by shifting that threshold independently of x.</p>
+<h4>This is the same shape as the line</h4>
+<p>Compare $y=mx+b$ to $z=w\\cdot x+b$: the second is just the first, generalized from one input to many. The weight vector w plays the role of the slope m; the bias plays exactly the same role it always did.</p>
+<h4>What is missing so far</h4>
+<p>z is just a raw number \\u2014 it could be any real value, positive or negative, huge or tiny. The next slide adds the missing piece: turning that raw number into something that behaves like a decision.</p>`
+  },
+  {
+    section: `Turning a Number Into a Decision`,
+    title: `The Sigmoid Function`,
+    stages: [
+      {tex:`z \\in (-\\infty, \\infty)`, cap:`z can be any real number — not yet useful as a probability or a clean decision.`},
+      {tex:`e^{-z}`, cap:`Start with this building block: as z grows large and positive, e^{-z} shrinks toward 0. As z becomes very negative, e^{-z} explodes.`},
+      {tex:`1 + e^{-z}`, cap:`Add 1, so this quantity is always at least 1, and never touches 0.`},
+      {tex:`\\frac{1}{1 + e^{-z}}`, cap:`Flip it upside down: now large z gives a value near 1, very negative z gives a value near 0 — and it's smooth everywhere in between.`},
+      {tex:`\\sigma(z) = \\frac{1}{1+e^{-z}}`, cap:`Give it a name: sigma. This is the sigmoid function — it squashes any real number into the open range between 0 and 1.`}
+    ],
+    math: `<h3>Why this specific shape, and not something simpler?</h3>
+<p>A hard cutoff (fire if $z>0$, else silent) is not differentiable at the boundary, which breaks gradient-based learning entirely. Sigmoid is a <em>smooth</em> approximation to that same on/off behavior \\u2014 it still saturates toward 0 or 1 at the extremes, but it has a well-defined slope everywhere, including exactly at the boundary.</p>
+<h4>Its own derivative, for free</h4>
+<div class="eq">$$ \\sigma'(z) = \\sigma(z)\\big(1-\\sigma(z)\\big) $$</div>
+<p>This is a genuinely convenient property: once you have computed $\\sigma(z)$ during the forward pass, its derivative costs almost nothing extra to compute \\u2014 no need to go back to z at all.</p>
+<h4>Its one real weakness</h4>
+<p>That derivative's maximum value is only 0.25, reached at $z=0$, and it shrinks toward 0 at the extremes ("saturation"). Stack many sigmoid layers and repeated small multiplications during backpropagation can shrink a gradient toward zero \\u2014 the vanishing gradient problem, and the reason ReLU became more popular in deep networks.</p>`
+  },
+  {
+    section: `Measuring Change`,
+    title: `Slope, Derivatives, and Notation`,
+    stages: [
+      {tex:`\\text{slope} = \\frac{\\text{rise}}{\\text{run}} = \\frac{\\Delta y}{\\Delta x}`, cap:`For a straight line, slope is simple: how far up, divided by how far across, between any two points.`},
+      {tex:`\\frac{f(x+h) - f(x)}{h}`, cap:`For a curve, pick two nearby points a tiny distance h apart, and measure the slope of the straight line connecting them — an approximation of the curve's steepness right there.`},
+      {tex:`\\lim_{h \\to 0} \\frac{f(x+h)-f(x)}{h}`, cap:`Now shrink h all the way toward 0. The approximate slope settles on one exact value: the slope of the curve at that single point.`},
+      {tex:`f'(x) \\;=\\; \\frac{df}{dx}`, cap:`This exact value has a name — the derivative — and two common notations that mean the same thing: f-prime, or dee-f-by-dee-x.`}
+    ],
+    math: `<h3>Why derivatives matter here at all</h3>
+<p>A derivative answers one very practical question: "if I nudge x slightly, which way and how much does the output move?" In deep learning, x is a weight, and the output is the loss \\u2014 the derivative tells the network exactly which direction to nudge that weight to make the loss go down.</p>
+<h4>Reading the notation</h4>
+<p>$\\frac{df}{dx}$ is not a fraction being divided \\u2014 it is one single symbol, read as "the derivative of f with respect to x." It literally comes from the fraction $\\frac{\\Delta y}{\\Delta x}$ shrunk to an infinitesimally small step, which is why it keeps that fraction-like appearance.</p>
+<h4>A concrete example</h4>
+<p>For $f(x)=x^2$, the derivative is $f'(x)=2x$. At $x=3$, the curve's slope is exactly 6 \\u2014 meaning near $x=3$, a small step in x produces roughly six times as large a step in $f(x)$.</p>`
+  },
+  {
+    section: `Derivatives of Nested Functions`,
+    title: `The Chain Rule`,
+    stages: [
+      {tex:`y = g(x), \\qquad z = f(g(x))`, cap:`Sometimes one function feeds directly into another — x goes into g, and g's output goes straight into f.`},
+      {tex:`\\frac{dz}{dx} = \\; ?`, cap:`The question: if x changes a little, how does the final output z change, after passing through both functions?`},
+      {tex:`\\frac{dz}{dx} = \\frac{dz}{dy} \\cdot \\frac{dy}{dx}`, cap:`The chain rule: multiply how much z changes per unit of y, by how much y changes per unit of x. The two local rates of change multiply into one overall rate of change.`},
+      {tex:`\\underbrace{\\frac{dz}{dy}}_{\\text{outer function's slope}} \\cdot \\underbrace{\\frac{dy}{dx}}_{\\text{inner function's slope}}`, cap:`Each factor only needs to know about its own immediate neighbor — no factor needs to understand the whole nested expression at once.`}
+    ],
+    math: `<h3>A concrete numeric walk-through</h3>
+<p>Let $y=g(x)=x^2$ and $z=f(y)=3y$. Then $z = 3x^2$ directly, and computing straight from that gives $\\frac{dz}{dx}=6x$. Using the chain rule instead: $\\frac{dz}{dy}=3$ and $\\frac{dy}{dx}=2x$, so $\\frac{dz}{dx}=3\\cdot 2x=6x$ \\u2014 exactly the same answer, built from two small, separately-understandable pieces.</p>
+<h4>Why this one rule matters so much here</h4>
+<p>A neural network is nothing but functions nested inside functions inside functions \\u2014 a weighted sum, inside a sigmoid, inside another weighted sum, inside a loss function. The chain rule is the single tool that makes it possible to compute how the loss depends on <em>any</em> weight buried deep inside that nest, one small local factor at a time.</p>
+<h4>What comes next</h4>
+<p>The next two slides apply exactly this rule: first to walk downhill on a loss surface (gradient descent), then to actually compute the gradient a neural network needs (backpropagation).</p>`
+  },
+  {
+    section: `Walking Downhill, Mathematically`,
+    title: `The Gradient Descent Update Rule`,
+    stages: [
+      {tex:`\\frac{dL}{dw}`, cap:`Start with the derivative of the loss L with respect to a weight w — it tells you which direction increases the loss.`},
+      {tex:`-\\frac{dL}{dw}`, cap:`Flip the sign. Since we want the loss to go <em>down</em>, step in the opposite direction from the one that increases it.`},
+      {tex:`\\eta \\cdot \\left(-\\frac{dL}{dw}\\right)`, cap:`Scale that direction by a small number, eta, the learning rate — controlling how big a step to actually take.`},
+      {tex:`w \\;\\leftarrow\\; w - \\eta \\frac{dL}{dw}`, cap:`Update the weight: subtract a small, scaled step in the direction that reduces the loss. Repeat this, over and over, and the weight walks steadily downhill.`}
+    ],
+    math: `<h3>Why the minus sign specifically</h3>
+<p>The derivative $\\frac{dL}{dw}$ points in the direction of <em>steepest increase</em>. Since the goal is to make the loss smaller, not larger, every update must move in exactly the opposite direction \\u2014 hence the minus sign in front.</p>
+<h4>What happens if eta is wrong</h4>
+<p>Too large, and each step can overshoot the minimum entirely, sometimes bouncing back and forth or diverging outright. Too small, and training crawls, needing an enormous number of steps to get anywhere \\u2014 eta is one of the most consequential single numbers in the entire training process.</p>
+<h4>The bigger picture</h4>
+<p>This same update rule, applied to millions of weights simultaneously, each with its own derivative, is literally how every neural network in this deck learns. Nothing more exotic than "compute the slope, step downhill a little, repeat."</p>`
+  },
+  {
+    section: `The Chain Rule, Applied to a Neuron`,
+    title: `Backpropagation`,
+    stages: [
+      {tex:`z = wx + b, \\quad a = \\sigma(z), \\quad L = (y-a)^2`, cap:`Three nested steps: a weighted sum, squashed by sigmoid, compared against the true answer y.`},
+      {tex:`\\frac{\\partial L}{\\partial w} \\;=\\; ?`, cap:`The question backpropagation answers: how does the final loss change if this one specific weight, buried two steps deep, changes slightly?`},
+      {tex:`\\frac{\\partial L}{\\partial w} = \\frac{\\partial L}{\\partial a} \\cdot \\frac{\\partial a}{\\partial z} \\cdot \\frac{\\partial z}{\\partial w}`, cap:`Apply the chain rule across all three nested steps — exactly the same idea as the two-step chain rule slide, just one link longer.`},
+      {tex:`\\underbrace{-2(y-a)}_{\\partial L/\\partial a} \\cdot \\underbrace{a(1-a)}_{\\partial a/\\partial z} \\cdot \\underbrace{x}_{\\partial z/\\partial w}`, cap:`Fill in each local factor: the loss's sensitivity to a, sigmoid's own derivative, and the weighted sum's sensitivity to w — three small, separately-computable pieces.`}
+    ],
+    math: `<h3>Why compute this backward, not forward</h3>
+<p>A network can have millions of weights but only one final loss. Computing this three-factor product starting from the loss and working backward costs roughly one extra pass through the network; computing it starting from each individual weight and working forward would cost one full pass <em>per weight</em> \\u2014 hopelessly expensive at any real scale.</p>
+<h4>This generalizes far beyond one neuron</h4>
+<p>The exact same three-factor pattern, applied to entire layers of weights at once using matrix multiplication instead of single numbers, is backpropagation as it actually runs in every real neural network \\u2014 the single-neuron version here is the whole idea, just before matrices are introduced.</p>
+<h4>The update, completing the loop</h4>
+<p>Once $\\frac{\\partial L}{\\partial w}$ is known, the gradient descent rule from the previous slide, $w \\leftarrow w - \\eta\\frac{\\partial L}{\\partial w}$, is exactly how that number gets turned into actual learning.</p>`
+  },
+  {
+    section: `From Scores to Probabilities`,
+    title: `The Softmax Function`,
+    stages: [
+      {tex:`z_1, z_2, z_3`, cap:`Start with raw scores for three classes — any real numbers, positive or negative, with no obvious relationship to probability yet.`},
+      {tex:`e^{z_1}, e^{z_2}, e^{z_3}`, cap:`Exponentiate each one. This guarantees every result is strictly positive, no matter how negative the original score was.`},
+      {tex:`e^{z_1} + e^{z_2} + e^{z_3}`, cap:`Add all of the exponentiated scores together into one single total.`},
+      {tex:`\\text{softmax}(z)_1 = \\frac{e^{z_1}}{e^{z_1}+e^{z_2}+e^{z_3}}`, cap:`Divide each exponentiated score by that total. Every result now lands strictly between 0 and 1, and all of them add up to exactly 1.`},
+      {tex:`\\text{softmax}(z)_i = \\frac{e^{z_i}}{\\sum_j e^{z_j}}`, cap:`Written generally, for any number of classes: exponentiate, then normalize by the sum of all the exponentials.`}
+    ],
+    math: `<h3>Why exponentiate at all, instead of just normalizing directly</h3>
+<p>Dividing raw scores by their sum does not guarantee positive results, and does not amplify the gap between a confident top choice and the rest. Exponentiating first makes every value positive <em>and</em> stretches larger scores further apart in relative terms \\u2014 a score just slightly higher than another ends up with noticeably more probability mass.</p>
+<h4>A worked numeric example</h4>
+<p>For scores $z=(2, 1, 0)$: exponentials are $(7.39, 2.72, 1.00)$, summing to $11.11$. Dividing gives probabilities $(0.665, 0.245, 0.090)$ \\u2014 they sum to 1, and the biggest raw score ends up with by far the largest share.</p>
+<h4>Where this shows up</h4>
+<p>Softmax is the very last step of almost every classifier, and it is also buried inside the attention formula on an upcoming slide \\u2014 the same "turn scores into weights that sum to 1" trick, reused for a very different purpose.</p>`
+  },
+  {
+    section: `Measuring How Wrong a Guess Was`,
+    title: `Cross-Entropy Loss`,
+    stages: [
+      {tex:`\\hat y = 0.9`, cap:`Suppose the model assigns 90% probability to the correct class — a good, confident, correct guess.`},
+      {tex:`-\\log(\\hat y)`, cap:`Take the negative log of that probability. For a confident correct guess, this value is small and close to 0.`},
+      {tex:`\\hat y = 0.1 \\;\\Rightarrow\\; -\\log(\\hat y) \\text{ is large}`, cap:`Now suppose the model gave only 10% to the correct class — the negative log grows sharply, punishing this confidently wrong guess much more severely.`},
+      {tex:`\\mathcal{L} = -\\sum_i y_i \\log(\\hat y_i)`, cap:`The general formula, summed across every class: since the true label y is 0 everywhere except the correct class, only that one term ever actually contributes.`}
+    ],
+    math: `<h3>Why negative log, and not something like 1 minus probability</h3>
+<p>$1-\\hat y$ grows only linearly as the guess gets worse. $-\\log(\\hat y)$ grows toward infinity as $\\hat y$ approaches 0 \\u2014 it punishes extremely confident wrong answers far more harshly than mildly wrong ones, which is exactly the behavior you want from a model that should learn to be humble when it is unsure.</p>
+<h4>Where the formula actually comes from</h4>
+<p>Minimizing this exact quantity is mathematically identical to maximizing the likelihood of the true labels under the model's predicted probabilities \\u2014 it is not an arbitrary invention, it falls directly out of asking "what parameters make the data I actually observed most probable?"</p>
+<h4>Softmax and cross-entropy, together</h4>
+<p>These two formulas are almost always used as a pair: softmax turns raw scores into probabilities, cross-entropy then measures how far those probabilities were from the truth \\u2014 nearly every classifier in deep learning ends with exactly this combination.</p>`
+  },
+  {
+    section: `The Capstone Formula`,
+    title: `Scaled Dot-Product Attention`,
+    stages: [
+      {tex:`Q, K, V`, cap:`Every token produces three vectors: a Query (what am I looking for?), a Key (what do I offer?), and a Value (what do I actually contribute?).`},
+      {tex:`QK^\\top`, cap:`Multiply queries against keys. This is just many dot products at once — the same dot product from early in this deck — measuring how aligned each query is with each key.`},
+      {tex:`\\frac{QK^\\top}{\\sqrt{d_k}}`, cap:`Divide by the square root of the key dimension. Large dot products can push the next step into a region with almost no useful gradient; this rescaling keeps values in a well-behaved range.`},
+      {tex:`\\text{softmax}\\!\\left(\\frac{QK^\\top}{\\sqrt{d_k}}\\right)`, cap:`Apply softmax, from earlier in this deck, to turn those scaled scores into proper weights that sum to 1 for each query — how much attention to pay to each other token.`},
+      {tex:`\\text{softmax}\\!\\left(\\frac{QK^\\top}{\\sqrt{d_k}}\\right) V`, cap:`Multiply those attention weights by the Values. The result is a weighted blend of every token's contribution, exactly proportional to how relevant each one was judged to be.`}
+    ],
+    math: `<h3>Every piece of this formula has already appeared in this deck</h3>
+<p>$QK^\\top$ is dot products (slide 2). Dividing by $\\sqrt{d_k}$ is a scaling trick, in the same spirit as normalizing by $\\lVert w\\rVert$ elsewhere in this deck. Softmax (slide 9) turns scores into weights. The final multiplication by V is a weighted sum \\u2014 the very same idea as the weighted sum that opened this entire deck, just computed for every token against every other token at once.</p>
+<h4>Reading it as one sentence</h4>
+<p>"For every token, compare it against every other token (dot product), rescale that comparison so it stays numerically well-behaved (divide by $\\sqrt{d_k}$), turn the comparisons into a proper set of weights (softmax), and blend everyone's contribution accordingly (multiply by V)." That sentence <em>is</em> the formula \\u2014 nothing in it is unmotivated.</p>
+<h4>Why this one formula matters so much</h4>
+<p>This is the mathematical core of the Transformer architecture, the foundation of essentially every modern large language model \\u2014 and by the time you reach this slide, every symbol in it should already feel familiar.</p>`
+  },
+  {
+    section: `Closing`,
+    title: `You Built Every One of These`,
+    stages: [
+      {tex:`y = mx+b`, cap:`A line.`},
+      {tex:`w \\cdot x + b`, cap:`A weighted vote, plus a bias.`},
+      {tex:`\\sigma(z) = \\frac{1}{1+e^{-z}}`, cap:`A smooth, squashed decision.`},
+      {tex:`w \\leftarrow w - \\eta\\frac{dL}{dw}`, cap:`A small, deliberate step downhill.`},
+      {tex:`\\text{softmax}\\!\\left(\\frac{QK^\\top}{\\sqrt{d_k}}\\right) V`, cap:`And the same handful of ideas, recombined, reaching all the way to attention.`}
+    ],
+    math: `<h3>The one-line summary</h3>
+<p>Every equation in this deck is built from four repeated moves: multiply and add (weighted sums), squash or normalize (sigmoid, softmax), measure change (derivatives, the chain rule), and take a small step to reduce error (gradient descent). Nothing in deep learning math is fundamentally different from these four moves \\u2014 architectures differ only in <em>how</em> they arrange and repeat them.</p>
+<h4>Where to go next</h4>
+<p>Revisit any slide, in any order \\u2014 press the left arrow, or click a dot above. Understanding one equation deeply tends to make the next one easier, not harder.</p>`
+  }
+];
+
+const stageWrap = document.getElementById('stageWrap');
+const slideTitleEl = document.getElementById('slideTitle');
+const slideSectionEl = document.getElementById('slideSection');
+const topicNameEl = document.getElementById('topicName');
+const counterEl = document.getElementById('counter');
+const progressFillEl = document.getElementById('progressFill');
+const dotsEl = document.getElementById('dots');
+const stepDotsEl = document.getElementById('stepDots');
+const eqBox = document.getElementById('eqBox');
+const eqCaption = document.getElementById('eqCaption');
+const prevBtn = document.getElementById('prevBtn');
+const nextBtn = document.getElementById('nextBtn');
+const replayBtn = document.getElementById('replayBtn');
+const mathTab = document.getElementById('mathTab');
+const mathPanel = document.getElementById('mathPanel');
+const mathPanelBody = document.getElementById('mathPanelBody');
+const closeMath = document.getElementById('closeMath');
+
+let currentIndex = 0;
+let playToken = 0;
+
+SLIDES.forEach((s,i)=>{
+  const d = he('div', {class:'dot'});
+  d.title = s.title;
+  d.addEventListener('click', ()=>goTo(i));
+  dotsEl.appendChild(d);
+});
+
+function renderMath(html){
+  mathPanelBody.innerHTML = html;
+  if(window.renderMathInElement){
+    try{
+      renderMathInElement(mathPanelBody, {
+        delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],
+        throwOnError:false
+      });
+    }catch(e){}
+  }
+}
+
+function renderEq(tex){
+  eqBox.innerHTML = '';
+  if(window.katex){
+    try{
+      katex.render(tex, eqBox, {displayMode:true, throwOnError:false, strict:false});
+      return;
+    }catch(e){}
+  }
+  eqBox.textContent = tex;
+}
+
+function goTo(i){
+  if(i<0 || i>=SLIDES.length) return;
+  currentIndex = i;
+  renderCurrent();
+}
+
+async function renderCurrent(){
+  playToken++;
+  const myToken = playToken;
+  const slide = SLIDES[currentIndex];
+
+  if(stageWrap.dataset.rendered){
+    await anim(stageWrap, [{opacity:1, transform:'translateY(0px)'},{opacity:0, transform:'translateY(-8px)'}], {duration:200});
+  }
+  stageWrap.dataset.rendered = '1';
+
+  const num = String(currentIndex+1).padStart(2,'0');
+  slideTitleEl.textContent = slide.title;
+  slideSectionEl.textContent = num + ' · ' + slide.section;
+  topicNameEl.textContent = slide.section;
+  counterEl.textContent = (currentIndex+1) + ' / ' + SLIDES.length;
+  progressFillEl.style.width = ((currentIndex+1)/SLIDES.length*100) + '%';
+  renderMath(slide.math);
+  mathPanel.classList.remove('open');
+  mathTab.classList.remove('open');
+
+  Array.from(dotsEl.children).forEach((d,i)=>d.classList.toggle('active', i===currentIndex));
+  prevBtn.disabled = currentIndex===0;
+  nextBtn.disabled = currentIndex===SLIDES.length-1;
+
+  stepDotsEl.innerHTML = '';
+  const stepDotEls = slide.stages.map(()=>{
+    const d = he('div', {class:'stepdot'});
+    stepDotsEl.appendChild(d);
+    return d;
+  });
+
+  eqBox.style.opacity = 0;
+  eqCaption.style.opacity = 0;
+  await anim(stageWrap, [{opacity:0, transform:'translateY(8px)'},{opacity:1, transform:'translateY(0px)'}], {duration:280});
+
+  for(let i=0;i<slide.stages.length;i++){
+    if(myToken !== playToken) return;
+    stepDotEls.forEach((d,j)=>{
+      d.classList.toggle('active', j===i);
+      d.classList.toggle('done', j<i);
+    });
+    if(i>0){
+      await anim(eqBox, [{opacity:1},{opacity:0}], {duration:220});
+      await anim(eqCaption, [{opacity:1},{opacity:0}], {duration:180});
+    }
+    if(myToken !== playToken) return;
+    renderEq(slide.stages[i].tex);
+    eqCaption.innerHTML = slide.stages[i].cap;
+    await Promise.all([
+      anim(eqBox, [{opacity:0, transform:'scale(0.97)'},{opacity:1, transform:'scale(1)'}], {duration:380}),
+      anim(eqCaption, [{opacity:0},{opacity:1}], {duration:380, delay:120})
+    ]);
+    await wait(1450);
+  }
+}
+
+prevBtn.addEventListener('click', ()=>goTo(currentIndex-1));
+nextBtn.addEventListener('click', ()=>goTo(currentIndex+1));
+replayBtn.addEventListener('click', ()=>renderCurrent());
+
+function toggleMath(){ mathPanel.classList.toggle('open'); mathTab.classList.toggle('open'); }
+mathTab.addEventListener('click', toggleMath);
+closeMath.addEventListener('click', toggleMath);
+
+document.addEventListener('keydown', (e)=>{
+  if(e.key==='ArrowRight'){ e.preventDefault(); goTo(currentIndex+1); }
+  else if(e.key==='ArrowLeft'){ e.preventDefault(); goTo(currentIndex-1); }
+  else if(e.key===' '){ e.preventDefault(); goTo(currentIndex+1); }
+  else if(e.key==='m' || e.key==='M'){ toggleMath(); }
+  else if(e.key==='r' || e.key==='R'){ renderCurrent(); }
+});
+
+renderCurrent();
+</script>
+</body>
+</html>

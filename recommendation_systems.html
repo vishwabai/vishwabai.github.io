@@ -1,0 +1,1376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Recommendation Systems — Visual Guide</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0a0f;
+    --panel:#111117;
+    --panel2:#15151d;
+    --border:#23232f;
+    --text:#e9e7f2;
+    --dim:#8d8a9c;
+    --teal:#4fd1c5;
+    --amber:#e0b774;
+    --coral:#e08a8a;
+    --violet:#a78bfa;
+    --blue:#7aa7d9;
+    --green:#84c9a2;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--text);
+    font-family:'Space Grotesk',sans-serif;overflow:hidden;}
+  .app{display:flex;flex-direction:column;height:100vh;}
+
+  header.topbar{flex:0 0 auto;padding:22px 60px 8px;display:flex;
+    align-items:baseline;justify-content:space-between;border-bottom:1px solid var(--border);}
+  header.topbar .brand{font-size:15px;letter-spacing:.08em;color:var(--dim);text-transform:uppercase;}
+  header.topbar .brand b{color:var(--teal);font-weight:600;}
+  header.topbar .counter{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--dim);}
+
+  main.stage{flex:1 1 auto;position:relative;overflow:hidden;}
+  .slide{position:absolute;inset:0;display:none;grid-template-columns:1.15fr .85fr;
+    gap:34px;padding:22px 60px 18px;opacity:0;transform:translateY(10px);
+    transition:opacity .45s ease, transform .45s ease;}
+  .slide.active{display:grid;opacity:1;transform:translateY(0);}
+  .slide.summary{grid-template-columns:1fr;}
+
+  .left{display:flex;flex-direction:column;min-height:0;}
+  .left canvas{width:100%;height:auto;max-height:100%;background:radial-gradient(circle at 30% 20%, #101018 0%, #0a0a0f 70%);
+    border:1px solid var(--border);border-radius:14px;}
+
+  .right{display:flex;flex-direction:column;gap:12px;min-height:0;overflow-y:auto;padding-right:6px;}
+  .right::-webkit-scrollbar{width:6px;}
+  .right::-webkit-scrollbar-thumb{background:#2a2a38;border-radius:6px;}
+
+  .tag{font-family:'JetBrains Mono',monospace;font-size:11.5px;letter-spacing:.06em;
+    color:var(--teal);text-transform:uppercase;}
+  .right h2{margin:0 0 2px;font-size:26px;font-weight:600;line-height:1.15;}
+  ul.concept{margin:2px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:8px;}
+  ul.concept li{font-size:14.5px;line-height:1.5;color:#cfcdd9;}
+  ul.concept li::marker{color:var(--violet);}
+
+  .formula-box{background:var(--panel);border:1px solid var(--border);border-radius:10px;
+    padding:16px 16px;margin-top:2px;}
+  .formula-box .flabel{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--dim);
+    text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;}
+  .formula{font-family:'JetBrains Mono',monospace;font-size:14.5px;color:var(--amber);
+    line-height:1.7;word-break:break-word;}
+  .formula sub{font-size:.7em;}
+  .formula sup{font-size:.7em;}
+
+  details.why{background:var(--panel2);border:1px solid var(--border);border-radius:10px;overflow:hidden;}
+  details.why summary{list-style:none;cursor:pointer;padding:12px 16px;font-size:13.5px;
+    font-weight:600;color:var(--violet);display:flex;align-items:center;justify-content:space-between;}
+  details.why summary::-webkit-details-marker{display:none;}
+  details.why summary::after{content:'+';font-size:16px;color:var(--dim);transition:transform .25s ease;}
+  details.why[open] summary::after{transform:rotate(45deg);}
+  .why-content{padding:0 16px 16px;font-size:13.5px;line-height:1.65;color:#c6c4d2;}
+  .why-content b{color:var(--teal);font-weight:600;}
+  .why-content .use{margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);color:#b7b4c4;}
+  .why-content .use b{color:var(--coral);}
+
+  .real{font-size:12.5px;color:var(--dim);line-height:1.5;}
+  .real b{color:var(--green);}
+
+  .compare-wrap{overflow-y:auto;padding-right:6px;}
+  table.compare{width:100%;border-collapse:collapse;font-size:12.8px;margin-top:6px;}
+  table.compare th{text-align:left;font-family:'JetBrains Mono',monospace;font-size:10.5px;
+    text-transform:uppercase;letter-spacing:.05em;color:var(--dim);padding:8px 10px;border-bottom:1px solid var(--border);}
+  table.compare td{padding:9px 10px;border-bottom:1px solid #1a1a24;color:#cfcdd9;}
+  table.compare tr td:first-child{color:var(--teal);font-weight:600;white-space:nowrap;}
+  table.compare tr{opacity:0;transform:translateX(-8px);animation:rowIn .5s ease forwards;}
+
+  @keyframes rowIn{to{opacity:1;transform:translateX(0);}}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(14px);}to{opacity:1;transform:translateY(0);}}
+  .right.animate-in > *{animation:fadeUp .5s ease both;}
+  .right.animate-in > *:nth-child(1){animation-delay:.02s;}
+  .right.animate-in > *:nth-child(2){animation-delay:.08s;}
+  .right.animate-in > *:nth-child(3){animation-delay:.14s;}
+  .right.animate-in > *:nth-child(4){animation-delay:.2s;}
+  .right.animate-in > *:nth-child(5){animation-delay:.26s;}
+
+  footer.navbar{flex:0 0 auto;display:flex;align-items:center;justify-content:center;
+    gap:22px;padding:16px 20px;border-top:1px solid var(--border);}
+  .navbtn{background:var(--panel);border:1px solid var(--border);color:var(--text);
+    width:38px;height:38px;border-radius:50%;cursor:pointer;font-size:16px;display:flex;
+    align-items:center;justify-content:center;transition:.2s;}
+  .navbtn:hover{border-color:var(--teal);color:var(--teal);}
+  .navbtn:disabled{opacity:.25;cursor:default;}
+  .navbtn:disabled:hover{border-color:var(--border);color:var(--text);}
+  .dots{display:flex;gap:7px;}
+  .dot{width:7px;height:7px;border-radius:50%;background:#2a2a38;cursor:pointer;transition:.2s;}
+  .dot.active{background:var(--teal);width:20px;border-radius:5px;}
+  .dot:hover{background:#4a4a60;}
+  .hint{position:fixed;bottom:64px;right:24px;font-size:10.5px;color:#4a4a5c;
+    font-family:'JetBrains Mono',monospace;}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand"><b>Recommendation Systems</b> — a visual, first-principles tour</div>
+    <div class="counter" id="counter">01 / 23</div>
+  </header>
+  <main class="stage" id="stage"></main>
+  <footer class="navbar">
+    <button class="navbtn" id="prevBtn">‹</button>
+    <div class="dots" id="dots"></div>
+    <button class="navbtn" id="nextBtn">›</button>
+  </footer>
+</div>
+<div class="hint">← → to navigate</div>
+
+<script>
+/* ---------- canvas drawing helpers ---------- */
+let __PARTICLES=null;
+function bg(ctx,w,h,el){
+  ctx.clearRect(0,0,w,h);
+  if(!__PARTICLES){
+    __PARTICLES=[]; let s=51;
+    function rnd(){s=(s*9301+49297)%233280;return s/233280;}
+    for(let i=0;i<34;i++){
+      __PARTICLES.push({x:rnd()*w,y:rnd()*h,r:0.6+rnd()*1.3,spd:0.003+rnd()*0.009,phase:rnd()*Math.PI*2});
+    }
+  }
+  ctx.save();
+  __PARTICLES.forEach(p=>{
+    const y=((p.y+(el||0)*p.spd)%h+h)%h;
+    const tw=0.08+0.13*(0.5+0.5*Math.sin((el||0)/900+p.phase));
+    ctx.globalAlpha=tw; ctx.fillStyle='#3a3a4a';
+    ctx.beginPath();ctx.arc(p.x,y,p.r,0,Math.PI*2);ctx.fill();
+  });
+  ctx.restore();
+}
+function seg(t,a,b){return Math.max(0,Math.min(1,(t-a)/(b-a)));}
+function ease(t){return t<0.5?2*t*t:1-Math.pow(-2*t+2,2)/2;}
+function lerp(a,b,t){return a+(b-a)*t;}
+function circle(ctx,x,y,r,color,glow){
+  if(r<=0)return;
+  ctx.save();
+  if(glow){ctx.shadowBlur=glow;ctx.shadowColor=color;}
+  ctx.fillStyle=color;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
+  ctx.restore();
+}
+function ring(ctx,x,y,r,color,width){
+  ctx.save();ctx.strokeStyle=color;ctx.lineWidth=width||1.5;
+  ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();ctx.restore();
+}
+function line(ctx,x1,y1,x2,y2,color,width,dash){
+  ctx.save();ctx.strokeStyle=color;ctx.lineWidth=width||1.4;
+  if(dash)ctx.setLineDash(dash);
+  ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();ctx.restore();
+}
+function arrow(ctx,x1,y1,x2,y2,color,width){
+  line(ctx,x1,y1,x2,y2,color,width||1.6);
+  const ang=Math.atan2(y2-y1,x2-x1),s=7;
+  ctx.save();ctx.fillStyle=color;ctx.beginPath();
+  ctx.moveTo(x2,y2);
+  ctx.lineTo(x2-s*Math.cos(ang-0.4),y2-s*Math.sin(ang-0.4));
+  ctx.lineTo(x2-s*Math.cos(ang+0.4),y2-s*Math.sin(ang+0.4));
+  ctx.closePath();ctx.fill();ctx.restore();
+}
+function txt(ctx,str,x,y,size,color,align,weight){
+  ctx.save();ctx.fillStyle=color||'#e9e7f2';
+  ctx.font=(weight||'500')+' '+(size||13)+'px Space Grotesk, sans-serif';
+  ctx.textAlign=align||'center';ctx.textBaseline='middle';
+  ctx.fillText(str,x,y);ctx.restore();
+}
+function mono(ctx,str,x,y,size,color,align){
+  ctx.save();ctx.fillStyle=color||'#e0b774';
+  ctx.font=(size||12)+'px JetBrains Mono, monospace';
+  ctx.textAlign=align||'center';ctx.textBaseline='middle';
+  ctx.fillText(str,x,y);ctx.restore();
+}
+function roundRect(ctx,x,y,w,h,r,color,strokeColor){
+  ctx.save();ctx.beginPath();
+  ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();
+  if(color){ctx.fillStyle=color;ctx.fill();}
+  if(strokeColor){ctx.strokeStyle=strokeColor;ctx.lineWidth=1.2;ctx.stroke();}
+  ctx.restore();
+}
+function neuron(ctx,x,y,r,active,color){
+  circle(ctx,x,y,r,active? color:'#20202c', active?8:0);
+  ring(ctx,x,y,r,'#38384a',1);
+}
+
+/* ============== SLIDE DEFINITIONS ============== */
+const W=640,H=460,CX=W/2,CY=H/2;
+
+const SLIDES=[
+/* 0 ---------------------------------------------------------- TITLE */
+{
+  tag:'Recommendation Systems',
+  title:'Why does the app always know?',
+  duration:6000,
+  points:[
+    'Every scroll, swipe and click quietly teaches a system what you might want next.',
+    'Underneath the “magic” is a simple question, asked billions of times a day: <b>given what I know about this user, and what I know about every item, which items are most likely to matter to them right now?</b>',
+    'We\'ll build the intuition first, then the math, from simple filters to deep neural recommenders.'
+  ],
+  draw(ctx,t,el){
+    bg(ctx,W,H,el);
+    ring(ctx,CX,CY,150,'rgba(255,255,255,0.035)',1);
+    ring(ctx,CX,CY,150*0.72,'rgba(255,255,255,0.02)',1);
+    const pulse=1+0.05*Math.sin(el/650);
+    circle(ctx,CX,CY,28*pulse,'#4fd1c5',20);
+    txt(ctx,'YOU',CX,CY,12,'#0a0a0f','center','700');
+    const n=9;
+    const cols=['#e08a8a','#a78bfa','#e0b774','#7aa7d9','#84c9a2'];
+    for(let i=0;i<n;i++){
+      const appear=ease(seg(t,i*0.05,i*0.05+0.35));
+      if(appear<=0)continue;
+      const baseAng=(i/n)*Math.PI*2;
+      // comet trail: sample a few points slightly behind in orbital phase
+      for(let k=5;k>=0;k--){
+        const trailAng=baseAng+el/5000-k*0.05;
+        const rad=150+8*Math.sin(el/500+i-k*0.3);
+        const x=CX+Math.cos(trailAng)*rad, y=CY+Math.sin(trailAng)*rad*0.72;
+        const a=appear*(1-k/6.5);
+        circle(ctx,x,y,(k===0?6:3.2*(1-k/7))*appear,cols[i%cols.length], k===0?9:0);
+        if(k>0){ctx.save();ctx.globalAlpha=0.35*a;ctx.fillStyle=cols[i%cols.length];
+          ctx.beginPath();ctx.arc(x,y,2.2*(1-k/7),0,Math.PI*2);ctx.fill();ctx.restore();}
+      }
+      const ang=baseAng+el/5000;
+      const rad=150+8*Math.sin(el/500+i);
+      const x=CX+Math.cos(ang)*rad, y=CY+Math.sin(ang)*rad*0.72;
+      if(appear>0.6)line(ctx,CX,CY,x,y,'rgba(255,255,255,0.045)',1);
+    }
+    txt(ctx,'A recommendation engine, one arrow at a time',CX,H-30,12.5,'#6f6c80','center','400');
+  }
+},
+/* 1 ---------------------------------------------------------- THE PROBLEM */
+{
+  tag:'The Setup',
+  title:'Too many items, one you',
+  duration:5200,
+  points:[
+    'A modern catalog has millions of items. A person can meaningfully browse maybe a few dozen.',
+    'The job of a recommender: rank a tiny, relevant slice out of a massive space — fast, and personally.',
+    'Two classic sources of signal: what an item <i>is</i> (content) and what similar people <i>did</i> (behavior). Every method in this deck leans on one or both.'
+  ],
+  draw(ctx,t,el){
+    bg(ctx,W,H,el);
+    const cols=10, rows=7, mx=50,my=40,gx=(W-2*mx)/(cols-1),gy=(H-2*my-60)/(rows-1);
+    const dots=[];
+    for(let r=0;r<rows;r++)for(let c=0;c<cols;c++)dots.push([mx+c*gx,my+r*gy]);
+    const appearT=seg(t,0,0.4);
+    dots.forEach((d,i)=>{
+      const a=ease(seg(appearT*dots.length,i,i+1));
+      if(a<=0)return;
+      circle(ctx,d[0],d[1],3*a,'#3a3a4a',0);
+    });
+    // highlight a few as relevant, converging toward user icon
+    const relevantIdx=[8,15,26,33,41,52];
+    const highT=seg(t,0.45,0.85);
+    const userX=CX, userY=H-46;
+    relevantIdx.forEach((idx,i)=>{
+      const d=dots[idx];
+      const p=ease(seg(highT,i*0.06,i*0.06+0.5));
+      if(p<=0)return;
+      const x=lerp(d[0],d[0],p), y=lerp(d[1],d[1],p);
+      circle(ctx,x,y,5,'#4fd1c5',12);
+      if(p>0.3)line(ctx,x,y,userX,userY,'rgba(79,209,197,'+(0.18*p)+')',1.3);
+    });
+    const uT=ease(seg(t,0.5,0.7));
+    if(uT>0){
+      circle(ctx,userX,userY,14*uT,'#a78bfa',10);
+      txt(ctx,'you',userX,userY,10,'#0a0a0f','center','700');
+    }
+    if(t>0.85){
+      txt(ctx,'millions of items → a handful that matter',CX,H-14,12,'#6f6c80','center','400');
+    }
+  }
+},
+/* 1.1 -------------------------------------------------------- MATH: SIGMA */
+{
+  tag:'Math Toolkit · 1 of 4',
+  title:'Σ just means "add these up"',
+  duration:6500,
+  points:[
+    'You\'ll see the Greek letter <b>Σ</b> (sigma) constantly in this deck. It looks scary but it means one simple thing: add up a list of numbers.',
+    'The small text below and above Σ just says where to start and stop counting.',
+    'Once you can read Σ, every formula in this deck becomes a sentence instead of a wall of symbols.'
+  ],
+  formula:'&Sigma;<sub>i=1</sub><sup>4</sup> x<sub>i</sub> &nbsp;=&nbsp; x<sub>1</sub> + x<sub>2</sub> + x<sub>3</sub> + x<sub>4</sub>',
+  why:`Read &Sigma;<sub>i=1</sub><sup>4</sup> x<sub>i</sub> out loud as: "starting at i=1, going up to i=4, add up x<sub>i</sub> each time." That\'s it — a compact way to write a sum without listing every single term, which matters when a formula needs to sum over hundreds or millions of items instead of just 4.
+  <div class="use"><b>You\'ll see this in</b> almost every formula ahead: cosine similarity (summing matched components), collaborative filtering (summing over neighbors), matrix factorization (summing squared errors).</div>`,
+  draw(ctx,t,el){
+    bg(ctx,W,H,el);
+    const vals=[3,5,2,4];
+    const boxes=[150,260,370,480];
+    let running=0;
+    const s1=seg(t,0,0.7);
+    boxes.forEach((x,i)=>{
+      const a=ease(seg(s1*4,i,i+1));
+      if(a<=0)return;
+      roundRect(ctx,x-30,120-30,60,60,10,'rgba(122,167,217,0.14)','#7aa7d9');
+      txt(ctx,'x'+(i+1)+' = '+vals[i],x,120,13,'#e9e7f2','center','600');
+      if(a>0.5){
+        arrow(ctx,x,155,x,230,'rgba(255,255,255,0.2)',1.3);
+      }
+    });
+    const s2=ease(seg(t,0.55,1));
+    if(s2>0){
+      let shown=0;
+      for(let i=0;i<4;i++){
+        const a=ease(seg(s2*4,i,i+1));
+        if(a<=0)continue;
+        shown = vals.slice(0,i+1).reduce((s,v)=>s+v,0);
+      }
+      roundRect(ctx,CX-70,270,140,60,10,'rgba(132,201,162,0.16)','#84c9a2');
+      txt(ctx,'running total',CX,255,10.5,'#6f6c80','center','500');
+      txt(ctx,String(shown),CX,300,22,'#84c9a2','center','700');
+    }
+    if(t>0.9)txt(ctx,'Σ = a running total, written compactly',CX,H-24,11.5,'#6f6c80','center','400');
+  }
+},
+/* 1.2 -------------------------------------------------------- MATH: VECTORS & DOT PRODUCT */
+{
+  tag:'Math Toolkit · 2 of 4',
+  title:'A vector is just an arrow of numbers',
+  duration:7000,
+  points:[
+    'A vector like [3, 4] is nothing more than a list of numbers — you can draw it as an arrow from the origin, one step of 3 across and 4 up.',
+    'The <b>dot product</b> of two vectors: multiply matching positions, then Σ (add) the results.',
+    'Big positive dot product = vectors point the same way. Near zero = unrelated directions. Negative = pointing opposite ways.'
+  ],
+  formula:'A &middot; B = &Sigma;<sub>i</sub> A<sub>i</sub>B<sub>i</sub> = A<sub>1</sub>B<sub>1</sub> + A<sub>2</sub>B<sub>2</sub> + ...',
+  why:`Multiplying matching components rewards vectors that are large in the <i>same</i> positions and punishes ones that are large in opposite positions — that\'s literally what "pointing the same way" means numerically. Summing those products with Σ (from the last slide) collapses that whole comparison into a single number you can rank items by.
+  <div class="use"><b>You\'ll see this in</b> cosine similarity a few slides from now, and inside embeddings, neural collaborative filtering, and factorization machines — the dot product is the single most common operation in this entire deck.</div>`,
+  draw(ctx,t,el){
+    bg(ctx,W,H,el);
+    const ox=100, oy=380;
+    line(ctx,ox,oy,580,oy,'#20202c',1);
+    const A=[280,-180], B=[340,-90];
+    const s1=ease(seg(t,0,0.35));
+    if(s1>0){
+      arrow(ctx,ox,oy,ox+A[0]*s1,oy+A[1]*s1,'#7aa7d9',2.2);
+      if(s1>0.7)txt(ctx,'A = [4, 3]',ox+A[0]+20,oy+A[1]-10,11.5,'#7aa7d9','left','600');
+    }
+    const s2=ease(seg(t,0.3,0.6));
+    if(s2>0){
+      arrow(ctx,ox,oy,ox+B[0]*s2,oy+B[1]*s2,'#e0b774',2.2);
+      if(s2>0.7)txt(ctx,'B = [5, 2]',ox+B[0]+20,oy+B[1]-30,11.5,'#e0b774','left','600');
+    }
+    const s3=ease(seg(t,0.6,1));
+    if(s3>0){
+      roundRect(ctx,ox+40,60,300*s3,90,10,'rgba(132,201,162,0.1)','#84c9a2');
+      const terms=[['4 × 5 = 20',0],['3 × 2 = 6',1]];
+      terms.forEach((tm,i)=>{
+        const a=ease(seg(s3*3,i,i+1));
+        if(a>0)mono(ctx,tm[0],ox+90,88+i*26,12,'#e9e7f2','left');
+      });
+      const a3=ease(seg(s3*3,2,3));
+      if(a3>0)txt(ctx,'A · B = 26',ox+90,140,13,'#84c9a2','left','700');
+    }
+  }
+},
+/* 1.3 -------------------------------------------------------- MATH: GRADIENT */
+{
+  tag:'Math Toolkit · 3 of 4',
+  title:'A gradient is just "which way is downhill"',
+  duration:6800,
+  points:[
+    'A derivative measures slope — how fast a value changes as you nudge an input. On a curve, it\'s the steepness of the tangent line at a point.',
+    'A <b>gradient</b> is that same idea extended to many numbers at once: it points in the direction that increases error the fastest.',
+    '"Training" a model always means the same thing: repeatedly step a little in the <i>opposite</i> direction of the gradient, downhill toward lower error.'
+  ],
+  formula:'e &larr; e &minus; &eta;&nabla;L &nbsp;&nbsp;&nbsp; (new value = old value &minus; step size &times; slope)',
+  why:`&nabla;L (the gradient of the loss) tells you the uphill direction and how steep it is right where you\'re standing. Subtracting a small multiple of it (&eta;, the learning rate) moves you a little bit downhill instead. Do this thousands of times and you walk all the way down to a low-error valley — even though at every single step you only ever knew the <i>local</i> slope, never the whole shape of the hill.
+  <div class="use"><b>You\'ll see this in</b> how embeddings are trained (coming up next), and it\'s the exact same mechanism behind training the neural networks later in this deck (NCF, Wide & Deep, DeepFM).</div>`,
+  draw(ctx,t,el){
+    bg(ctx,W,H,el);
+    const x0=80,x1=560,y0=380;
+    // bowl curve
+    const bowl=[];
+    for(let x=x0;x<=x1;x+=6){
+      const nx=(x-CX)/140;
+      bowl.push([x, y0-260+nx*nx*220]);
+    }
+    seriesPath(ctx,bowl,'#3a3a4a',2,1);
+    txt(ctx,'loss',x0-20,y0-260,10.5,'#6f6c80','right','500');
+    txt(ctx,'model parameter',CX,y0+16,10.5,'#6f6c80','center','500');
+
+    const steps=6;
+    const s1=seg(t,0,1);
+    let px=x0+40;
+    for(let i=0;i<steps;i++){
+      const a=ease(seg(s1*steps,i,i+1));
+      if(a<=0)break;
+      const nx=(px-CX)/140;
+      const py=y0-260+nx*nx*220;
+      circle(ctx,px,py,6,'#e08a8a',9);
+      const targetNx=nx*0.55;
+      const targetX=CX+targetNx*140;
+      if(a>0.3){
+        const stepX=lerp(px,targetX,Math.min(1,(a-0.3)/0.7));
+        const stepNx=(stepX-CX)/140;
+        const stepY=y0-260+stepNx*stepNx*220;
+        line(ctx,px,py,stepX,stepY,'rgba(224,138,138,0.4)',1.4);
+      }
+      px=targetX;
+    }
+    const finalNx=(px-CX)/140;
+    circle(ctx,CX,y0-260,7,'#84c9a2',10);
+    if(t>0.9)txt(ctx,'each step: a little downhill',CX,y0+40,11.5,'#84c9a2','center','500');
+  }
+},
+/* 1.4 -------------------------------------------------------- MATH: MATRIX MULTIPLICATION */
+{
+  tag:'Math Toolkit · 4 of 4',
+  title:'Matrix multiplication is just many dot products',
+  duration:6800,
+  points:[
+    'A matrix is just a grid of numbers — rows and columns.',
+    'To multiply two matrices, take the dot product (from two slides ago!) of each row of the first with each column of the second.',
+    'Every single cell of the result is one dot product. Nothing more mysterious than that.'
+  ],
+  formula:'(PQ)<sub>ij</sub> = &Sigma;<sub>k</sub> P<sub>ik</sub>Q<sub>kj</sub> &nbsp;&nbsp;(row i of P) &middot; (column j of Q)',
+  why:`Every output cell (PQ)<sub>ij</sub> answers one question: "how aligned is row i of P with column j of Q?" — computed with the exact same multiply-then-Σ recipe as the vector dot product. A matrix multiplication is really just a grid full of dot-product questions, answered all at once.
+  <div class="use"><b>You\'ll see this in</b> Matrix Factorization, just ahead — reconstructing a full ratings matrix is literally one big matrix multiplication, cell by cell.</div>`,
+  draw(ctx,t,el){
+    bg(ctx,W,H,el);
+    const cell=42;
+    const px=90, py=100; // P: 3x2
+    const qx=330, qy=60; // Q: 2x3
+    const rx=330, ry=240; // result 3x3
+    // draw P (3 rows x 2 cols)
+    for(let r=0;r<3;r++)for(let c=0;c<2;c++){
+      roundRect(ctx,px+c*cell,py+r*cell,cell-4,cell-4,4,'rgba(122,167,217,0.14)','#7aa7d9');
+    }
+    txt(ctx,'P',px+cell,py-18,12,'#7aa7d9','center','600');
+    // draw Q (2 rows x 3 cols)
+    for(let r=0;r<2;r++)for(let c=0;c<3;c++){
+      roundRect(ctx,qx+c*cell,qy+r*cell,cell-4,cell-4,4,'rgba(224,183,116,0.14)','#e0b774');
+    }
+    txt(ctx,'Q',qx+1.5*cell,qy-18,12,'#e0b774','center','600');
+
+    const s1=seg(t,0.15,1);
+    const cellsToFill=[[0,0],[1,1],[2,2]];
+    cellsToFill.forEach((pos,i)=>{
+      const a=ease(seg(s1*3,i,i+1));
+      if(a<=0)return;
+      const [ri,ci]=pos;
+      // highlight row ri of P and col ci of Q
+      roundRect(ctx,px,py+ri*cell,2*cell-4,cell-4,4,`rgba(122,167,217,${0.35*a})`,'#7aa7d9');
+      roundRect(ctx,qx+ci*cell,qy,cell-4,2*cell-4,4,`rgba(224,183,116,${0.35*a})`,'#e0b774');
+      roundRect(ctx,rx+ci*cell,ry+ri*cell,cell-4,cell-4,4,`rgba(132,201,162,${0.4*a})`,'#84c9a2');
+    });
+    if(s1>0.15)txt(ctx,'result = P · Q',rx+cell,ry-18,12,'#84c9a2','center','600');
+    if(t>0.9)txt(ctx,'each highlighted cell = one dot product',CX,H-22,11.5,'#6f6c80','center','400');
+  }
+},
+/* 1.5 -------------------------------------------------------- EMBEDDINGS */
+{
+  tag:'Foundational Concept',
+  title:'Embeddings: taste as geometry',
+  duration:6500,
+  points:[
+    'Nearly every method past this point represents a user or item as a short list of numbers — an <b>embedding</b>, a point in space.',
+    'Nobody hand-designs those numbers or names the axes. They start random, and training slowly reshapes the space until similar things end up near each other.',
+    'What "similar" means is entirely learned from behavior: items bought together, watched back-to-back, or rated alike get pulled closer over time.'
+  ],
+  formula:'e<sub>i</sub> &larr; e<sub>i</sub> &minus; &eta; &nabla;<sub>e<sub>i</sub></sub> L',
+  why:`At initialization, embeddings are random noise — the space has no meaning yet. Each training step nudges a vector in the direction that reduces the loss <b>L</b> by a small step size &eta; (the learning rate). When two items keep co-occurring in the data, every such nudge happens to pull their vectors slightly closer, purely because doing so consistently lowers the error. Repeat millions of times and structure emerges — genres, moods, price tiers — without anyone labeling a single axis.
+  <div class="use"><b>Used in</b> item2vec / word2vec-style catalog embeddings, the shared representation layer inside NCF, Wide & Deep and DeepFM, and the vector databases behind modern similarity search.</div>`,
+  draw(ctx,t,el){
+    bg(ctx,W,H,el);
+    const clusters=[
+      {cx:160,cy:130,color:'#e08a8a',label:'action'},
+      {cx:470,cy:150,color:'#7aa7d9',label:'romance'},
+      {cx:310,cy:340,color:'#84c9a2',label:'comedy'}
+    ];
+    const n=24, items=[];
+    let seed=7;
+    function rand(){seed=(seed*9301+49297)%233280;return seed/233280;}
+    for(let i=0;i<n;i++){
+      const cl=clusters[i%3];
+      items.push({
+        x0: 80+rand()*480, y0: 60+rand()*340,
+        x1: cl.cx + (rand()-0.5)*90, y1: cl.cy + (rand()-0.5)*70,
+        color: cl.color
+      });
+    }
+    const s1=ease(seg(t,0,0.75));
+    if(t<0.05)txt(ctx,'before training: random vectors',CX,40,11.5,'#6f6c80','center','500');
+    if(s1>0.15 && s1<0.9)txt(ctx,'training pulls co-liked items together…',CX,40,11.5,'#6f6c80','center','500');
+    items.forEach(p=>{
+      const x=lerp(p.x0,p.x1,ease(s1)), y=lerp(p.y0,p.y1,ease(s1));
+      circle(ctx,x,y,5,p.color,7);
+    });
+    const s2=ease(seg(t,0.8,1));
+    if(s2>0){
+      clusters.forEach(cl=>{
+        ring(ctx,cl.cx,cl.cy,70*s2,`rgba(255,255,255,${0.12*s2})`,1.2);
+        txt(ctx,cl.label,cl.cx,cl.cy-82*s2,11,cl.color,'center','600');
+      });
+      txt(ctx,'after training: a meaningful map of taste',CX,H-24,11.5,'#84c9a2','center','500');
+    }
+  }
+},
+/* 2 ---------------------------------------------------------- CONTENT-BASED */
+{
+  tag:'1 · Content-Based Filtering',
+  title:'Recommend by resemblance',
+  duration:7000,
+  points:[
+    'Describe every item as a feature vector (genre mix, actors, audio profile...). Describe the user the same way — as the average of the items they liked.',
+    'To rank a new item, compare its vector to the user\'s profile vector. Closer direction = better match.',
+    '<b>Cosine similarity</b> measures the angle between two vectors — ignoring their length, only comparing their “shape” of preferences.'
+  ],
+  formula:'cos(&theta;) = &nbsp;<span style="display:inline-block;text-align:center;vertical-align:middle;"><span style="border-bottom:1px solid #e0b774;padding:0 4px;">A &middot; B</span><br>&#x2016;A&#x2016; &#x2016;B&#x2016;</span>',
+  why:`A vector\'s <b>direction</b> encodes a taste pattern (e.g. mostly action, a little romance); its <b>length</b> just reflects how many items were rated. The dot product A&middot;B grows when two vectors point the same way. Dividing by the magnitudes &#x2016;A&#x2016;&#x2016;B&#x2016; cancels out length, leaving a pure measure of alignment between &minus;1 and 1.
+    <div class="use"><b>Used in</b> Spotify audio-feature matching, news-article similarity, "more like this" shelves — anywhere you can describe items with features but don\'t yet have much rating history (no cold-start for items).</div>`,
+  draw(ctx,t,el){
+    bg(ctx,W,H,el);
+    const ox=70, oy=400, ax=580, ay=40;
+    line(ctx,ox,oy,ax,oy,'#2a2a38',1.3); arrow(ctx,ox,oy,ox,ay,'#2a2a38',1.3);
+    mono(ctx,'action →',ax-10,oy+18,10.5,'#5a5870','right');
+    ctx.save();ctx.translate(ox-24,oy-160);ctx.rotate(-Math.PI/2);
+    mono(ctx,'romance →',0,0,10.5,'#5a5870','center');ctx.restore();
+
+    const liked=[[150,300,'A'],[190,255,'B'],[130,270,'C']];
+    const s1=seg(t,0,0.25);
+    liked.forEach((p,i)=>{
+      const a=ease(seg(s1*3,i,i+1)); if(a<=0)return;
+      circle(ctx,p[0],p[1],5*a,'#e08a8a',8);
+      txt(ctx,p[2],p[0],p[1]-14,11,'#e08a8a','center','600');
+    });
+
+    const avgx=liked.reduce((s,p)=>s+p[0],0)/3, avgy=liked.reduce((s,p)=>s+p[1],0)/3;
+    const s2=ease(seg(t,0.3,0.5));
+    if(s2>0){
+      const ex=lerp(ox,avgx,s2), ey=lerp(oy,avgy,s2);
+      arrow(ctx,ox,oy,ex,ey,'#4fd1c5',2.4);
+      if(s2>0.85)txt(ctx,'user profile',ex+34,ey-6,11.5,'#4fd1c5','left','600');
+    }
+
+    const cands=[[420,140,'X','#84c9a2'],[520,370,'Y','#7aa7d9']];
+    const s3=seg(t,0.55,0.78);
+    cands.forEach((c,i)=>{
+      const a=ease(seg(s3*2,i,i+1)); if(a<=0)return;
+      const ex=lerp(ox,c[0],a), ey=lerp(oy,c[1],a);
+      arrow(ctx,ox,oy,ex,ey,c[3],1.8);
+      if(a>0.9){txt(ctx,'candidate '+c[2],c[0]+8,c[1]-10,11,c[3],'left','600');}
+    });
+
+    const s4=ease(seg(t,0.8,1));
+    if(s4>0){
+      // angle arc + highlight winner (X, closer direction to user profile)
+      const ang1=Math.atan2(avgy-oy,avgx-ox), ang2=Math.atan2(cands[0][1]-oy,cands[0][0]-ox);
+      ctx.save();ctx.strokeStyle='rgba(132,201,162,'+(0.7*s4)+')';ctx.lineWidth=1.6;
+      ctx.beginPath();ctx.arc(ox,oy,60,Math.min(ang1,ang2),Math.max(ang1,ang2));ctx.stroke();ctx.restore();
+      if(s4>0.6){
+        roundRect(ctx,cands[0][0]-6,cands[0][1]-34,110,20,5,'rgba(132,201,162,0.12)','#84c9a2');
+        txt(ctx,'smaller angle → recommend',cands[0][0]+48,cands[0][1]-24,10,'#84c9a2','center','600');
+      }
+    }
+  }
+},
+/* 3 ---------------------------------------------------------- COLLABORATIVE */
+{
+  tag:'2 · Collaborative Filtering',
+  title:'Wisdom of similar people',
+  duration:7000,
+  points:[
+    'No item features needed at all — just a big, sparse user &times; item ratings matrix.',
+    'Find users whose <i>pattern</i> of ratings looks like yours (user-based), or items that tend to get rated alike (item-based).',
+    'Predict a missing rating as your average, nudged by how similar raters felt about that item.'
+  ],
+  formula:'r&#770;<sub>ui</sub> = r&#772;<sub>u</sub> + &Sigma;<sub>v</sub> sim(u,v)&middot;(r<sub>vi</sub> &minus; r&#772;<sub>v</sub>) / &Sigma;<sub>v</sub> |sim(u,v)|',
+  why:`Simply averaging neighbors\' raw ratings ignores that some people rate everything a 5, others rarely go above a 3. Subtracting each user\'s own average <b>r&#772;</b> removes that personal bias, so only the relative pattern (loved it more/less than usual) transfers between users. Weighting by <b>sim(u,v)</b> gives more voice to neighbors who actually think like you.
+  <div class="use"><b>Used in</b> Amazon\'s "customers who bought this also bought", early Netflix Prize systems, GroupLens.</div>`,
+  draw(ctx,t,el){
+    bg(ctx,W,H,el);
+    const users=['U1','U2','U3','U4','U5'], items=['I1','I2','I3','I4','I5'];
+    const R=[[5,2,4,null,3],[1,5,2,4,2],[4,2,5,1,3],[2,4,1,5,2],[3,3,3,3,4]];
+    const mx=140,my=70,cs=70;
+    users.forEach((u,r)=>txt(ctx,u,mx-30,my+r*cs+cs/2,11.5,'#8d8a9c','center','600'));
+    items.forEach((it,c)=>txt(ctx,it,mx+c*cs+cs/2,my-24,11.5,'#8d8a9c','center','600'));
+    const s1=seg(t,0,0.45);
+    let n=0; const total=25;
+    for(let r=0;r<5;r++)for(let c=0;c<5;c++){
+      const a=ease(seg(s1*total,n,n+1)); n++;
+      const x=mx+c*cs, y=my+r*cs, val=R[r][c];
+      if(a<=0)continue;
+      if(val===null){
+        roundRect(ctx,x+4,y+4,cs-8,cs-8,7,'rgba(224,138,138,0.08)','#e08a8a');
+        if(a>0.5)txt(ctx,'?',x+cs/2,y+cs/2,16,'#e08a8a','center','700');
+      } else {
+        const int=val/5;
+        roundRect(ctx,x+4,y+4,cs-8,cs-8,7,`rgba(79,209,197,${0.08+int*0.35*a})`,'#2a2a38');
+        if(a>0.5)txt(ctx,String(val),x+cs/2,y+cs/2,13,'#cfcdd9','center','500');
+      }
+    }
+    const s2=ease(seg(t,0.5,0.7));
+    if(s2>0){
+      // highlight U1 and U3 rows as similar
+      [0,2].forEach(r=>{
+        ctx.save();ctx.strokeStyle=`rgba(167,139,250,${0.7*s2})`;ctx.lineWidth=2;
+        ctx.strokeRect(mx-2,my+r*cs-2,cs*5+4,cs+4);ctx.restore();
+      });
+      if(s2>0.6)txt(ctx,'similar rating pattern',mx+cs*5+55,my+cs,10.5,'#a78bfa','left','600');
+    }
+    const s3=ease(seg(t,0.72,1));
+    if(s3>0){
+      const fromX=mx+3*cs+cs/2, fromY=my+2*cs+cs/2;
+      const toX=mx+3*cs+cs/2, toY=my+0*cs+cs/2;
+      const midY=lerp(fromY,toY,s3);
+      arrow(ctx,fromX,fromY-cs/2-4,toX,midY,'#a78bfa',2);
+      if(s3>0.8)txt(ctx,'predicts U1 · I4',toX,toY-cs/2-14,10.5,'#a78bfa','center','600');
+    }
+  }
+},
+/* 3.5 -------------------------------------------------------- COLD START */
+{
+  tag:'Practical Concern',
+  title:'The cold start problem',
+  duration:6000,
+  points:[
+    'Every method so far leans on history — ratings, clicks, purchases. What happens the moment a <b>brand-new user</b> or <b>brand-new item</b> shows up with none?',
+    '<b>User cold start:</b> no past behavior to build a profile from. <b>Item cold start:</b> nothing has ever recommended it, so it never gets recommended.',
+    'Common fixes: ask onboarding questions, fall back to content features or popularity, or deliberately show a little variety to gather signal fast.'
+  ],
+  formula:'score = (n&middot;avg<sub>item</sub> + m&middot;avg<sub>global</sub>) / (n + m)',
+  why:`A brand-new item with just one 5-star rating shouldn\'t rank above a well-loved item with 10,000 ratings averaging 4.8 — one data point is barely evidence. This shrinkage (Bayesian-average) formula blends the item\'s own average with the global average, weighted by how much real data it has (n) versus an assumed "prior strength" (m). With few ratings, the score leans heavily toward the safe global average; as n grows, the score trusts the item\'s own track record more and more.
+  <div class="use"><b>Used in</b> IMDb\'s "true Bayesian estimate" movie ranking, Reddit/Wilson-score style ranking, and as a simple, effective fallback for brand-new catalog items anywhere.</div>`,
+  draw(ctx,t,el){
+    bg(ctx,W,H,el);
+    // established interaction graph
+    const users=[[120,120],[120,220],[120,320]];
+    const items=[[300,90],[300,180],[300,280],[300,370]];
+    const s1=ease(seg(t,0,0.35));
+    users.forEach(u=>circle(ctx,u[0],u[1],7*s1,'#7aa7d9',6));
+    items.forEach(it=>circle(ctx,it[0],it[1],7*s1,'#84c9a2',6));
+    const edges=[[0,0],[0,1],[1,1],[1,2],[2,2],[2,3]];
+    edges.forEach(([ui,ii])=>{
+      if(s1>0.5)line(ctx,users[ui][0],users[ui][1],items[ii][0],items[ii][1],'rgba(255,255,255,0.08)',1.2);
+    });
+    if(s1>0.6)txt(ctx,'known users ↔ known items',210,55,10.5,'#6f6c80','center','400');
+
+    const s2=ease(seg(t,0.3,0.65));
+    if(s2>0){
+      const nu=[120,400];
+      circle(ctx,nu[0],nu[1],7*s2,'#e08a8a',9);
+      txt(ctx,'new user',nu[0],nu[1]+20,10.5,'#e08a8a','center','600');
+      ring(ctx,nu[0],nu[1],14*s2,'rgba(224,138,138,0.4)',1.2);
+    }
+    const s3=ease(seg(t,0.4,0.75));
+    if(s3>0){
+      const ni=[490,220];
+      circle(ctx,ni[0],ni[1],7*s3,'#e0b774',9);
+      txt(ctx,'new item',ni[0],ni[1]-18,10.5,'#e0b774','center','600');
+      ring(ctx,ni[0],ni[1],14*s3,'rgba(224,183,116,0.4)',1.2);
+    }
+    const s4=ease(seg(t,0.75,1));
+    if(s4>0){
+      txt(ctx,'bridges: content features · popularity fallback · onboarding · exploration',CX,H-24,11,'#84c9a2','center','500');
+    }
+  }
+},
+/* 4 ---------------------------------------------------------- MATRIX FACTORIZATION */
+{
+  tag:'3 · Matrix Factorization',
+  title:'Hidden taste dimensions',
+  duration:7000,
+  points:[
+    'Assume ratings come from a small number of hidden ("latent") factors — maybe "campiness", "pace", "visual style" — nobody labels them, the model discovers them.',
+    'Factor the big sparse rating matrix R into a thin user matrix P and a thin item matrix Q, so that R &asymp; P Q<sup>T</sup>.',
+    'Multiplying P and Q back together fills in <i>every</i> cell — including the ones nobody rated yet.'
+  ],
+  formula:'min<sub>P,Q</sub> &Sigma; (r<sub>ui</sub> &minus; p<sub>u</sub>&middot;q<sub>i</sub>)&sup2; + &lambda;(&#x2016;p<sub>u</sub>&#x2016;&sup2; + &#x2016;q<sub>i</sub>&#x2016;&sup2;)',
+  why:`We square the error so bigger mistakes are penalised disproportionately more than small ones, pushing the fit toward getting everything roughly right rather than nailing a few and badly missing others. But fitting the sparse <i>observed</i> ratings perfectly can just memorize noise — so a regularization term &lambda;&#x2016;p&#x2016;&sup2; keeps the latent vectors small and simple, which tends to generalize better to the ratings we haven\'t seen yet.
+  <div class="use"><b>Used in</b> the Netflix Prize-winning models, most production collaborative filtering at streaming and e-commerce companies.</div>`,
+  draw(ctx,t,el){
+    bg(ctx,W,H,el);
+    const cell=34, cols=6, rows=6, mx=60, my=60;
+    const missing=new Set(['1_3','2_0','3_4','0_5','4_1']);
+    const s1=seg(t,0,0.35);
+    let idx=0;
+    for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
+      const a=ease(seg(s1*36,idx,idx+1)); idx++;
+      const x=mx+c*cell,y=my+r*cell;
+      const isMiss=missing.has(r+'_'+c);
+      if(a<=0)continue;
+      roundRect(ctx,x+2,y+2,cell-4,cell-4,5, isMiss?'rgba(224,138,138,0.08)':'rgba(79,209,197,0.12)', '#23232f');
+      if(isMiss&&a>0.5)txt(ctx,'?',x+cell/2,y+cell/2,11,'#e08a8a','center','700');
+    }
+    txt(ctx,'R (users × items)',mx+cols*cell/2,my-18,11,'#6f6c80','center','500');
+
+    const s2=ease(seg(t,0.4,0.62));
+    if(s2>0){
+      const px=mx+cols*cell+50*s2+30;
+      const p0x=lerp(mx,px,1), p0y=my;
+      for(let r=0;r<rows;r++)for(let c2=0;c2<2;c2++){
+        const x=p0x+c2*cell,y=my+r*cell;
+        roundRect(ctx,x+2,y+2,cell-4,cell-4,5,'rgba(167,139,250,0.18)','#23232f');
+      }
+      txt(ctx,'P',p0x+cell,my-18,12,'#a78bfa','center','600');
+      if(s2>0.5){
+        const qy=my+rows*cell+22;
+        for(let c2=0;c2<cols;c2++)for(let r2=0;r2<2;r2++){
+          const x=mx+c2*cell,y=qy+r2*cell;
+          roundRect(ctx,x+2,y+2,cell-4,cell-4,5,'rgba(224,183,116,0.18)','#23232f');
+        }
+        txt(ctx,'Q'+'\u1D40',mx+cols*cell/2,qy+2*cell+16,12,'#e0b774','center','600');
+      }
+    }
+    const s3=ease(seg(t,0.68,1));
+    if(s3>0){
+      txt(ctx,'P · Qᵀ ≈ R  (missing values now filled)',CX,H-22,12,'#84c9a2','center','600');
+      const rx=mx+cols*cell+150;
+      let idx2=0;
+      for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
+        const a=ease(seg(s3*36,idx2,idx2+1)); idx2++;
+        if(a<=0)continue;
+        const x=rx+c*cell*0.6,y=my+r*cell*0.6;
+      }
+    }
+  }
+},
+/* 4.5 -------------------------------------------------------- LOSS FUNCTIONS */
+{
+  tag:'Deeper Theory',
+  title:'What are we actually minimizing?',
+  duration:6800,
+  points:[
+    'Every method in this deck is "trained" by making some error number smaller. Which error you pick changes what the model gets good at.',
+    '<b>Squared error</b> (used by Matrix Factorization) cares about predicting the exact star rating.',
+    '<b>Ranking loss</b> (BPR, seen with Negative Sampling) cares only about relative order — did we rank the liked item above the unliked one?'
+  ],
+  formula:'squared error: (r &minus; r&#770;)&sup2; &nbsp;&nbsp;&nbsp; ranking (BPR): &minus;ln &sigma;(&#375;<sub>pos</sub> &minus; &#375;<sub>neg</sub>) &nbsp;&nbsp;&nbsp; log-loss: &minus;[y ln p + (1&minus;y)ln(1&minus;p)]',
+  why:`Squared error is symmetric and punishes big misses hardest — great when the exact number (4 stars vs 5) genuinely matters. Ranking loss doesn\'t care about exact scores at all, only about getting the <i>order</i> right — which matches what a user actually experiences (a ranked list), and is what BPR, and most modern retrieval models, actually optimize. Log-loss (cross-entropy) is the natural choice for "will they click, yes or no?" style problems — it\'s the loss that falls out of treating the prediction as a probability and maximizing the likelihood of the observed clicks/non-clicks (the same likelihood idea behind DeepAR in the forecasting deck).
+  <div class="use"><b>Used across</b> this whole deck: MSE in Matrix Factorization/SVD++, BPR-style ranking loss in ALS/NCF variants trained on implicit data, and log-loss in click-through-rate models like DeepFM.</div>`,
+  draw(ctx,t,el){
+    bg(ctx,W,H,el);
+    const x0=70,x1=560,y0=170;
+    // squared error curve
+    function curve(fn,color,label,offsetY){
+      const pts=[];
+      for(let x=-140;x<=140;x+=4)pts.push([CX+x, offsetY - fn(x/140)*90]);
+      return pts;
+    }
+    const s1=ease(seg(t,0,0.35));
+    const sq=curve(v=>v*v,'#e0b774','squared',y0);
+    seriesPath(ctx,sq,'#e0b774',2.2,s1);
+    if(s1>0.6)txt(ctx,'squared error: symmetric, punishes big misses',CX,y0-100,10.5,'#e0b774','center','600');
+
+    const s2=ease(seg(t,0.35,0.7));
+    if(s2>0){
+      const bx=90, by=300;
+      ['positive item','negative item'].forEach((lbl,i)=>{
+        const a=ease(seg(s2*2,i,i+1));
+        if(a<=0)return;
+        const x=bx+i*180;
+        roundRect(ctx,x-10,by-16*a,90,32*a,6, i===0?'rgba(79,209,197,0.18)':'rgba(224,138,138,0.18)', i===0?'#4fd1c5':'#e08a8a');
+        if(a>0.6)txt(ctx,lbl,x+35,by+34,10,i===0?'#4fd1c5':'#e08a8a','center','500');
+      });
+      if(s2>0.6){
+        arrow(ctx,bx+70,by,bx+180,by,'rgba(167,139,250,0.6)',1.6);
+        txt(ctx,'push apart: score(pos) > score(neg)',bx+130,by-32,10.5,'#a78bfa','center','600');
+      }
+    }
+    const s3=ease(seg(t,0.68,1));
+    if(s3>0)txt(ctx,'pick the loss that matches the real question',CX,H-24,11.5,'#6f6c80','center','400');
+  }
+},
+/* 4.6 -------------------------------------------------------- REGULARIZATION */
+{
+  tag:'Deeper Theory',
+  title:'Why models need a leash',
+  duration:6800,
+  points:[
+    'With enough free parameters, a model can perfectly memorize every training rating — including its noise — and then predict terribly on anything new. This is <b>overfitting</b>.',
+    'Regularization adds a penalty for large parameter values, keeping the model "simple" unless the data strongly justifies complexity.',
+    '<b>L2</b> (ridge) shrinks everything smoothly toward zero. <b>L1</b> (lasso) pushes many parameters to exactly zero, discarding features entirely.'
+  ],
+  formula:'L2: &lambda;&Sigma;w<sub>i</sub>&sup2; &nbsp;(smooth shrinkage) &nbsp;&nbsp;&nbsp; L1: &lambda;&Sigma;|w<sub>i</sub>| &nbsp;(sparsity, some w<sub>i</sub>&rarr;0)',
+  why:`Squaring the weights in L2 means <i>large</i> weights get penalized much more than small ones, so the optimizer prefers many small, spread-out weights over one huge one — a smoothly "shrunk" solution, which is exactly the term already sitting inside the Matrix Factorization loss a few slides back. L1\'s penalty grows linearly, which — because of how the optimization geometry works out — tends to snap entire weights to exactly zero rather than just shrinking them, effectively performing automatic feature selection. &lambda; is the dial: too small and you\'re back to overfitting, too large and the model becomes too simple to fit real patterns at all (underfitting).
+  <div class="use"><b>Used in</b> nearly every model in this deck via a &lambda; term (MF, SVD++, ALS all show it explicitly), and in Wide & Deep\'s wide component, where L1 is popular for keeping the sparse, hand-built feature crosses manageable.</div>`,
+  draw(ctx,t,el){
+    bg(ctx,W,H,el);
+    // overfit vs regularized fit on noisy data
+    const x0=70,x1=310,y0=340;
+    const n=14, pts=[];
+    let seed=11; function rnd(){seed=(seed*9301+49297)%233280;return seed/233280;}
+    for(let i=0;i<n;i++){
+      const x=lerp(x0,x1,i/(n-1));
+      pts.push([x, y0-40-30*Math.sin(i/2)+(rnd()-0.5)*36]);
+    }
+    const s1=ease(seg(t,0,0.3));
+    pts.forEach((p,i)=>{
+      const a=ease(seg(s1*n,i,i+1));
+      if(a>0)circle(ctx,p[0],p[1],4*a,'#8d8a9c',5);
+    });
+    // overfit wiggly line through every point
+    const s2=ease(seg(t,0.3,0.65));
+    if(s2>0){
+      seriesPath(ctx,pts,'#e08a8a',2,s2);
+      if(s2>0.6)txt(ctx,'overfit: memorizes noise',(x0+x1)/2,y0+40,10.5,'#e08a8a','center','600');
+    }
+    // regularized smooth curve, offset to the right panel
+    const x0b=360,x1b=600;
+    const smoothPts=[];
+    for(let i=0;i<n;i++){
+      const x=lerp(x0b,x1b,i/(n-1));
+      smoothPts.push([x, y0-40-30*Math.sin(i/2)]);
+    }
+    const s3=ease(seg(t,0.55,0.9));
+    if(s3>0){
+      pts.forEach((p,i)=>{
+        const a=ease(seg(s1*n,i,i+1));
+        if(a>0)circle(ctx,x0b+(p[0]-x0),p[1],3.5,'#4a4a5c',0);
+      });
+      seriesPath(ctx,smoothPts,'#84c9a2',2.4,s3);
+      if(s3>0.6)txt(ctx,'regularized: smooth, generalizes',(x0b+x1b)/2,y0+40,10.5,'#84c9a2','center','600');
+    }
+    if(t>0.92)txt(ctx,'λ controls how tightly the leash is held',CX,70,11.5,'#6f6c80','center','400');
+  }
+},
+/* 5 ---------------------------------------------------------- SVD++ */
+{
+  tag:'4 · SVD++',
+  title:'Even a click says something',
+  duration:6500,
+  points:[
+    'Plain matrix factorization only listens to explicit stars. But browsing, clicking or adding-to-cart (without rating) still reveals taste.',
+    'SVD++ folds those implicit signals into the user vector, and adds bias terms for "generous raters" and "universally loved items".',
+    'The result: better predictions, especially for users with few explicit ratings.'
+  ],
+  formula:'r&#770;<sub>ui</sub> = &mu; + b<sub>u</sub> + b<sub>i</sub> + q<sub>i</sub><sup>T</sup>(p<sub>u</sub> + |N(u)|<sup>&minus;&frac12;</sup> &Sigma;<sub>j&isin;N(u)</sub> y<sub>j</sub>)',
+  why:`&mu;, b<sub>u</sub>, b<sub>i</sub> soak up the "boring" part of a rating — the global average, this user\'s general generosity, this item\'s general popularity — so the interaction term q<sub>i</sub><sup>T</sup>p<sub>u</sub> is left to explain only genuine taste match. Adding the average implicit-item vectors <b>y<sub>j</sub></b> to p<sub>u</sub> lets clicks-without-ratings shape the profile too. The 1/&radic;|N(u)| scaling stops power-users with thousands of clicks from getting an unfairly inflated vector.
+  <div class="use"><b>Used in</b> systems that have far more clicks/views than explicit ratings — most e-commerce and streaming platforms.</div>`,
+  draw(ctx,t,el){
+    bg(ctx,W,H,el);
+    const ox=180, oy=380;
+    line(ctx,60,oy,580,oy,'#20202c',1);
+    const s1=ease(seg(t,0,0.25));
+    if(s1>0)arrow(ctx,ox,oy,ox+70*s1,oy-100*s1,'#4fd1c5',2.2);
+    if(s1>0.7)txt(ctx,'pᵤ (from explicit ratings)',ox+90,oy-115,11,'#4fd1c5','left','600');
+
+    const implicit=[[300,120],[340,90],[380,140],[320,60]];
+    const s2=seg(t,0.28,0.6);
+    implicit.forEach((p,i)=>{
+      const a=ease(seg(s2*4,i,i+1)); if(a<=0)return;
+      circle(ctx,p[0],p[1],5*a,'#e0b774',8);
+      if(i===0&&a>0.8)txt(ctx,'clicked, not rated',p[0]-4,p[1]-16,10,'#e0b774','left','500');
+    });
+
+    const s3=ease(seg(t,0.62,0.85));
+    if(s3>0){
+      const sumx=lerp(0,implicit.reduce((s,p)=>s+p[0],0)/4-ox,s3);
+      const sumy=lerp(0,implicit.reduce((s,p)=>s+p[1],0)/4-oy,s3);
+      arrow(ctx,ox+70*s1,oy-100*s1, ox+70*s1+sumx*0.55, oy-100*s1+sumy*0.55+70,'#e0b774',1.6);
+    }
+    const s4=ease(seg(t,0.85,1));
+    if(s4>0){
+      const fx=ox+70+ (implicit.reduce((s,p)=>s+p[0],0)/4-ox)*0.55;
+      const fy=oy-100+ (implicit.reduce((s,p)=>s+p[1],0)/4-oy)*0.55+70;
+      arrow(ctx,ox,oy,fx,fy,'#84c9a2',2.6);
+      txt(ctx,'boosted user vector',fx+10,fy-14,11.5,'#84c9a2','left','600');
+    }
+  }
+},
+/* 5.5 -------------------------------------------------------- NEGATIVE SAMPLING */
+{
+  tag:'Training Detail',
+  title:'Learning from what didn\'t happen',
+  duration:6500,
+  points:[
+    'Clicks, watches and purchases only ever tell you what a user <i>liked</i> — there\'s rarely an explicit "I dislike this" button.',
+    'Train on positives alone and a model learns the trivial, useless answer: predict "relevant" for everything.',
+    '<b>Negative sampling</b> fixes this by randomly drawing items the user never interacted with and treating them as (probable) negatives during training.'
+  ],
+  formula:'L<sub>BPR</sub> = &minus;&Sigma;<sub>(u,i,j)</sub> ln &sigma;(&#375;<sub>ui</sub> &minus; &#375;<sub>uj</sub>)',
+  why:`Bayesian Personalized Ranking (BPR) doesn\'t ask "is this score high?" in isolation — it asks the model to make the score for an observed positive item <b>i</b> higher than the score for a randomly sampled unobserved item <b>j</b>, for the same user. Because &sigma; (sigmoid) saturates, the loss keeps pushing until that gap &#375;<sub>ui</sub> &minus; &#375;<sub>uj</sub> is comfortably positive — the model learns relative preference from purely positive data, without ever needing an explicit negative label.
+  <div class="use"><b>Used in</b> nearly all implicit-feedback recommenders in production — ALS variants, NCF, and the retrieval towers behind YouTube and Spotify all rely on some form of negative sampling.</div>`,
+  draw(ctx,t,el){
+    bg(ctx,W,H,el);
+    const ux=110, uy=230;
+    const s0=ease(seg(t,0,0.2));
+    circle(ctx,ux,uy,10*s0,'#a78bfa',8);
+    if(s0>0.6)txt(ctx,'user',ux,uy+22,10.5,'#a78bfa','center','600');
+
+    const positives=[[300,110],[330,180],[290,260]];
+    const s1=seg(t,0.15,0.5);
+    positives.forEach((p,i)=>{
+      const a=ease(seg(s1*3,i,i+1)); if(a<=0)return;
+      circle(ctx,p[0],p[1],6*a,'#4fd1c5',9);
+      if(a>0.6)line(ctx,ux,uy,p[0],p[1],'rgba(79,209,197,0.35)',1.5);
+    });
+    if(s1>0.7)txt(ctx,'observed positives',315,80,10.5,'#4fd1c5','left','600');
+
+    const negatives=[[420,90],[460,200],[430,310],[380,370]];
+    const s2=seg(t,0.5,0.9);
+    negatives.forEach((p,i)=>{
+      const a=ease(seg(s2*4,i,i+1)); if(a<=0)return;
+      circle(ctx,p[0],p[1],6*a,'#e08a8a',9);
+      if(a>0.6)line(ctx,ux,uy,p[0],p[1],'rgba(224,138,138,0.2)',1.2,[3,3]);
+    });
+    if(s2>0.7)txt(ctx,'sampled negatives (unobserved)',430,400,10.5,'#e08a8a','center','600');
+
+    const s3=ease(seg(t,0.85,1));
+    if(s3>0)txt(ctx,'train: score(positive) > score(negative)',CX,H-22,12,'#84c9a2','center','600');
+  }
+},
+/* 6 ---------------------------------------------------------- ALS */
+{
+  tag:'5 · Alternating Least Squares',
+  title:'Solve one half, then the other',
+  duration:7000,
+  points:[
+    'Fitting P and Q at the same time is a hard, non-convex problem. ALS\'s trick: freeze one, solve the other <i>exactly</i>, then swap.',
+    'With Q fixed, finding the best p<sub>u</sub> is just ridge regression — a closed-form matrix solve, no iterative gradient steps needed.',
+    'Because each half-step is independent per user (or item), the whole thing parallelizes beautifully — this is why ALS is the workhorse of Spark MLlib.'
+  ],
+  formula:'p<sub>u</sub> = (Q<sup>T</sup>Q + &lambda;I)<sup>&minus;1</sup> Q<sup>T</sup>r<sub>u</sub>',
+  why:`When Q is held fixed, the loss from the previous slide becomes an ordinary least-squares problem in p<sub>u</sub> alone — and least squares has a direct algebraic solution (no learning rate, no risk of overshooting). The &lambda;I term is the same regularization as before, added so the matrix Q<sup>T</sup>Q + &lambda;I is always safely invertible. Alternating these exact solves guarantees the total error never increases, step after step.
+  <div class="use"><b>Used in</b> Spark MLlib\'s recommender, large-scale implicit-feedback systems (e.g. "watched" vs "not watched" signals) where speed and parallelism matter more than a single global optimum.</div>`,
+  draw(ctx,t,el){
+    bg(ctx,W,H,el);
+    const cycle=(el/2600)%2;
+    const leftActive = cycle<1;
+    // two panels
+    roundRect(ctx,50,60,240,220,12, leftActive?'rgba(79,209,197,0.10)':'rgba(255,255,255,0.02)', leftActive?'#4fd1c5':'#23232f');
+    roundRect(ctx,350,60,240,220,12, !leftActive?'rgba(224,183,116,0.10)':'rgba(255,255,255,0.02)', !leftActive?'#e0b774':'#23232f');
+    txt(ctx,'Fix Q → solve P',170,90,13,leftActive?'#4fd1c5':'#6f6c80','center','600');
+    txt(ctx,'Fix P → solve Q',470,90,13,!leftActive?'#e0b774':'#6f6c80','center','600');
+    mono(ctx,'pᵤ = (QᵀQ+λI)⁻¹Qᵀrᵤ',170,150,11.5,leftActive?'#e9e7f2':'#4a4a5c','center');
+    mono(ctx,'qᵢ = (PᵀP+λI)⁻¹Pᵀrᵢ',470,150,11.5,!leftActive?'#e9e7f2':'#4a4a5c','center');
+    // little grid representing users being solved in parallel
+    for(let i=0;i<6;i++){
+      const a = leftActive? 0.4+0.5*Math.abs(Math.sin(el/300+i)) : 0.15;
+      circle(ctx,90+i*30,220,7,'#4fd1c5',leftActive?6:0);
+      ctx.save();ctx.globalAlpha=a;circle(ctx,90+i*30,220,7,'#4fd1c5',0);ctx.restore();
+    }
+    for(let i=0;i<6;i++){
+      const a = !leftActive? 0.4+0.5*Math.abs(Math.sin(el/300+i)) : 0.15;
+      ctx.save();ctx.globalAlpha=a;circle(ctx,390+i*30,220,7,'#e0b774',0);ctx.restore();
+    }
+    txt(ctx,'solved independently, in parallel',170,250,10,'#6f6c80','center','400');
+    txt(ctx,'solved independently, in parallel',470,250,10,'#6f6c80','center','400');
+
+    // loss curve
+    const lx=90, ly=400, lw=460, lh=50;
+    line(ctx,lx,ly,lx+lw,ly,'#23232f',1);
+    txt(ctx,'loss',lx-24,ly-lh+8,10,'#6f6c80','center','500');
+    ctx.save();ctx.strokeStyle='#84c9a2';ctx.lineWidth=2;ctx.beginPath();
+    const iters=Math.floor(el/1300)+1;
+    for(let i=0;i<Math.min(iters,10);i++){
+      const x=lx+ (i/9)*lw;
+      const y=ly - lh*(1-Math.exp(-i/3));
+      if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+    }
+    ctx.stroke();ctx.restore();
+    txt(ctx,'converges in a few alternations',lx+lw/2,ly+20,10.5,'#6f6c80','center','400');
+  }
+},
+/* 7 ---------------------------------------------------------- NCF */
+{
+  tag:'6 · Neural Collaborative Filtering',
+  title:'Let a network learn the interaction',
+  duration:6500,
+  points:[
+    'Matrix factorization scores a user-item pair with a plain dot product — a fixed, linear notion of "match".',
+    'NCF instead concatenates the user and item embeddings and feeds them through a multi-layer perceptron, letting the network learn <i>any</i> shape of interaction.',
+    'More flexible, more data-hungry — a trade classic ML makes often.'
+  ],
+  formula:'&#375;<sub>ui</sub> = &sigma;( h<sup>T</sup> a<sub>L</sub>( ... a<sub>1</sub>(W<sub>1</sub>[p<sub>u</sub>;q<sub>i</sub>] + b<sub>1</sub>) ... ) )',
+  why:`A dot product p<sub>u</sub>&middot;q<sub>i</sub> can only express interactions that look like weighted agreement along fixed axes — it can\'t easily represent something like "loves A <i>and</i> B together but not either alone". Stacking non-linear layers (a<sub>1</sub>, a<sub>2</sub>, ...) after concatenating the two embeddings lets the network approximate essentially any interaction function, by the universal approximation property of neural nets.
+  <div class="use"><b>Used in</b> YouTube and short-video recommenders, and as a component inside larger multi-tower ranking systems.</div>`,
+  draw(ctx,t,el){
+    bg(ctx,W,H,el);
+    const layers=[[[80,180],[80,280]],
+      [[220,140],[220,220],[220,300]],
+      [[360,160],[360,240],[360,320]],
+      [[500,230]]];
+    const labels=['pᵤ, qᵢ','hidden 1','hidden 2','ŷᵤᵢ'];
+    labels.forEach((l,i)=>txt(ctx,l,layers[i][0][0],90,11,'#6f6c80','center','500'));
+    const s1=seg(t,0,0.3);
+    // draw edges first (dim)
+    for(let li=0;li<layers.length-1;li++){
+      layers[li].forEach(a=>layers[li+1].forEach(b=>{
+        line(ctx,a[0],a[1],b[0],b[1],'rgba(255,255,255,0.05)',1);
+      }));
+    }
+    layers.forEach((L,li)=>{
+      L.forEach((p,ni)=>{
+        const a=ease(seg(s1*layers.length,li,li+1));
+        neuron(ctx,p[0],p[1],13, a>0.4, ['#4fd1c5','#a78bfa','#e0b774','#84c9a2'][li]);
+      });
+    });
+    // forward pulse
+    const pulseT=(seg(t,0.35,1))*3 % 3;
+    for(let li=0;li<layers.length-1;li++){
+      const local=pulseT-li;
+      if(local>=0&&local<=1){
+        layers[li].forEach(a=>layers[li+1].forEach(b=>{
+          const x=lerp(a[0],b[0],local), y=lerp(a[1],b[1],local);
+          circle(ctx,x,y,3,'#e9e7f2',6);
+        }));
+      }
+    }
+    if(t>0.6)txt(ctx,'concat → MLP → learned interaction',CX,H-24,12,'#6f6c80','center','500');
+  }
+},
+/* 8 ---------------------------------------------------------- WIDE & DEEP */
+{
+  tag:'7 · Wide & Deep',
+  title:'Memorize <i>and</i> generalize',
+  duration:6500,
+  points:[
+    'The "wide" side is a simple linear model over raw and hand-crossed features — great at memorizing exact, frequent combos ("bought pasta + bought sauce").',
+    'The "deep" side pushes dense embeddings through an MLP — great at generalizing to combos it has never exactly seen.',
+    'Trained jointly, their strengths cover each other\'s weaknesses.'
+  ],
+  formula:'&#375; = &sigma;( w<sub>wide</sub><sup>T</sup>[x, &phi;(x)] + w<sub>deep</sub><sup>T</sup>a<sup>(L)</sup> + b )',
+  why:`&phi;(x) denotes hand-built cross-product features (e.g. "genre=comedy AND time=friday-night"). A linear model on these crosses can memorize sharp, specific rules with little data. Meanwhile a<sup>(L)</sup>, the deep network\'s final hidden layer, has learned smooth embeddings that generalize to unseen feature combinations. Summing both scores before the sigmoid lets one gradient update improve both components together.
+  <div class="use"><b>Used in</b> the Google Play Store app-recommendation system, where both "exact match" precision and "explore something new" recall matter.</div>`,
+  draw(ctx,t,el){
+    bg(ctx,W,H,el);
+    const s1=ease(seg(t,0,0.3));
+    // wide path
+    txt(ctx,'Wide',150,90,13,'#e0b774','center','600');
+    txt(ctx,'raw + cross features',150,110,10,'#6f6c80','center','400');
+    [150,150].forEach((x,i)=>{});
+    for(let i=0;i<3;i++){
+      const a=ease(seg(s1*3,i,i+1));
+      circle(ctx,150,150+i*40,9,'#e0b774',a>0.3?7:0);
+    }
+    const s2=ease(seg(t,0.15,0.55));
+    if(s2>0)for(let i=0;i<3;i++)line(ctx,150,150+i*40,CX+100,300,`rgba(224,183,116,${0.35*s2})`,1.4);
+
+    // deep path
+    txt(ctx,'Deep',480,90,13,'#7aa7d9','center','600');
+    txt(ctx,'embeddings → MLP',480,110,10,'#6f6c80','center','400');
+    const deepLayers=[[[420,150],[480,150],[540,150]],[[440,200],[500,200],[520,200]],[[480,255]]];
+    const s3=seg(t,0.05,0.45);
+    deepLayers.forEach((L,li)=>L.forEach((p,ni)=>{
+      const a=ease(seg(s3*3,li,li+1));
+      neuron(ctx,p[0],p[1],10,a>0.3,'#7aa7d9');
+    }));
+    for(let li=0;li<deepLayers.length-1;li++){
+      deepLayers[li].forEach(a=>deepLayers[li+1].forEach(b=>{
+        const s4=ease(seg(t,0.2+li*0.1,0.55+li*0.1));
+        line(ctx,a[0],a[1],b[0],b[1],`rgba(122,167,217,${0.3*s4})`,1);
+      }));
+    }
+    const s5=ease(seg(t,0.5,0.75));
+    if(s5>0)line(ctx,480,255,CX+100,300,`rgba(122,167,217,${0.35*s5})`,1.4);
+
+    const s6=ease(seg(t,0.75,1));
+    if(s6>0){
+      circle(ctx,CX+100,300,16*s6,'#84c9a2',10);
+      txt(ctx,'+',CX+100,300,14,'#0a0a0f','center','700');
+      if(s6>0.6)txt(ctx,'joint prediction ŷ',CX+100,330,11.5,'#84c9a2','center','600');
+    }
+  }
+},
+/* 9 ---------------------------------------------------------- DEEPFM */
+{
+  tag:'8 · DeepFM',
+  title:'No more hand-built crosses',
+  duration:6500,
+  points:[
+    'Wide & Deep still needs humans to design which feature crosses matter. DeepFM automates that with a Factorization Machine (FM) component.',
+    'The FM term scores <i>every pair</i> of features via their embeddings\' dot product — automatic 2nd-order interactions, no manual feature engineering.',
+    'FM and Deep share the same embedding layer, so one representation feeds both a fast pairwise model and a flexible deep model.'
+  ],
+  formula:'y<sub>FM</sub> = w<sub>0</sub> + &Sigma;w<sub>i</sub>x<sub>i</sub> + &Sigma;&Sigma;&#10216;v<sub>i</sub>,v<sub>j</sub>&#10217;x<sub>i</sub>x<sub>j</sub>',
+  why:`Naively scoring every pair of features would need a separate weight per pair — too many to learn from limited data. The FM trick represents each feature by a small embedding v<sub>i</sub>, and scores the pair (i,j) as the dot product &#10216;v<sub>i</sub>,v<sub>j</sub>&#10217; instead of a dedicated weight. This factorized form can be computed in linear time and lets the model estimate interactions even for feature pairs that rarely or never co-occurred in training.
+  <div class="use"><b>Used in</b> click-through-rate prediction for ads and feeds (Huawei App Market\'s original DeepFM paper, widely adopted in ad-tech ranking stacks).</div>`,
+  draw(ctx,t,el){
+    bg(ctx,W,H,el);
+    const emb=[[260,80],[320,80],[380,80],[440,80]];
+    const s0=ease(seg(t,0,0.2));
+    emb.forEach((p,i)=>neuron(ctx,p[0],p[1],10,s0>0.3,'#a78bfa'));
+    if(s0>0.6)txt(ctx,'shared embedding layer',CX+30,50,11,'#a78bfa','center','600');
+
+    // FM: complete graph of pairwise lines going down-left
+    txt(ctx,'FM (pairwise)',150,150,12.5,'#e0b774','center','600');
+    const s1=seg(t,0.2,0.55);
+    let pc=0; const pairs=[];
+    for(let i=0;i<emb.length;i++)for(let j=i+1;j<emb.length;j++)pairs.push([i,j]);
+    pairs.forEach((pr,i)=>{
+      const a=ease(seg(s1*pairs.length,i,i+1)); if(a<=0)return;
+      const [i1,j1]=pr;
+      const mx=(emb[i1][0]+emb[j1][0])/2, my2=200;
+      line(ctx,emb[i1][0],emb[i1][1],150,220,`rgba(224,183,116,${0.15*a})`,1);
+      line(ctx,emb[j1][0],emb[j1][1],150,220,`rgba(224,183,116,${0.15*a})`,1);
+    });
+    circle(ctx,150,220,14,'#e0b774',8);
+    txt(ctx,'Σ⟨v,v⟩',150,220,9,'#0a0a0f','center','700');
+
+    // Deep: MLP going down-right
+    txt(ctx,'Deep (MLP)',480,150,12.5,'#7aa7d9','center','600');
+    const s2=seg(t,0.25,0.6);
+    emb.forEach((p,i)=>{
+      const a=ease(seg(s2*emb.length,i,i+1)); if(a<=0)return;
+      line(ctx,p[0],p[1],480,220,`rgba(122,167,217,${0.25*a})`,1.2);
+    });
+    circle(ctx,480,220,14,'#7aa7d9',8);
+    txt(ctx,'MLP',480,220,9,'#0a0a0f','center','700');
+
+    const s3=ease(seg(t,0.65,1));
+    if(s3>0){
+      line(ctx,150,220,CX,320,`rgba(224,183,116,${0.4*s3})`,1.6);
+      line(ctx,480,220,CX,320,`rgba(122,167,217,${0.4*s3})`,1.6);
+      circle(ctx,CX,320,17*s3,'#84c9a2',10);
+      txt(ctx,'+',CX,320,14,'#0a0a0f','center','700');
+      if(s3>0.6)txt(ctx,'sigmoid(y_FM + y_Deep)',CX,355,11.5,'#84c9a2','center','600');
+    }
+  }
+},
+/* 9.5 --------------------------------------------------------- RETRIEVAL & RANKING */
+{
+  tag:'Production Architecture',
+  title:'Two stages: retrieve, then rank',
+  duration:6500,
+  points:[
+    'A deep ranking model is too slow to score millions of items for every single request — so production systems split the job in two.',
+    '<b>Retrieval:</b> a cheap, index-able similarity search (e.g. approximate nearest neighbors over embeddings) shortlists a few hundred plausible candidates from the whole catalog.',
+    '<b>Ranking:</b> a slower, richer model — the neural networks from the last few slides — carefully re-scores just that shortlist.'
+  ],
+  formula:'retrieval: top&minus;N by q&middot;e<sub>i</sub> &nbsp;(fast, approximate) &nbsp;&nbsp;&#8594;&nbsp;&nbsp; ranking: score(u,i) = f<sub>&theta;</sub>(u,i) &nbsp;(slow, precise)',
+  why:`Scoring every one of a few million items with a full deep model, for every request, would be far too slow to serve in real time. Retrieval instead uses a simple, index-able similarity — a dot product against an approximate-nearest-neighbor index — which can shortlist hundreds of candidates in milliseconds, even across a huge catalog. Only that short list is worth spending an expensive, context-rich ranking model on. You trade a small chance of missing a great candidate at the retrieval stage for a massive gain in latency and cost.
+  <div class="use"><b>Used in</b> essentially every large-scale recommender: YouTube\'s two-tower retrieval + deep ranking, Instagram Explore, and most e-commerce search & recommendations.</div>`,
+  draw(ctx,t,el){
+    bg(ctx,W,H,el);
+    const cols=10, rows=6, mx=60,my=50,gx=48,gy=48;
+    const s1=ease(seg(t,0,0.3));
+    for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
+      const a=ease(seg(s1*60, r*cols+c, r*cols+c+1));
+      if(a<=0)continue;
+      circle(ctx,mx+c*gx,my+r*gy,2.5*a,'#3a3a4a',0);
+    }
+    if(s1>0.6)txt(ctx,'the whole catalog',mx+cols*gx/2,my-24,10.5,'#6f6c80','center','500');
+
+    // funnel lines
+    const s2=ease(seg(t,0.3,0.65));
+    const funnelTopY=my+rows*gy+10, funnelBotY=funnelTopY+70;
+    const cxF=mx+cols*gx/2;
+    if(s2>0){
+      line(ctx,mx,funnelTopY,cxF-30,funnelBotY,`rgba(224,183,116,${0.5*s2})`,1.6);
+      line(ctx,mx+cols*gx,funnelTopY,cxF+30,funnelBotY,`rgba(224,183,116,${0.5*s2})`,1.6);
+      const cands=8;
+      for(let i=0;i<cands;i++){
+        const a=ease(seg(s2*cands,i,i+1));
+        if(a<=0)continue;
+        circle(ctx,cxF-28+i*8,funnelBotY+10,4*a,'#e0b774',7);
+      }
+      if(s2>0.7)txt(ctx,'retrieval → few hundred candidates',cxF,funnelBotY+34,11,'#e0b774','center','600');
+    }
+
+    const s3=ease(seg(t,0.6,1));
+    if(s3>0){
+      const rankY=funnelBotY+70;
+      roundRect(ctx,cxF-140,rankY,280,50,10,'rgba(122,167,217,0.1)','#7aa7d9');
+      txt(ctx,'ranking model rescoring the shortlist',cxF,rankY+25,11.5,'#7aa7d9','center','600');
+      if(s3>0.6){
+        line(ctx,cxF,funnelBotY+16,cxF,rankY,'rgba(122,167,217,0.4)',1.4);
+        txt(ctx,'final top-K shown to the user',cxF,rankY+72,11,'#84c9a2','center','500');
+      }
+    }
+  }
+},
+/* 9.6 --------------------------------------------------------- EVAL METRICS */
+{
+  tag:'Evaluation',
+  title:'Was the list actually good?',
+  duration:6500,
+  points:[
+    'A low prediction error on individual star ratings doesn\'t guarantee a good <i>ranked list</i> — and a ranked list is what the user actually scrolls through.',
+    '<b>Precision@K / Recall@K</b> count hits in the top K, but treat every position the same — a hit at #1 scores identically to a hit at #10.',
+    '<b>NDCG</b> fixes that by discounting hits that appear lower in the list, rewarding models that put the best items first.'
+  ],
+  formula:'Precision@K = |relevant &cap; top-K| / K &nbsp;&nbsp;&nbsp; NDCG@K = DCG@K / IDCG@K, &nbsp;DCG@K = &Sigma; rel<sub>i</sub> / log<sub>2</sub>(i+1)',
+  why:`Precision@K simply counts how many of your top K picks were actually relevant — easy to read, but blind to <i>order</i>: 3 hits crammed at positions 8-10 score the same as 3 hits at positions 1-3, even though the second list serves users far better. NDCG\'s discount term 1/log<sub>2</sub>(i+1) shrinks quickly with rank i, so a hit near the top contributes much more to the score than one buried lower — matching the reality that most users rarely scroll past the first few results. Dividing by the ideal ordering\'s score (IDCG) normalizes it to a clean 0-1 range.
+  <div class="use"><b>Used in</b> nearly every recommender-systems paper and offline A/B evaluation dashboard, typically reported as Precision@10 or NDCG@10.</div>`,
+  draw(ctx,t,el){
+    bg(ctx,W,H,el);
+    const items=[{rel:1},{rel:0},{rel:1},{rel:1},{rel:0}];
+    const mx=90, my=110, rowH=54;
+    const s1=seg(t,0,0.5);
+    items.forEach((it,i)=>{
+      const a=ease(seg(s1*items.length,i,i+1));
+      if(a<=0)return;
+      const y=my+i*rowH;
+      roundRect(ctx,mx-2,y-16,360*a,32,7, it.rel?'rgba(79,209,197,0.12)':'rgba(224,138,138,0.08)', it.rel?'#4fd1c5':'#e08a8a');
+      if(a>0.6){
+        txt(ctx,'#'+(i+1),mx+16,y,11,'#8d8a9c','center','600');
+        txt(ctx,it.rel?'relevant':'not relevant',mx+90,y,11.5,it.rel?'#4fd1c5':'#e08a8a','left','500');
+      }
+    });
+    const s2=ease(seg(t,0.5,0.75));
+    if(s2>0){
+      txt(ctx,'Precision@5 = 3/5 = 0.6',480,my+18,12,'#e0b774','center','600');
+    }
+    const s3=ease(seg(t,0.75,1));
+    if(s3>0){
+      txt(ctx,'NDCG rewards hits near #1',480,my+70,11.5,'#84c9a2','center','600');
+      txt(ctx,'more than hits near #5',480,my+90,11.5,'#84c9a2','center','600');
+    }
+  }
+},
+/* 9.7 --------------------------------------------------------- DIVERSITY */
+{
+  tag:'Deeper Theory',
+  title:'Accurate isn\'t the same as good',
+  duration:6500,
+  points:[
+    'A model that always recommends the single most predictable item (the sequel to what you just watched) can score great on Precision/NDCG while making the product boring.',
+    '<b>Diversity</b> asks: are the top-K items different from each other? <b>Serendipity</b> asks: did we surprise the user with something relevant they wouldn\'t have found alone?',
+    'Real systems deliberately trade a little pure accuracy for variety — otherwise engagement quietly narrows into a <b>filter bubble</b>.'
+  ],
+  formula:'diversity@K = 1 &minus; (2/(K(K&minus;1))) &Sigma;<sub>i&lt;j</sub> sim(i,j) &nbsp;&nbsp;(average pairwise dissimilarity)',
+  why:`Averaging the similarity of every pair of items in the top-K, then flipping it (1&minus;...), gives a single number that\'s high when the list is varied and low when every item basically looks the same. Optimizing purely for accuracy metrics (Precision@K, NDCG) has no term that penalizes redundancy — five near-identical "safe" picks can score perfectly, even though a user would find them repetitive. Production systems often re-rank the accuracy-model\'s output with a diversity or novelty bonus, explicitly trading a small accuracy cost for a noticeably better experience.
+  <div class="use"><b>Used in</b> Spotify\'s Discover Weekly (deliberately mixes familiar and novel picks), Netflix\'s row diversification, and any platform balancing short-term clicks against long-term satisfaction.</div>`,
+  draw(ctx,t,el){
+    bg(ctx,W,H,el);
+    const s1=ease(seg(t,0,0.4));
+    // "safe" narrow list — all clustered/similar
+    const narrow=[[130,120],[150,140],[120,160],[145,110],[135,150]];
+    txt(ctx,'accuracy-only: narrow',130,80,11,'#e08a8a','center','600');
+    narrow.forEach((p,i)=>{
+      const a=ease(seg(s1*5,i,i+1));
+      if(a>0)circle(ctx,p[0],p[1],7*a,'#e08a8a',7);
+    });
+    const s2=ease(seg(t,0.35,0.75));
+    // diverse list — spread out
+    const diverse=[[430,90],[500,150],[420,220],[490,260],[460,120]];
+    txt(ctx,'accuracy + diversity: varied',460,60,11,'#84c9a2','center','600');
+    diverse.forEach((p,i)=>{
+      const a=ease(seg(s2*5,i,i+1));
+      if(a>0)circle(ctx,p[0],p[1],7*a,'#84c9a2',7);
+    });
+    const s3=ease(seg(t,0.7,1));
+    if(s3>0){
+      // filter bubble illustration: narrowing ring around user
+      ring(ctx,130,300,40*s3,'rgba(224,138,138,0.4)',1.6);
+      txt(ctx,'repeated exposure narrows further',130,360,10,'#e08a8a','center','500');
+    }
+    if(t>0.85)txt(ctx,'a little variety now avoids a narrower world later',CX,H-24,11.5,'#6f6c80','center','400');
+  }
+},
+/* 10 --------------------------------------------------------- SUMMARY */
+{
+  tag:'Recap',
+  title:'Choosing a method',
+  duration:5000,
+  summary:true,
+  points:[],
+  draw(ctx,t,el){
+    bg(ctx,W,H,el);
+    const methods=['Content-Based','Collaborative','Matrix Fact.','SVD++','ALS','NCF','Wide & Deep','DeepFM'];
+    const cols=['#e08a8a','#84c9a2','#4fd1c5','#e0b774','#e0b774','#a78bfa','#7aa7d9','#a78bfa'];
+    const mx=50, y=CY, gap=(W-100)/(methods.length-1);
+    line(ctx,mx,y,W-50,y,'#23232f',1.5);
+    methods.forEach((m,i)=>{
+      const a=ease(seg(t,i*0.09,i*0.09+0.4));
+      const x=mx+i*gap;
+      circle(ctx,x,y,7*a,cols[i],7);
+      ctx.save();ctx.translate(x,y-24);ctx.rotate(-0.5);
+      txt(ctx,m,0,0,10.5,'rgba(233,231,242,'+a+')','center','500');
+      ctx.restore();
+    });
+    if(t>0.9)txt(ctx,'simple & explainable  →  data-hungry & flexible',CX,y+50,11.5,'#6f6c80','center','400');
+  }
+},
+];
+
+/* summary table content appended separately */
+const SUMMARY_TABLE=`
+<div class="compare-wrap">
+<table class="compare">
+<tr><th>Method</th><th>Needs</th><th>Cold start</th><th>Strength</th></tr>
+<tr style="animation-delay:.05s"><td>Content-Based</td><td>item features</td><td>OK for new items</td><td>Explainable, no rating history needed</td></tr>
+<tr style="animation-delay:.1s"><td>Collaborative</td><td>rating matrix</td><td>Struggles, new users/items</td><td>No feature engineering, "wisdom of crowds"</td></tr>
+<tr style="animation-delay:.15s"><td>Matrix Factorization</td><td>rating matrix</td><td>Struggles</td><td>Compact latent taste space, fast at scale</td></tr>
+<tr style="animation-delay:.2s"><td>SVD++</td><td>ratings + implicit signals</td><td>Better (uses clicks)</td><td>Squeezes more signal out of the same users</td></tr>
+<tr style="animation-delay:.25s"><td>ALS</td><td>rating / implicit matrix</td><td>Struggles</td><td>Parallelizable, closed-form, huge scale</td></tr>
+<tr style="animation-delay:.3s"><td>Neural CF</td><td>lots of interaction data</td><td>Struggles</td><td>Learns non-linear taste interactions</td></tr>
+<tr style="animation-delay:.35s"><td>Wide & Deep</td><td>features + interactions</td><td>OK, deep side helps</td><td>Balances memorization and generalization</td></tr>
+<tr style="animation-delay:.4s"><td>DeepFM</td><td>categorical features</td><td>OK, deep side helps</td><td>Automatic pairwise interactions, less hand tuning</td></tr>
+</table>
+</div>`;
+
+/* ============== ENGINE ============== */
+const stage=document.getElementById('stage');
+const dotsEl=document.getElementById('dots');
+const counterEl=document.getElementById('counter');
+let current=0;
+let rafId=null;
+
+SLIDES.forEach((s,i)=>{
+  const el=document.createElement('div');
+  el.className='slide'+(i===0?' active':'')+(s.summary?' summary':'');
+  const rightBody = s.summary? SUMMARY_TABLE : `
+      <div class="tag">${s.tag}</div>
+      <h2>${s.title}</h2>
+      <ul class="concept">${s.points.map(p=>`<li>${p}</li>`).join('')}</ul>
+      ${s.formula?`<div class="formula-box"><div class="flabel">the equation</div><div class="formula">${s.formula}</div></div>`:''}
+      ${s.why?`<details class="why"><summary>Why this equation? <span></span></summary><div class="why-content">${s.why}</div></details>`:''}
+  `;
+  el.innerHTML = s.summary? `
+      <div class="right animate-in">
+        <div class="tag">${s.tag}</div>
+        <h2>${s.title}</h2>
+        ${SUMMARY_TABLE}
+      </div>` : `
+      <div class="left"><canvas id="cv${i}" width="${W}" height="${H}"></canvas></div>
+      <div class="right animate-in">${rightBody}</div>`;
+  stage.appendChild(el);
+
+  const dot=document.createElement('div');
+  dot.className='dot'+(i===0?' active':'');
+  dot.addEventListener('click',()=>goTo(i));
+  dotsEl.appendChild(dot);
+});
+
+function play(idx){
+  cancelAnimationFrame(rafId);
+  const s=SLIDES[idx];
+  if(s.summary)return;
+  const canvas=document.getElementById('cv'+idx);
+  if(!canvas)return;
+  const ctx=canvas.getContext('2d');
+  const start=performance.now();
+  function loop(now){
+    const elapsed=now-start;
+    const t=Math.min(elapsed/s.duration,1);
+    s.draw(ctx,t,elapsed);
+    rafId=requestAnimationFrame(loop);
+  }
+  rafId=requestAnimationFrame(loop);
+}
+
+function goTo(idx){
+  if(idx<0||idx>=SLIDES.length)return;
+  document.querySelectorAll('.slide')[current].classList.remove('active');
+  document.querySelectorAll('.dot')[current].classList.remove('active');
+  current=idx;
+  document.querySelectorAll('.slide')[current].classList.add('active');
+  document.querySelectorAll('.dot')[current].classList.add('active');
+  counterEl.textContent=String(current+1).padStart(2,'0')+' / '+SLIDES.length;
+  document.getElementById('prevBtn').disabled = current===0;
+  document.getElementById('nextBtn').disabled = current===SLIDES.length-1;
+  play(current);
+}
+
+document.getElementById('prevBtn').addEventListener('click',()=>goTo(current-1));
+document.getElementById('nextBtn').addEventListener('click',()=>goTo(current+1));
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowRight')goTo(current+1);
+  if(e.key==='ArrowLeft')goTo(current-1);
+});
+
+goTo(0);
+</script>
+</body>
+</html>

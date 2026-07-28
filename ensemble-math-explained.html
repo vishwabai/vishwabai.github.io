@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Math Behind Ensemble Learning — From Scratch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script>
+  window.MathJax = {
+    tex: {
+      inlineMath: [['$','$'],['\\(','\\)']],
+      displayMath: [['$$','$$'],['\\[','\\]']],
+      macros: { RR: "\\mathbb{R}" }
+    },
+    chtml: { scale: 1.05 },
+    options: { skipHtmlTags: ['script','noscript','style','textarea','pre','code'] }
+  };
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-chtml.js" id="mjx" async></script>
+<style>
+  :root{
+    --bg:#0b0d10; --bg2:#0a0c0e; --panel:#111418; --line:#262a30; --line-soft:#1a1d22;
+    --blue:#5b8fd6; --green:#6fae8c; --amber:#d6935b; --gold:#e0b45a; --teal:#4bb3a6;
+    --rose:#c2687a; --violet:#8a7fc9; --dim:#888e97; --text:#e9e7e2; --accent:#5b8fd6;
+    --sans:'IBM Plex Sans',sans-serif; --mono:'IBM Plex Mono',monospace; --serif:'Fraunces',serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:var(--sans);overflow:hidden;}
+  #app{display:flex;flex-direction:column;height:100vh;}
+  header{display:flex;justify-content:space-between;align-items:center;padding:18px 36px 10px;flex-shrink:0;}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:2px;color:var(--dim);text-transform:uppercase;white-space:nowrap;}
+  .eyebrow b{color:var(--accent);font-weight:600;transition:color .4s;}
+  #progressTrack{height:2px;background:var(--line-soft);margin:0 36px;border-radius:2px;overflow:hidden;flex-shrink:0;}
+  #progressFill{height:100%;background:var(--accent);width:0%;transition:width .5s ease, background .4s;}
+  main{flex:1;display:flex;align-items:stretch;justify-content:center;padding:14px 40px 0;position:relative;min-height:0;}
+  #slideHost{width:100%;max-width:1180px;display:flex;flex-direction:column;min-height:0;}
+  .slide{display:flex;flex-direction:column;width:100%;height:100%;min-height:0;}
+  .slide h2{font-family:var(--serif);font-weight:600;font-size:clamp(20px,2.6vw,30px);margin:0 0 2px;letter-spacing:.2px;}
+  .slide .subtitle{font-family:var(--mono);font-size:12px;color:var(--dim);margin-bottom:10px;line-height:1.5;}
+  .stagewrap{flex:1;display:flex;gap:22px;min-height:0;}
+  .derivation{flex:1.5;min-height:0;overflow-y:auto;padding:6px 22px 6px 2px;}
+  .diagram{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 0%, #0e1115, #08090b 75%);border:1px solid var(--line);border-radius:8px;overflow:hidden;}
+  .diagram svg{width:100%;height:100%;display:block;}
+  .diagram svg *{transform-box:fill-box;transform-origin:center;}
+  .derivation.full{flex:1;padding-right:10%;}
+  .step{opacity:0;transform:translateY(10px);padding:12px 18px;margin-bottom:10px;border-left:3px solid var(--line);border-radius:0 6px 6px 0;background:rgba(255,255,255,0.015);transition:opacity .5s ease, transform .5s ease, border-color .4s ease, background .4s ease;}
+  .step.show{opacity:1;transform:translateY(0);}
+  .step.dim{opacity:.4;border-left-color:var(--line-soft);}
+  .step.active{border-left-color:var(--accent);background:rgba(255,255,255,0.03);}
+  .step .steplabel{font-family:var(--mono);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--accent);margin-bottom:6px;}
+  .step .stepexpl{font-size:13px;color:#c4c9d0;line-height:1.6;margin-top:6px;}
+  .step mjx-container{color:var(--text) !important;}
+  .caption{font-family:var(--sans);font-size:13px;color:#9aa0a8;margin-top:8px;text-align:center;font-style:italic;flex-shrink:0;line-height:1.5;}
+  footer{display:flex;align-items:center;justify-content:space-between;padding:12px 36px 20px;flex-shrink:0;}
+  button{font-family:var(--mono);background:none;border:1px solid var(--line);color:var(--text);padding:9px 15px;border-radius:5px;cursor:pointer;font-size:11.5px;letter-spacing:1px;text-transform:uppercase;transition:border-color .2s,color .2s,background .2s;}
+  button:hover{border-color:var(--blue);color:var(--blue);}
+  button:disabled{opacity:.25;cursor:default;}
+  button:disabled:hover{border-color:var(--line);color:var(--text);}
+  #notesBtn{border-color:var(--gold);color:var(--gold);}
+  #notesBtn:hover{background:var(--gold);color:#0b0d10;}
+  .navgrp{display:flex;gap:10px;}
+  .hint{font-family:var(--mono);font-size:10.5px;color:#565b62;display:flex;align-items:center;gap:4px;}
+  kbd{font-family:var(--mono);background:#1a1e24;border:1px solid #262b32;padding:1px 6px;border-radius:3px;font-size:10.5px;color:#aab0b8;}
+  #backdrop{position:fixed;inset:0;background:rgba(5,6,8,.6);opacity:0;pointer-events:none;transition:opacity .35s;z-index:19;}
+  #backdrop.open{opacity:1;pointer-events:auto;}
+  #drawer{position:fixed;top:0;right:-500px;width:480px;max-width:92vw;height:100%;background:#0d0f12;border-left:1px solid var(--line);transition:right .45s cubic-bezier(.4,0,.2,1);z-index:20;overflow-y:auto;padding:34px 30px 70px;}
+  #drawer.open{right:0;}
+  .drawer-eyebrow{font-family:var(--mono);font-size:10.5px;color:var(--dim);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;}
+  .drawer-title{font-family:var(--serif);font-size:22px;font-weight:600;margin-bottom:20px;line-height:1.3;color:#f2f0eb;}
+  .drawer h4{font-family:var(--mono);font-size:10.5px;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold);margin:22px 0 10px;padding-bottom:7px;border-bottom:1px solid var(--line-soft);}
+  .drawer h4:first-of-type{margin-top:0;}
+  .drawer p{font-size:13.5px;line-height:1.75;color:#c4c9d0;margin:0 0 11px;}
+  .drawer mjx-container{color:#e4e7eb !important;}
+  .closeDrawer{position:absolute;top:24px;right:24px;padding:6px 10px;}
+  ::-webkit-scrollbar{width:8px}::-webkit-scrollbar-thumb{background:#1e2227;border-radius:4px}
+  .glossary{font-family:var(--mono);font-size:12px;color:#aab0b8;background:#0a0d10;border:1px solid var(--line-soft);border-radius:6px;padding:10px 14px;margin-top:8px;}
+  .glossary div{padding:2px 0;}
+  .glossary b{color:var(--text);}
+  @media(max-width:900px){
+    .stagewrap{flex-direction:column;} .diagram{max-height:34vh;}
+    .slide h2{font-size:19px} #drawer{width:100%} header{padding:12px 18px 8px} #progressTrack{margin:0 18px}
+    footer{padding:10px 18px 16px} .hint{display:none}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="eyebrow">The Math Behind Ensembles <span style="opacity:.5">/</span> <b id="sectionCode">M-00</b></div>
+    <div class="eyebrow" id="counter">01 / 20</div>
+  </header>
+  <div id="progressTrack"><div id="progressFill"></div></div>
+  <main><div id="slideHost"></div></main>
+  <footer>
+    <div class="navgrp">
+      <button id="prevBtn">&larr; Prev</button>
+      <button id="nextBtn">Next &rarr;</button>
+    </div>
+    <div class="hint"><kbd>&larr;</kbd><kbd>&rarr;</kbd> to navigate &nbsp;·&nbsp; <kbd>N</kbd> for notes</div>
+    <button id="notesBtn">&#9998; Notes &amp; Examples</button>
+  </footer>
+</div>
+<div id="backdrop"></div>
+<div id="drawer">
+  <button class="closeDrawer" id="closeDrawerBtn">&#10005; Close</button>
+  <div class="drawer-eyebrow">Extra worked examples &middot; context &middot; history</div>
+  <div class="drawer-title" id="drawerTitle">—</div>
+  <div id="drawerBody"></div>
+</div>
+<script>
+/* ================= PALETTE ================= */
+const C = {
+  bg:'#0b0d10', blue:'#5b8fd6', green:'#6fae8c', amber:'#d6935b', gold:'#e0b45a',
+  teal:'#4bb3a6', rose:'#c2687a', violet:'#8a7fc9', dim:'#5b6068', dim2:'#3a3f46', text:'#e9e7e2'
+};
+
+/* ================= SVG PRIMITIVES (for supporting diagrams) ================= */
+const NS = "http://www.w3.org/2000/svg";
+function E(tag, attrs={}, kids=[]){
+  const el = document.createElementNS(NS, tag);
+  for(const k in attrs){ if(attrs[k]!==undefined && attrs[k]!==null) el.setAttribute(k, attrs[k]); }
+  (Array.isArray(kids)?kids:[kids]).forEach(c=>{ if(c) el.appendChild(c); });
+  return el;
+}
+function circle(cx,cy,r,fill,extra={}){ return E('circle', Object.assign({cx,cy,r,fill}, extra)); }
+function rect(x,y,w,h,fill,extra={}){ return E('rect', Object.assign({x,y,width:w,height:h,fill}, extra)); }
+function line(x1,y1,x2,y2,stroke,extra={}){ return E('line', Object.assign({x1,y1,x2,y2,stroke,'stroke-width':2,'stroke-linecap':'round'}, extra)); }
+function path(d,extra={}){ return E('path', Object.assign({d, fill:'none', stroke:C.text, 'stroke-width':2}, extra)); }
+function grp(extra={}){ return E('g', extra); }
+function txt(x,y,s,extra={}){
+  const t = E('text', Object.assign({x,y,fill:C.text,'font-family':'IBM Plex Mono, monospace','font-size':13,'text-anchor':'middle'}, extra));
+  t.textContent = s; return t;
+}
+function labelText(x,y,s,extra={}){
+  const t = E('text', Object.assign({x,y,fill:C.text,'font-family':'IBM Plex Sans, sans-serif','font-size':13,'text-anchor':'middle'}, extra));
+  t.textContent = s; return t;
+}
+function fadeIn(el, begin=0, dur=0.6, to=1){
+  el.setAttribute('opacity','0');
+  el.appendChild(E('animate',{attributeName:'opacity', from:0, to, begin:begin+'s', dur:dur+'s', fill:'freeze'}));
+  return el;
+}
+function move(el, attrName, fromV, toV, begin=0, dur=0.8){
+  el.setAttribute(attrName, fromV);
+  el.appendChild(E('animate',{attributeName:attrName, values:`${fromV};${toV}`, keyTimes:'0;1',
+    keySplines:'.42 0 .58 1', calcMode:'spline', begin:begin+'s', dur:dur+'s', fill:'freeze'}));
+  return el;
+}
+function popIn(el, begin=0, dur=0.55){
+  el.setAttribute('opacity','0');
+  el.appendChild(E('animate',{attributeName:'opacity', from:0, to:1, begin:begin+'s', dur:(dur*0.5)+'s', fill:'freeze'}));
+  el.appendChild(E('animateTransform',{attributeName:'transform', type:'scale',
+    values:'0;1.15;1', keyTimes:'0;.65;1', begin:begin+'s', dur:dur+'s', fill:'freeze', additive:'sum'}));
+  return el;
+}
+function drawPath(el, begin=0, dur=0.7){
+  el.setAttribute('pathLength','1');
+  el.setAttribute('stroke-dasharray','1');
+  el.setAttribute('stroke-dashoffset','1');
+  el.appendChild(E('animate',{attributeName:'stroke-dashoffset', from:1, to:0, begin:begin+'s', dur:dur+'s', fill:'freeze'}));
+  return el;
+}
+function pulse(el, begin=0, dur=1.4){
+  el.appendChild(E('animateTransform',{attributeName:'transform', type:'scale', values:'1;1.12;1',
+    keyTimes:'0;.5;1', begin:begin+'s', dur:dur+'s', repeatCount:'indefinite', additive:'sum'}));
+  return el;
+}
+function buildDiagramSVG(){
+  const svg = document.createElementNS(NS,'svg');
+  svg.setAttribute('viewBox','0 0 480 440');
+  svg.setAttribute('preserveAspectRatio','xMidYMid meet');
+  const defs = E('defs');
+  ['blue','green','amber','gold','teal','rose','violet','dim','text'].forEach(k=>{
+    const m = E('marker',{id:'arrow-'+k, viewBox:'0 0 10 10', refX:8, refY:5, markerWidth:6, markerHeight:6, orient:'auto-start-reverse'});
+    m.appendChild(E('path',{d:'M0,0 L10,5 L0,10 z', fill:C[k]||C.text}));
+    defs.appendChild(m);
+  });
+  svg.appendChild(defs);
+  return svg;
+}
+
+/* ================= SLIDE ENGINE ================= */
+let SLIDES = [];
+let idx = 0;
+const STAGGER = 0.9; // seconds between each derivation step revealing
+
+function showSlide(i){
+  idx = Math.max(0, Math.min(SLIDES.length-1, i));
+  const s = SLIDES[idx];
+  document.getElementById('sectionCode').textContent = s.code;
+  document.getElementById('counter').textContent = String(idx+1).padStart(2,'0') + ' / ' + String(SLIDES.length).padStart(2,'0');
+  document.getElementById('progressFill').style.width = (idx/(SLIDES.length-1)*100) + '%';
+  document.documentElement.style.setProperty('--accent', s.accent || C.blue);
+
+  const host = document.getElementById('slideHost');
+  const doRender = ()=>{
+    host.innerHTML = '';
+    const wrap = document.createElement('div'); wrap.className = 'slide';
+    wrap.style.opacity='0'; wrap.style.transform='translateY(8px)'; wrap.style.transition='opacity .35s ease, transform .35s ease';
+    const h2 = document.createElement('h2'); h2.textContent = s.title; wrap.appendChild(h2);
+    const sub = document.createElement('div'); sub.className = 'subtitle'; sub.textContent = s.subtitle; wrap.appendChild(sub);
+
+    const stageWrap = document.createElement('div'); stageWrap.className='stagewrap';
+    const deriv = document.createElement('div'); deriv.className = s.diagramBuild ? 'derivation' : 'derivation full';
+    stageWrap.appendChild(deriv);
+
+    const stepEls = [];
+    (s.steps||[]).forEach((st, i2)=>{
+      const d = document.createElement('div'); d.className='step';
+      if(st.label){ const lb=document.createElement('div'); lb.className='steplabel'; lb.textContent=st.label; d.appendChild(lb); }
+      const eq = document.createElement('div'); eq.innerHTML = st.eq || '';
+      d.appendChild(eq);
+      if(st.expl){ const ex=document.createElement('div'); ex.className='stepexpl'; ex.innerHTML=st.expl; d.appendChild(ex); }
+      if(st.glossary){
+        const g=document.createElement('div'); g.className='glossary';
+        g.innerHTML = st.glossary.map(([sym,def])=>`<div><b>${sym}</b> — ${def}</div>`).join('');
+        d.appendChild(g);
+      }
+      deriv.appendChild(d);
+      stepEls.push(d);
+    });
+
+    let svg = null;
+    if(s.diagramBuild){
+      const dg = document.createElement('div'); dg.className='diagram';
+      svg = buildDiagramSVG();
+      dg.appendChild(svg);
+      stageWrap.appendChild(dg);
+    }
+    wrap.appendChild(stageWrap);
+    const cap = document.createElement('div'); cap.className='caption'; cap.textContent = s.caption || ''; wrap.appendChild(cap);
+    host.appendChild(wrap);
+
+    // reveal steps in sequence, dimming previous ones as focus moves forward
+    stepEls.forEach((d, i2)=>{
+      setTimeout(()=>{
+        stepEls.forEach(o=>o.classList.remove('active'));
+        d.classList.add('show','active');
+        if(i2>0) stepEls[i2-1].classList.remove('active');
+        if(i2>1) stepEls[i2-2].classList.add('dim');
+      }, i2*STAGGER*1000);
+    });
+
+    try{ if(s.diagramBuild && svg) s.diagramBuild(svg); }catch(err){ console.error('Diagram build error on', s.code, err); }
+
+    if(window.MathJax && MathJax.typesetPromise){ MathJax.typesetPromise([deriv]).catch(()=>{}); }
+
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{ wrap.style.opacity='1'; wrap.style.transform='translateY(0)'; }));
+  };
+  if(host.firstChild){
+    host.firstChild.style.transition='opacity .18s ease, transform .18s ease';
+    host.firstChild.style.opacity='0';
+    host.firstChild.style.transform='translateY(-8px)';
+    setTimeout(doRender, 140);
+  } else { doRender(); }
+
+  document.getElementById('drawerTitle').textContent = s.notes ? s.notes.title : '';
+  document.getElementById('drawerBody').innerHTML = s.notes ? s.notes.html : '';
+  if(window.MathJax && MathJax.typesetPromise){
+    MathJax.typesetPromise([document.getElementById('drawerBody')]).catch(()=>{});
+  }
+  closeDrawer();
+  document.getElementById('prevBtn').disabled = idx===0;
+  document.getElementById('nextBtn').disabled = idx===SLIDES.length-1;
+  try{ history.replaceState(null,'','#s'+(idx+1)); }catch(e){}
+}
+
+function openDrawer(){ document.getElementById('drawer').classList.add('open'); document.getElementById('backdrop').classList.add('open'); }
+function closeDrawer(){ document.getElementById('drawer').classList.remove('open'); document.getElementById('backdrop').classList.remove('open'); }
+function toggleDrawer(){ document.getElementById('drawer').classList.contains('open') ? closeDrawer() : openDrawer(); }
+
+document.getElementById('prevBtn').addEventListener('click', ()=>showSlide(idx-1));
+document.getElementById('nextBtn').addEventListener('click', ()=>showSlide(idx+1));
+document.getElementById('notesBtn').addEventListener('click', toggleDrawer);
+document.getElementById('closeDrawerBtn').addEventListener('click', closeDrawer);
+document.getElementById('backdrop').addEventListener('click', closeDrawer);
+document.addEventListener('keydown', (e)=>{
+  const drawerOpen = document.getElementById('drawer').classList.contains('open');
+  if(e.key==='Escape'){ closeDrawer(); return; }
+  if(e.key==='n' || e.key==='N'){ toggleDrawer(); return; }
+  if(drawerOpen) return;
+  if(e.key==='ArrowRight' || e.key===' '){ showSlide(idx+1); e.preventDefault(); }
+  if(e.key==='ArrowLeft'){ showSlide(idx-1); }
+});
+
+/* ================= SLIDES DATA ================= */
+/*SLIDES_ARRAY_START*/
+SLIDES = [
+{
+  code:'M-00', accent:C.blue,
+  title:'Reading the &Sigma; Symbol',
+  subtitle:'before any ensemble math makes sense, we need one piece of shared notation',
+  caption:'Every formula in this deck that looks scary almost always reduces to "add up a list of things."',
+  steps:[
+    { label:'What &Sigma; means', eq:String.raw`$$\sum_{i=1}^{n} x_i \;=\; x_1 + x_2 + \cdots + x_n$$`,
+      expl:'&Sigma; (capital sigma) just means <b>"add up a list."</b> The small label under it says where to start counting <code>(i=1)</code>, the number on top says where to stop <code>(n)</code>. The <code>x<sub>i</sub></code> is the pattern for what gets added at each step.' },
+    { label:'A concrete, tiny example', eq:String.raw`$$\sum_{i=1}^{4} i^2 = 1^2+2^2+3^2+4^2 = 1+4+9+16=30$$`,
+      expl:'Plug each value of <i>i</i> from 1 to 4 into the pattern <code>i&sup2;</code>, then add the results. That\u2019s all &Sigma; ever does &mdash; no matter how complicated the subscript looks.' },
+    { label:'Why this notation is everywhere in this deck', eq:String.raw`$$\hat f_{\text{ensemble}}(x) = \frac{1}{B}\sum_{b=1}^{B} \hat f_b(x)$$`,
+      expl:'This just says: <b>run all B models, add up their predictions, divide by how many there are.</b> That\u2019s "take the average," written in math. It is the single most common move in the entire topic of ensemble learning.',
+      glossary:[['B','number of models in the ensemble'], ['f&#770;<sub>b</sub>(x)','the prediction of model b on input x']] },
+  ],
+  diagramBuild(svg){
+    const xs=[70,140,210,280,350], vals=[3,7,2,5,4];
+    svg.appendChild(fadeIn(labelText(210,30,'summing a list of numbers',{'font-size':12,fill:C.dim,'font-family':'IBM Plex Mono'}),0,0.5));
+    xs.forEach((x,i)=>{
+      const g=grp({transform:`translate(${x},130)`});
+      g.appendChild(circle(0,0,22,'#12161b',{stroke:C.blue,'stroke-width':1.8}));
+      const t=E('text',{x:0,y:6,'text-anchor':'middle','font-size':16,fill:C.blue,'font-family':'IBM Plex Mono'}); t.textContent=vals[i]; g.appendChild(t);
+      svg.appendChild(popIn(g,0.3+i*0.5,0.4));
+    });
+    const boxY=340;
+    svg.appendChild(fadeIn(rect(120,boxY-24,180,48,'#12161b',{stroke:C.gold,'stroke-width':2,rx:8}),2.2,0.4));
+    const totalTxt=E('text',{x:210,y:boxY+7,'text-anchor':'middle','font-size':20,fill:C.gold,'font-family':'IBM Plex Mono'});
+    svg.appendChild(totalTxt);
+    let running=0;
+    xs.forEach((x,i)=>{
+      const t0=2.6+i*0.6;
+      const ln=path(`M${x},152 Q${x},${(152+boxY-24)/2} 210,${boxY-24}`,{stroke:C.gold,'stroke-width':1.4,opacity:.6});
+      svg.appendChild(drawPath(ln,t0,0.4));
+      setTimeout(()=>{ running+=vals[i]; totalTxt.textContent = 'running total: '+running; }, (t0+0.4)*1000);
+    });
+    svg.appendChild(fadeIn(labelText(210,395,'Σ = "walk the list, keep a running total"',{'font-size':11,fill:C.dim,'font-family':'IBM Plex Mono'}),5.6,0.5));
+  },
+  notes:{ title:'More summation practice', html:`
+    <h4>Double sums</h4>
+    <p>You'll occasionally see $\\sum_i \\sum_j$ — that's just a nested loop: for every $i$, walk through every $j$ and add. It shows up when comparing every pair of trees to each other (e.g. computing average pairwise correlation).</p>
+    <h4>Sum vs. average</h4>
+    <p>A sum $\\sum_i x_i$ and an average $\\frac1n\\sum_i x_i$ differ by exactly one division. Ensemble formulas switch between "sum" and "average" forms constantly — always check whether there's a $\\frac1n$ or $\\frac1B$ out front.</p>
+    <h4>Reading subscripts</h4>
+    <p>$x_i$ means "the $i$-th item in some list." $g_i$ later in this deck means "the gradient computed for training point $i$." The subscript is just a label telling you which item in a collection you're talking about.</p>
+  `}
+},
+{
+  code:'M-01', accent:C.blue,
+  title:'Expectation &amp; Variance — Average and Spread',
+  subtitle:'E[X] is the center of mass; Var(X) is how far things wander from it',
+  caption:'Every "reduces variance" claim in this deck is a claim about this one number getting smaller.',
+  steps:[
+    { label:'Expectation = the average outcome', eq:String.raw`$$\mathbb{E}[X] = \sum_{i} p_i\, x_i$$`,
+      expl:'Weight every possible value of X by how likely it is, and add. For a plain list of samples (each equally likely), this is just the everyday average you already know.' },
+    { label:'Variance = average squared distance from that average', eq:String.raw`$$\text{Var}(X) = \mathbb{E}\big[(X-\mathbb{E}[X])^2\big]$$`,
+      expl:'Take every value, measure how far it is from the mean, <b>square that distance</b> (so negative and positive differences don\u2019t cancel out), then average those squared distances. Large variance = values are spread out; small variance = values huddle near the mean.' },
+    { label:'Two facts we will use in almost every derivation ahead', eq:String.raw`$$\text{Var}(cX) = c^2\,\text{Var}(X) \qquad\qquad \text{Var}(X+Y) \overset{?}{=} \text{Var}(X)+\text{Var}(Y)$$`,
+      expl:'<b>Left:</b> scaling a variable by a constant c scales its variance by c² (not by c — squaring the distance means scaling squares too). <b>Right:</b> this one has a catch, marked by the "?" — it\u2019s only true under one condition, which is exactly the subject of the next slide.' },
+  ],
+  diagramBuild(svg){
+    const bars=[3,7,14,22,28,22,14,7,3];
+    const bw=36, x0=60;
+    svg.appendChild(fadeIn(labelText(240,30,'a distribution of values',{'font-size':12,fill:C.dim,'font-family':'IBM Plex Mono'}),0,0.5));
+    bars.forEach((h,i)=>{
+      const x=x0+i*bw;
+      const bar=rect(x,260,bw-6,0,C.blue,{opacity:.8,rx:3});
+      svg.appendChild(bar);
+      bar.appendChild(E('animate',{attributeName:'height',from:0,to:h*4,begin:(0.3+i*0.08)+'s',dur:'0.5s',fill:'freeze'}));
+      bar.appendChild(E('animate',{attributeName:'y',from:260,to:260-h*4,begin:(0.3+i*0.08)+'s',dur:'0.5s',fill:'freeze'}));
+    });
+    const meanX=x0+4*bw+ (bw-6)/2;
+    svg.appendChild(fadeIn(line(meanX,60,meanX,265,C.gold,{'stroke-width':2,'stroke-dasharray':'5,4'}),1.5,0.5));
+    svg.appendChild(fadeIn(labelText(meanX,50,'E[X]  (mean)',{'font-size':11,fill:C.gold,'font-family':'IBM Plex Mono'}),1.8,0.4));
+    [meanX-90,meanX+90].forEach((x,i)=>{
+      const arrow=path(`M${meanX},290 L${x},290`,{stroke:C.rose,'stroke-width':1.8,'marker-end':'url(#arrow-rose)'});
+      svg.appendChild(drawPath(arrow,2.2+i*0.2,0.4));
+    });
+    svg.appendChild(fadeIn(labelText(240,320,'Var(X) ≈ how far the bars typically spread from the dashed line',{'font-size':10.5,fill:C.rose,'font-family':'IBM Plex Mono'}),2.8,0.5));
+  },
+  notes:{ title:'Where E[X] and Var(X) come from', html:`
+    <h4>Population vs. sample</h4>
+    <p>In theory, $\\mathbb{E}[X]$ averages over every possible outcome (the whole population). In practice we only have a finite sample, so we estimate it with the plain average $\\bar x = \\frac1n\\sum_i x_i$ — this is what code actually computes.</p>
+    <h4>Standard deviation</h4>
+    <p>$\\sigma = \\sqrt{\\text{Var}(X)}$ — the square root of variance, back in the original units (variance is in "squared units," which is awkward to interpret directly; standard deviation isn't).</p>
+    <h4>Why square instead of absolute value?</h4>
+    <p>You could measure spread with $\\mathbb{E}[|X-\\mathbb{E}[X]|]$ instead, and people sometimes do (mean absolute deviation). Squaring is preferred mathematically because it's differentiable everywhere (absolute value has a sharp corner at 0), which matters enormously once you start taking derivatives to optimize things — exactly what the rest of this deck does.</p>
+  `}
+},
+{
+  code:'M-02', accent:C.blue,
+  title:'Why "Independent" Is the Magic Word',
+  subtitle:'variances only add cleanly when the variables don\u2019t influence each other',
+  caption:'Every ensemble trick in this whole topic — random features, bootstrap samples, mixing algorithms — exists to make this one assumption closer to true.',
+  steps:[
+    { label:'The general rule, with no assumptions yet', eq:String.raw`$$\text{Var}(X+Y) = \text{Var}(X) + \text{Var}(Y) + 2\,\text{Cov}(X,Y)$$`,
+      expl:'This is always true, no exceptions. <code>Cov(X,Y)</code> ("covariance") measures whether X and Y tend to move together (positive), move oppositely (negative), or have no relationship at all (zero).' },
+    { label:'What happens when X and Y are independent', eq:String.raw`$$X \perp Y \quad\Longrightarrow\quad \text{Cov}(X,Y) = 0 \quad\Longrightarrow\quad \text{Var}(X+Y)=\text{Var}(X)+\text{Var}(Y)$$`,
+      expl:'Independence means "knowing X tells you nothing about Y." When that holds, the cross term <code>2Cov(X,Y)</code> simply disappears, leaving the clean addition rule from the previous slide.' },
+    { label:'What happens when they are correlated instead', eq:String.raw`$$\text{Cov}(X,Y) = \rho\,\sigma_X\sigma_Y \quad (\rho = \text{correlation}, -1\le\rho\le1)$$`,
+      expl:'If two models tend to make the <i>same</i> mistakes ($\\rho$ large and positive), that extra $2\\text{Cov}$ term stays large and positive — adding them together doesn\u2019t cancel nearly as much error. This single idea reappears, in almost exactly this form, when we derive Random Forest\u2019s "correlation floor" a few slides from now.' },
+  ],
+  diagramBuild(svg){
+    function scatter(cx,label,corr,color){
+      svg.appendChild(fadeIn(labelText(cx,30,label,{'font-size':11.5,fill:color,'font-family':'IBM Plex Mono','font-weight':600}),0,0.5));
+      const pts=[];
+      for(let i=0;i<45;i++){
+        const a=(i*47)%100/100 - 0.5, b=(i*83)%100/100 - 0.5;
+        const x = a;
+        const y = corr*a + (1-Math.abs(corr))*b;
+        pts.push([cx+x*140, 220 - y*140]);
+      }
+      pts.forEach((p,i)=> svg.appendChild(popIn(circle(p[0],p[1],3.4,color,{opacity:.75}),0.5+i*0.02,0.25)));
+    }
+    scatter(120,'CORRELATED (ρ≈0.85)',0.85,C.rose);
+    scatter(360,'INDEPENDENT (ρ≈0)',0.02,C.green);
+    svg.appendChild(fadeIn(line(240,60,240,380,C.line,{'stroke-width':1,'stroke-dasharray':'4,5'}),0,0.4));
+    svg.appendChild(fadeIn(labelText(120,400,'errors move together',{'font-size':10,fill:C.rose,'font-family':'IBM Plex Mono'}),2.5,0.4));
+    svg.appendChild(fadeIn(labelText(360,400,'errors cancel when averaged',{'font-size':10,fill:C.green,'font-family':'IBM Plex Mono'}),2.7,0.4));
+  },
+  notes:{ title:'Correlation vs. causation, and why ML cares', html:`
+    <h4>Correlation is not causation — but we don't need causation here</h4>
+    <p>We're not asking "does model A's error cause model B's error." We're only asking whether they move together statistically. That's exactly what $\\rho$ measures, and it's all the variance-addition math needs.</p>
+    <h4>Where you'll see this exact idea again</h4>
+    <p>Random Forest's per-split feature hiding, Extra Trees' random thresholds, boosting's sequential residual-fitting, and stacking's "use structurally different algorithms" advice are all, mathematically, about the same thing: keeping $\\rho$ (or $\\text{Cov}$) between model errors as small as possible.</p>
+    <h4>Perfect independence is unrealistic</h4>
+    <p>In practice $\\rho$ is never exactly 0 — all your models are trained on overlapping data, after all. The goal is always to push it <em>down</em>, not to reach some theoretical zero.</p>
+  `}
+},
+{
+  code:'M-03', accent:C.blue,
+  title:'Derivatives: Slope, and Finding the Bottom of a Bowl',
+  subtitle:'almost every "optimal formula" later in this deck comes from exactly one trick',
+  caption:'Write the function → take its derivative → set the derivative to zero → solve. Four moves, reused constantly.',
+  steps:[
+    { label:'A derivative is just a slope', eq:String.raw`$$f'(x) = \text{the slope of } f \text{ at the point } x$$`,
+      expl:'Positive slope: the function is going up as you move right. Negative slope: going down. Zero slope: momentarily flat — neither rising nor falling.' },
+    { label:'At the bottom of a bowl-shaped curve, the slope is exactly zero', eq:String.raw`$$f'(x^\*) = 0 \quad\Longrightarrow\quad x^\* \text{ is the minimum (for a "convex," bowl-shaped } f\text{)}$$`,
+      expl:'Walking down into a valley, the ground is steep, then less steep, then perfectly flat right at the bottom, then it tips back up the other side. That "perfectly flat" moment is where the slope equals zero — and it\u2019s exactly the point we want when we\u2019re trying to <i>minimize</i> something, like an error.' },
+    { label:'Worked example: minimize a simple parabola', eq:String.raw`$$f(w) = (w-3)^2 \;\;\xrightarrow{\text{differentiate}}\;\; f'(w) = 2(w-3) \;\;\xrightarrow{\text{set }=0} \;\; 2(w-3)=0 \;\;\xrightarrow{\text{solve}}\;\; w^\*=3$$`,
+      expl:'Four short moves: write the function, differentiate it, set the result to zero, solve for the variable. This exact pattern is how we\u2019ll derive AdaBoost\u2019s <code>&alpha;</code> and XGBoost\u2019s optimal leaf value later — same recipe, just fancier letters.' },
+  ],
+  diagramBuild(svg){
+    const toXY=(w)=>[240+ (w-3)*32, 340-(w-3)*(w-3)*14];
+    const ws=[]; for(let w=-1;w<=7;w+=0.25) ws.push(w);
+    const d=ws.map((w,i)=>`${i===0?'M':'L'}${toXY(w)[0]},${toXY(w)[1]}`).join(' ');
+    svg.appendChild(fadeIn(labelText(240,30,'f(w) = (w − 3)²',{'font-size':13,fill:C.blue,'font-family':'IBM Plex Mono'}),0,0.5));
+    svg.appendChild(drawPath(path(d,{stroke:C.blue,'stroke-width':2.2}),0.4,1.2));
+    const ball=grp({transform:`translate(${toXY(-1)[0]},${toXY(-1)[1]})`});
+    ball.appendChild(circle(0,0,8,C.gold));
+    svg.appendChild(ball);
+    const tangent=line(-40,0,40,0,C.rose,{'stroke-width':2});
+    ball.appendChild(tangent);
+    // animate the ball rolling down the curve to the minimum, tangent line flattening as it goes
+    const wSeq=[-1,0,1,1.8,2.4,2.8,3];
+    const xs=wSeq.map(w=>toXY(w)[0]).join(';');
+    const ys=wSeq.map(w=>toXY(w)[1]).join(';');
+    ball.setAttribute('transform',`translate(${toXY(-1)[0]},${toXY(-1)[1]})`);
+    ball.appendChild(E('animateTransform',{attributeName:'transform',type:'translate',values:wSeq.map(w=>`${toXY(w)[0]},${toXY(w)[1]}`).join(';'),keyTimes:wSeq.map((_,i)=>(i/(wSeq.length-1)).toFixed(3)).join(';'),begin:'1.8s',dur:'2.4s',fill:'freeze',calcMode:'linear'}));
+    const slopeVals=wSeq.map(w=>2*(w-3)*6);
+    tangent.setAttribute('x1',-40); tangent.setAttribute('x2',40);
+    tangent.appendChild(E('animate',{attributeName:'y1',values:slopeVals.map(s=>-s).join(';'),keyTimes:wSeq.map((_,i)=>(i/(wSeq.length-1)).toFixed(3)).join(';'),begin:'1.8s',dur:'2.4s',fill:'freeze'}));
+    tangent.appendChild(E('animate',{attributeName:'y2',values:slopeVals.map(s=>s).join(';'),keyTimes:wSeq.map((_,i)=>(i/(wSeq.length-1)).toFixed(3)).join(';'),begin:'1.8s',dur:'2.4s',fill:'freeze'}));
+    svg.appendChild(fadeIn(labelText(240,370,'ball settles where the tangent line goes flat — the minimum',{'font-size':10.5,fill:C.dim,'font-family':'IBM Plex Mono'}),4.3,0.5));
+  },
+  notes:{ title:'A little more calculus background', html:`
+    <h4>The power rule (the only rule you really need for this deck)</h4>
+    <p>$\\frac{d}{dw} w^n = n\\,w^{n-1}$. Applied to $f(w)=(w-3)^2$: let $u=w-3$, then $f=u^2$, so $f'=2u\\cdot u' = 2(w-3)\\cdot1$. This "outer function times derivative of the inside" move is the chain rule, and it's the only calculus trick used anywhere in this deck.</p>
+    <h4>Why "bowl-shaped" (convex) matters</h4>
+    <p>Setting the derivative to zero finds any <em>flat</em> point — for a wiggly function that could be a peak, a valley, or a flat plateau. All the loss functions in this deck (squared error, exponential loss, XGBoost's regularized objective) are convex — a single, unmistakable bowl shape — so "derivative = 0" always finds the one true minimum, with no ambiguity.</p>
+    <h4>Partial derivatives</h4>
+    <p>When a function depends on more than one variable, $\\frac{\\partial f}{\\partial w}$ ("partial derivative") means "take the derivative with respect to $w$, treating every other variable as a fixed constant." That's the only new idea needed to handle the multi-variable formulas later in this deck.</p>
+  `}
+},
+{
+  code:'M-04', accent:C.green,
+  title:'Deriving: Why Averaging n Models Shrinks Variance by n',
+  subtitle:'the full calculation behind "many heads beat one" — from definition to final formula',
+  caption:'Every line below uses only the two tools from the last three slides: the scaling rule and the independence-addition rule.',
+  steps:[
+    { label:'① Start with the setup', eq:String.raw`$$\hat y_i = y + \varepsilon_i, \qquad \mathbb{E}[\varepsilon_i]=0,\ \ \text{Var}(\varepsilon_i)=\sigma^2, \qquad i=1,\dots,n \text{ independent}$$`,
+      expl:'Each of n models\u2019 predictions equals the truth y plus some random error &epsilon;<sub>i</sub>. Every model\u2019s error averages to zero (unbiased) and has the same "wobble" &sigma;&sup2;, and the errors don\u2019t influence each other (independent).' },
+    { label:'② Name the quantity we actually want to analyze', eq:String.raw`$$\bar{\hat y} \;=\; \frac{1}{n}\sum_{i=1}^n \hat y_i \qquad\text{— the ensemble's averaged prediction}$$`,
+      expl:'We want to know: how spread out is this average, compared to how spread out one single &ycirc;<sub>i</sub> is?' },
+    { label:'③ Apply the constant-scaling rule from the toolkit', eq:String.raw`$$\text{Var}(\bar{\hat y}) = \text{Var}\!\left(\frac1n \sum_i \hat y_i\right) \overset{\text{Var}(cX)=c^2\text{Var}(X),\ c=\frac1n}{=} \frac{1}{n^2}\,\text{Var}\!\left(\sum_i \hat y_i\right)$$`,
+      expl:'The $\\frac1n$ out front is a constant multiplying the whole sum, so it gets squared when it comes out of Var(&middot;) — exactly the rule from the toolkit slide.' },
+    { label:'④ Apply the independence-addition rule from the toolkit', eq:String.raw`$$\frac{1}{n^2}\text{Var}\!\left(\sum_i \hat y_i\right) \overset{\text{independent} \Rightarrow \text{Cov}=0}{=} \frac{1}{n^2}\sum_{i=1}^n \text{Var}(\hat y_i) = \frac{1}{n^2}\underbrace{(\sigma^2+\sigma^2+\cdots+\sigma^2)}_{n\text{ copies}} = \frac{n\sigma^2}{n^2}$$`,
+      expl:'Because the models are independent, Var of the sum is just the sum of the individual variances — no cross terms to worry about. Every model has the same variance &sigma;&sup2;, so we\u2019re adding &sigma;&sup2; to itself n times.' },
+    { label:'⑤ Simplify — this is the final result', eq:String.raw`$$\boxed{\ \text{Var}(\bar{\hat y}) = \dfrac{\sigma^2}{n}\ }$$`,
+      expl:'Variance shrinks proportionally to how many independent models you average. Double the number of models, halve the variance. Zero new data, zero new modeling insight — this drop is <i>pure arithmetic</i>, and it is the mathematical seed every ensemble method in this topic grows from.' },
+  ],
+  diagramBuild(svg){
+    svg.appendChild(fadeIn(labelText(240,26,'Var(average) as n grows',{'font-size':12,fill:C.dim,'font-family':'IBM Plex Mono'}),0,0.5));
+    svg.appendChild(fadeIn(line(60,340,420,340,C.line,{'stroke-width':1.3}),0.2,0.4));
+    svg.appendChild(fadeIn(line(60,80,60,340,C.line,{'stroke-width':1.3}),0.2,0.4));
+    svg.appendChild(fadeIn(labelText(240,362,'n (models averaged) →',{'font-size':10,fill:C.dim,'font-family':'IBM Plex Mono'}),0.3,0.3));
+    const sigma2=90;
+    const ns=[1,2,3,5,8,12,18,26];
+    const pts=ns.map((n,i)=>[60+i*48, 340-(sigma2/n)*2.4]);
+    const d=pts.map((p,i)=>`${i===0?'M':'L'}${p[0]},${p[1]}`).join(' ');
+    svg.appendChild(drawPath(path(d,{stroke:C.green,'stroke-width':2.2}),1.0,1.6));
+    pts.forEach((p,i)=>{
+      svg.appendChild(popIn(circle(p[0],p[1],3.6,C.green),1.2+i*0.15,0.3));
+    });
+    svg.appendChild(fadeIn(labelText(60,70,'σ²',{'font-size':11,fill:C.dim,'font-family':'IBM Plex Mono','text-anchor':'end',dx:-4}),0.3,0.3));
+    svg.appendChild(fadeIn(labelText(150,300,'Var = σ²/n',{'font-size':11.5,fill:C.green,'font-family':'IBM Plex Mono'}),3.2,0.4));
+  },
+  notes:{ title:'Sanity-checking the derivation with real numbers', html:`
+    <h4>Plug in numbers</h4>
+    <p>Say $\\sigma=40$ (pixels, or dollars, or whatever units your models err in) and $n=1$: variance is $40^2=1600$. Average $n=16$ independent models: variance drops to $1600/16=100$, a standard deviation of $\\sqrt{100}=10$ — one quarter the spread, from averaging 16 things.</p>
+    <h4>What if they're not independent?</h4>
+    <p>This exact derivation is revisited in a few slides with one change: instead of assuming independence, we allow correlation $\\rho$ between models. The extra covariance terms don't vanish this time, and the clean $\\sigma^2/n$ becomes a formula with a floor that never reaches zero — that's the Random Forest section.</p>
+    <h4>Why "unbiased" mattered here too</h4>
+    <p>We only get to call the average a genuine improvement because $\\mathbb{E}[\\hat y_i]=y$ for every model — the average is centered on the truth, just less spread out. If the models were all biased in the <em>same</em> direction, averaging would still reduce variance by this exact formula, but the result would still be systematically wrong. This is exactly why the deck later distinguishes bias from variance so carefully.</p>
+  `}
+},
+{
+  code:'M-05', accent:C.green,
+  title:'Bias-Variance Decomposition, Part 1 — The Setup',
+  subtitle:'a clever "add zero" trick that splits one error into two meaningful pieces',
+  caption:'This trick — adding and subtracting the same quantity — is one of the oldest moves in algebra, and it does real work here.',
+  steps:[
+    { label:'What we want to understand', eq:String.raw`$$\mathbb{E}\big[(y-\hat f(x))^2\big] \;=\; ?$$`,
+      expl:'The <i>expected squared error</i> of a model — averaged over every possible training set you could have trained it on, and every bit of test-time noise. We want to break this single number into interpretable pieces.' },
+    { label:'Define the "average model"', eq:String.raw`$$\bar f(x) = \mathbb{E}_{\mathcal D}[\hat f(x)] \qquad \text{— average the prediction over every possible training set } \mathcal D$$`,
+      expl:'Imagine retraining your model on a thousand different random training sets drawn from the same source. &fnof;&#772;(x) is what you\u2019d get if you averaged all thousand of those models\u2019 predictions at point x. It\u2019s a purely theoretical reference point — but an extremely useful one.' },
+    { label:'The trick: add and subtract the same thing', eq:String.raw`$$y - \hat f(x) \;=\; \big(y - \bar f(x)\big) \;+\; \big(\bar f(x) - \hat f(x)\big)$$`,
+      expl:'Check it yourself: the $\\bar f(x)$ terms cancel, so this is just $y-\\hat f(x)$ again — we changed <i>nothing</i>. But now the error is split into two named, meaningful pieces: <b>how far the truth is from the average model</b>, and <b>how far this particular model is from the average model</b>. That split is the entire idea; the next slide is just algebra.' },
+  ],
+  diagramBuild(svg){
+    svg.appendChild(fadeIn(labelText(240,26,'one target, many trained models',{'font-size':12,fill:C.dim,'font-family':'IBM Plex Mono'}),0,0.5));
+    const cx=240,cy=220;
+    [110,75,40].forEach((r,i)=> svg.appendChild(fadeIn(circle(cx,cy,r,'none',{stroke:C.line,'stroke-width':1.3}),0.1*i,0.5)));
+    svg.appendChild(fadeIn(circle(cx,cy,5,'#20242b',{stroke:C.dim,'stroke-width':1.3}),0.3,0.4));
+    svg.appendChild(fadeIn(labelText(cx,cy-128,'y  (truth)',{'font-size':11,fill:C.dim,'font-family':'IBM Plex Mono'}),0.5,0.4));
+    // scattered individual models f-hat
+    const models=[[-55,-30],[40,-45],[60,20],[10,55],[-45,40],[-20,-10]];
+    models.forEach((m,i)=> svg.appendChild(popIn(circle(cx+m[0],cy+m[1],5,C.blue,{opacity:.8}),0.8+i*0.15,0.3)));
+    svg.appendChild(fadeIn(labelText(cx+80,cy+90,'individual f̂ models',{'font-size':10,fill:C.blue,'font-family':'IBM Plex Mono'}),1.9,0.4));
+    // average model f-bar
+    const avgX = models.reduce((s,m)=>s+m[0],0)/models.length, avgY = models.reduce((s,m)=>s+m[1],0)/models.length;
+    const fbar=grp({transform:`translate(${cx+avgX},${cy+avgY}) rotate(45)`});
+    fbar.appendChild(rect(-7,-7,14,14,'none',{stroke:C.gold,'stroke-width':2.2}));
+    svg.appendChild(popIn(fbar,2.3,0.5));
+    svg.appendChild(fadeIn(labelText(cx+avgX,cy+avgY-20,'f̄ (average model)',{'font-size':10,fill:C.gold,'font-family':'IBM Plex Mono'}),2.6,0.4));
+    svg.appendChild(fadeIn(path(`M${cx},${cy} L${cx+avgX},${cy+avgY}`,{stroke:C.rose,'stroke-width':1.6,'stroke-dasharray':'4,3'}),3.0,0.5));
+    svg.appendChild(fadeIn(labelText((cx+cx+avgX)/2+18,(cy+cy+avgY)/2-8,'bias',{'font-size':10,fill:C.rose,'font-family':'IBM Plex Mono'}),3.3,0.4));
+  },
+  notes:{ title:'Why bother with a hypothetical "average model"?', html:`
+    <h4>It isolates two very different failure modes</h4>
+    <p>A model can be wrong because it's <em>systematically</em> off (even its average across retrainings misses the truth — bias), or because it's <em>unstable</em> (right on average, but any single training run wobbles wildly — variance). These need completely different fixes, so it's worth the trouble of a hypothetical construct to tell them apart.</p>
+    <h4>You never actually compute $\\bar f$ in practice</h4>
+    <p>Nobody retrains a model on a thousand datasets just to measure this. $\\bar f$ is a thinking tool for the derivation. In practice, people approximate bias and variance empirically via bootstrap resampling — exactly what the accompanying notebook's code cell does.</p>
+  `}
+},
+{
+  code:'M-06', accent:C.green,
+  title:'Bias-Variance Decomposition, Part 2 — Finishing the Algebra',
+  subtitle:'square both sides, take the expectation, and one term politely disappears',
+  caption:'Nothing here is more advanced than (a+b)² = a² + b² + 2ab — applied at the right moment.',
+  steps:[
+    { label:'① Square both sides of the split from last slide', eq:String.raw`$$(y-\hat f)^2 = \big[(y-\bar f)+(\bar f-\hat f)\big]^2 \;\overset{(a+b)^2=a^2+b^2+2ab}{=}\; (y-\bar f)^2 + (\bar f-\hat f)^2 + 2(y-\bar f)(\bar f-\hat f)$$`,
+      expl:'Ordinary algebra: expanding a squared sum of two terms. Nothing ML-specific has happened yet.' },
+    { label:'② Take the expectation of both sides', eq:String.raw`$$\mathbb{E}[(y-\hat f)^2] = \mathbb{E}[(y-\bar f)^2] + \mathbb{E}[(\bar f-\hat f)^2] + 2\,\mathbb{E}\big[(y-\bar f)(\bar f-\hat f)\big]$$`,
+      expl:'Expectation distributes over addition (it\u2019s just a weighted sum, and sums distribute) — so we can take &Escr;[&middot;] of each of the three pieces separately.' },
+    { label:'③ The cross term vanishes', eq:String.raw`$$\mathbb{E}\big[(y-\bar f)(\bar f-\hat f)\big] = 0$$`,
+      expl:'Why? $y-\\bar f$ is basically fresh test-time noise (independent of any particular trained model), while $\\bar f-\\hat f$ is about how one trained model wobbles. Since they don\u2019t influence each other, their product averages to zero — the exact same "independence kills the cross term" idea from the toolkit slide on covariance.' },
+    { label:'④ What is left standing — name the pieces', eq:String.raw`$$\mathbb{E}[(y-\hat f(x))^2] \;=\; \underbrace{(\bar f(x) - \bar y)^2}_{\textstyle \text{Bias}^2} \;+\; \underbrace{\mathbb{E}[(\bar f(x)-\hat f(x))^2]}_{\textstyle \text{Variance}} \;+\; \underbrace{\sigma^2}_{\textstyle \text{irreducible noise}}$$`,
+      expl:'<b>Bias&sup2;</b>: how far the average-over-retrainings model is from the truth. <b>Variance</b>: how much any one trained model wobbles around that average. <b>&sigma;&sup2;</b>: noise baked into the data itself, which no model, ever, can remove.' },
+  ],
+  notes:{ title:'Where each term comes from, precisely', html:`
+    <h4>Expanding the first term further</h4>
+    <p>$\\mathbb{E}[(y-\\bar f)^2]$ itself splits (write $y=\\bar y+\\varepsilon$) into $(\\bar f-\\bar y)^2 + \\sigma^2$, since the cross term there vanishes the same way. That's where the standalone $\\text{Bias}^2$ and $\\sigma^2$ in the final line come from — step ④ folds this extra mini-derivation in for brevity.</p>
+    <h4>Worked numbers</h4>
+    <p>A deep, unpruned tree: near-zero bias, but variance $9$ across retrainings, noise $\\sigma^2=1$ → total error $\\approx 0+9+1=10$. Bag 25 roughly-independent copies of it: variance divides by about 25 (from the $\\sigma^2/n$ result two slides back) → $9/25=0.36$ → total error $\\approx 0+0.36+1=1.36$. Bias never moved; only variance did — which is exactly why bagging is described as a <em>variance</em>-reduction technique.</p>
+    <h4>Why this decomposition needs squared error specifically</h4>
+    <p>This clean three-way split relies on expanding a square — it works because we chose squared error as the loss. Other losses (like the exponential loss AdaBoost uses, coming up next) don't decompose this exact way, though analogous bias/variance-like tradeoffs still exist for them.</p>
+  `}
+},
+{
+  code:'M-07', accent:C.green,
+  title:'The Correlation Floor, Part 1 — Setting Up',
+  subtitle:'redo the "wisdom of crowds" derivation, but this time without assuming independence',
+  caption:'This is M-04\u2019s derivation again, with one assumption removed — watch what changes.',
+  steps:[
+    { label:'What changes when trees are correlated instead of independent', eq:String.raw`$$\text{Cov}(\hat f_i, \hat f_j) = \rho\,\sigma^2 \qquad \text{for every pair } i\ne j$$`,
+      expl:'&rho; (rho) is the average correlation between any two trees\u2019 errors. If &rho;=0 we\u2019re back to the independent case from M-04. Real trees, trained on overlapping data, always have &rho;&gt;0.' },
+    { label:'Expand Var(sum) the general way — no independence assumed', eq:String.raw`$$\text{Var}\!\left(\sum_{b=1}^B \hat f_b\right) = \sum_{b=1}^B \text{Var}(\hat f_b) \;+\; \sum_{i\ne j}\text{Cov}(\hat f_i,\hat f_j)$$`,
+      expl:'This is the many-variable version of the "general rule, no assumptions" formula from the independence toolkit slide — every pair now contributes a covariance term instead of those terms vanishing.' },
+    { label:'Count exactly how many terms of each kind there are', eq:String.raw`$$\underbrace{B}_{\text{variance terms, one per tree}} \cdot \sigma^2 \qquad\qquad \underbrace{B(B-1)}_{\text{ordered pairs with } i\ne j} \cdot \rho\sigma^2$$`,
+      expl:'There are B trees, so B variance terms. For the covariance terms: pick any tree for "i" (B choices), then any <i>different</i> tree for "j" (B&minus;1 remaining choices) — giving B(B&minus;1) ordered pairs, each contributing &rho;&sigma;&sup2;.' },
+  ],
+  notes:{ title:'Double-checking the term count', html:`
+    <h4>A tiny concrete example</h4>
+    <p>With $B=3$ trees (call them A, B, C), the ordered pairs with $i\\ne j$ are: (A,B), (B,A), (A,C), (C,A), (B,C), (C,B) — exactly 6 pairs, and $B(B-1)=3\\times2=6$ ✓.</p>
+    <h4>Why "ordered" pairs, not just combinations</h4>
+    <p>The double sum $\\sum_{i\\ne j}$ counts (A,B) and (B,A) as two separate terms — but $\\text{Cov}(A,B)=\\text{Cov}(B,A)$ always, so this is equivalent to counting each unordered pair once and doubling it, which is exactly the "$2\\text{Cov}(X,Y)$" shape you saw in the 2-variable formula from the toolkit slide, generalized to $B$ variables.</p>
+  `}
+},
+{
+  code:'M-08', accent:C.green,
+  title:'The Correlation Floor, Part 2 — the Formula Random Forest Is Built Around',
+  subtitle:'finish the algebra, then watch what happens as the number of trees grows without bound',
+  caption:'This one formula is the entire mathematical justification for Random Forest hiding features at every split.',
+  steps:[
+    { label:'① Put the counted terms together', eq:String.raw`$$\text{Var}\!\left(\sum_{b=1}^B \hat f_b\right) = B\sigma^2 + B(B-1)\rho\sigma^2$$`,
+      expl:'Just adding the two groups of terms counted on the previous slide.' },
+    { label:'② Divide by B² — we want the variance of the AVERAGE, not the sum', eq:String.raw`$$\text{Var}\!\left(\frac1B\sum_{b} \hat f_b\right) = \frac{1}{B^2}\Big[B\sigma^2 + B(B-1)\rho\sigma^2\Big] = \frac{\sigma^2}{B} \;+\; \frac{B-1}{B}\,\rho\sigma^2$$`,
+      expl:'Same $\\frac{1}{B^2}$ scaling step as before (constant-scaling rule), just applied to a sum with more terms in it this time.' },
+    { label:'③ Let the number of trees B grow without bound', eq:String.raw`$$\text{as } B\to\infty: \qquad \frac{\sigma^2}{B}\ \longrightarrow\ 0 \qquad\qquad \frac{B-1}{B}\ \longrightarrow\ 1$$`,
+      expl:'The first fraction shrinks to nothing — more trees keep helping, just like before. The second fraction creeps toward exactly 1, no matter how large B gets.' },
+    { label:'④ The floor — this is what more trees alone can never fix', eq:String.raw`$$\boxed{\ \text{Var}\!\left(\frac1B\sum_b \hat f_b\right) \ \longrightarrow\ \rho\,\sigma^2 \ }$$`,
+      expl:'Compare to M-04\u2019s clean &sigma;&sup2;/n &rarr; 0. Here, correlated variance approaches a nonzero floor of &rho;&sigma;&sup2; — adding a millionth tree cannot push it any lower. The <i>only</i> lever left is &rho; itself. That is precisely why Random Forest hides a random subset of features at every split: it exists purely to push &rho; down, attacking the one term averaging alone can\u2019t touch.' },
+  ],
+  diagramBuild(svg){
+    svg.appendChild(fadeIn(labelText(240,26,'variance vs. number of trees',{'font-size':12,fill:C.dim,'font-family':'IBM Plex Mono'}),0,0.5));
+    svg.appendChild(fadeIn(line(60,340,420,340,C.line,{'stroke-width':1.3}),0.2,0.4));
+    svg.appendChild(fadeIn(line(60,80,60,340,C.line,{'stroke-width':1.3}),0.2,0.4));
+    svg.appendChild(fadeIn(labelText(240,362,'B (trees) →',{'font-size':10,fill:C.dim,'font-family':'IBM Plex Mono'}),0.3,0.3));
+    const sigma2=9;
+    function series(rho,color,delay){
+      const Bs=[1,2,3,5,8,12,18,26,36];
+      const pts=Bs.map((B,i)=>{
+        const v = sigma2/B + (B-1)/B*rho*sigma2;
+        return [60+i*42, 340-v*22];
+      });
+      const d=pts.map((p,i)=>`${i===0?'M':'L'}${p[0]},${p[1]}`).join(' ');
+      svg.appendChild(drawPath(path(d,{stroke:color,'stroke-width':2}),delay,1.6));
+      const floorY=340-rho*sigma2*22;
+      svg.appendChild(fadeIn(line(60,floorY,420,floorY,color,{'stroke-width':1,'stroke-dasharray':'3,4',opacity:.5}),delay+1.7,0.5));
+      return floorY;
+    }
+    series(0.1,C.green,0.6);
+    const floorY2=series(0.5,C.rose,0.9);
+    svg.appendChild(fadeIn(labelText(390,floorY2-10,'ρ=0.5 floor',{'font-size':9,fill:C.rose,'font-family':'IBM Plex Mono','text-anchor':'end'}),3.0,0.4));
+    svg.appendChild(fadeIn(labelText(390,335,'ρ=0.1 → almost 0',{'font-size':9,fill:C.green,'font-family':'IBM Plex Mono','text-anchor':'end'}),3.2,0.4));
+  },
+  notes:{ title:'Turning the floor into a design decision', html:`
+    <h4>Worked numbers</h4>
+    <p>$\\sigma^2=9$. At $\\rho=0.5$: variance goes $9.0 \\to 5.31 \\ (B{=}10) \\to 4.5\\ (B\\to\\infty)$. At $\\rho=0.1$: $9.0 \\to 1.71\\ (B{=}10) \\to 0.9\\ (B\\to\\infty)$. Same trees, same $\\sigma^2$ — dropping $\\rho$ from 0.5 to 0.1 drops the achievable floor by 5&times;. More trees cannot make up that gap; only decorrelating them can.</p>
+    <h4>Why hiding features specifically lowers ρ</h4>
+    <p>If one feature is overwhelmingly predictive, nearly every unrestricted tree discovers it first and splits on it near the root — making the trees structurally similar (high $\\rho$). Randomly hiding features at each split sometimes removes that dominant feature from consideration, forcing the tree down a different path. Different paths across different trees is exactly what "lower $\\rho$" means.</p>
+    <h4>The bias cost, briefly</h4>
+    <p>Hiding features makes each individual tree slightly worse (it sometimes can't use the objectively best split) — a small bias increase, traded for a large $\\rho$ decrease. In practice this trade wins almost every time, which is why Random Forest reliably beats plain bagging.</p>
+  `}
+},
+{
+  code:'M-09', accent:C.amber,
+  title:'AdaBoost, Part 1 — Why Exponential Loss?',
+  subtitle:'before we can derive α, we need to understand the quantity AdaBoost is secretly minimizing',
+  caption:'AdaBoost was invented before this loss-function view existed — but reverse-engineering it this way is the cleanest path to the formula.',
+  steps:[
+    { label:'The loss AdaBoost implicitly minimizes', eq:String.raw`$$L = \sum_{i=1}^n e^{-y_i H(x_i)}, \qquad y_i\in\{-1,+1\}, \qquad H(x)=\sum_t \alpha_t h_t(x)$$`,
+      expl:'H(x) is the ensemble\u2019s combined, weighted vote so far. The quantity <code>y<sub>i</sub>H(x<sub>i</sub>)</code> is called the <b>margin</b>: positive when the ensemble is right, negative when wrong, and larger in size the more confident the vote is.' },
+    { label:'Look at what this loss actually punishes', eq:String.raw`$$\underbrace{y_iH(x_i) \gg 0}_{\text{confidently correct}} \Rightarrow e^{-(\text{big})} \approx 0 \qquad\qquad \underbrace{y_iH(x_i) \ll 0}_{\text{confidently wrong}} \Rightarrow e^{+(\text{big})} \to \infty$$`,
+      expl:'Being confidently correct costs almost nothing. Being confidently <i>wrong</i> costs an exponentially exploding amount. This lopsided shape is deliberate — it\u2019s what makes AdaBoost obsess over its worst mistakes rather than treating every point equally.' },
+    { label:'Rewrite the loss after adding one more learner — the key algebra move', eq:String.raw`$$L_t = \sum_i e^{-y_i(H_{t-1}(x_i)+\alpha_t h_t(x_i))} = \sum_i \Big(\underbrace{e^{-y_iH_{t-1}(x_i)}}_{\textstyle w_i\ (\text{"weight" of point } i)}\Big) \cdot e^{-\alpha_t y_i h_t(x_i)}$$`,
+      expl:'Using the exponent rule $e^{a+b}=e^a e^b$, the loss for round t factors into <b>last round\u2019s accumulated exponential loss for point i</b> (call it $w_i$) times a <b>new correction term</b> for the newest learner. This is not a design choice — the very idea of a "per-point weight" falls straight out of this one algebra step.' },
+  ],
+  diagramBuild(svg){
+    svg.appendChild(fadeIn(labelText(240,26,'exponential loss vs. margin',{'font-size':12,fill:C.dim,'font-family':'IBM Plex Mono'}),0,0.5));
+    svg.appendChild(fadeIn(line(60,340,420,340,C.line,{'stroke-width':1.3}),0.2,0.4));
+    svg.appendChild(fadeIn(line(240,60,240,340,C.line,{'stroke-width':1.3}),0.2,0.4));
+    svg.appendChild(fadeIn(labelText(240,358,'margin (y·H(x))',{'font-size':10,fill:C.dim,'font-family':'IBM Plex Mono'}),0.3,0.3));
+    svg.appendChild(fadeIn(labelText(48,200,'loss',{'font-size':10,fill:C.dim,'font-family':'IBM Plex Mono','text-anchor':'end'}),0.3,0.3));
+    const margins=[]; for(let m=-3;m<=3;m+=0.15) margins.push(m);
+    const d=margins.map((m,i)=>{
+      const x=240+m*55;
+      const y=Math.min(340, 340-Math.exp(-m)*30);
+      return `${i===0?'M':'L'}${x},${y}`;
+    }).join(' ');
+    svg.appendChild(drawPath(path(d,{stroke:C.amber,'stroke-width':2.2}),0.9,1.5));
+    svg.appendChild(fadeIn(labelText(340,120,'confidently\nwrong → huge loss',{'font-size':9.5,fill:C.rose,'font-family':'IBM Plex Mono'}),2.6,0.4));
+    svg.appendChild(fadeIn(labelText(150,325,'confidently correct → ≈0 loss',{'font-size':9.5,fill:C.green,'font-family':'IBM Plex Mono'}),2.9,0.4));
+  },
+  notes:{ title:'Why exponential loss specifically, historically', html:`
+    <h4>AdaBoost came first, the loss-function view came later</h4>
+    <p>Freund and Schapire invented AdaBoost in 1995 directly as a weighting algorithm, with no explicit loss function in sight. It was Breiman and later Friedman/Hastie/Tibshirani (2000) who showed AdaBoost is exactly coordinate descent on this exponential loss — a beautiful piece of after-the-fact math archaeology that unified AdaBoost with the gradient boosting framework you'll see two slides from now.</p>
+    <h4>Why not just use squared error here too?</h4>
+    <p>Squared error penalizes confident correct and confident wrong answers similarly (it only cares about distance from the target, symmetric on both sides). Exponential loss is asymmetric in the way that matters for classification: it cares enormously about the <em>sign</em> of the margin, which is what actually determines right/wrong for a classifier.</p>
+  `}
+},
+{
+  code:'M-10', accent:C.amber,
+  title:'AdaBoost, Part 2 — Deriving α by Setting a Derivative to Zero',
+  subtitle:'the exact same three-move recipe from the calculus warm-up, just with fancier letters',
+  caption:'This is the M-03 recipe — write, differentiate, set to zero, solve — applied to a real algorithm.',
+  steps:[
+    { label:'① Split the loss into "correct" and "incorrect" points', eq:String.raw`$$L_t = \sum_{\text{correct}} w_i\, e^{-\alpha_t} \;+\; \sum_{\text{incorrect}} w_i\, e^{+\alpha_t}$$`,
+      expl:'Since $y_i,h_t(x_i)\\in\\{-1,+1\\}$, the product $y_ih_t(x_i)$ is exactly $+1$ when correct and $-1$ when wrong — so the correction term from the last slide becomes either $e^{-\\alpha_t}$ or $e^{+\\alpha_t}$.' },
+    { label:'② Write it in terms of the weighted error rate ε_t', eq:String.raw`$$\varepsilon_t = \frac{\sum_{\text{incorrect}} w_i}{\sum_i w_i} \quad\Longrightarrow\quad L_t \;\propto\; (1-\varepsilon_t)\,e^{-\alpha_t} + \varepsilon_t\, e^{+\alpha_t}$$`,
+      expl:'&epsilon;<sub>t</sub> is just "what fraction of the (weighted) points did this learner get wrong." Substituting it in turns the two sums into a simple 2-term function of &alpha;<sub>t</sub> alone — now we can use calculus on it.' },
+    { label:'③ Apply the M-03 recipe: differentiate, set to zero, solve', eq:String.raw`$$\begin{aligned}
+\frac{dL_t}{d\alpha_t} &= -(1-\varepsilon_t)e^{-\alpha_t} + \varepsilon_t e^{\alpha_t} \;=\; 0\\[6pt]
+\varepsilon_t\, e^{\alpha_t} &= (1-\varepsilon_t)\,e^{-\alpha_t}\\[6pt]
+e^{2\alpha_t} &= \frac{1-\varepsilon_t}{\varepsilon_t}\\[6pt]
+2\alpha_t &= \ln\!\left(\frac{1-\varepsilon_t}{\varepsilon_t}\right)\\[6pt]
+\alpha_t &= \frac12\ln\!\left(\frac{1-\varepsilon_t}{\varepsilon_t}\right)
+\end{aligned}$$`,
+      expl:'Line 1: derivative of each exponential term (chain rule, derivative of $e^{cx}$ is $c\\,e^{cx}$), set to 0. Line 2: move terms across the equals sign. Line 3: divide both sides by $\\varepsilon_t e^{-\\alpha_t}$, and $e^{\\alpha_t}/e^{-\\alpha_t}=e^{2\\alpha_t}$. Line 4: take $\\ln$ of both sides to undo the exponential. Line 5: divide by 2. Five short lines, and we\u2019ve derived AdaBoost\u2019s famous formula from nothing but the loss function.' },
+    { label:'④ Sanity-check the formula makes sense', eq:String.raw`$$\varepsilon_t=0.5 \Rightarrow \alpha_t=0 \qquad\qquad \varepsilon_t\to0 \Rightarrow \alpha_t\to\infty \qquad\qquad \varepsilon_t>0.5 \Rightarrow \alpha_t<0$$`,
+      expl:'A coin-flip learner (&epsilon;=0.5) gets zero voice — completely ignored. A near-perfect learner (&epsilon;&rarr;0) gets an enormous voice. A learner that\u2019s worse than random (&epsilon;&gt;0.5) gets <i>negative</i> weight — its vote gets flipped, since being reliably wrong is still useful information.' },
+  ],
+  notes:{ title:'The algebra steps, expanded even further', html:`
+    <h4>Step-by-step on line 3 of the derivation</h4>
+    <p>From $\\varepsilon_t e^{\\alpha_t} = (1-\\varepsilon_t)e^{-\\alpha_t}$, divide both sides by $\\varepsilon_t$ and by $e^{-\\alpha_t}$ simultaneously: $\\frac{e^{\\alpha_t}}{e^{-\\alpha_t}} = \\frac{1-\\varepsilon_t}{\\varepsilon_t}$. The left side simplifies using the exponent rule $\\frac{e^a}{e^b}=e^{a-b}$: $\\frac{e^{\\alpha_t}}{e^{-\\alpha_t}} = e^{\\alpha_t-(-\\alpha_t)} = e^{2\\alpha_t}$.</p>
+    <h4>Worked numbers</h4>
+    <p>Round 1 of the AdaBoost example from the main deck: 3 of 11 points misclassified with equal starting weight $\\frac1{11}$ each, so $\\varepsilon_1=\\frac{3}{11}\\approx0.273$. Then $\\alpha_1 = \\frac12\\ln\\frac{0.727}{0.273} = \\frac12\\ln(2.66) \\approx 0.49$.</p>
+    <h4>Why $\\frac12$ and not some other constant?</h4>
+    <p>It falls straight out of the algebra (dividing by 2 in the last line) — it isn't a tunable hyperparameter or a design choice. Every step traces back to minimizing the exact exponential loss from the first slide of this section.</p>
+  `}
+},
+{
+  code:'M-11', accent:C.amber,
+  title:'AdaBoost, Part 3 — The Weight Update, Term by Term',
+  subtitle:'now that we have α, one more short derivation gives the reweighting rule',
+  caption:'This is precisely the "growing dots" animation from the main deck — now you know exactly which formula controls their size.',
+  steps:[
+    { label:'The formula', eq:String.raw`$$w_i \leftarrow \underbrace{w_i}_{\textstyle \text{old weight}} \cdot \underbrace{e^{-\alpha_t y_i h_t(x_i)}}_{\textstyle \text{correction factor}}$$`,
+      expl:'This is exactly the "correction term" identified in M-09, step ③ — we\u2019re just applying it explicitly now that we know &alpha;<sub>t</sub>.' },
+    { label:'Case 1 — the point was classified correctly', eq:String.raw`$$y_i h_t(x_i) = +1 \quad\Longrightarrow\quad w_i \leftarrow w_i \cdot e^{-\alpha_t} \qquad (\text{shrinks, since } \alpha_t>0)$$`,
+      expl:'A correctly-classified point\u2019s weight gets <i>multiplied by a number less than 1</i> — it becomes less important for the next round.' },
+    { label:'Case 2 — the point was classified incorrectly', eq:String.raw`$$y_i h_t(x_i) = -1 \quad\Longrightarrow\quad w_i \leftarrow w_i \cdot e^{+\alpha_t} \qquad (\text{grows})$$`,
+      expl:'A misclassified point\u2019s weight gets multiplied by a number <i>greater</i> than 1 — the next weak learner is now trained on data where this point counts for more, mathematically forcing attention onto it.' },
+    { label:'Then renormalize so the weights still sum to 1', eq:String.raw`$$w_i \leftarrow \frac{w_i}{\sum_j w_j}$$`,
+      expl:'This is bookkeeping, not new math — weights are supposed to represent a probability-like distribution over points, so after growing/shrinking them we rescale everything to sum back to 1.' },
+  ],
+  notes:{ title:'The bigger picture', html:`
+    <h4>You've now derived all of AdaBoost from scratch</h4>
+    <p>Three slides, one loss function, and two applications of "derivative = 0": that's the entire mathematical content of AdaBoost. Every other detail (which weak learner to use, how many rounds to run) is an implementation choice layered on top of this core.</p>
+    <h4>Multiplicative, not additive</h4>
+    <p>Notice the update is $w_i \\leftarrow w_i \\cdot (\\text{factor})$, not $w_i \\leftarrow w_i + (\\text{something})$. Weights compound multiplicatively round after round — a point that's been wrong several rounds in a row can grow very heavy very fast, which is exactly the "focus harder and harder" behavior visualized in the main deck's animation.</p>
+  `}
+},
+{
+  code:'M-12', accent:C.amber,
+  title:'Why "Fit a Tree to the Residual" Is Actually Calculus',
+  subtitle:'gradient boosting is gradient descent — just descending on a function instead of a number',
+  caption:'Ordinary gradient descent nudges a parameter downhill. Gradient boosting nudges an entire prediction FUNCTION downhill, one tree at a time.',
+  steps:[
+    { label:'The loss for one point, as a function of the current prediction F', eq:String.raw`$$L(y,F) = \tfrac12(y-F)^2$$`,
+      expl:'Squared error, but written to emphasize: we\u2019re treating this as a function of the model\u2019s current output F, not of the input x. That shift in perspective is the whole trick.' },
+    { label:'Take the derivative with respect to F', eq:String.raw`$$\frac{\partial L}{\partial F} = \frac{\partial}{\partial F}\Big[\tfrac12(y-F)^2\Big] = \tfrac12\cdot 2(y-F)\cdot(-1) = -(y-F)$$`,
+      expl:'Chain rule (same "outer times derivative of inside" move from the calculus warm-up): derivative of $(y-F)^2$ w.r.t. F is $2(y-F)\\cdot(-1)$ — the $-1$ comes from F having a minus sign in front of it. The leading $\\frac12$ cancels the 2.' },
+    { label:'Flip the sign — this is the direction that REDUCES loss', eq:String.raw`$$-\frac{\partial L}{\partial F} = y - F$$`,
+      expl:'Gradient descent always moves in the <i>negative</i> gradient direction (downhill). And look — the negative gradient of squared error is exactly $y-F$: the residual, actual minus predicted. "Fit a tree to the residuals" isn\u2019t a clever heuristic; for squared error, it <i>is</i> gradient descent, discovered by pure calculus.' },
+    { label:'The general recipe (works for any differentiable loss, not just squared error)', eq:String.raw`$$F_m(x) = F_{m-1}(x) + \nu\cdot h_m(x), \qquad h_m(x) \approx -\left.\frac{\partial L(y,F(x))}{\partial F(x)}\right|_{F=F_{m-1}}$$`,
+      expl:'Train tree $h_m$ to approximate whatever the negative gradient is <i>for your chosen loss</i>. Swap in log-loss instead of squared error, and gradient boosting handles classification the same way — the algorithm doesn\u2019t change, only the gradient formula being fit does.' },
+  ],
+  diagramBuild(svg){
+    svg.appendChild(fadeIn(labelText(240,26,'descending the loss surface, one tree at a time',{'font-size':11.5,fill:C.dim,'font-family':'IBM Plex Mono'}),0,0.5));
+    const d='M70,120 C130,60 180,260 240,150 C290,70 320,240 380,160 C410,120 420,180 430,170';
+    svg.appendChild(drawPath(path(d,{stroke:C.dim,'stroke-width':1.6}),0.3,1.4));
+    const stops=[[70,120],[240,150],[380,160],[430,170]];
+    stops.forEach((p,i)=>{
+      svg.appendChild(popIn(circle(p[0],p[1],7,i===stops.length-1?C.gold:C.amber),1.6+i*0.5,0.4));
+      if(i<stops.length-1) svg.appendChild(fadeIn(labelText((p[0]+stops[i+1][0])/2,(p[1]+stops[i+1][1])/2-14,'tree '+(i+1),{'font-size':9,fill:C.amber,'font-family':'IBM Plex Mono'}),2.1+i*0.5,0.3));
+    });
+    svg.appendChild(fadeIn(labelText(430,150,'F_M ≈ truth',{'font-size':10,fill:C.gold,'font-family':'IBM Plex Mono','text-anchor':'end'}),3.8,0.4));
+    svg.appendChild(fadeIn(labelText(240,330,'each step: fit a tree to −∂L/∂F, take a small step that way',{'font-size':10,fill:C.dim,'font-family':'IBM Plex Mono'}),4.1,0.4));
+  },
+  notes:{ title:'Why this generalizes so well', html:`
+    <h4>Classification via log-loss</h4>
+    <p>For binary classification with log-loss $L=\\ln(1+e^{-2yF})$, the negative gradient works out to $\\frac{2y}{1+e^{2yF}}$ — a "soft residual" that's largest for points the model is currently most confidently wrong about, and shrinks toward 0 as the model gets a point right with increasing confidence. Same framework, different formula to fit.</p>
+    <h4>Connecting back to AdaBoost</h4>
+    <p>It's a genuinely striking fact (proved by Friedman, Hastie, and Tibshirani in 2000) that AdaBoost, derived completely independently three slides ago via exponential loss, turns out to BE gradient boosting under exponential loss. Two seemingly different algorithms, invented years apart, are the same algorithm wearing different loss functions.</p>
+    <h4>What "functional" gradient descent really means</h4>
+    <p>Ordinary gradient descent takes derivatives with respect to numbers (weights $\\theta$). Here we're informally taking a "derivative" with respect to an entire function $F$ — formalized by just computing the ordinary derivative $\\partial L/\\partial F$ at every individual training point $x_i$ separately, then fitting one tree to approximate that whole collection of per-point derivatives at once.</p>
+  `}
+},
+{
+  code:'M-13', accent:C.gold,
+  title:'Taylor Series: Approximating a Curve Near a Point',
+  subtitle:'one last prerequisite before we can derive XGBoost\u2019s objective',
+  caption:'Zoom in close enough on any smooth curve, and it starts looking like something much simpler.',
+  steps:[
+    { label:'The core idea, in words', eq:``,
+      expl:'Any smooth curve, zoomed in close enough around one point, looks almost like a straight line. Zoom out slightly and allow for a bit of curve, and it looks almost like a parabola. A <b>Taylor series</b> makes this idea mathematically precise — it builds an approximation to a function using only information available at a single point <i>a</i>: the value there, the slope there, the curvature there, and so on.' },
+    { label:'Zeroth + first order — "the tangent line"', eq:String.raw`$$f(x) \approx \underbrace{f(a)}_{\text{value at } a} + \underbrace{f'(a)}_{\text{slope at }a}\,(x-a)$$`,
+      expl:'Start at the known value $f(a)$, then walk in the direction the curve is currently sloping. This is just the equation of the tangent line — a first-order (straight-line) approximation.' },
+    { label:'Second order — add curvature', eq:String.raw`$$f(x) \approx f(a) + f'(a)(x-a) + \tfrac12 \underbrace{f''(a)}_{\text{curvature at }a}(x-a)^2$$`,
+      expl:'f&Prime;(a) (the second derivative) measures how fast the <i>slope itself</i> is changing — how sharply the curve bends. Adding this term lets the approximation bend along with the real curve instead of running off in a straight line.' },
+    { label:'Worked example: approximate eˣ near x=0', eq:String.raw`$$e^x \approx e^0 + e^0\cdot x + \tfrac12 e^0 x^2 = 1 + x + \tfrac{x^2}{2}$$`,
+      expl:'Check at x=1: the real value is $e^1\\approx 2.718$; our 3-term approximation gives $1+1+0.5=2.5$ — already close, using only the value, slope, and curvature at a single point (x=0).' },
+  ],
+  diagramBuild(svg){
+    svg.appendChild(fadeIn(labelText(240,26,'better approximations near a point',{'font-size':11.5,fill:C.dim,'font-family':'IBM Plex Mono'}),0,0.5));
+    const a=0;
+    function trueF(x){ return Math.exp(x); }
+    const toXY=(x,y)=>[240+x*70, 320-y*45];
+    const xs=[]; for(let x=-1.6;x<=1.6;x+=0.08) xs.push(x);
+    const trueD = xs.map((x,i)=>{ const [px,py]=toXY(x,trueF(x)); return `${i===0?'M':'L'}${px},${py}`; }).join(' ');
+    svg.appendChild(drawPath(path(trueD,{stroke:C.text,'stroke-width':2}),0.3,1.2));
+    svg.appendChild(fadeIn(labelText(370,toXY(1.4,trueF(1.4))[1],'f(x)=eˣ',{'font-size':10,fill:C.text,'font-family':'IBM Plex Mono'}),1.6,0.4));
+    const lineD = xs.map((x,i)=>{ const [px,py]=toXY(x, 1+x); return `${i===0?'M':'L'}${px},${py}`; }).join(' ');
+    svg.appendChild(drawPath(path(lineD,{stroke:C.amber,'stroke-width':1.8,'stroke-dasharray':'5,3'}),2.0,1.0));
+    svg.appendChild(fadeIn(labelText(120,toXY(-1.1,1-1.1)[1]-10,'1st order (line)',{'font-size':9,fill:C.amber,'font-family':'IBM Plex Mono'}),3.2,0.4));
+    const paraD = xs.map((x,i)=>{ const [px,py]=toXY(x, 1+x+x*x/2); return `${i===0?'M':'L'}${px},${py}`; }).join(' ');
+    svg.appendChild(drawPath(path(paraD,{stroke:C.gold,'stroke-width':1.8,'stroke-dasharray':'2,4'}),3.6,1.0));
+    svg.appendChild(fadeIn(labelText(340,toXY(1.15,1+1.15+1.15*1.15/2)[1]-10,'2nd order (parabola)',{'font-size':9,fill:C.gold,'font-family':'IBM Plex Mono'}),4.7,0.4));
+    svg.appendChild(popIn(circle(...toXY(0,1),5,C.rose),0.2,0.4));
+    svg.appendChild(fadeIn(labelText(240,290,'a=0',{'font-size':9.5,fill:C.rose,'font-family':'IBM Plex Mono'}),0.5,0.3));
+  },
+  notes:{ title:'Formalizing the pattern', html:`
+    <h4>The general (infinite) Taylor series</h4>
+    <div class="eq" style="background:#0a0d10;border:1px solid #1a1d22;border-radius:6px;padding:10px;">$$f(x) = f(a) + f'(a)(x-a) + \\frac{f''(a)}{2!}(x-a)^2 + \\frac{f'''(a)}{3!}(x-a)^3 + \\cdots$$</div>
+    <p>Each additional term uses one more derivative and captures one more layer of "how the curve bends." In machine learning we almost always stop at 2nd order (as XGBoost does) — the value, slope, and curvature — because that's already enough to build a good local approximation, and higher derivatives get expensive to compute.</p>
+    <h4>Why "near a point" matters</h4>
+    <p>Taylor approximations are only trustworthy close to $a$ — notice in the diagram how the line and parabola both drift away from the true curve $e^x$ as $x$ moves far from 0. In the XGBoost slides ahead, "$a$" will be the model's current prediction, and "$x$" will be the prediction after adding a small correction — so we're always approximating a <em>small step away</em> from where we currently are, exactly where Taylor approximations are most trustworthy.</p>
+  `}
+},
+{
+  code:'M-14', accent:C.gold,
+  title:'XGBoost, Part 1 — Applying Taylor Expansion to the Loss',
+  subtitle:'the exact same 2nd-order approximation from the last slide, aimed at a loss function instead of eˣ',
+  caption:'Plain gradient boosting stops at 1st order (the slope). XGBoost keeps the 2nd-order curvature term too — that is its core innovation.',
+  steps:[
+    { label:'What we are approximating this time', eq:String.raw`$$L\big(y_i,\ F_{m-1}(x_i)+h(x_i)\big) \qquad \text{as a function of } h(x_i),\ \text{zoomed in near } h(x_i)=0$$`,
+      expl:'We are asking: if we add a small correction $h(x_i)$ on top of the model&rsquo;s current prediction, how does the loss change? &ldquo;Near zero&rdquo; because early in the search, before we have chosen the new tree, the natural starting guess for its output is &ldquo;no change yet.&rdquo;' },
+    { label:'Match each Taylor term to its ML name', eq:String.raw`$$L(y_i,F_{m-1}+h) \approx \underbrace{L(y_i,F_{m-1})}_{\textstyle f(a)} + \underbrace{g_i}_{\textstyle f'(a)}\, h(x_i) + \tfrac12 \underbrace{u_i}_{\textstyle f''(a)}\, h(x_i)^2$$`,
+      expl:'Exactly the M-13 template — value, slope, curvature — just relabeled. $g_i$ is the <b>gradient</b> (the same quantity plain gradient boosting used). $u_i$ is new: the <b>curvature</b>, or Hessian. This one extra term is XGBoost&rsquo;s whole trick over plain gradient boosting.',
+      glossary:[['g_i','&part;L/&part;F, evaluated at the current prediction — how loss changes with a tiny nudge'], ['u_i','&part;&sup2;L/&part;F&sup2;, evaluated at the current prediction — how the slope itself is changing']] },
+    { label:'Sum over every point, then add a complexity penalty', eq:String.raw`$$\text{Obj} = \sum_{i=1}^n \Big[g_i\, h(x_i) + \tfrac12 u_i\, h(x_i)^2\Big] \;+\; \underbrace{\gamma T + \tfrac12\lambda\sum_j w_j^2}_{\textstyle \Omega(h),\ \text{complexity penalty}}$$`,
+      expl:'Left part: the Taylor-approximated loss, summed across all training points. Right part &Omega;(h): a hand-added penalty — &gamma; charges a fee per leaf (T = number of leaves), &lambda; discourages any single leaf&rsquo;s output from getting too extreme. This whole expression is what the next two slides minimize.' },
+  ],
+  notes:{ title:'Why stop at 2nd order?', html:`
+    <h4>1st order alone: plain gradient boosting</h4>
+    <p>If you drop the $\\frac12 u_i h(x_i)^2$ term entirely, you're left with $\\sum_i g_i h(x_i)$ — minimized (very loosely) by just pointing $h$ in the negative-gradient direction, which is exactly the plain gradient boosting recipe from two slides ago. XGBoost's 2nd-order term is the precise mathematical upgrade on top of that.</p>
+    <h4>Why not 3rd order, 4th order, ...?</h4>
+    <p>Each additional order needs an additional derivative computed at every single training point, every single round — the cost compounds fast for limited benefit, since 2nd order already captures "how much to trust a large step" (via curvature) reasonably well. Diminishing returns kick in quickly.</p>
+    <h4>What $g_i$ and $u_i$ actually are for squared error</h4>
+    <p>For $L=\\frac12(y-F)^2$: $g_i = F_{m-1}(x_i)-y_i$ (the negative residual) and $u_i=1$ (constant curvature, the same for every point). Plugging $u_i=1$ into the formulas on the next two slides recovers a very simple, clean special case worth checking by hand.</p>
+  `}
+},
+{
+  code:'M-15', accent:C.gold,
+  title:'XGBoost, Part 2 — Deriving the Optimal Leaf Value',
+  subtitle:'the M-03 recipe, one more time, now on the objective from the last slide',
+  caption:'This closed-form answer is why XGBoost never has to search or guess a leaf&rsquo;s output — it just computes it.',
+  steps:[
+    { label:'① Group points by which leaf they land in', eq:String.raw`$$\text{Obj} = \sum_{j=1}^T \left[\Big(\sum_{i\in I_j} g_i\Big) w_j + \tfrac12\Big(\sum_{i\in I_j} u_i + \lambda\Big) w_j^2\right] + \gamma T$$`,
+      expl:'Every point landing in leaf j gets the exact same output $w_j$ — that is the definition of a leaf. So instead of one term per training point, we can collapse the sum into one term per leaf, adding up all the $g_i$ and $u_i$ that fall into it.' },
+    { label:'② Simplify notation — this is now just a parabola in one variable', eq:String.raw`$$G_j = \sum_{i\in I_j} g_i, \qquad H_j = \sum_{i\in I_j} u_i \qquad\Longrightarrow\qquad \text{Obj}_j = G_j\, w_j + \tfrac12(H_j+\lambda)\,w_j^2$$`,
+      expl:'Renaming the sums as $G_j$ and $H_j$ reveals the shape underneath: this is exactly $c_1 w + c_2 w^2$ &mdash; a parabola in the single variable $w_j$, no different in form from $f(w)=(w-3)^2$ back in the calculus warm-up.' },
+    { label:'③ Apply the derivative = 0 recipe, one algebra line at a time', eq:String.raw`$$\begin{aligned}
+\frac{d\,\text{Obj}_j}{dw_j} &= G_j + (H_j+\lambda)\,w_j \;=\; 0\\[6pt]
+(H_j+\lambda)\,w_j &= -G_j\\[6pt]
+w_j^\* &= -\frac{G_j}{H_j+\lambda}
+\end{aligned}$$`,
+      expl:'Line 1: differentiate $G_jw_j+\\tfrac12(H_j+\\lambda)w_j^2$ term by term (power rule: derivative of $cw^2$ is $2cw$, the $\\tfrac12$ cancels the 2), set to 0. Line 2: move $G_j$ to the other side. Line 3: divide. Same three moves as every other derivation in this deck &mdash; write, differentiate, solve.' },
+    { label:'④ Sanity check with the squared-error special case (u=1)', eq:String.raw`$$H_j = |I_j| \ \ (\text{count of points in the leaf}) \quad\Longrightarrow\quad w_j^\* = -\frac{G_j}{|I_j|+\lambda} \approx \text{average residual in the leaf}$$`,
+      expl:'With no regularization ($\\lambda=0$) this is exactly &ldquo;the leaf&rsquo;s output equals the average residual of the points inside it&rdquo; &mdash; matching the plain gradient boosting intuition from two sections ago. $\\lambda>0$ pulls that average gently toward zero, which is what &ldquo;regularization&rdquo; means here, concretely.' },
+  ],
+  diagramBuild(svg){
+    svg.appendChild(fadeIn(labelText(240,26,'Obj(w) for one leaf',{'font-size':12,fill:C.dim,'font-family':'IBM Plex Mono'}),0,0.5));
+    const G=6, H=4, lam=1;
+    function obj(w){ return G*w + 0.5*(H+lam)*w*w; }
+    const toXY=(w)=>[240+w*70, 300+obj(w)*10];
+    const ws=[]; for(let w=-3;w<=1.4;w+=0.1) ws.push(w);
+    const d=ws.map((w,i)=>`${i===0?'M':'L'}${toXY(w)[0]},${toXY(w)[1]}`).join(' ');
+    svg.appendChild(drawPath(path(d,{stroke:C.gold,'stroke-width':2.2}),0.4,1.4));
+    const wstar=-G/(H+lam);
+    const [sx,sy]=toXY(wstar);
+    svg.appendChild(fadeIn(line(sx,60,sx,sy,C.rose,{'stroke-width':1.3,'stroke-dasharray':'4,3'}),2.0,0.5));
+    svg.appendChild(popIn(circle(sx,sy,6,C.rose),2.4,0.4));
+    svg.appendChild(fadeIn(labelText(sx,sy+26,'w* = −G/(H+λ) = '+wstar.toFixed(2),{'font-size':10.5,fill:C.rose,'font-family':'IBM Plex Mono'}),2.8,0.5));
+    svg.appendChild(fadeIn(labelText(240,340,'the minimum of the parabola — found by setting the slope to 0',{'font-size':10,fill:C.dim,'font-family':'IBM Plex Mono'}),3.3,0.5));
+  },
+  notes:{ title:'Worked numbers and a deeper look at regularization', html:`
+    <h4>Worked numbers</h4>
+    <p>A leaf collects 4 points with gradients $[2,3,-1,2]$: $G=6$. With $H=4,\\lambda=1$: $w^\\*=-6/5=-1.2$. Without regularization ($\\lambda=0$): $w^\\*=-6/4=-1.5$. Regularization pulled the leaf&rsquo;s output 20% closer to zero &mdash; visible in the diagram as the minimum shifting slightly right of where it would sit for $\\lambda=0$.</p>
+    <h4>Why this is called "L2" regularization</h4>
+    <p>The penalty term is $\\frac12\\lambda w_j^2$ &mdash; a squared penalty on the weight, structurally identical to L2/ridge regularization in linear regression. It grows faster for large $|w_j|$ than for small ones, so it disproportionately reins in the most extreme leaf outputs.</p>
+    <h4>Second derivative check (why this is a minimum, not a maximum)</h4>
+    <p>The second derivative of $\\text{Obj}_j$ with respect to $w_j$ is $H_j+\\lambda$, which is always positive (curvatures $u_i$ and $\\lambda$ are both non-negative) &mdash; confirming the parabola opens upward, so the flat point we found really is the minimum, not a maximum.</p>
+  `}
+},
+{
+  code:'M-16', accent:C.gold,
+  title:'XGBoost, Part 3 — Deriving the Gain Formula',
+  subtitle:'plug w* back in to get a leaf&rsquo;s best-possible score, then compare one leaf to two',
+  caption:'This is the exact formula behind every split decision a trained XGBoost model has ever made.',
+  steps:[
+    { label:'① Plug w* back into the objective to get a leaf&rsquo;s best-possible score', eq:String.raw`$$\text{Obj}_j^\* = G_jw_j^\* + \tfrac12(H_j+\lambda)(w_j^\*)^2 = -\frac{G_j^2}{H_j+\lambda} + \tfrac12\frac{G_j^2}{H_j+\lambda} = -\tfrac12\,\frac{G_j^2}{H_j+\lambda}$$`,
+      expl:'Substituting $w_j^\\*=-G_j/(H_j+\\lambda)$ into the formula from the last slide and simplifying (the two fractions combine since both have the same denominator). Since this is a loss, <b>more negative is better</b>.' },
+    { label:'② Compare: score if we keep one leaf, vs. score if we split it into two', eq:String.raw`$$\text{score(no split)} = -\tfrac12\frac{(G_L+G_R)^2}{H_L+H_R+\lambda} \qquad\quad \text{score(split into L, R)} = -\tfrac12\frac{G_L^2}{H_L+\lambda} -\tfrac12\frac{G_R^2}{H_R+\lambda}$$`,
+      expl:'If we split one leaf into a left child and a right child, each child gets its own optimal weight and its own score, computed with the exact ① formula &mdash; just using only the points that landed on that side.' },
+    { label:'③ Gain = how much splitting actually helps, minus the toll for adding a leaf', eq:String.raw`$$\text{Gain} = \underbrace{\text{score(children)} - \text{score(no split)}}_{\text{improvement from splitting}} \;-\; \gamma \;=\; \tfrac12\left[\frac{G_L^2}{H_L+\lambda}+\frac{G_R^2}{H_R+\lambda}-\frac{(G_L+G_R)^2}{H_L+H_R+\lambda}\right]-\gamma$$`,
+      expl:'The minus signs from ① and ② flip when we compute "improvement," turning this back into a quantity where <b>positive is good</b>. A split only happens if Gain &gt; 0 &mdash; the question &ldquo;is this split even worth it&rdquo; is now baked directly into one formula, not bolted on afterward as a separate pruning heuristic.' },
+  ],
+  notes:{ title:'Tracing the sign flip and a worked example', html:`
+    <h4>Why the signs flip between step ① and step ③</h4>
+    <p>$\\text{Gain}$ is defined as "how much better the children's combined score is than the parent's," i.e. $-(\\text{score(children)}) - (-(\\text{score(no split)}))$ flipped to read as an improvement — algebraically this is exactly $\\text{score(no split)} - \\text{score(children)}$ with the leading $-\\tfrac12$ factored out and the fractions swapping into the more familiar "children minus parent" order shown in step ③.</p>
+    <h4>Worked numbers</h4>
+    <p>$G_L=-4,H_L=6,\\ G_R=5,H_R=5,\\ \\lambda=1,\\gamma=1$: $\\text{Gain} = \\tfrac12\\big[\\tfrac{16}{7}+\\tfrac{25}{6}-\\tfrac{1}{12}\\big]-1 \\approx \\tfrac12[2.29+4.17-0.08]-1 \\approx 2.19$. Positive Gain &rarr; the split is kept. A near-even, low-information split typically yields a bracket term smaller than $\\gamma$, giving negative Gain &rarr; the split is rejected and that branch is pruned.</p>
+    <h4>The big picture</h4>
+    <p>You have now derived, from a single starting loss function and two applications of calculus, the entire mathematical engine behind one of the most widely used machine learning algorithms in the world. Nothing in XGBoost's objective is arbitrary &mdash; every piece traces back to these few lines of algebra.</p>
+  `}
+},
+{
+  code:'M-17', accent:C.blue,
+  title:'Four Patterns You Now Recognize Everywhere',
+  subtitle:'every "new" formula you meet from here on is very likely reusing one of these four moves',
+  caption:'You did not just memorize formulas in this deck — you now have the tools to derive new ones yourself.',
+  steps:[
+    { label:'Pattern 1 — Sum &amp; average', eq:String.raw`$$\frac1n\sum_i(\cdot)$$`,
+      expl:'Appeared in: the ensemble prediction formula, wisdom-of-crowds variance shrinkage, OOB error, feature importance, every &ldquo;combine B models&rdquo; step in this entire topic.' },
+    { label:'Pattern 2 — Variance of a sum needs independence to add cleanly', eq:String.raw`$$\text{Var}(X+Y)=\text{Var}(X)+\text{Var}(Y)+2\,\text{Cov}(X,Y)$$`,
+      expl:'Appeared in: the bias-variance decomposition, and the &rho;&sigma;&sup2; correlation floor &mdash; the precise reason Random Forest hides features at every split, and why stacking mixes structurally different algorithms.' },
+    { label:'Pattern 3 — Set the derivative to zero to optimize', eq:String.raw`$$f'(x^\*)=0$$`,
+      expl:'Appeared in: AdaBoost&rsquo;s &alpha;, and XGBoost&rsquo;s optimal leaf weight w*. Any time you see a clean, closed-form &ldquo;optimal&rdquo; formula anywhere in machine learning, this is very likely how it was found.' },
+    { label:'Pattern 4 — Taylor expansion to approximate locally', eq:String.raw`$$f(x)\approx f(a)+f'(a)(x-a)+\tfrac12f''(a)(x-a)^2$$`,
+      expl:'Appeared in: XGBoost&rsquo;s regularized objective. Gradient boosting&rsquo;s &ldquo;fit the negative gradient&rdquo; trick is quietly the 1st-order version of this exact same idea &mdash; XGBoost just kept one more term.' },
+  ],
+  diagramBuild(svg){
+    const items=[
+      {y:80,label:'Σ average',color:C.blue},
+      {y:170,label:'Var(X+Y) needs independence',color:C.green},
+      {y:260,label:"f'(x*)=0",color:C.amber},
+      {y:350,label:'Taylor expansion',color:C.gold},
+    ];
+    svg.appendChild(fadeIn(labelText(240,26,'four tools, reused constantly',{'font-size':12,fill:C.dim,'font-family':'IBM Plex Mono'}),0,0.5));
+    items.forEach((it,i)=>{
+      const g=grp({transform:`translate(240,${it.y})`});
+      g.appendChild(rect(-170,-22,340,44,'#12161b',{stroke:it.color,'stroke-width':1.8,rx:8}));
+      const t=E('text',{x:0,y:6,'text-anchor':'middle','font-size':13,fill:it.color,'font-family':'IBM Plex Mono'}); t.textContent=it.label; g.appendChild(t);
+      svg.appendChild(popIn(g,0.3+i*0.6,0.5));
+      pulse(g, 1.0+i*0.6, 2.2);
+    });
+  },
+  notes:{ title:'Where to go from here', html:`
+    <h4>Read an ML paper&rsquo;s math section</h4>
+    <p>Next time you open a paper introducing a new boosting variant, a new regularizer, or a new loss function, you will recognize these four moves doing most of the work &mdash; the paper's derivation is very likely: define a loss, maybe Taylor-expand it, take a derivative, set it to zero, solve.</p>
+    <h4>Derive something yourself</h4>
+    <p>Try deriving the optimal leaf weight for a different loss function (e.g. absolute error, or log-loss) using exactly the M-15 recipe. The algebra changes; the four-step recipe does not.</p>
+    <h4>Companion materials</h4>
+    <p>Pair this deck with the accompanying animated ensemble-learning slide deck (intuition and 40 topic slides) and the runnable Jupyter notebook (every formula here, executed on real data) &mdash; together they cover the intuition, the math, and the code.</p>
+  `}
+},
+];
+/*SLIDES_ARRAY_END*/
+
+window.addEventListener('load', ()=>{
+  let start = 0;
+  try{ if(location.hash && /^#s\d+$/.test(location.hash)){ start = parseInt(location.hash.slice(2))-1; } }catch(e){}
+  showSlide(start);
+});
+</script>
+</body>
+</html>

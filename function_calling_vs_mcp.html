@@ -1,0 +1,1668 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Function Calling → MCP | An Instrument Lab</title>
+<style>
+  :root{
+    --bg:#08080c;
+    --bg2:#0d0e14;
+    --fg:#e9e9ee;
+    --dim:#7a7d8a;
+    --blue:#5b8dd6;
+    --orange:#d68a5b;
+    --green:#6fbf8f;
+    --red:#c96b6b;
+    --purple:#9b83d6;
+    --yellow:#d6c15b;
+    --line:#2a2b35;
+    --panel:#111219;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; height:100%; background:var(--bg); color:var(--fg);
+    font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+    overflow:hidden;
+  }
+  #frame-wrap{
+    position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+    background:
+      radial-gradient(ellipse at 50% 0%, #0f1018 0%, #08080c 70%);
+  }
+  #stage{
+    position:relative;
+    width:1280px; height:720px;
+    background:var(--bg2);
+    border:1px solid var(--line);
+    border-radius:6px;
+    box-shadow:0 0 40px rgba(0,0,0,0.6);
+    overflow:hidden;
+    transform-origin:center center;
+  }
+  .slide{
+    position:absolute; inset:0;
+    display:none;
+  }
+  .slide.active{ display:block; }
+  .slide svg{ width:100%; height:100%; display:block; transform-origin:50% 50%; }
+  .slide g, .slide circle, .slide rect, .slide path, .slide line, .slide text{
+    transform-box: fill-box; transform-origin: center;
+  }
+
+  @keyframes floaty{
+    0%{ transform:translateY(0px); }
+    50%{ transform:translateY(-14px); }
+    100%{ transform:translateY(0px); }
+  }
+  .particle{ animation:floaty 9s ease-in-out infinite; }
+
+  text{ font-family:'Segoe UI', Arial, sans-serif; fill:var(--fg); user-select:none; }
+  .title{ font-size:34px; font-weight:600; }
+  .subtitle{ font-size:17px; fill:var(--dim); font-weight:400; }
+  .label{ font-size:16px; }
+  .label-sm{ font-size:13px; fill:var(--dim); }
+  .mono{ font-family:'Consolas','Menlo',monospace; }
+  .kicker{ font-size:13px; letter-spacing:3px; fill:var(--dim); font-weight:600; }
+
+  .node-rect{ fill:var(--panel); stroke:var(--line); stroke-width:1.5; rx:10; }
+  .arrow-path{ fill:none; stroke-width:2; stroke-linecap:round; }
+
+  /* progress + nav */
+  #chrome{
+    position:fixed; left:0; right:0; bottom:18px;
+    display:flex; align-items:center; justify-content:center; gap:14px;
+    z-index:50;
+  }
+  #dots{ display:flex; gap:8px; }
+  .dot{ width:7px; height:7px; border-radius:50%; background:#33343e; cursor:pointer; transition:all .25s; }
+  .dot.on{ background:var(--blue); width:20px; border-radius:5px; }
+  .navbtn{
+    width:38px; height:38px; border-radius:50%; border:1px solid var(--line);
+    background:#101119; color:var(--dim); font-size:16px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; transition:all .2s;
+  }
+  .navbtn:hover{ color:var(--fg); border-color:var(--blue); }
+  #counter{ font-size:12px; color:var(--dim); min-width:46px; text-align:center; font-family:monospace; }
+  #hint{
+    position:fixed; top:16px; right:20px; font-size:11px; color:var(--dim);
+    letter-spacing:1px; z-index:50;
+  }
+</style>
+</head>
+<body>
+
+<div id="hint">← → to navigate</div>
+<div id="frame-wrap">
+  <div id="stage">
+
+    <!-- ============ SLIDE 0 : TITLE ============ -->
+    <div class="slide" id="s0">
+      <svg viewBox="0 0 1280 720">
+        <g opacity="0.35">
+          <circle class="particle" cx="150" cy="140" r="2" fill="var(--dim)" style="animation-delay:0s"/>
+          <circle class="particle" cx="1120" cy="180" r="1.6" fill="var(--dim)" style="animation-delay:1.4s"/>
+          <circle class="particle" cx="220" cy="580" r="1.8" fill="var(--dim)" style="animation-delay:2.6s"/>
+          <circle class="particle" cx="1080" cy="600" r="2.2" fill="var(--dim)" style="animation-delay:0.8s"/>
+          <circle class="particle" cx="640" cy="90" r="1.4" fill="var(--dim)" style="animation-delay:3.4s"/>
+          <circle class="particle" cx="960" cy="360" r="1.6" fill="var(--dim)" style="animation-delay:2s"/>
+          <circle class="particle" cx="330" cy="330" r="1.4" fill="var(--dim)" style="animation-delay:4.2s"/>
+        </g>
+        <g id="s0-quote" opacity="0">
+          <text x="640" y="640" text-anchor="middle" class="label-sm" font-style="italic">"If you can't build it simply, you don't understand it yet."</text>
+        </g>
+        <g id="s0-g1" opacity="0">
+          <text x="640" y="290" text-anchor="middle" class="title" font-size="46">Function Calling</text>
+        </g>
+        <g id="s0-arrow" opacity="0">
+          <line x1="640" y1="330" x2="640" y2="380" stroke="var(--dim)" stroke-width="2"/>
+          <path d="M 630 372 L 640 385 L 650 372" fill="none" stroke="var(--dim)" stroke-width="2"/>
+        </g>
+        <g id="s0-g2" opacity="0">
+          <text x="640" y="440" text-anchor="middle" class="title" font-size="46" fill="var(--blue)">Model Context Protocol</text>
+        </g>
+        <g id="s0-sub" opacity="0">
+          <text x="640" y="480" text-anchor="middle" class="subtitle">why letting an LLM "act" needed a better wire than a bigger prompt</text>
+        </g>
+        <g id="s0-kicker" opacity="0">
+          <text x="640" y="150" text-anchor="middle" class="kicker">AN INSTRUMENT LAB</text>
+        </g>
+        <g id="s0-theory" opacity="0">
+          <text x="640" y="700" text-anchor="middle" class="label-sm mono">formally: an LLM is a function π: text → text. everything here is about widening its reach.</text>
+        </g>
+      </svg>
+    </div>
+
+    <!-- ============ SLIDE 1 : WHAT IS A FUNCTION ============ -->
+    <div class="slide" id="s1">
+      <svg viewBox="0 0 1280 720">
+        <text x="90" y="80" class="kicker">01 · FIRST PRINCIPLES</text>
+        <text x="90" y="120" class="title">What is a function, really?</text>
+
+        <g id="s1-box" opacity="0">
+          <rect x="560" y="270" width="160" height="100" class="node-rect" stroke="var(--blue)"/>
+          <text x="640" y="328" text-anchor="middle" class="label mono" font-size="22">f</text>
+        </g>
+        <g id="s1-xin" opacity="0">
+          <text x="440" y="328" text-anchor="middle" class="label mono" font-size="22">x</text>
+        </g>
+        <g id="s1-arrow-in" opacity="0">
+          <path d="M 460 320 L 550 320" class="arrow-path" stroke="var(--dim)"/>
+          <path d="M 540 312 L 552 320 L 540 328" fill="none" stroke="var(--dim)" stroke-width="2"/>
+        </g>
+        <g id="s1-arrow-out" opacity="0">
+          <path d="M 730 320 L 820 320" class="arrow-path" stroke="var(--dim)"/>
+          <path d="M 810 312 L 822 320 L 810 328" fill="none" stroke="var(--dim)" stroke-width="2"/>
+        </g>
+        <g id="s1-yout" opacity="0">
+          <text x="850" y="328" text-anchor="middle" class="label mono" font-size="22">y</text>
+        </g>
+        <g id="s1-eq" opacity="0">
+          <text x="640" y="420" text-anchor="middle" class="label mono" font-size="24" fill="var(--green)">y = f(x)</text>
+          <text x="640" y="446" text-anchor="middle" class="label-sm mono">f : X → Y   (a mapping, domain to codomain)</text>
+        </g>
+
+        <!-- concrete example -->
+        <g id="s1-ex-label" opacity="0">
+          <text x="640" y="490" text-anchor="middle" class="label-sm">a concrete one — with a type signature:</text>
+        </g>
+        <g id="s1-ex" opacity="0">
+          <text x="640" y="525" text-anchor="middle" class="label mono" font-size="22" fill="var(--orange)">add(3, 4) = 7</text>
+          <text x="640" y="548" text-anchor="middle" class="label-sm mono" fill="var(--dim)">add : (int, int) → int</text>
+        </g>
+
+        <!-- LLM cannot act -->
+        <g id="s1-llmbox" opacity="0">
+          <rect x="140" y="578" width="220" height="90" class="node-rect" stroke="var(--purple)"/>
+          <text x="250" y="618" text-anchor="middle" class="label" font-size="15" fill="var(--purple)">a Large Language Model</text>
+          <text x="250" y="640" text-anchor="middle" class="label-sm">only predicts the next word</text>
+        </g>
+        <g id="s1-cross" opacity="0">
+          <line x1="400" y1="598" x2="470" y2="648" stroke="var(--red)" stroke-width="2.5"/>
+          <line x1="400" y1="648" x2="470" y2="598" stroke="var(--red)" stroke-width="2.5"/>
+        </g>
+        <g id="s1-calc" opacity="0">
+          <rect x="500" y="578" width="220" height="90" class="node-rect" stroke="var(--dim)"/>
+          <text x="610" y="618" text-anchor="middle" class="label" font-size="15">the real world</text>
+          <text x="610" y="640" text-anchor="middle" class="label-sm">files, APIs, databases, actions</text>
+        </g>
+        <g id="s1-note" opacity="0">
+          <text x="910" y="618" class="label" font-size="15" fill="var(--fg)">it cannot reach out</text>
+          <text x="910" y="640" class="label-sm">it can only ask, in text, to be let through</text>
+        </g>
+      </svg>
+    </div>
+
+    <!-- ============ SLIDE 2 : THE CORE IDEA OF FUNCTION CALLING ============ -->
+    <div class="slide" id="s2">
+      <svg viewBox="0 0 1280 720">
+        <g id="s2-root"></g>
+      </svg>
+    </div>
+
+    <div class="slide" id="s3">
+      <svg viewBox="0 0 1280 720">
+        <g id="s3-root"></g>
+      </svg>
+    </div>
+
+    <div class="slide" id="s4">
+      <svg viewBox="0 0 1280 720">
+        <g id="s4-root"></g>
+      </svg>
+    </div>
+
+    <div class="slide" id="s5">
+      <svg viewBox="0 0 1280 720">
+        <text x="90" y="80" class="kicker">05 · THE IDEA</text>
+        <text x="90" y="120" class="title">Describe the door, don't open it</text>
+
+        <g id="s5-schema-lbl" opacity="0">
+          <text x="330" y="175" class="label-sm">you hand the model a description ("schema")</text>
+        </g>
+        <g id="s5-schema" opacity="0" font-family="Consolas,monospace" font-size="15">
+          <rect x="330" y="195" width="360" height="180" class="node-rect" stroke="var(--blue)"/>
+          <text x="352" y="228" fill="var(--dim)">{</text>
+          <text x="368" y="254" fill="var(--yellow)">"name"</text><text x="440" y="254">: "get_weather",</text>
+          <text x="368" y="280" fill="var(--yellow)">"params"</text><text x="452" y="280">: {</text>
+          <text x="388" y="306" fill="var(--yellow)">"city"</text><text x="440" y="306">: string</text>
+          <text x="368" y="332">}</text>
+          <text x="352" y="358" fill="var(--dim)">}</text>
+        </g>
+        <g id="s5-tuple" opacity="0">
+          <text x="330" y="400" class="label-sm mono" fill="var(--dim)">formally: tool = ⟨ name, params: Type, description ⟩ — a signature, not code</text>
+        </g>
+
+        <g id="s5-arrow" opacity="0">
+          <path d="M 710 285 L 800 285" class="arrow-path" stroke="var(--dim)"/>
+          <path d="M 790 277 L 802 285 L 790 293" fill="none" stroke="var(--dim)" stroke-width="2"/>
+        </g>
+
+        <g id="s5-llm" opacity="0">
+          <rect x="820" y="195" width="330" height="180" class="node-rect" stroke="var(--purple)"/>
+          <text x="985" y="290" text-anchor="middle" class="label" fill="var(--purple)" font-size="16">the model reads it</text>
+          <text x="985" y="315" text-anchor="middle" class="label-sm">"oh — a tool called</text>
+          <text x="985" y="335" text-anchor="middle" class="label-sm">get_weather exists"</text>
+        </g>
+
+        <g id="s5-user" opacity="0">
+          <text x="330" y="450" class="label" font-size="17">user: <tspan fill="var(--dim)">"what's the weather in Chennai?"</tspan></text>
+        </g>
+
+        <g id="s5-down" opacity="0">
+          <line x1="500" y1="465" x2="500" y2="510" stroke="var(--dim)" stroke-width="2"/>
+          <path d="M 490 500 L 500 513 L 510 500" fill="none" stroke="var(--dim)" stroke-width="2"/>
+        </g>
+
+        <g id="s5-out" opacity="0" font-family="Consolas,monospace" font-size="15">
+          <rect x="330" y="525" width="500" height="90" class="node-rect" stroke="var(--orange)"/>
+          <text x="352" y="558" fill="var(--dim)">call:</text>
+          <text x="410" y="558" fill="var(--orange)">get_weather</text><text x="530" y="558">(city=</text><text x="605" y="558" fill="var(--yellow)">"Chennai"</text><text x="700" y="558">)</text>
+          <text x="352" y="590" class="label-sm" font-family="'Segoe UI'">not an answer — a request to be executed</text>
+        </g>
+
+        <g id="s5-punch" opacity="0">
+          <text x="920" y="500" class="label" font-size="18" fill="var(--fg)">the model never</text>
+          <text x="920" y="525" class="label" font-size="18" fill="var(--fg)">runs the function.</text>
+          <text x="920" y="555" class="label-sm">it only ever emits</text>
+          <text x="920" y="575" class="label-sm">structured text that</text>
+          <text x="920" y="595" class="label-sm">asks <tspan fill="var(--fg)">your</tspan> code to.</text>
+        </g>
+        <g id="s5-theory" opacity="0">
+          <text x="640" y="695" text-anchor="middle" class="label-sm mono">args = π(x, S) is still just text — validity of the JSON is the caller's problem, not guaranteed by π</text>
+        </g>
+      </svg>
+    </div>
+
+    <!-- ============ SLIDE 3 : THE FULL LOOP ============ -->
+    <div class="slide" id="s6">
+      <svg viewBox="0 0 1280 720">
+        <g id="s6-root"></g>
+      </svg>
+    </div>
+
+    <div class="slide" id="s7">
+      <svg viewBox="0 0 1280 720">
+        <text x="90" y="80" class="kicker">07 · THE LOOP</text>
+        <text x="90" y="120" class="title">One round trip, five hops</text>
+
+        <!-- 5 nodes in an arc -->
+        <g id="s7-n1" opacity="0"><circle cx="160" cy="380" r="46" class="node-rect" stroke="var(--blue)"/><text x="160" y="374" text-anchor="middle" class="label-sm">user</text><text x="160" y="392" text-anchor="middle" class="label-sm">asks</text></g>
+        <g id="s7-n2" opacity="0"><circle cx="390" cy="290" r="46" class="node-rect" stroke="var(--purple)"/><text x="390" y="284" text-anchor="middle" class="label-sm">model</text><text x="390" y="302" text-anchor="middle" class="label-sm">sees tools</text></g>
+        <g id="s7-n3" opacity="0"><circle cx="640" cy="250" r="46" class="node-rect" stroke="var(--orange)"/><text x="640" y="244" text-anchor="middle" class="label-sm">emits</text><text x="640" y="262" text-anchor="middle" class="label-sm">tool_call</text></g>
+        <g id="s7-n4" opacity="0"><circle cx="890" cy="290" r="46" class="node-rect" stroke="var(--green)"/><text x="890" y="284" text-anchor="middle" class="label-sm">your code</text><text x="890" y="302" text-anchor="middle" class="label-sm">runs it</text></g>
+        <g id="s7-n5" opacity="0"><circle cx="1120" cy="380" r="46" class="node-rect" stroke="var(--yellow)"/><text x="1120" y="374" text-anchor="middle" class="label-sm">result</text><text x="1120" y="392" text-anchor="middle" class="label-sm">returns</text></g>
+
+        <path id="s7-p1" d="M 204 365 Q 300 300 348 305" class="arrow-path" stroke="var(--dim)" stroke-dasharray="200" stroke-dashoffset="200"/>
+        <path id="s7-p2" d="M 434 275 Q 520 240 598 245" class="arrow-path" stroke="var(--dim)" stroke-dasharray="200" stroke-dashoffset="200"/>
+        <path id="s7-p3" d="M 684 260 Q 780 260 848 285" class="arrow-path" stroke="var(--dim)" stroke-dasharray="200" stroke-dashoffset="200"/>
+        <path id="s7-p4" d="M 932 305 Q 1020 340 1078 365" class="arrow-path" stroke="var(--dim)" stroke-dasharray="200" stroke-dashoffset="200"/>
+        <path id="s7-p5" d="M 1100 425 Q 900 560 400 420 Q 250 400 175 415" class="arrow-path" stroke="var(--green)" stroke-dasharray="1400" stroke-dashoffset="1400"/>
+
+        <g id="s7-final" opacity="0">
+          <text x="640" y="620" text-anchor="middle" class="label" font-size="18">then the model turns the raw result into a sentence</text>
+          <text x="640" y="650" text-anchor="middle" class="label-sm" fill="var(--green)">"it's 31°C and humid in Chennai right now."</text>
+        </g>
+      </svg>
+    </div>
+
+    <!-- ============ SLIDE 4 : THE HIDDEN COST ============ -->
+    <div class="slide" id="s8">
+      <svg viewBox="0 0 1280 720">
+        <g id="s8-root"></g>
+      </svg>
+    </div>
+
+    <div class="slide" id="s9">
+      <svg viewBox="0 0 1280 720">
+        <g id="s9-root"></g>
+      </svg>
+    </div>
+
+    <div class="slide" id="s10">
+      <svg viewBox="0 0 1280 720">
+        <text x="90" y="80" class="kicker">10 · THE HIDDEN COST</text>
+        <text x="90" y="120" class="title">Every app, every tool, wired by hand</text>
+
+        <g id="s10-rowlbl" opacity="0">
+          <text x="230" y="185" class="label-sm" text-anchor="middle">apps / SDKs</text>
+        </g>
+        <g id="s10-collbl" opacity="0">
+          <text x="230" y="185" class="label-sm" text-anchor="middle" opacity="0"></text>
+        </g>
+
+        <!-- row labels (apps) -->
+        <g id="s10-rows" opacity="0">
+          <text x="150" y="250" class="label-sm">LangChain</text>
+          <text x="150" y="320" class="label-sm">OpenAI SDK</text>
+          <text x="150" y="390" class="label-sm">Claude API</text>
+          <text x="150" y="460" class="label-sm">Custom agent</text>
+        </g>
+        <!-- column labels (tools) -->
+        <g id="s10-cols" opacity="0">
+          <text x="420" y="200" class="label-sm" text-anchor="middle">Weather</text>
+          <text x="560" y="200" class="label-sm" text-anchor="middle">GitHub</text>
+          <text x="700" y="200" class="label-sm" text-anchor="middle">Calendar</text>
+          <text x="840" y="200" class="label-sm" text-anchor="middle">Slack</text>
+          <text x="980" y="200" class="label-sm" text-anchor="middle">Database</text>
+        </g>
+
+        <g id="s10-grid"></g> <!-- filled by JS -->
+
+        <g id="s10-formula" opacity="0">
+          <text x="640" y="580" text-anchor="middle" class="label mono" font-size="26">4 apps × 5 tools = <tspan id="s10-formula-num">0</tspan> hand-wired integrations</text>
+        </g>
+        <g id="s10-general" opacity="0">
+          <text x="640" y="630" text-anchor="middle" class="label mono" font-size="24" fill="var(--red)">N apps × M tools = N·M integrations</text>
+        </g>
+        <g id="s10-note" opacity="0">
+          <text x="640" y="665" text-anchor="middle" class="label-sm">add one tool → rewrite it N times. add one app → rewrite M tools again.</text>
+        </g>
+      </svg>
+    </div>
+
+    <!-- ============ SLIDE 5 : WHAT'S ACTUALLY MISSING ============ -->
+    <div class="slide" id="s11">
+      <svg viewBox="0 0 1280 720">
+        <g id="s11-root"></g>
+      </svg>
+    </div>
+
+    <div class="slide" id="s12">
+      <svg viewBox="0 0 1280 720">
+        <g id="s12-root"></g>
+      </svg>
+    </div>
+
+    <div class="slide" id="s13">
+      <svg viewBox="0 0 1280 720">
+        <g id="s13-root"></g>
+      </svg>
+    </div>
+
+    <div class="slide" id="s14">
+      <svg viewBox="0 0 1280 720">
+        <text x="90" y="80" class="kicker">14 · DIAGNOSIS</text>
+        <text x="90" y="120" class="title">It isn't a tooling problem. It's a wiring problem.</text>
+
+        <g id="s14-tangle" opacity="0"></g> <!-- messy wires, drawn by JS -->
+        <g id="s14-applbl" opacity="0"><text x="230" y="440" text-anchor="middle" class="label" fill="var(--purple)">app</text></g>
+
+        <g id="s14-i1" opacity="0">
+          <text x="620" y="230" class="label" font-size="17">1 · no shared way to ask "what can you do?"</text>
+        </g>
+        <g id="s14-i2" opacity="0">
+          <text x="620" y="290" class="label" font-size="17">2 · no shared transport or security model</text>
+        </g>
+        <g id="s14-i3" opacity="0">
+          <text x="620" y="350" class="label" font-size="17">3 · tool code glued directly into app code</text>
+        </g>
+
+        <g id="s14-punch" opacity="0">
+          <text x="620" y="460" class="label" font-size="19" fill="var(--fg)">every appliance rewired</text>
+          <text x="620" y="486" class="label" font-size="19" fill="var(--fg)">straight into the wall —</text>
+          <text x="620" y="512" class="label" font-size="19" fill="var(--fg)">no socket, no plug.</text>
+        </g>
+      </svg>
+    </div>
+
+    <!-- ============ SLIDE 6 : ENTER MCP ============ -->
+    <div class="slide" id="s15">
+      <svg viewBox="0 0 1280 720">
+        <text x="90" y="80" class="kicker">15 · THE FIX</text>
+        <text x="90" y="120" class="title">MCP: one socket, any plug</text>
+
+        <g id="s15-socket"></g> <!-- drawn by JS: standard socket shape -->
+        <g id="s15-label" opacity="0">
+          <text x="640" y="470" text-anchor="middle" class="label" fill="var(--blue)" font-size="18">Model Context Protocol</text>
+          <text x="640" y="498" text-anchor="middle" class="label-sm">a standard socket every tool and every app agrees on</text>
+        </g>
+
+        <g id="s15-math">
+          <text x="500" y="570" text-anchor="middle" class="label mono" font-size="26" fill="var(--red)" id="s15-nm" opacity="0">N · M</text>
+          <line id="s15-strike" x1="458" y1="562" x2="542" y2="562" stroke="var(--red)" stroke-width="2.5" stroke-dasharray="84" stroke-dashoffset="84" style="opacity:0"/>
+          <text id="s15-arrow" x="600" y="570" text-anchor="middle" class="label mono" font-size="26" fill="var(--dim)" opacity="0">→</text>
+          <text id="s15-plus" x="720" y="570" text-anchor="middle" class="label mono" font-size="26" fill="var(--green)" opacity="0">N + M</text>
+        </g>
+        <g id="s15-note" opacity="0">
+          <text x="640" y="610" text-anchor="middle" class="label-sm">write a tool server once. every app that speaks MCP can use it.</text>
+        </g>
+      </svg>
+    </div>
+
+    <!-- ============ SLIDE 7 : THE MATH ============ -->
+    <div class="slide" id="s16">
+      <svg viewBox="0 0 1280 720">
+        <g id="s16-root"></g>
+      </svg>
+    </div>
+
+    <div class="slide" id="s17">
+      <svg viewBox="0 0 1280 720">
+        <text x="90" y="80" class="kicker">17 · THE MATH</text>
+        <text x="90" y="120" class="title">Linear tames what quadratic explodes</text>
+
+        <g id="s17-axes" opacity="0">
+          <line x1="250" y1="620" x2="1030" y2="620" stroke="var(--line)" stroke-width="2"/>
+          <line x1="250" y1="620" x2="250" y2="175" stroke="var(--line)" stroke-width="2"/>
+          <text x="250" y="645" text-anchor="middle" class="label-sm">0</text>
+          <text x="640" y="645" text-anchor="middle" class="label-sm">5</text>
+          <text x="1030" y="645" text-anchor="middle" class="label-sm">10</text>
+          <text x="640" y="668" text-anchor="middle" class="label-sm">tools per app  (N = M)</text>
+          <text x="228" y="624" text-anchor="end" class="label-sm">0</text>
+          <text x="228" y="444" text-anchor="end" class="label-sm">50</text>
+          <text x="228" y="184" text-anchor="end" class="label-sm">100</text>
+          <line x1="244" y1="444" x2="256" y2="444" stroke="var(--line)" stroke-width="1"/>
+          <text x="150" y="400" text-anchor="middle" class="label-sm" transform="rotate(-90 150 400)">integrations needed</text>
+        </g>
+
+        <g id="s17-chart"></g> <!-- curves + callouts, built by JS -->
+
+        <g id="s17-legend" opacity="0">
+          <circle cx="790" cy="215" r="5" fill="var(--red)"/>
+          <text x="805" y="220" class="label-sm" fill="var(--red)">function calling → N · M</text>
+          <circle cx="790" cy="240" r="5" fill="var(--green)"/>
+          <text x="805" y="245" class="label-sm" fill="var(--green)">MCP → N + M</text>
+        </g>
+
+        <g id="s17-theory" opacity="0">
+          <text x="640" y="700" text-anchor="middle" class="label-sm mono">for N≈M=x: function calling is Θ(x²) — MCP is Θ(x). one is a curve, one is a line.</text>
+        </g>
+      </svg>
+    </div>
+
+    <!-- ============ SLIDE 8 : ARCHITECTURE ============ -->
+    <div class="slide" id="s18">
+      <svg viewBox="0 0 1280 720">
+        <g id="s18-root"></g>
+      </svg>
+    </div>
+
+    <div class="slide" id="s19">
+      <svg viewBox="0 0 1280 720">
+        <g id="s19-root"></g>
+      </svg>
+    </div>
+
+    <div class="slide" id="s20">
+      <svg viewBox="0 0 1280 720">
+        <g id="s20-root"></g>
+      </svg>
+    </div>
+
+    <div class="slide" id="s21">
+      <svg viewBox="0 0 1280 720">
+        <text x="90" y="80" class="kicker">21 · ARCHITECTURE</text>
+        <text x="90" y="120" class="title">Host, Client, Server</text>
+
+        <g id="s21-host" opacity="0">
+          <rect x="120" y="280" width="230" height="140" class="node-rect" stroke="var(--purple)"/>
+          <text x="235" y="330" text-anchor="middle" class="label" fill="var(--purple)">Host</text>
+          <text x="235" y="356" text-anchor="middle" class="label-sm">the AI app</text>
+          <text x="235" y="376" text-anchor="middle" class="label-sm">(e.g. Claude)</text>
+        </g>
+        <g id="s21-client" opacity="0">
+          <rect x="500" y="280" width="230" height="140" class="node-rect" stroke="var(--blue)"/>
+          <text x="615" y="330" text-anchor="middle" class="label" fill="var(--blue)">Client</text>
+          <text x="615" y="356" text-anchor="middle" class="label-sm">one per server</text>
+          <text x="615" y="376" text-anchor="middle" class="label-sm">speaks the protocol</text>
+        </g>
+        <g id="s21-server" opacity="0">
+          <rect x="880" y="280" width="230" height="140" class="node-rect" stroke="var(--green)"/>
+          <text x="995" y="330" text-anchor="middle" class="label" fill="var(--green)">Server</text>
+          <text x="995" y="356" text-anchor="middle" class="label-sm">exposes tools,</text>
+          <text x="995" y="376" text-anchor="middle" class="label-sm">resources, prompts</text>
+        </g>
+
+        <g id="s21-a1" opacity="0">
+          <path d="M 350 340 L 495 340" class="arrow-path" stroke="var(--dim)"/>
+          <path d="M 485 332 L 497 340 L 485 348" fill="none" stroke="var(--dim)" stroke-width="2"/>
+          <path d="M 495 355 L 350 355" class="arrow-path" stroke="var(--dim)"/>
+          <path d="M 360 347 L 348 355 L 360 363" fill="none" stroke="var(--dim)" stroke-width="2"/>
+        </g>
+        <g id="s21-a2" opacity="0">
+          <path d="M 730 340 L 875 340" class="arrow-path" stroke="var(--dim)"/>
+          <path d="M 865 332 L 877 340 L 865 348" fill="none" stroke="var(--dim)" stroke-width="2"/>
+          <path d="M 875 355 L 730 355" class="arrow-path" stroke="var(--dim)"/>
+          <path d="M 740 347 L 728 355 L 740 363" fill="none" stroke="var(--dim)" stroke-width="2"/>
+        </g>
+        <g id="s21-jsonrpc" opacity="0">
+          <text x="422" y="290" text-anchor="middle" class="label-sm mono">JSON-RPC 2.0</text>
+          <text x="802" y="290" text-anchor="middle" class="label-sm mono">JSON-RPC 2.0</text>
+        </g>
+
+        <g id="s21-fanout" opacity="0">
+          <text x="640" y="500" text-anchor="middle" class="label-sm">one host, many clients, many servers — mix and match freely</text>
+        </g>
+        <g id="s21-fan-graphic"></g>
+      </svg>
+    </div>
+
+    <!-- ============ SLIDE 8 : THE HANDSHAKE ============ -->
+    <div class="slide" id="s22">
+      <svg viewBox="0 0 1280 720">
+        <g id="s22-root"></g>
+      </svg>
+    </div>
+
+    <div class="slide" id="s23">
+      <svg viewBox="0 0 1280 720">
+        <text x="90" y="80" class="kicker">23 · THE HANDSHAKE</text>
+        <text x="90" y="120" class="title">What actually crosses the wire</text>
+
+        <line x1="330" y1="180" x2="330" y2="640" stroke="var(--line)" stroke-width="2"/>
+        <line x1="950" y1="180" x2="950" y2="640" stroke="var(--line)" stroke-width="2"/>
+        <text x="330" y="165" text-anchor="middle" class="label-sm" fill="var(--blue)">client</text>
+        <text x="950" y="165" text-anchor="middle" class="label-sm" fill="var(--green)">server</text>
+
+        <g id="s23-m1" opacity="0">
+          <rect x="360" y="205" width="330" height="46" rx="8" fill="none" stroke="var(--blue)"/>
+          <text x="375" y="233" class="label-sm mono" fill="var(--blue)">initialize</text>
+        </g>
+        <g id="s23-m2" opacity="0">
+          <rect x="600" y="270" width="330" height="46" rx="8" fill="none" stroke="var(--green)"/>
+          <text x="855" y="298" text-anchor="end" class="label-sm mono" fill="var(--green)">capabilities</text>
+        </g>
+        <g id="s23-m3" opacity="0">
+          <rect x="360" y="335" width="330" height="46" rx="8" fill="none" stroke="var(--blue)"/>
+          <text x="375" y="363" class="label-sm mono" fill="var(--blue)">tools/list</text>
+        </g>
+        <g id="s23-m4" opacity="0">
+          <rect x="560" y="400" width="370" height="46" rx="8" fill="none" stroke="var(--green)"/>
+          <text x="915" y="428" text-anchor="end" class="label-sm mono" fill="var(--green)">[get_weather, ...]</text>
+        </g>
+        <g id="s23-m5" opacity="0">
+          <rect x="360" y="465" width="330" height="46" rx="8" fill="none" stroke="var(--orange)"/>
+          <text x="375" y="493" class="label-sm mono" fill="var(--orange)">tools/call(get_weather)</text>
+        </g>
+        <g id="s23-m6" opacity="0">
+          <rect x="600" y="530" width="330" height="46" rx="8" fill="none" stroke="var(--green)"/>
+          <text x="855" y="558" text-anchor="end" class="label-sm mono" fill="var(--green)">result: "31°C"</text>
+        </g>
+
+        <g id="s23-note" opacity="0">
+          <text x="640" y="640" text-anchor="middle" class="label-sm">tools/list is the missing discovery step — the server describes itself, live</text>
+        </g>
+      </svg>
+    </div>
+
+    <!-- ============ SLIDE 9 : COMPARISON ============ -->
+    <div class="slide" id="s24">
+      <svg viewBox="0 0 1280 720">
+        <g id="s24-root"></g>
+      </svg>
+    </div>
+
+    <div class="slide" id="s25">
+      <svg viewBox="0 0 1280 720">
+        <g id="s25-root"></g>
+      </svg>
+    </div>
+
+    <div class="slide" id="s26">
+      <svg viewBox="0 0 1280 720">
+        <g id="s26-root"></g>
+      </svg>
+    </div>
+
+    <div class="slide" id="s27">
+      <svg viewBox="0 0 1280 720">
+        <g id="s27-root"></g>
+      </svg>
+    </div>
+
+    <div class="slide" id="s28">
+      <svg viewBox="0 0 1280 720">
+        <g id="s28-root"></g>
+      </svg>
+    </div>
+
+    <div class="slide" id="s29">
+      <svg viewBox="0 0 1280 720">
+        <text x="90" y="80" class="kicker">29 · SIDE BY SIDE</text>
+        <text x="90" y="120" class="title">Function calling vs. MCP</text>
+
+        <line x1="640" y1="170" x2="640" y2="640" stroke="var(--line)" stroke-width="1"/>
+        <text x="420" y="170" text-anchor="middle" class="label" fill="var(--orange)">Function calling</text>
+        <text x="860" y="170" text-anchor="middle" class="label" fill="var(--blue)">MCP</text>
+
+        <g id="s29-r1" opacity="0">
+          <text x="90" y="240" class="label-sm">discovery</text>
+          <text x="420" y="240" text-anchor="middle" class="label-sm" fill="var(--red)">hardcoded by hand</text>
+          <text x="860" y="240" text-anchor="middle" class="label-sm" fill="var(--green)">tools/list, live</text>
+        </g>
+        <g id="s29-r2" opacity="0">
+          <text x="90" y="310" class="label-sm">reuse across apps</text>
+          <text x="420" y="310" text-anchor="middle" class="label-sm" fill="var(--red)">rewritten per SDK</text>
+          <text x="860" y="310" text-anchor="middle" class="label-sm" fill="var(--green)">one server, any host</text>
+        </g>
+        <g id="s29-r3" opacity="0">
+          <text x="90" y="380" class="label-sm">transport</text>
+          <text x="420" y="380" text-anchor="middle" class="label-sm" fill="var(--red)">whatever the SDK does</text>
+          <text x="860" y="380" text-anchor="middle" class="label-sm" fill="var(--green)">JSON-RPC 2.0, fixed</text>
+        </g>
+        <g id="s29-r4" opacity="0">
+          <text x="90" y="450" class="label-sm">coupling</text>
+          <text x="420" y="450" text-anchor="middle" class="label-sm" fill="var(--red)">tight — glued in</text>
+          <text x="860" y="450" text-anchor="middle" class="label-sm" fill="var(--green)">loose — a boundary</text>
+        </g>
+        <g id="s29-r5" opacity="0">
+          <text x="90" y="520" class="label-sm">integrations needed</text>
+          <text x="420" y="520" text-anchor="middle" class="label-sm mono" fill="var(--red)">N · M</text>
+          <text x="860" y="520" text-anchor="middle" class="label-sm mono" fill="var(--green)">N + M</text>
+        </g>
+
+        <g id="s29-foot" opacity="0">
+          <text x="640" y="610" text-anchor="middle" class="label-sm">MCP doesn't replace function calling — it standardizes how the model reaches it</text>
+        </g>
+      </svg>
+    </div>
+
+    <!-- ============ SLIDE 10 : SUMMARY ============ -->
+    <div class="slide" id="s30">
+      <svg viewBox="0 0 1280 720">
+        <g id="s30-root"></g>
+      </svg>
+    </div>
+
+    <div class="slide" id="s31">
+      <svg viewBox="0 0 1280 720">
+        <text x="90" y="80" class="kicker">31 · THE TAKEAWAY</text>
+        <text x="90" y="120" class="title">The action vs. the road</text>
+
+        <g id="s31-1" opacity="0">
+          <text x="640" y="260" text-anchor="middle" class="label" font-size="22">function calling is <tspan fill="var(--orange)">the action</tspan> —</text>
+          <text x="640" y="292" text-anchor="middle" class="label" font-size="22">the model asking to run one specific thing</text>
+        </g>
+        <g id="s31-2" opacity="0">
+          <text x="640" y="360" text-anchor="middle" class="label" font-size="22">MCP is <tspan fill="var(--blue)">the road</tspan> —</text>
+          <text x="640" y="392" text-anchor="middle" class="label" font-size="22">a standard way for any model to reach any tool</text>
+        </g>
+
+        <g id="s31-hub"></g> <!-- drawn by JS: one hub, many spokes -->
+
+        <g id="s31-eq" opacity="0">
+          <text x="640" y="650" text-anchor="middle" class="label mono" font-size="22" fill="var(--dim)">N·M integrations → N+M, and one of them is reusable forever</text>
+        </g>
+      </svg>
+    </div>
+
+  </div>
+</div>
+
+<div id="chrome">
+  <button class="navbtn" id="prevBtn">‹</button>
+  <div id="dots"></div>
+  <button class="navbtn" id="nextBtn">›</button>
+  <div id="counter">1 / 32</div>
+</div>
+
+<script>
+(function(){
+  const TOTAL = 32;
+  let current = 0;
+  const stage = document.getElementById('stage');
+  const dotsWrap = document.getElementById('dots');
+  const counter = document.getElementById('counter');
+
+  for(let i=0;i<TOTAL;i++){
+    const d = document.createElement('div');
+    d.className = 'dot' + (i===0?' on':'');
+    d.addEventListener('click', ()=>goTo(i));
+    dotsWrap.appendChild(d);
+  }
+
+  function fitStage(){
+    const availW = window.innerWidth - 60;
+    const availH = window.innerHeight - 90;
+    const scale = Math.min(availW/1280, availH/720, 1);
+    stage.style.transform = `scale(${scale})`;
+  }
+  window.addEventListener('resize', fitStage);
+  fitStage();
+
+  function wait(ms){ return new Promise(r=>setTimeout(r,ms)); }
+  function el(id){ return document.getElementById(id); }
+
+  // gentle arrival: fade + slide
+  function fade(id, opts={}){
+    const node = el(id);
+    if(!node) return Promise.resolve();
+    return node.animate(
+      [{opacity:0, transform:(opts.from||'translateY(10px)')}, {opacity:1, transform:'translateY(0px)'}],
+      {duration:opts.duration||500, easing:'cubic-bezier(.22,1,.36,1)', fill:'forwards'}
+    ).finished;
+  }
+  // punchy arrival: overshoot scale bounce, for moments that deserve emphasis
+  function pop(id, opts={}){
+    const node = el(id);
+    if(!node) return Promise.resolve();
+    return node.animate(
+      [{opacity:0, transform:(opts.from||'scale(0.55)')},
+       {opacity:1, transform:'scale(1.07)', offset:0.72},
+       {opacity:1, transform:'scale(1)'}],
+      {duration:opts.duration||560, easing:'cubic-bezier(.34,1.56,.64,1)', fill:'forwards'}
+    ).finished;
+  }
+  function fadeOnly(id, duration=500){
+    const node = el(id);
+    if(!node) return Promise.resolve();
+    return node.animate([{opacity:0},{opacity:1}], {duration, fill:'forwards'}).finished;
+  }
+  // a quick, non-blocking pulse — for "this is alive" emphasis without holding up the sequence
+  function pulse(id, scale=1.08, duration=420){
+    const node = el(id);
+    if(!node) return;
+    node.animate([{transform:'scale(1)'},{transform:`scale(${scale})`},{transform:'scale(1)'}],
+      {duration, easing:'ease-in-out'});
+  }
+  function drawLine(id, duration=650){
+    const node = typeof id === 'string' ? document.getElementById(id) : id;
+    if(!node) return Promise.resolve();
+    node.style.opacity = 1;
+    return node.animate([{strokeDashoffset:node.getAttribute('stroke-dasharray')},{strokeDashoffset:0}],
+      {duration, easing:'cubic-bezier(.4,0,.2,1)', fill:'forwards'}).finished;
+  }
+  // a small dot that physically travels along an arbitrary parametric path — the "pen tip"
+  function travelCustom(svg, pointFn, duration, opts={}){
+    return new Promise(resolve=>{
+      const dot = document.createElementNS('http://www.w3.org/2000/svg','circle');
+      dot.setAttribute('r', opts.radius || 5);
+      dot.setAttribute('fill', opts.color || 'var(--blue)');
+      dot.setAttribute('opacity', opts.opacity ?? 0.95);
+      svg.appendChild(dot);
+      const start = performance.now();
+      function frame(now){
+        const raw = Math.min(1, (now-start)/duration);
+        const t = raw<0.5 ? 2*raw*raw : 1-Math.pow(-2*raw+2,2)/2; // easeInOutQuad
+        const p = pointFn(t);
+        dot.setAttribute('cx', p.x); dot.setAttribute('cy', p.y);
+        if(raw<1){ requestAnimationFrame(frame); }
+        else{
+          dot.animate([{opacity:opts.opacity ?? 0.95},{opacity:0}],{duration:220,fill:'forwards'})
+            .finished.then(()=>{ dot.remove(); resolve(); });
+        }
+      }
+      requestAnimationFrame(frame);
+    });
+  }
+  function travelAlongPath(path, duration, opts={}){
+    const node = typeof path==='string' ? document.getElementById(path) : path;
+    if(!node) return Promise.resolve();
+    const len = node.getTotalLength();
+    return travelCustom(node.ownerSVGElement, t=>node.getPointAtLength(t*len), duration, opts);
+  }
+  function travelLinear(svg, x1,y1,x2,y2, duration, opts={}){
+    return travelCustom(svg, t=>({x:x1+(x2-x1)*t, y:y1+(y2-y1)*t}), duration, opts);
+  }
+  // draw a path/line AND trace it with a moving dot at once — the signature "manim Create" feel
+  function traceLine(id, duration=500, opts={}){
+    const node = typeof id === 'string' ? document.getElementById(id) : id;
+    if(!node) return Promise.resolve();
+    return Promise.all([ drawLine(node, duration), travelAlongPath(node, duration, opts) ]);
+  }
+  // count a number up inside a text/tspan node
+  function countUp(id, from, to, duration){
+    return new Promise(resolve=>{
+      const node = el(id);
+      if(!node){ resolve(); return; }
+      const start = performance.now();
+      function frame(now){
+        const t = Math.min(1, (now-start)/duration);
+        const eased = 1 - Math.pow(1-t, 3); // easeOutCubic
+        node.textContent = Math.round(from + (to-from)*eased);
+        if(t<1) requestAnimationFrame(frame); else { node.textContent = to; resolve(); }
+      }
+      requestAnimationFrame(frame);
+    });
+  }
+  // split every <text> child of a group into per-character tspans (preserving each fragment's fill),
+  // ready to be revealed one keystroke at a time — a genuine "typing" effect
+  function typeSchema(group){
+    const texts = Array.from(group.querySelectorAll('text'));
+    let chars = [];
+    texts.forEach(t=>{
+      const fill = t.getAttribute('fill');
+      const content = t.textContent;
+      while(t.firstChild) t.removeChild(t.firstChild);
+      for(const ch of content){
+        const tspan = document.createElementNS('http://www.w3.org/2000/svg','tspan');
+        tspan.textContent = (ch === ' ') ? '\u00A0' : ch;
+        if(fill) tspan.setAttribute('fill', fill);
+        tspan.style.opacity = 0;
+        t.appendChild(tspan);
+        chars.push(tspan);
+      }
+    });
+    return chars;
+  }
+  function typeReveal(chars, stagger=14, charDuration=55){
+    chars.forEach((c,i)=> c.animate([{opacity:0},{opacity:1}], {duration:charDuration, delay:i*stagger, fill:'forwards'}));
+    return wait(chars.length*stagger + charDuration + 120);
+  }
+
+  // ---------- per-slide dynamic builders ----------
+  function buildS4Grid(){
+    const g = el('s10-grid');
+    g.innerHTML = '';
+    const rows=4, cols=5;
+    const x0=350, y0=210, dx=140, dy=70, w=100, h=44;
+    let cells=[];
+    for(let r=0;r<rows;r++){
+      for(let c=0;c<cols;c++){
+        const rect = document.createElementNS('http://www.w3.org/2000/svg','rect');
+        rect.setAttribute('x', x0 + c*dx);
+        rect.setAttribute('y', y0 + r*dy);
+        rect.setAttribute('width', w);
+        rect.setAttribute('height', h);
+        rect.setAttribute('rx', 6);
+        rect.setAttribute('fill', 'none');
+        rect.setAttribute('stroke', 'var(--red)');
+        rect.setAttribute('stroke-opacity', '0.55');
+        rect.style.opacity = 0;
+        g.appendChild(rect);
+        cells.push(rect);
+      }
+    }
+    return cells;
+  }
+
+  function buildS5Tangle(){
+    const g = el('s14-tangle');
+    g.innerHTML = '';
+    const app = document.createElementNS('http://www.w3.org/2000/svg','rect');
+    app.setAttribute('x',150); app.setAttribute('y',330); app.setAttribute('width',160); app.setAttribute('height',90);
+    app.setAttribute('class','node-rect'); app.setAttribute('stroke','var(--purple)');
+    g.appendChild(app);
+    const targets = [[520,220],[520,320],[520,420],[520,520]];
+    let paths=[];
+    targets.forEach((t,i)=>{
+      const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+      const midx = 320 + Math.sin(i*1.7)*40;
+      const midy = 250 + i*90 + Math.cos(i*2.1)*30;
+      const d = `M 310 ${375} Q ${midx} ${midy} ${t[0]} ${t[1]}`;
+      path.setAttribute('d', d);
+      path.setAttribute('fill','none');
+      path.setAttribute('stroke','var(--dim)');
+      path.setAttribute('stroke-width','2');
+      const len = 500;
+      path.setAttribute('stroke-dasharray', len);
+      path.setAttribute('stroke-dashoffset', len);
+      path.style.opacity=1;
+      g.appendChild(path);
+      paths.push(path);
+
+      const dot = document.createElementNS('http://www.w3.org/2000/svg','circle');
+      dot.setAttribute('cx', t[0]+40); dot.setAttribute('cy', t[1]); dot.setAttribute('r', 5);
+      dot.setAttribute('fill', 'var(--red)');
+      dot.style.opacity = 0;
+      g.appendChild(dot);
+      path._dot = dot;
+    });
+    return paths;
+  }
+
+  function buildS6Socket(){
+    const g = el('s15-socket');
+    g.innerHTML = '';
+    // central standard socket (rounded square with two slots) - generic, non-branded
+    const outer = document.createElementNS('http://www.w3.org/2000/svg','rect');
+    outer.setAttribute('x',560); outer.setAttribute('y',210); outer.setAttribute('width',160); outer.setAttribute('height',160);
+    outer.setAttribute('rx',24); outer.setAttribute('fill','var(--panel)'); outer.setAttribute('stroke','var(--blue)'); outer.setAttribute('stroke-width','2');
+    outer.style.opacity=0;
+    g.appendChild(outer);
+    const slot1 = document.createElementNS('http://www.w3.org/2000/svg','rect');
+    slot1.setAttribute('x',600); slot1.setAttribute('y',260); slot1.setAttribute('width',20); slot1.setAttribute('height',60); slot1.setAttribute('rx',8);
+    slot1.setAttribute('fill','var(--bg2)'); slot1.setAttribute('stroke','var(--blue)');
+    slot1.style.opacity=0;
+    g.appendChild(slot1);
+    const slot2 = document.createElementNS('http://www.w3.org/2000/svg','rect');
+    slot2.setAttribute('x',660); slot2.setAttribute('y',260); slot2.setAttribute('width',20); slot2.setAttribute('height',60); slot2.setAttribute('rx',8);
+    slot2.setAttribute('fill','var(--bg2)'); slot2.setAttribute('stroke','var(--blue)');
+    slot2.style.opacity=0;
+    g.appendChild(slot2);
+
+    // 4 plugs approaching from 4 directions, offset outward so they can dock inward
+    const centerX=640, centerY=290;
+    const plugPos = [[300,290,'weather'],[980,290,'github'],[300,470,'calendar'],[980,470,'slack']];
+    let plugs=[];
+    plugPos.forEach(p=>{
+      const grp = document.createElementNS('http://www.w3.org/2000/svg','g');
+      grp.style.opacity = 0;
+      const dx = p[0]-centerX, dy = p[1]-centerY;
+      const mag = Math.hypot(dx,dy) || 1;
+      const outX = (dx/mag)*46, outY = (dy/mag)*46;
+      grp.style.transform = `translate(${outX}px, ${outY}px)`;
+      grp._dock = {outX, outY};
+      const rect = document.createElementNS('http://www.w3.org/2000/svg','rect');
+      rect.setAttribute('x', p[0]-45); rect.setAttribute('y', p[1]-24); rect.setAttribute('width',90); rect.setAttribute('height',48); rect.setAttribute('rx',8);
+      rect.setAttribute('fill','var(--panel)'); rect.setAttribute('stroke','var(--green)');
+      grp.appendChild(rect);
+      const txt = document.createElementNS('http://www.w3.org/2000/svg','text');
+      txt.setAttribute('x', p[0]); txt.setAttribute('y', p[1]+5); txt.setAttribute('text-anchor','middle');
+      txt.setAttribute('class','label-sm'); txt.textContent = p[2];
+      grp.appendChild(txt);
+      // thin connecting wire from plug toward socket, drawn as it docks
+      const wire = document.createElementNS('http://www.w3.org/2000/svg','line');
+      const wx = p[0]-dx*0.32, wy = p[1]-dy*0.32;
+      wire.setAttribute('x1', p[0]); wire.setAttribute('y1', p[1]);
+      wire.setAttribute('x2', wx); wire.setAttribute('y2', wy);
+      wire.setAttribute('stroke','var(--green)'); wire.setAttribute('stroke-width','1.5'); wire.setAttribute('stroke-opacity','0.5');
+      const wlen = Math.hypot(wx-p[0], wy-p[1]);
+      wire.setAttribute('stroke-dasharray', wlen); wire.setAttribute('stroke-dashoffset', wlen);
+      wire.style.opacity = 0;
+      g.appendChild(wire);
+      grp._wire = wire;
+      g.appendChild(grp);
+      plugs.push(grp);
+    });
+    return {outer, slot1, slot2, plugs};
+  }
+
+  function buildS7Fanout(){
+    const g = el('s21-fan-graphic');
+    g.innerHTML='';
+    // one host, three small client-server pairs fanning out beneath it
+    const hostX = 235;
+    const targets = [
+      {cx:520, cy:565, label:'Slack'},
+      {cx:700, cy:600, label:'GitHub'},
+      {cx:880, cy:565, label:'Filesystem'},
+    ];
+    let items = [];
+    targets.forEach((t,i)=>{
+      const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+      const midx = hostX + (t.cx-hostX)*0.5;
+      const d = `M ${hostX} 435 Q ${midx} 520 ${t.cx} ${t.cy-26}`;
+      path.setAttribute('d', d);
+      path.setAttribute('fill','none'); path.setAttribute('stroke','var(--dim)'); path.setAttribute('stroke-width','1.5');
+      const len = 260;
+      path.setAttribute('stroke-dasharray', len); path.setAttribute('stroke-dashoffset', len);
+      path.style.opacity = 1;
+      path.id = 'fan'+i;
+      g.appendChild(path);
+
+      const node = document.createElementNS('http://www.w3.org/2000/svg','g');
+      node.style.opacity = 0;
+      const circ = document.createElementNS('http://www.w3.org/2000/svg','circle');
+      circ.setAttribute('cx', t.cx); circ.setAttribute('cy', t.cy); circ.setAttribute('r', 26);
+      circ.setAttribute('fill','var(--panel)'); circ.setAttribute('stroke','var(--green)');
+      node.appendChild(circ);
+      const txt = document.createElementNS('http://www.w3.org/2000/svg','text');
+      txt.setAttribute('x', t.cx); txt.setAttribute('y', t.cy+45); txt.setAttribute('text-anchor','middle');
+      txt.setAttribute('class','label-sm'); txt.textContent = t.label;
+      node.appendChild(txt);
+      g.appendChild(node);
+      items.push({path, node});
+    });
+    return items;
+  }
+
+  function buildMathChart(){
+    const g = el('s17-chart');
+    g.innerHTML = '';
+    const x0=250, x10=1030, y0=620, y100=180;
+    const px = n => x0 + n*(x10-x0)/10;
+    const py = v => y0 - v*(y0-y100)/100;
+    function makePath(fn, color){
+      let d = '';
+      for(let n=0;n<=10;n+=0.5){
+        const v = Math.min(100, fn(n));
+        d += (n===0?'M ':'L ') + px(n).toFixed(1) + ' ' + py(v).toFixed(1) + ' ';
+      }
+      const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+      path.setAttribute('d', d.trim());
+      path.setAttribute('fill','none'); path.setAttribute('stroke', color); path.setAttribute('stroke-width','3');
+      const len = 1400;
+      path.setAttribute('stroke-dasharray', len); path.setAttribute('stroke-dashoffset', len);
+      path.style.opacity = 0;
+      path.id = color.includes('red') ? 's17-quad' : 's17-lin';
+      g.appendChild(path);
+      return path;
+    }
+    const quadPath = makePath(n => n*n, 'var(--red)');
+    const linPath = makePath(n => 2*n, 'var(--green)');
+
+    let callouts = [];
+    function callout(n, v, color, id, dy){
+      const grp = document.createElementNS('http://www.w3.org/2000/svg','g');
+      grp.id = id;
+      grp.style.opacity = 0;
+      const dot = document.createElementNS('http://www.w3.org/2000/svg','circle');
+      dot.setAttribute('cx', px(n)); dot.setAttribute('cy', py(v)); dot.setAttribute('r', 5.5);
+      dot.setAttribute('fill', color);
+      grp.appendChild(dot);
+      const txt = document.createElementNS('http://www.w3.org/2000/svg','text');
+      txt.setAttribute('x', px(n)); txt.setAttribute('y', py(v)+dy); txt.setAttribute('text-anchor','middle');
+      txt.setAttribute('class','label-sm mono'); txt.setAttribute('fill', color);
+      txt.textContent = Math.round(v);
+      grp.appendChild(txt);
+      g.appendChild(grp);
+      callouts.push(id);
+    }
+    callout(4, 16, 'var(--red)', 's17-cb1', -16);
+    callout(10, 100, 'var(--red)', 's17-cb2', -16);
+    callout(4, 8, 'var(--green)', 's17-cb3', 22);
+    callout(10, 20, 'var(--green)', 's17-cb4', 22);
+
+    return {quadPath, linPath, callouts};
+  }
+
+  function buildS10Hub(){
+    const g = el('s31-hub');
+    g.innerHTML='';
+    const hub = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    hub.setAttribute('cx',640); hub.setAttribute('cy',520); hub.setAttribute('r',34);
+    hub.setAttribute('fill','var(--panel)'); hub.setAttribute('stroke','var(--blue)'); hub.setAttribute('stroke-width','2');
+    hub.style.opacity = 0;
+    g.appendChild(hub);
+    const label = document.createElementNS('http://www.w3.org/2000/svg','text');
+    label.setAttribute('x',640); label.setAttribute('y',526); label.setAttribute('text-anchor','middle');
+    label.setAttribute('class','label-sm mono'); label.setAttribute('fill','var(--blue)');
+    label.textContent='MCP';
+    label.style.opacity = 0;
+    g.appendChild(label);
+
+    const spokes = [[400,470],[300,540],[380,610],[900,470],[980,540],[900,610]];
+    let items=[];
+    spokes.forEach((s,i)=>{
+      const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+      line.setAttribute('x1',640); line.setAttribute('y1',520);
+      line.setAttribute('x2',s[0]); line.setAttribute('y2',s[1]);
+      line.setAttribute('stroke','var(--dim)'); line.setAttribute('stroke-width','1.5');
+      const len = Math.hypot(s[0]-640, s[1]-520);
+      line.setAttribute('stroke-dasharray', len);
+      line.setAttribute('stroke-dashoffset', len);
+      line.style.opacity = 1;
+      g.appendChild(line);
+      const dot = document.createElementNS('http://www.w3.org/2000/svg','circle');
+      dot.setAttribute('cx',s[0]); dot.setAttribute('cy',s[1]); dot.setAttribute('r',14);
+      dot.setAttribute('fill','var(--panel)'); dot.setAttribute('stroke','var(--green)');
+      dot.style.opacity = 0;
+      g.appendChild(dot);
+      items.push({line, dot});
+    });
+    return {hub, label, items};
+  }
+
+  // ---------- generic, data-driven "theory slide" engine (for the 20 deep-dive slides) ----------
+  const CONTENT_SLIDES = {
+    2: { kicker:"02 · FIRST PRINCIPLES", title:"Not every f is safe to call blindly", type:"compare",
+      leftLabel:"pure function", rightLabel:"tool call (side effect)",
+      rows:[
+        {label:"determinism", left:"f(x) always = same y", right:"may differ call to call"},
+        {label:"world contact", left:"touches nothing outside", right:"reads or writes real state"},
+        {label:"safe to retry?", left:"yes, always", right:"not always — e.g. send_email"},
+        {label:"math property", left:"referential transparency", right:"none guaranteed"},
+      ],
+      note:"this is why models are told which tools are safe to auto-retry, and which need a human to confirm" },
+
+    3: { kicker:"03 · FIRST PRINCIPLES", title:"Underneath: next-token prediction", type:"formula",
+      big:"P( token_t | token_1 … token_t-1 )",
+      steps:[
+        "the model outputs a probability over its whole vocabulary, every single step",
+        "softmax(z)_i = e^z_i / Σ_j e^z_j  — turns raw scores into a real distribution",
+        "a tool call is just a sequence of tokens sampled from that same distribution",
+        "nothing new is happening mechanically — only the vocabulary of the moment changed",
+      ],
+      note:"this is why constrained decoding (a couple slides on) works at all: you can restrict which tokens are eligible" },
+
+    4: { kicker:"04 · FIRST PRINCIPLES", title:"Every tool definition has a token price", type:"formula",
+      big:"cost ≈ base + Σ schema_i  (tokens)",
+      steps:[
+        "each tool schema you register sits in the context window on every single call",
+        "10 tools × ~150 tokens each ≈ 1,500 tokens spent before the user even asks anything",
+        "attention cost grows with context length — bigger context, slower and pricier",
+        "MCP doesn't remove this cost — but on-demand discovery means only what's needed gets loaded",
+      ],
+      note:"token economics is a quiet, constant argument for fewer, better-described tools" },
+
+    6: { kicker:"06 · MECHANICS", title:"How the model is kept inside the JSON lines", type:"formula",
+      big:"P'(t) = P(t) · 1[ t is a valid next token ]",
+      steps:[
+        "a JSON Schema defines a grammar G — the set of allowed strings L(G)",
+        "at each step, the decoder masks out any token that would leave L(G)",
+        "probabilities are renormalized over only the still-valid tokens",
+        "result: the model literally cannot emit malformed JSON, by construction",
+      ],
+      note:"this is called constrained or grammar-guided decoding — enforced outside the model, not learned inside it" },
+
+    8: { kicker:"08 · MECHANICS", title:"Real tasks are rarely one hop", type:"timeline",
+      nodes:[
+        {label:"plan", sub:"break the ask down"},
+        {label:"call 1", sub:"search flights"},
+        {label:"call 2", sub:"check calendar"},
+        {label:"call 3", sub:"book + confirm"},
+        {label:"answer", sub:"summarize to user"},
+      ],
+      note:"each arrow is a full round trip — a k-step plan costs k separate model turns, more if steps depend on each other" },
+
+    9: { kicker:"09 · MECHANICS", title:"What happens when a call fails", type:"formula",
+      big:"E[ attempts ] = 1 / (1 − p)",
+      steps:[
+        "let p = probability a single tool call fails — timeout, bad args, a flaky API",
+        "if failures are independent, attempts-to-success follows a geometric distribution",
+        "at p = 0.2 that's 1.25 tries on average — at p = 0.5, it's 2",
+        "someone needs a retry policy: how many attempts, what backoff, when to ask a human instead",
+      ],
+      note:"orthogonal to function-calling vs MCP — both need this. MCP just gives errors one standard shape" },
+
+    11: { kicker:"11 · THE HIDDEN COST", title:"Every wiring diagram is a complete bipartite graph", type:"graph",
+      n:4, m:5,
+      note:"K(N,M) has exactly N·M edges — graph theory's name for the mess from a few slides back" },
+
+    12: { kicker:"12 · THE HIDDEN COST", title:"Integrations don't stay written — they stay owed", type:"formula",
+      big:"cost(t) = Σ integrations × updates(t)",
+      steps:[
+        "every API changes a schema, deprecates a field, rotates a key — occasionally, forever",
+        "with N·M hand-wired integrations, one upstream change can mean up to M separate fixes",
+        "with N+M, that same change is fixed once, in the one server that owns it",
+        "this is the part of the cost that doesn't show up on day one — only over the system's life",
+      ],
+      note:"day-one cost is N·M vs N+M. lifetime cost is worse: it compounds every time anything upstream changes" },
+
+    13: { kicker:"13 · THE HIDDEN COST", title:"A familiar shape from network theory", type:"formula",
+      big:"value(n) ∝ n²,   cost-without-a-hub(n) ∝ n²",
+      steps:[
+        "Metcalfe's law: a network of n nodes has up to n(n−1)/2 possible connections",
+        "without a shared hub, capturing that value means wiring close to n² links by hand",
+        "a hub — a phone exchange, an internet router, an MCP server — turns that into n links to the hub",
+        "MCP is playing the same trick for tools and agents that exchanges played for telephones",
+      ],
+      note:"quadratic cost without a hub, linear with one — the pattern shows up everywhere connectivity does" },
+
+    16: { kicker:"16 · THE FIX", title:"A library helps one language. A protocol helps all of them.", type:"compare",
+      leftLabel:"SDK / library", rightLabel:"protocol (MCP)",
+      rows:[
+        {label:"how it's used", left:"import it, in your language", right:"any language that speaks JSON-RPC"},
+        {label:"who implements it", left:"every host, again, per language", right:"once, by the tool's own author"},
+        {label:"versioning", left:"tied to a package release", right:"negotiated live at handshake time"},
+        {label:"new host appears", left:"someone ports the SDK", right:"nothing — it already speaks the protocol"},
+      ],
+      note:"an SDK is a convenience for one runtime. a protocol is a contract that outlives any single runtime" },
+
+    18: { kicker:"18 · ARCHITECTURE", title:"Before anything else: what can you even do?", type:"bullets",
+      eq:"capabilities = C(host) ∩ C(server)",
+      items:[
+        "the very first message — initialize — lists what each side supports",
+        "tools? resources? prompts? streaming? sampling? each is declared, not assumed",
+        "the session only ever uses the intersection — the common ground both sides agreed on",
+        "add a capability later and older clients simply never ask for it — nothing breaks",
+      ],
+      note:"the same idea as HTTP content negotiation, or a TLS cipher-suite handshake: declare, then intersect" },
+
+    19: { kicker:"19 · ARCHITECTURE", title:"MCP is bigger than \u201Ccalling functions\u201D", type:"bullets",
+      items:[
+        "Tools — actions with side effects: send_email, run_query, create_ticket",
+        "Resources — read-only context the host can pull in: a file, a row, a log line",
+        "Prompts — reusable, parameterized instruction templates the server offers the host",
+      ],
+      note:"function calling only ever covered the first of these three — MCP standardizes all three the same way" },
+
+    20: { kicker:"20 · ARCHITECTURE", title:"The wire runs both directions", type:"timeline",
+      nodes:[
+        {label:"server", sub:"needs a judgment call"},
+        {label:"sampling", sub:"createMessage request"},
+        {label:"host", sub:"asks its own model"},
+        {label:"model", sub:"answers"},
+        {label:"server", sub:"continues its task"},
+      ],
+      note:"a server can request a completion from the host's model mid-task — without ever holding its own API key" },
+
+    22: { kicker:"22 · ARCHITECTURE", title:"How the bytes actually move", type:"compare",
+      leftLabel:"stdio", rightLabel:"streamable HTTP",
+      rows:[
+        {label:"typical use", left:"local process, same machine", right:"remote server, over a network"},
+        {label:"latency", left:"~microseconds", right:"a real network round trip"},
+        {label:"auth", left:"process ownership is the boundary", right:"needs real auth — tokens, OAuth"},
+        {label:"who uses it", left:"CLI tools, local dev servers", right:"hosted, shared, multi-user servers"},
+      ],
+      note:"same JSON-RPC messages either way — the transport is a pluggable detail, not the protocol itself" },
+
+    24: { kicker:"24 · THE HANDSHAKE", title:"Every message is one of three shapes", type:"bullets",
+      eq:"{ jsonrpc, id, method, params }",
+      items:[
+        "request — carries an id, expects exactly one response with that same id",
+        "response — carries that id, plus a result or an error, never both",
+        "notification — no id, no response expected — fire and forget",
+      ],
+      note:"the id is a bijection between a request and its answer — what makes this safe over an async connection" },
+
+    25: { kicker:"25 · THE HANDSHAKE", title:"A session is a tiny state machine", type:"timeline",
+      nodes:[
+        {label:"uninitialized", sub:"just connected"},
+        {label:"initializing", sub:"capabilities exchanged"},
+        {label:"ready", sub:"tools/list, tools/call"},
+        {label:"closed", sub:"cleanly shut down"},
+      ],
+      note:"calling tools/call before initialize finishes is a protocol error — the state machine is part of the spec" },
+
+    26: { kicker:"26 · TRADEOFFS", title:"A boundary you can actually measure", type:"formula",
+      big:"total latency ≈ k · R",
+      steps:[
+        "R = one round trip to a tool — in-process call: ~0. remote MCP server: real network time",
+        "k = number of tool calls in the chain — multi-step plans pay this k times over",
+        "in-process function calling can win for a single, latency-critical, local operation",
+        "MCP trades a bit of R for reuse, isolation and standardization — worth it for most tools, not free for any",
+      ],
+      note:"a genuine tradeoff, not a rounding error — worth accounting for when a task is latency-sensitive" },
+
+    27: { kicker:"27 · TRADEOFFS", title:"A standard door needs a standard lock", type:"bullets",
+      items:[
+        "least privilege — a server should expose only the scopes a task actually needs",
+        "explicit consent — hosts can, and should, ask a human before high-stakes calls run",
+        "the server is a trust boundary — treat its output like any other untrusted input",
+        "a shared protocol makes security review possible once, instead of once per bespoke integration",
+      ],
+      note:"standardizing the wiring also standardizes where you put the guard rails" },
+
+    28: { kicker:"28 · TRADEOFFS", title:"A hub isn't free — sometimes skip it", type:"bullets",
+      items:[
+        "one app, one tool, never reused — plain function calling is simpler, full stop",
+        "ultra-low-latency, in-process operations, where even one extra hop matters",
+        "an early prototype, before you know which tools are even worth standardizing",
+      ],
+      note:"MCP earns its cost once N and M exceed 1 — below that, the simplest thing that works is the right thing" },
+
+    30: { kicker:"30 · THE BIGGER PICTURE", title:"Why this compounds instead of just adding up", type:"formula",
+      big:"value ∝ (hosts) × (servers)",
+      steps:[
+        "every new MCP server makes every existing MCP host more capable, instantly",
+        "every new MCP host makes every existing MCP server reach a new audience, instantly",
+        "this is a two-sided market — the same shape as app stores, or game consoles",
+        "it's why a shared protocol tends to beat even a technically superior private one",
+      ],
+      note:"N+M wiring cost was the individual argument. this is the ecosystem argument — and they compound together" },
+  };
+
+  function svgText(parent, x, y, cls, content, extra={}){
+    const t = document.createElementNS('http://www.w3.org/2000/svg','text');
+    t.setAttribute('x',x); t.setAttribute('y',y);
+    if(cls) t.setAttribute('class',cls);
+    for(const k in extra) t.setAttribute(k, extra[k]);
+    t.textContent = content;
+    parent.appendChild(t);
+    return t;
+  }
+  function svgEl(parent, tag, attrs={}){
+    const e = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    for(const k in attrs) e.setAttribute(k, attrs[k]);
+    parent.appendChild(e);
+    return e;
+  }
+
+  function renderContentSlide(idx){
+    const spec = CONTENT_SLIDES[idx];
+    const root = el(`s${idx}-root`);
+    root.innerHTML = '';
+    svgText(root, 90, 80, 'kicker', spec.kicker);
+    svgText(root, 90, 120, 'title', spec.title);
+    const ids = { note: `s${idx}-note` };
+
+    if(spec.type === 'bullets'){
+      let y = spec.eq ? 235 : 210;
+      if(spec.eq){
+        const g = svgEl(root,'g',{id:`s${idx}-eq`}); g.style.opacity=0;
+        svgText(g, 640, 210, 'label mono', spec.eq, {'text-anchor':'middle','font-size':22,fill:'var(--blue)'});
+        ids.eq = `s${idx}-eq`;
+        y = 300;
+      }
+      ids.items = [];
+      spec.items.forEach((txt,i)=>{
+        const gid = `s${idx}-b${i}`;
+        const g = svgEl(root,'g',{id:gid}); g.style.opacity=0;
+        svgEl(g,'circle',{cx:150, cy:y-6, r:4, fill:'var(--blue)'});
+        svgText(g, 175, y, 'label', txt, {'font-size':17});
+        ids.items.push(gid);
+        y += 62;
+      });
+      const noteG = svgEl(root,'g',{id:ids.note}); noteG.style.opacity=0;
+      svgText(noteG, 640, 695, 'label-sm mono', spec.note, {'text-anchor':'middle'});
+    }
+
+    else if(spec.type === 'formula'){
+      const bigG = svgEl(root,'g',{id:`s${idx}-big`}); bigG.style.opacity=0;
+      svgText(bigG, 640, 250, 'label mono', spec.big, {'text-anchor':'middle','font-size':27,fill:'var(--green)'});
+      ids.big = `s${idx}-big`;
+      ids.steps = [];
+      let y = 335;
+      spec.steps.forEach((txt,i)=>{
+        const gid = `s${idx}-f${i}`;
+        const g = svgEl(root,'g',{id:gid}); g.style.opacity=0;
+        svgText(g, 640, y, 'label-sm', txt, {'text-anchor':'middle','font-size':16});
+        ids.steps.push(gid);
+        y += 54;
+      });
+      const noteG = svgEl(root,'g',{id:ids.note}); noteG.style.opacity=0;
+      svgText(noteG, 640, 685, 'label-sm mono', spec.note, {'text-anchor':'middle'});
+    }
+
+    else if(spec.type === 'timeline'){
+      const n = spec.nodes.length;
+      const xs = n===5 ? [160,390,640,890,1120] : [160 + (1120-160)*(0)/(n-1)];
+      const positions = [];
+      for(let i=0;i<n;i++) positions.push(160 + (1120-160)*i/(n-1));
+      ids.nodes = []; ids.paths = [];
+      positions.forEach((x,i)=>{
+        const gid = `s${idx}-n${i}`;
+        const g = svgEl(root,'g',{id:gid}); g.style.opacity=0;
+        svgEl(g,'circle',{cx:x, cy:380, r:46, class:'node-rect', stroke:'var(--blue)'});
+        svgText(g, x, 374, 'label-sm', spec.nodes[i].label, {'text-anchor':'middle'});
+        svgText(g, x, 394, 'label-sm', spec.nodes[i].sub, {'text-anchor':'middle', fill:'var(--dim)', 'font-size':11});
+        ids.nodes.push(gid);
+        if(i>0){
+          const pid = `s${idx}-p${i}`;
+          const path = svgEl(root,'path',{id:pid, d:`M ${positions[i-1]+50} 380 L ${x-50} 380`, class:'arrow-path', stroke:'var(--dim)'});
+          const len = (x-50)-(positions[i-1]+50);
+          path.setAttribute('stroke-dasharray', Math.abs(len));
+          path.setAttribute('stroke-dashoffset', Math.abs(len));
+          path.style.opacity = 0;
+          ids.paths.push(pid);
+        }
+      });
+      const noteG = svgEl(root,'g',{id:ids.note}); noteG.style.opacity=0;
+      svgText(noteG, 640, 560, 'label-sm mono', spec.note, {'text-anchor':'middle'});
+    }
+
+    else if(spec.type === 'graph'){
+      const {n,m} = spec;
+      const leftX=380, rightX=900, top=210, bottom=590;
+      let leftPts=[], rightPts=[];
+      for(let i=0;i<n;i++) leftPts.push(top + (bottom-top)*i/(n-1||1));
+      for(let i=0;i<m;i++) rightPts.push(top + (bottom-top)*i/(m-1||1));
+      ids.edges = []; ids.leftNodes=[]; ids.rightNodes=[];
+      leftPts.forEach((y,i)=>{
+        const gid=`s${idx}-l${i}`;
+        const g = svgEl(root,'g',{id:gid}); g.style.opacity=0;
+        svgEl(g,'circle',{cx:leftX, cy:y, r:14, fill:'var(--panel)', stroke:'var(--purple)', 'stroke-width':2});
+        ids.leftNodes.push(gid);
+      });
+      rightPts.forEach((y,i)=>{
+        const gid=`s${idx}-r${i}`;
+        const g = svgEl(root,'g',{id:gid}); g.style.opacity=0;
+        svgEl(g,'circle',{cx:rightX, cy:y, r:14, fill:'var(--panel)', stroke:'var(--green)', 'stroke-width':2});
+        ids.rightNodes.push(gid);
+      });
+      leftPts.forEach((ly,i)=>{
+        rightPts.forEach((ry,j)=>{
+          const eid = `s${idx}-e${i}_${j}`;
+          const len = Math.hypot(rightX-leftX, ry-ly);
+          const e = svgEl(root,'line',{id:eid, x1:leftX, y1:ly, x2:rightX, y2:ry, stroke:'var(--dim)', 'stroke-width':1,
+            'stroke-dasharray':len, 'stroke-dashoffset':len});
+          e.style.opacity=0;
+          ids.edges.push(eid);
+        });
+      });
+      const totG = svgEl(root,'g',{id:`s${idx}-total`}); totG.style.opacity=0;
+      svgText(totG, 640, 660, 'label mono', `${n} × ${m} = `, {'text-anchor':'end','font-size':22,fill:'var(--fg)','x':600});
+      svgText(totG, 605, 660, 'label mono', '', {'font-size':22,fill:'var(--red)','id':`s${idx}-count`});
+      ids.total = `s${idx}-total`; ids.count = `s${idx}-count`;
+      const noteG = svgEl(root,'g',{id:ids.note}); noteG.style.opacity=0;
+      svgText(noteG, 640, 695, 'label-sm mono', spec.note, {'text-anchor':'middle'});
+    }
+
+    else if(spec.type === 'compare'){
+      svgEl(root,'line',{x1:640,y1:170,x2:640,y2:600,stroke:'var(--line)','stroke-width':1});
+      svgText(root, 420, 170, 'label', spec.leftLabel, {'text-anchor':'middle', fill:'var(--orange)'});
+      svgText(root, 860, 170, 'label', spec.rightLabel, {'text-anchor':'middle', fill:'var(--blue)'});
+      ids.rows = [];
+      let y = 240;
+      spec.rows.forEach((row,i)=>{
+        const gid = `s${idx}-row${i}`;
+        const g = svgEl(root,'g',{id:gid}); g.style.opacity=0;
+        svgText(g, 90, y, 'label-sm', row.label);
+        svgText(g, 420, y, 'label-sm', row.left, {'text-anchor':'middle', fill:'var(--red)'});
+        svgText(g, 860, y, 'label-sm', row.right, {'text-anchor':'middle', fill:'var(--green)'});
+        ids.rows.push(gid);
+        y += 68;
+      });
+      const noteG = svgEl(root,'g',{id:ids.note}); noteG.style.opacity=0;
+      svgText(noteG, 640, 660, 'label-sm mono', spec.note, {'text-anchor':'middle'});
+    }
+
+    return ids;
+  }
+
+  async function playContent(idx){
+    const spec = CONTENT_SLIDES[idx];
+    const ids = renderContentSlide(idx);
+
+    if(spec.type === 'bullets'){
+      if(ids.eq) await pop(ids.eq,{from:'scale(0.85)'});
+      for(const gid of ids.items){ await fade(gid,{from:'translateX(15px)', duration:320}); await wait(60); }
+      await fade(ids.note,{duration:500});
+    }
+    else if(spec.type === 'formula'){
+      await pop(ids.big,{from:'scale(0.7)'});
+      await wait(150);
+      for(const gid of ids.steps){ await fade(gid,{duration:350}); await wait(70); }
+      await fade(ids.note,{duration:500});
+    }
+    else if(spec.type === 'timeline'){
+      for(let i=0;i<ids.nodes.length;i++){
+        await pop(ids.nodes[i],{from:'scale(0.6)'});
+        if(ids.paths[i]) await traceLine(ids.paths[i], 380, {color:'var(--blue)'});
+      }
+      await fade(ids.note,{duration:500});
+    }
+    else if(spec.type === 'graph'){
+      for(const gid of ids.leftNodes){ pop(gid,{from:'scale(0.5)',duration:300}); await wait(50); }
+      for(const gid of ids.rightNodes){ pop(gid,{from:'scale(0.5)',duration:300}); await wait(50); }
+      await wait(200);
+      const drawAll = ids.edges.map((eid,i)=> new Promise(res=> setTimeout(()=> drawLine(eid,260).then(res), i*18)));
+      await Promise.all(drawAll);
+      await pop(ids.total,{from:'scale(0.9)'});
+      await countUp(ids.count, 0, spec.n*spec.m, 700);
+      await fade(ids.note,{duration:500});
+    }
+    else if(spec.type === 'compare'){
+      for(const gid of ids.rows){ await fade(gid,{duration:320}); await wait(70); }
+      await fade(ids.note,{duration:500});
+    }
+  }
+
+  // ---------- slide play functions ----------
+  const plays = {
+    0: async ()=>{
+      await fade('s0-kicker',{duration:500});
+      await fade('s0-g1',{from:'translateY(15px)'});
+      await fade('s0-arrow',{duration:350});
+      await fade('s0-g2',{from:'translateY(15px)'});
+      await fade('s0-sub',{duration:600});
+      await wait(200);
+      await fade('s0-quote',{duration:800});
+    },
+    1: async ()=>{
+      await fade('s1-box');
+      await Promise.all([fade('s1-xin',{from:'translateX(-15px)'}), fade('s1-arrow-in',{duration:350})]);
+      await wait(150);
+      await Promise.all([fade('s1-yout',{from:'translateX(15px)'}), fade('s1-arrow-out',{duration:350})]);
+      await fade('s1-eq');
+      await fade('s1-ex-label',{duration:400});
+      await fade('s1-ex',{from:'scale(0.9)'});
+      await wait(300);
+      await fade('s1-llmbox',{from:'translateX(-10px)'});
+      await fade('s1-cross',{duration:350});
+      await fade('s1-calc',{from:'translateX(10px)'});
+      await fade('s1-note',{duration:500});
+    },
+    5: async ()=>{
+      await fade('s5-schema-lbl',{duration:400});
+      await fade('s5-schema',{from:'translateY(15px)'});
+      await fade('s5-arrow',{duration:350});
+      await fade('s5-llm',{from:'translateX(15px)'});
+      await wait(300);
+      await fade('s5-user',{from:'translateY(10px)'});
+      await fade('s5-down',{duration:300});
+      await fade('s5-out',{from:'translateY(10px)'});
+      await wait(200);
+      await fade('s5-punch',{duration:600});
+    },
+    7: async ()=>{
+      await fade('s7-n1',{from:'scale(0.7)'});
+      await drawLine('s7-p1',450); await fade('s7-n2',{from:'scale(0.7)'});
+      await drawLine('s7-p2',450); await fade('s7-n3',{from:'scale(0.7)'});
+      await drawLine('s7-p3',450); await fade('s7-n4',{from:'scale(0.7)'});
+      await drawLine('s7-p4',450); await fade('s7-n5',{from:'scale(0.7)'});
+      await drawLine('s7-p5',900);
+      await fade('s7-final',{duration:600});
+    },
+    10: async ()=>{
+      const cells = buildS4Grid();
+      await fade('s10-rows',{duration:400});
+      await fade('s10-cols',{duration:400});
+      for(let i=0;i<cells.length;i++){
+        cells[i].animate([{opacity:0},{opacity:1}],{duration:120,fill:'forwards'});
+        await wait(45);
+      }
+      await wait(200);
+      await fade('s10-formula',{from:'scale(0.95)'});
+      await wait(200);
+      await fade('s10-general',{duration:600});
+      await fade('s10-note',{duration:500});
+    },
+    14: async ()=>{
+      const paths = buildS5Tangle();
+      await fade('s14-applbl',{duration:400});
+      for(const p of paths){
+        await drawLine(p.id || (p.id='p'+Math.random()), 400);
+        p._dot.style.opacity = 1;
+      }
+      await fade('s14-i1',{from:'translateX(15px)'});
+      await fade('s14-i2',{from:'translateX(15px)'});
+      await fade('s14-i3',{from:'translateX(15px)'});
+      await wait(200);
+      await fade('s14-punch',{duration:600});
+    },
+    15: async ()=>{
+      const s = buildS6Socket();
+      s.plugs.forEach(p=> p.style.transition='');
+      await Promise.all([
+        s.outer.animate([{opacity:0,transform:'scale(0.8)'},{opacity:1,transform:'scale(1)'}],{duration:500,fill:'forwards'}).finished,
+      ]);
+      s.slot1.animate([{opacity:0},{opacity:1}],{duration:300,fill:'forwards'});
+      s.slot2.animate([{opacity:0},{opacity:1}],{duration:300,fill:'forwards'});
+      await wait(200);
+      const anims = s.plugs.map((p,i)=>{
+        return p.animate([{opacity:0, transform:`translate(${p._dock.outX}px,${p._dock.outY}px)`},
+                           {opacity:1, transform:'translate(0,0)'}],
+          {duration:520, delay:i*160, easing:'cubic-bezier(.34,1.56,.64,1)', fill:'forwards'}).finished
+          .then(()=>{ drawLine(p._wire, 220); pulse(p, 1.06, 300); });
+      });
+      await Promise.all(anims);
+      await wait(150);
+      await fade('s15-label',{duration:500});
+      await wait(150);
+      await pop('s15-nm',{from:'scale(0.7)'});
+      await drawLine('s15-strike', 300);
+      await fade('s15-arrow',{duration:250});
+      await pop('s15-plus',{from:'scale(0.5)'});
+      await fade('s15-note',{duration:500});
+    },
+    17: async ()=>{
+      await fade('s17-axes',{duration:450});
+      const chart = buildMathChart();
+      await traceLine(chart.quadPath, 900, {color:'var(--red)', radius:5});
+      await traceLine(chart.linPath, 650, {color:'var(--green)', radius:5});
+      await fade('s17-legend',{duration:400});
+      for(const cb of chart.callouts){ await pop(cb, {from:'scale(0.3)', duration:320}); }
+      await wait(150);
+      await fade('s17-theory',{duration:500});
+    },
+    21: async ()=>{
+      await fade('s21-host',{from:'translateX(-15px)'});
+      await fade('s21-a1',{duration:350});
+      await fade('s21-client',{from:'translateY(10px)'});
+      await fade('s21-a2',{duration:350});
+      await fade('s21-server',{from:'translateX(15px)'});
+      await fade('s21-jsonrpc',{duration:400});
+      await wait(200);
+      await fade('s21-fanout',{duration:500});
+    },
+    23: async ()=>{
+      const seq = ['s23-m1','s23-m2','s23-m3','s23-m4','s23-m5','s23-m6'];
+      for(const id of seq){
+        await fade(id,{from:'translateY(8px)', duration:380});
+        await wait(120);
+      }
+      await fade('s23-note',{duration:500});
+    },
+    29: async ()=>{
+      for(const id of ['s29-r1','s29-r2','s29-r3','s29-r4','s29-r5']){
+        await fade(id,{duration:350});
+        await wait(80);
+      }
+      await fade('s29-foot',{duration:500});
+    },
+    31: async ()=>{
+      await fade('s31-1',{duration:600});
+      await wait(200);
+      await fade('s31-2',{duration:600});
+      await wait(300);
+      const h = buildS10Hub();
+      h.hub.animate([{opacity:0,transform:'scale(0.7)'},{opacity:1,transform:'scale(1)'}],{duration:400,fill:'forwards'});
+      h.label.animate([{opacity:0},{opacity:1}],{duration:400,delay:150,fill:'forwards'});
+      for(const it of h.items){
+        await drawLine(it.line.id || (it.line.id='sl'+Math.random()), 250);
+        it.dot.animate([{opacity:0,transform:'scale(0.5)'},{opacity:1,transform:'scale(1)'}],{duration:250,fill:'forwards'});
+      }
+      await wait(300);
+      await fade('s31-eq',{duration:600});
+    }
+  };
+
+  // wire the 20 data-driven theory/math slides into the same dispatch table
+  Object.keys(CONTENT_SLIDES).forEach(k=>{
+    plays[+k] = ()=> playContent(+k);
+  });
+
+  function resetSlide(idx){
+    const s = document.getElementById('s'+idx);
+    if(!s) return;
+    s.querySelectorAll('[opacity]').forEach(n=>{
+      if(n.getAttribute('opacity') === '0'){ n.getAnimations().forEach(a=>a.cancel()); n.style.opacity=0; }
+    });
+    // clear dynamic containers (hand-built scenes + generic content-slide roots)
+    ['s10-grid','s14-tangle','s15-socket','s21-fan-graphic','s31-hub','s7-chart'].forEach(id=>{
+      const g = document.getElementById(id);
+      if(g && s.contains(g)) g.innerHTML='';
+    });
+    s.querySelectorAll('[id$="-root"]').forEach(g=>{ g.innerHTML=''; });
+    s.querySelectorAll('path[stroke-dasharray], line[stroke-dasharray]').forEach(p=>{
+      p.getAnimations().forEach(a=>a.cancel());
+      const len = p.getAttribute('stroke-dasharray');
+      p.style.strokeDashoffset = len;
+      p.style.opacity = 0;
+    });
+  }
+
+  async function goTo(idx){
+    if(idx<0 || idx>=TOTAL) return;
+    document.querySelectorAll('.slide').forEach(s=>s.classList.remove('active'));
+    resetSlide(idx);
+    current = idx;
+    const activeSlide = document.getElementById('s'+idx);
+    activeSlide.classList.add('active');
+    document.querySelectorAll('.dot').forEach((d,i)=>d.classList.toggle('on', i===idx));
+    counter.textContent = (idx+1)+' / '+TOTAL;
+    // a small cinematic "camera" push-in on every slide arrival
+    const svg = activeSlide.querySelector('svg');
+    if(svg){
+      svg.animate([{opacity:0, transform:'scale(0.975)'},{opacity:1, transform:'scale(1)'}],
+        {duration:380, easing:'cubic-bezier(.22,1,.36,1)', fill:'forwards'});
+    }
+    if(plays[idx]) plays[idx]();
+  }
+
+  document.getElementById('nextBtn').addEventListener('click', ()=>goTo(current+1));
+  document.getElementById('prevBtn').addEventListener('click', ()=>goTo(current-1));
+  window.addEventListener('keydown', (e)=>{
+    if(e.key==='ArrowRight' || e.key===' ') goTo(current+1);
+    if(e.key==='ArrowLeft') goTo(current-1);
+  });
+
+  goTo(0);
+})();
+</script>
+
+</body>
+</html>

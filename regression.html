@@ -1,0 +1,2274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Regression — A Visual Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0b0d12; --panel:#11141b; --panel2:#0d1017; --border:#20242e;
+    --text:#e8e8ec; --textDim:#8b8f9c;
+    --blue:#5b8def; --blueDim:#3d5a99; --orange:#e8a659; --green:#6fcf97;
+    --red:#d9707a; --purple:#b391e0; --yellow:#e0c95b; --grey:#6b7080;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
+    font-family:'Inter',system-ui,-apple-system,sans-serif;overflow:hidden;height:100%;}
+  #app{display:flex;flex-direction:column;height:100vh;}
+
+  header{display:flex;justify-content:space-between;align-items:flex-end;
+    padding:20px 40px 14px;border-bottom:1px solid var(--border);flex:0 0 auto;}
+  .kicker{font-size:11px;letter-spacing:3px;color:var(--textDim);text-transform:uppercase;margin-bottom:6px;}
+  #slideTitle{font-size:25px;font-weight:600;opacity:0;transform:translateY(8px);
+    transition:opacity .5s ease, transform .5s ease;letter-spacing:.2px;}
+  #slideTitle.in{opacity:1;transform:translateY(0);}
+  #counter{font-size:12px;color:var(--textDim);font-variant-numeric:tabular-nums;
+    font-family:'JetBrains Mono',monospace;white-space:nowrap;padding-bottom:2px;}
+
+  main{flex:1 1 auto;display:flex;gap:22px;padding:18px 40px 8px;min-height:0;}
+  #canvasWrap{flex:1 1 66%;min-width:0;border:1px solid var(--border);border-radius:12px;
+    background:radial-gradient(ellipse at 50% 0%, #12151d 0%, #0b0d12 75%);
+    position:relative;overflow:hidden;}
+  canvas{display:block;width:100%;height:100%;}
+  .hint{position:absolute;bottom:10px;right:16px;font-size:11px;color:var(--textDim);
+    letter-spacing:.3px;pointer-events:none;}
+
+  aside{flex:0 0 31%;display:flex;flex-direction:column;gap:12px;min-width:260px;max-width:400px;
+    overflow-y:auto;padding-right:2px;scrollbar-width:thin;scrollbar-color:#2a2e39 transparent;}
+  aside::-webkit-scrollbar{width:5px;}
+  aside::-webkit-scrollbar-thumb{background:#2a2e39;border-radius:3px;}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;
+    padding:14px 18px;opacity:0;transform:translateY(10px);flex:0 0 auto;
+    transition:opacity .5s ease .05s, transform .5s ease .05s;}
+  .card.in{opacity:1;transform:translateY(0);}
+  .card h4{margin:0 0 9px;font-size:10.5px;letter-spacing:2px;color:var(--textDim);
+    text-transform:uppercase;font-weight:600;}
+  .eqbox{font-family:'JetBrains Mono',monospace;font-size:15.5px;line-height:1.75;
+    color:var(--blue);word-break:break-word;}
+  .breakdown{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px;}
+  .breakdown li{font-size:12.5px;line-height:1.45;color:var(--textDim);}
+  .breakdown .term{font-family:'JetBrains Mono',monospace;color:var(--orange);
+    font-size:12.5px;margin-right:6px;white-space:nowrap;}
+  .theorytext{font-size:12.8px;line-height:1.62;color:var(--textDim);margin:0;}
+  .bullets{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px;}
+  .bullets li{font-size:13px;line-height:1.45;color:var(--textDim);padding-left:16px;
+    position:relative;}
+  .bullets li::before{content:'';position:absolute;left:0;top:6px;width:6px;height:6px;
+    border-radius:50%;background:var(--orange);}
+  #familyTag{flex:0 0 auto;margin-top:2px;font-size:11px;color:var(--grey);letter-spacing:1px;
+    text-transform:uppercase;padding:0 4px;}
+  #familyTag span{color:var(--purple);}
+
+  details.card{padding:0;overflow:hidden;}
+  details.card summary{list-style:none;cursor:pointer;padding:14px 18px;
+    display:flex;align-items:center;justify-content:space-between;user-select:none;}
+  details.card summary::-webkit-details-marker{display:none;}
+  details.card summary h4{margin:0;}
+  details.card summary .chev{color:var(--grey);font-size:11px;transition:transform .25s ease;
+    flex:0 0 auto;margin-left:10px;}
+  details.card[open] summary .chev{transform:rotate(90deg);color:var(--orange);}
+  details.card summary:hover h4{color:var(--textDim);}
+  .expand-body{padding:0 18px 16px;display:flex;flex-direction:column;gap:12px;}
+  .expand-body h5{margin:0 0 5px;font-size:10px;letter-spacing:1.5px;color:var(--orange);
+    text-transform:uppercase;font-weight:600;}
+  .expand-body p{margin:0;font-size:12.5px;line-height:1.6;color:var(--textDim);}
+  .expand-body .use-block h5{color:var(--green);}
+
+  footer{display:flex;align-items:center;justify-content:center;gap:22px;
+    padding:14px 40px 20px;flex:0 0 auto;}
+  .navbtn{background:var(--panel);border:1px solid var(--border);color:var(--text);
+    width:40px;height:40px;border-radius:50%;cursor:pointer;display:flex;align-items:center;
+    justify-content:center;font-size:18px;transition:all .15s;flex:0 0 auto;}
+  .navbtn:hover:not(:disabled){border-color:var(--blue);color:var(--blue);}
+  .navbtn:disabled{opacity:.25;cursor:default;}
+  #dots{display:flex;gap:5px;flex-wrap:wrap;max-width:560px;justify-content:center;}
+  .dot{width:6px;height:6px;border-radius:50%;background:#262a35;cursor:pointer;
+    transition:all .2s;border:none;padding:0;}
+  .dot.active{background:var(--blue);width:20px;border-radius:3px;}
+  .dot:hover{background:var(--blueDim);}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div>
+      <div class="kicker">Regression — A Visual Guide</div>
+      <div id="slideTitle"></div>
+    </div>
+    <div id="counter"></div>
+  </header>
+  <main>
+    <div id="canvasWrap">
+      <canvas id="stage"></canvas>
+      <div class="hint">← → or Space to navigate</div>
+    </div>
+    <aside>
+      <div class="card" id="eqCard"><h4>The Math</h4><div class="eqbox" id="eqText"></div></div>
+      <div class="card" id="explainCard"><h4>Breaking It Down</h4><ul class="breakdown" id="explainList"></ul></div>
+      <div class="card" id="theoryCard"><h4>In Depth</h4><p class="theorytext" id="theoryText"></p></div>
+      <div class="card" id="bulletCard"><h4>Key Idea</h4><ul class="bullets" id="bulletList"></ul></div>
+      <details class="card" id="whyDetails">
+        <summary><h4>Why This Equation?</h4><span class="chev">▸</span></summary>
+        <div class="expand-body">
+          <div class="derive-block"><h5>Where It Comes From</h5><p id="whyDerivation"></p></div>
+          <div class="use-block"><h5>Real-World Use</h5><p id="whyPractical"></p></div>
+        </div>
+      </details>
+      <div id="familyTag"></div>
+    </aside>
+  </main>
+  <footer>
+    <button class="navbtn" id="prevBtn">‹</button>
+    <div id="dots"></div>
+    <button class="navbtn" id="nextBtn">›</button>
+  </footer>
+</div>
+
+<script>
+/* ============================================================
+   COLORS / FONTS
+============================================================ */
+const COL = {
+  bg:'#0b0d12', grid:'rgba(255,255,255,0.045)', axis:'#333846',
+  text:'#e8e8ec', textDim:'#8b8f9c',
+  blue:'#5b8def', blueDim:'#3d5a7a', orange:'#e8a659', green:'#6fcf97',
+  red:'#d9707a', purple:'#b391e0', yellow:'#e0c95b', grey:'#565b68', white:'#f2f2f4'
+};
+const FONT = "13px 'Inter', sans-serif";
+const FONT_SM = "11.5px 'Inter', sans-serif";
+const FONT_MONO = "13px 'JetBrains Mono', monospace";
+
+/* ============================================================
+   MATH / DATA UTILS
+============================================================ */
+function mulberry32(a){
+  return function(){
+    let t = a += 0x6D2B79F5;
+    t = Math.imul(t ^ t>>>15, t | 1);
+    t ^= t + Math.imul(t ^ t>>>7, t | 61);
+    return ((t ^ t>>>14)>>>0)/4294967296;
+  };
+}
+const rnd = mulberry32(1337);
+
+function clamp01(t){return Math.max(0,Math.min(1,t));}
+function lerp(a,b,t){return a+(b-a)*t;}
+function easeInOut(t){t=clamp01(t); return t<0.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;}
+function easeOut(t){t=clamp01(t); return 1-Math.pow(1-t,3);}
+function easeOutBack(t){t=clamp01(t); const c1=1.70158,c3=c1+1; return 1+c3*Math.pow(t-1,3)+c1*Math.pow(t-1,2);}
+function win(t,a,b){ // remap t in [a,b] -> [0,1], clamped
+  if(b<=a) return t>=b?1:0;
+  return clamp01((t-a)/(b-a));
+}
+
+/* Datasets */
+const linData = [];
+for(let i=0;i<14;i++){
+  const x = 0.6 + i*(8.8/13) + (rnd()-0.5)*0.35;
+  const y = 1.7*x + 3 + (rnd()-0.5)*4.6;
+  linData.push([x, Math.max(0.5,y)]);
+}
+const curveData = [];
+for(let i=0;i<17;i++){
+  const x = 0.35 + i*(9.3/16);
+  const y = 6 + 3.1*Math.sin(x*0.75) + 0.18*(x-5) + (rnd()-0.5)*1.5;
+  curveData.push([x, y]);
+}
+
+function leastSquares(pts){
+  let n=pts.length,sx=0,sy=0,sxx=0,sxy=0;
+  pts.forEach(([x,y])=>{sx+=x;sy+=y;sxx+=x*x;sxy+=x*y;});
+  const m=(n*sxy-sx*sy)/(n*sxx-sx*sx);
+  const b=(sy-m*sx)/n;
+  return {m,b};
+}
+function solveLinear(A,b){
+  const n=b.length;
+  const M = A.map((row,i)=>[...row, b[i]]);
+  for(let i=0;i<n;i++){
+    let piv=i;
+    for(let k=i+1;k<n;k++) if(Math.abs(M[k][i])>Math.abs(M[piv][i])) piv=k;
+    [M[i],M[piv]]=[M[piv],M[i]];
+    if(Math.abs(M[i][i])<1e-9) continue;
+    for(let k=i+1;k<n;k++){
+      const f=M[k][i]/M[i][i];
+      for(let j=i;j<=n;j++) M[k][j]-=f*M[i][j];
+    }
+  }
+  const x=Array(n).fill(0);
+  for(let i=n-1;i>=0;i--){
+    let s=M[i][n];
+    for(let j=i+1;j<n;j++) s-=M[i][j]*x[j];
+    x[i]= Math.abs(M[i][i])<1e-9?0:s/M[i][i];
+  }
+  return x;
+}
+function polyfit(pts, degree){
+  const m=degree+1;
+  const ATA = Array.from({length:m},()=>Array(m).fill(0));
+  const ATy = Array(m).fill(0);
+  for(const [x,y] of pts){
+    const powers=[]; let p=1;
+    for(let k=0;k<m;k++){powers.push(p); p*=x;}
+    for(let i=0;i<m;i++){
+      ATy[i]+=powers[i]*y;
+      for(let j=0;j<m;j++) ATA[i][j]+=powers[i]*powers[j];
+    }
+  }
+  return solveLinear(ATA, ATy);
+}
+function evalPoly(coeffs,x){ let s=0,p=1; for(const c of coeffs){s+=c*p; p*=x;} return s; }
+
+function bestSplit(pts){
+  if(pts.length<2) return null;
+  let best=null;
+  const xs=[...new Set(pts.map(p=>p[0]))].sort((a,b)=>a-b);
+  for(let i=1;i<xs.length;i++){
+    const t=(xs[i-1]+xs[i])/2;
+    const left=pts.filter(p=>p[0]<t), right=pts.filter(p=>p[0]>=t);
+    if(!left.length||!right.length) continue;
+    const meanOf=arr=>arr.reduce((s,p)=>s+p[1],0)/arr.length;
+    const lm=meanOf(left), rm=meanOf(right);
+    const varOf=(arr,m)=>arr.reduce((s,p)=>s+(p[1]-m)**2,0);
+    const err=varOf(left,lm)+varOf(right,rm);
+    if(!best||err<best.err) best={t,err,leftMean:lm,rightMean:rm,leftN:left.length,rightN:right.length};
+  }
+  return best;
+}
+function weightedBestSplit(pts, weights){
+  if(pts.length<2) return null;
+  let best=null;
+  const xs=[...new Set(pts.map(p=>p[0]))].sort((a,b)=>a-b);
+  for(let i=1;i<xs.length;i++){
+    const t=(xs[i-1]+xs[i])/2;
+    let li=[],ri=[];
+    pts.forEach((p,idx)=> (p[0]<t?li:ri).push(idx));
+    if(!li.length||!ri.length) continue;
+    const wmean=(idxs)=>{let sw=0,swy=0; idxs.forEach(i=>{sw+=weights[i]; swy+=weights[i]*pts[i][1];}); return swy/sw;};
+    const wvar=(idxs,mean)=>{let s=0; idxs.forEach(i=>{s+=weights[i]*(pts[i][1]-mean)**2;}); return s;};
+    const lm=wmean(li), rm=wmean(ri);
+    const err=wvar(li,lm)+wvar(ri,rm);
+    if(!best||err<best.err) best={t,err,leftMean:lm,rightMean:rm};
+  }
+  return best;
+}
+function stumpPredict(split){ return x => x<split.t ? split.leftMean : split.rightMean; }
+function buildSteps(predictFn, xMin, xMax, breakRaw){
+  const bps = [...new Set([xMin,xMax,...breakRaw.filter(t=>t>xMin&&t<xMax)])].sort((a,b)=>a-b);
+  const values = [];
+  for(let i=0;i<bps.length-1;i++) values.push(predictFn((bps[i]+bps[i+1])/2));
+  return {breakpoints:bps, values};
+}
+
+/* Precomputed models (real math, computed once) */
+const LR = leastSquares(linData);
+const P1 = polyfit(curveData,1), P3 = polyfit(curveData,3), P9 = polyfit(curveData,9);
+
+const T1 = bestSplit(curveData);
+const leftPts = curveData.filter(p=>p[0]<T1.t), rightPts = curveData.filter(p=>p[0]>=T1.t);
+const T2L = bestSplit(leftPts), T2R = bestSplit(rightPts);
+function treeDepth2(x){
+  if(x<T1.t) return T2L ? (x<T2L.t?T2L.leftMean:T2L.rightMean) : T1.leftMean;
+  return T2R ? (x<T2R.t?T2R.leftMean:T2R.rightMean) : T1.rightMean;
+}
+const treeSteps1 = buildSteps(stumpPredict(T1), 0, 10, [T1.t]);
+const treeSteps2 = buildSteps(treeDepth2, 0, 10, [T1.t, T2L?T2L.t:null, T2R?T2R.t:null].filter(v=>v!=null));
+
+function bootstrapSample(pts, seedFn){
+  const out=[];
+  for(let i=0;i<pts.length;i++) out.push(pts[Math.floor(seedFn()*pts.length)]);
+  return out;
+}
+const forestRnd = mulberry32(77);
+const forestTrees = [];
+for(let i=0;i<5;i++){
+  const sample = bootstrapSample(curveData, forestRnd);
+  const sp = bestSplit(sample);
+  if(sp) forestTrees.push(sp);
+}
+function forestPredict(x){
+  const vals = forestTrees.map(sp => x<sp.t?sp.leftMean:sp.rightMean);
+  return vals.reduce((a,b)=>a+b,0)/vals.length;
+}
+const forestSteps = buildSteps(forestPredict, 0, 10, forestTrees.map(s=>s.t));
+
+const extraRnd = mulberry32(909);
+const extraTrees = [];
+for(let i=0;i<6;i++){
+  const sample = bootstrapSample(curveData, extraRnd);
+  const xs = sample.map(p=>p[0]);
+  const t = Math.min(...xs) + extraRnd()*(Math.max(...xs)-Math.min(...xs));
+  const left = sample.filter(p=>p[0]<t), right = sample.filter(p=>p[0]>=t);
+  if(left.length && right.length){
+    const lm=left.reduce((s,p)=>s+p[1],0)/left.length;
+    const rm=right.reduce((s,p)=>s+p[1],0)/right.length;
+    extraTrees.push({t,leftMean:lm,rightMean:rm});
+  }
+}
+function extraPredict(x){
+  const vals = extraTrees.map(sp => x<sp.t?sp.leftMean:sp.rightMean);
+  return vals.reduce((a,b)=>a+b,0)/vals.length;
+}
+const extraSteps = buildSteps(extraPredict, 0, 10, extraTrees.map(s=>s.t));
+
+/* Gradient boosting: 3 stumps, squared loss */
+const gbMean = curveData.reduce((s,p)=>s+p[1],0)/curveData.length;
+const gbLR = 0.75;
+function gbBuild(){
+  const stages = [{predict: ()=>gbMean, t:null}];
+  let current = ()=>gbMean;
+  const stumps=[];
+  for(let m=0;m<3;m++){
+    const resid = curveData.map(([x,y])=>[x, y-current(x)]);
+    const sp = bestSplit(resid);
+    stumps.push(sp);
+    const prevFn = current;
+    current = (x)=> prevFn(x) + gbLR*(x<sp.t?sp.leftMean:sp.rightMean);
+    stages.push({predict: current, t: sp.t});
+  }
+  return {stages, stumps};
+}
+const GB = gbBuild();
+
+/* AdaBoost (simplified, illustrative but computed) */
+const adaWeights1 = linData.map(()=>1/linData.length);
+const adaSplit1 = weightedBestSplit(linData, adaWeights1);
+const adaPred1 = stumpPredict(adaSplit1);
+const errs1 = linData.map(([x,y])=>Math.abs(y-adaPred1(x)));
+const maxErr1 = Math.max(...errs1)||1;
+const adaWeights2raw = linData.map((_,i)=> adaWeights1[i]*Math.exp(2.2*(errs1[i]/maxErr1)));
+const sw2 = adaWeights2raw.reduce((a,b)=>a+b,0);
+const adaWeights2 = adaWeights2raw.map(w=>w/sw2);
+const adaSplit2 = weightedBestSplit(linData, adaWeights2);
+const adaPred2 = stumpPredict(adaSplit2);
+function adaFinal(x){ return 0.5*adaPred1(x)+0.5*adaPred2(x); }
+
+/* KNN */
+function knnPredict(x0, k){
+  const sorted = [...linData].sort((a,b)=>Math.abs(a[0]-x0)-Math.abs(b[0]-x0));
+  const nearest = sorted.slice(0,k);
+  return {pred: nearest.reduce((s,p)=>s+p[1],0)/nearest.length, nearest};
+}
+
+/* GP-style rejection sampling (conceptual) */
+const gpRnd = mulberry32(2024);
+const gpAnchors = [ [1.2, 3.5], [3.5, 8.2], [6.0, 4.0], [8.5, 7.5] ];
+function gpSampleFn(seedFn){
+  const terms=[];
+  for(let i=0;i<4;i++) terms.push({amp:(seedFn()-0.5)*6, freq:0.3+seedFn()*1.1, phase:seedFn()*Math.PI*2});
+  const base = 5.5 + (seedFn()-0.5)*2;
+  return x => base + terms.reduce((s,tm)=> s+tm.amp*Math.sin(tm.freq*x+tm.phase)/2.4, 0);
+}
+const gpAllSamples = [];
+for(let i=0;i<40;i++) gpAllSamples.push(gpSampleFn(gpRnd));
+function gpError(fn){ return gpAnchors.reduce((s,[x,y])=> s+Math.pow(fn(x)-y,2), 0); }
+const gpScored = gpAllSamples.map(fn=>({fn, err:gpError(fn)})).sort((a,b)=>a.err-b.err);
+const gpKept = gpScored.slice(0,8).map(o=>o.fn);
+const gpRejected = gpScored.slice(8).map(o=>o.fn);
+
+/* Bayesian: sample (m,b) pairs, filter by fit error, tighten over time */
+const bayRnd = mulberry32(4242);
+const baySamples = [];
+for(let i=0;i<160;i++){
+  const m = -1 + bayRnd()*6;
+  const b = -2 + bayRnd()*14;
+  let err=0; linData.forEach(([x,y])=>{ err += (y-(m*x+b))**2; });
+  baySamples.push({m,b,err});
+}
+baySamples.sort((a,b)=>a.err-b.err);
+
+/* Evaluation metrics on the linear fit */
+function computeMetrics(pts, m, b){
+  const n = pts.length;
+  const ymean = pts.reduce((s,p)=>s+p[1],0)/n;
+  let sae=0, sse=0, sst=0;
+  pts.forEach(([x,y])=>{
+    const yhat = m*x+b, e = y-yhat;
+    sae += Math.abs(e); sse += e*e; sst += (y-ymean)**2;
+  });
+  return { mae: sae/n, mse: sse/n, rmse: Math.sqrt(sse/n), r2: 1-sse/sst, ymean, sst, sse };
+}
+const METRICS = computeMetrics(linData, LR.m, LR.b);
+
+/* Regularization path: exact closed-form paths for an orthogonal-design toy problem */
+const REG_W0 = [3.2, -2.4, 1.6, 0.7];
+function lassoPathVal(w0, lambda){ return Math.sign(w0)*Math.max(Math.abs(w0)-lambda, 0); }
+function ridgePathVal(w0, lambda){ return w0/(1+lambda); }
+
+/* Gradient boosting, generalized over learning rate + stage count (for the learning-rate slide) */
+function gbBuildGeneric(lr, numStages){
+  const mean = curveData.reduce((s,p)=>s+p[1],0)/curveData.length;
+  let current = ()=>mean;
+  const stumps=[];
+  const stages=[current];
+  for(let m=0;m<numStages;m++){
+    const resid = curveData.map(([x,y])=>[x, y-current(x)]);
+    const sp = bestSplit(resid);
+    if(!sp) break;
+    stumps.push(sp);
+    const prevFn = current;
+    current = (x)=> prevFn(x) + lr*(x<sp.t?sp.leftMean:sp.rightMean);
+    stages.push(current);
+  }
+  return {stages, stumps};
+}
+const GB_HI = gbBuildGeneric(0.9, 3);
+const GB_LO = gbBuildGeneric(0.15, 9);
+
+/* Curse of dimensionality: real nearest-neighbor distance in a d-dim unit cube */
+const codRnd = mulberry32(555);
+function avgNearestNeighborDist(dim, nPoints){
+  const pts = [];
+  for(let i=0;i<nPoints;i++){
+    const p=[]; for(let d=0;d<dim;d++) p.push(codRnd());
+    pts.push(p);
+  }
+  let total=0;
+  for(let i=0;i<nPoints;i++){
+    let best=Infinity;
+    for(let j=0;j<nPoints;j++){
+      if(i===j) continue;
+      let s=0; for(let d=0;d<dim;d++){ const df=pts[i][d]-pts[j][d]; s+=df*df; }
+      const dist=Math.sqrt(s);
+      if(dist<best) best=dist;
+    }
+    total+=best;
+  }
+  return total/nPoints;
+}
+const CURSE_DIMS = [1,2,3,4,5,6,8,10,15,20];
+const CURSE_VALS = CURSE_DIMS.map(d=>avgNearestNeighborDist(d, 60));
+
+/* Assumption-diagnostic synthetic residual patterns (illustrative, not fit to real data) */
+const diagRnd = mulberry32(808);
+function makeResidPattern(kind){
+  const pts=[];
+  for(let i=0;i<24;i++){
+    const x = i/23;
+    let y;
+    if(kind==='good') y = (diagRnd()-0.5)*0.7;
+    else if(kind==='nonlinear') y = 1.4*Math.sin(x*Math.PI*1.3) + (diagRnd()-0.5)*0.25;
+    else if(kind==='funnel') y = (diagRnd()-0.5)*(0.15+1.7*x);
+    else y = 0.9*Math.sin(x*Math.PI*4) + (diagRnd()-0.5)*0.3; // autocorrelated
+    pts.push([x,y]);
+  }
+  return pts;
+}
+const DIAG = {
+  good: makeResidPattern('good'),
+  nonlinear: makeResidPattern('nonlinear'),
+  funnel: makeResidPattern('funnel'),
+  auto: makeResidPattern('auto'),
+};
+
+/* ============================================================
+   CANVAS ENGINE
+============================================================ */
+const canvas = document.getElementById('stage');
+const ctx = canvas.getContext('2d');
+let DPR = Math.min(window.devicePixelRatio||1, 2);
+
+function resize(){
+  const rect = canvas.parentElement.getBoundingClientRect();
+  DPR = Math.min(window.devicePixelRatio||1, 2);
+  canvas.width = Math.max(1,Math.round(rect.width*DPR));
+  canvas.height = Math.max(1,Math.round(rect.height*DPR));
+  canvas.style.width = rect.width+'px';
+  canvas.style.height = rect.height+'px';
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+window.addEventListener('resize', resize);
+
+function W(){ return canvas.width/DPR; }
+function H(){ return canvas.height/DPR; }
+
+function makePlot(px,py,pw,ph,xMin,xMax,yMin,yMax){
+  return {
+    x:(v)=> px + (v-xMin)/(xMax-xMin)*pw,
+    y:(v)=> py + ph - (v-yMin)/(yMax-yMin)*ph,
+    px,py,pw,ph,xMin,xMax,yMin,yMax
+  };
+}
+function stdPlot(w,h,opts={}){
+  const px=opts.px??58, py=opts.py??36, pr=opts.pr??26, pb=opts.pb??44;
+  const width = Math.max(20,w-px-pr), height = Math.max(20,h-py-pb);
+  return makePlot(px+(opts.ox||0), py+(opts.oy||0), (opts.w!=null?opts.w:width), (opts.h!=null?opts.h:height),
+    opts.xMin??0, opts.xMax??10, opts.yMin??0, opts.yMax??12);
+}
+function clampY(y,plot){return Math.max(plot.yMin, Math.min(plot.yMax,y));}
+
+function drawAxes(ctx, plot, opts={}){
+  ctx.save();
+  ctx.strokeStyle = COL.grid; ctx.lineWidth=1;
+  const xStep = opts.xStep||2, yStep = opts.yStep||2;
+  ctx.beginPath();
+  for(let x=Math.ceil(plot.xMin/xStep)*xStep; x<=plot.xMax; x+=xStep){
+    ctx.moveTo(plot.x(x), plot.py); ctx.lineTo(plot.x(x), plot.py+plot.ph);
+  }
+  for(let y=Math.ceil(plot.yMin/yStep)*yStep; y<=plot.yMax; y+=yStep){
+    ctx.moveTo(plot.px, plot.y(y)); ctx.lineTo(plot.px+plot.pw, plot.y(y));
+  }
+  ctx.stroke();
+  ctx.strokeStyle = COL.axis; ctx.lineWidth=1.3;
+  ctx.beginPath();
+  ctx.moveTo(plot.px, plot.py+plot.ph); ctx.lineTo(plot.px+plot.pw, plot.py+plot.ph);
+  ctx.moveTo(plot.px, plot.py); ctx.lineTo(plot.px, plot.py+plot.ph);
+  ctx.stroke();
+  if(opts.xlabel){
+    ctx.fillStyle=COL.textDim; ctx.font=FONT_SM; ctx.textAlign="center";
+    ctx.fillText(opts.xlabel, plot.px+plot.pw/2, plot.py+plot.ph+26);
+  }
+  if(opts.ylabel){
+    ctx.save(); ctx.translate(plot.px-40, plot.py+plot.ph/2); ctx.rotate(-Math.PI/2);
+    ctx.fillStyle=COL.textDim; ctx.font=FONT_SM; ctx.textAlign="center";
+    ctx.fillText(opts.ylabel,0,0); ctx.restore();
+  }
+  if(opts.title){
+    ctx.fillStyle=COL.textDim; ctx.font=FONT_SM; ctx.textAlign="left";
+    ctx.fillText(opts.title, plot.px, plot.py-12);
+  }
+  ctx.restore();
+}
+function drawPoints(ctx, plot, pts, t, opts={}){
+  const n=pts.length, stagger = opts.stagger??0.45, start0=opts.start??0, dur=opts.dur??0.55;
+  pts.forEach((p,i)=>{
+    const s0 = start0 + (i/Math.max(1,n))*stagger;
+    const local = win(t, s0, s0+dur);
+    if(local<=0) return;
+    const s = easeOutBack(local);
+    const x=plot.x(p[0]), y=plot.y(clampY(p[1],plot));
+    const r = (opts.r||4.6) * Math.max(0,s);
+    ctx.beginPath(); ctx.arc(x,y,Math.max(0,r),0,Math.PI*2);
+    ctx.fillStyle = opts.color||COL.white;
+    ctx.globalAlpha = clamp01(s);
+    ctx.fill();
+    ctx.globalAlpha=1;
+  });
+}
+function drawLineProgress(ctx, plot, m, b, t, color, opts={}){
+  const p0 = win(t, opts.start||0, opts.end||1);
+  if(p0<=0) return;
+  const x1 = lerp(plot.xMin, plot.xMax, easeOut(p0));
+  ctx.beginPath();
+  ctx.moveTo(plot.x(plot.xMin), plot.y(clampY(m*plot.xMin+b,plot)));
+  ctx.lineTo(plot.x(x1), plot.y(clampY(m*x1+b,plot)));
+  ctx.strokeStyle=color; ctx.lineWidth=opts.width||2.6;
+  if(opts.dashed) ctx.setLineDash([7,6]); else ctx.setLineDash([]);
+  ctx.globalAlpha = opts.alpha??1;
+  ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha=1;
+}
+function drawCurve(ctx, plot, fn, t, color, opts={}){
+  const p0 = win(t, opts.start||0, opts.end||1);
+  if(p0<=0) return;
+  const res = opts.res||160;
+  const xEnd = lerp(plot.xMin, plot.xMax, easeOut(p0));
+  ctx.beginPath();
+  let started=false;
+  for(let i=0;i<=res;i++){
+    const x = plot.xMin + (plot.xMax-plot.xMin)*i/res;
+    if(x>xEnd+1e-6) break;
+    const y = clampY(fn(x), plot);
+    const px=plot.x(x), py=plot.y(y);
+    if(!started){ctx.moveTo(px,py); started=true;} else ctx.lineTo(px,py);
+  }
+  ctx.strokeStyle=color; ctx.lineWidth=opts.width||2.6;
+  if(opts.dashed) ctx.setLineDash([6,5]); else ctx.setLineDash([]);
+  ctx.globalAlpha=opts.alpha??1;
+  ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha=1;
+}
+function drawStepExplicit(ctx, plot, breakpoints, values, t, color, opts={}){
+  const totalSegs = values.length;
+  const p0 = win(t, opts.start||0, opts.end||1);
+  const segsShown = p0*totalSegs;
+  ctx.beginPath();
+  let started=false;
+  for(let i=0;i<totalSegs;i++){
+    const segProg = clamp01(segsShown-i);
+    if(segProg<=0) break;
+    const x0=breakpoints[i], x1raw=breakpoints[i+1];
+    const x1 = lerp(x0,x1raw, easeOut(segProg));
+    const y = clampY(values[i], plot);
+    const px0=plot.x(x0), px1=plot.x(x1), py=plot.y(y);
+    if(!started){ctx.moveTo(px0,py); started=true;} else ctx.lineTo(px0,py);
+    ctx.lineTo(px1,py);
+    if(segProg>=1 && i<totalSegs-1){
+      const yNext = clampY(values[i+1],plot);
+      ctx.lineTo(px1, plot.y(yNext));
+    }
+  }
+  ctx.strokeStyle=color; ctx.lineWidth=opts.width||2.8;
+  ctx.globalAlpha=opts.alpha??1;
+  ctx.lineJoin='round';
+  ctx.stroke(); ctx.globalAlpha=1;
+}
+function drawResiduals(ctx, plot, pts, fn, t, opts={}){
+  const p0 = win(t, opts.start||0, opts.end||1);
+  if(p0<=0) return;
+  ctx.strokeStyle = opts.color||COL.red;
+  ctx.lineWidth=1.4;
+  ctx.globalAlpha = 0.75*p0;
+  pts.forEach(([x,y])=>{
+    const yhat = fn(x);
+    const yy = lerp(y, yhat, 1-p0) ;
+    ctx.beginPath();
+    ctx.moveTo(plot.x(x), plot.y(clampY(y,plot)));
+    ctx.lineTo(plot.x(x), plot.y(clampY(lerp(y,yhat,p0),plot)));
+    ctx.stroke();
+  });
+  ctx.globalAlpha=1;
+}
+function label(ctx,x,y,text,opts={}){
+  ctx.save();
+  ctx.font = opts.font||FONT_SM;
+  ctx.fillStyle = opts.color||COL.textDim;
+  ctx.textAlign = opts.align||'left';
+  ctx.globalAlpha = opts.alpha??1;
+  ctx.fillText(text,x,y);
+  ctx.restore();
+}
+function dot(ctx,x,y,r,color,alpha=1){
+  ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2);
+  ctx.fillStyle=color; ctx.globalAlpha=alpha; ctx.fill(); ctx.globalAlpha=1;
+}
+function roundRect(ctx,x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);
+  ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();
+}
+
+/* ============================================================
+   SLIDE RENDER FUNCTIONS
+============================================================ */
+
+function renderTitle(ctx,w,h,t){
+  const plot = stdPlot(w,h,{px:60,pr:60,py:60,pb:70,xMin:0,xMax:10,yMin:0,yMax:12});
+  ctx.save(); ctx.globalAlpha=0.5;
+  drawAxes(ctx,plot,{});
+  ctx.restore();
+  drawPoints(ctx,plot,linData,t,{start:0.1,color:COL.grey,r:3.6,stagger:0.5,dur:0.5});
+  const p0 = win(t,0.9,2.0);
+  if(p0>0){
+    drawLineProgress(ctx,plot,LR.m,LR.b,t,COL.blue,{start:0.9,end:2.0,width:3});
+  }
+  // big centered wordmark
+  const a = win(t,0.2,1.0);
+  ctx.save();
+  ctx.globalAlpha = a;
+  ctx.fillStyle = COL.white;
+  ctx.font = "600 " + Math.round(Math.min(w*0.09,64)) + "px 'Inter', sans-serif";
+  ctx.textAlign='center';
+  ctx.fillText('Regression', w/2, h*0.38);
+  ctx.font = "400 15px 'Inter', sans-serif";
+  ctx.fillStyle = COL.textDim;
+  ctx.globalAlpha = win(t,0.9,1.6);
+  ctx.fillText('finding the shape that a story of data is trying to tell', w/2, h*0.38+34);
+  ctx.restore();
+}
+
+function renderBigIdea(ctx,w,h,t){
+  const plot = stdPlot(w,h,{xMin:0,xMax:10,yMin:0,yMax:12,xlabel:'x  (input)',ylabel:'y  (output)'});
+  drawAxes(ctx,plot,{title:'unknown pattern'});
+  drawPoints(ctx,plot,linData,t,{start:0,dur:0.6,stagger:0.5});
+  // trial lines sweeping
+  const sweepT = win(t,0.9,2.6);
+  if(sweepT>0 && sweepT<1){
+    const wob = Math.sin(t*7)*0.9;
+    const m = LR.m + wob, b = LR.b - wob*3;
+    drawLineProgress(ctx,plot,m,b,1,COL.grey,{alpha:0.5,width:1.6,dashed:true});
+    label(ctx,plot.px+plot.pw-4,plot.py+16,'trying slopes...',{align:'right',color:COL.grey});
+  }
+  const finalT = win(t,2.6,3.4);
+  if(finalT>0){
+    drawLineProgress(ctx,plot,LR.m,LR.b,1,COL.blue,{start:0,end:1,width:3,alpha:1});
+    drawResiduals(ctx,plot,linData,(x)=>LR.m*x+LR.b,win(t,3.4,4.2),{color:COL.red});
+  }
+  if(win(t,4.2,4.6)>0){
+    label(ctx,plot.px+plot.pw-4,plot.py+16,'settled: least total error',{align:'right',color:COL.green,alpha:win(t,4.2,4.6)});
+  }
+}
+
+function renderLinear(ctx,w,h,t){
+  const plot = stdPlot(w,h,{xMin:0,xMax:10,yMin:0,yMax:12,xlabel:'house size (x)',ylabel:'price (y)'});
+  drawAxes(ctx,plot,{});
+  drawPoints(ctx,plot,linData,t,{start:0,dur:0.55});
+  const lp = win(t,0.7,2.6);
+  if(lp>0) drawLineProgress(ctx,plot,LR.m,LR.b,t,COL.blue,{start:0.7,end:2.6,width:3});
+  if(win(t,2.6,3.2)>0){
+    drawResiduals(ctx,plot,linData,(x)=>LR.m*x+LR.b,win(t,2.6,3.2),{color:COL.red});
+  }
+  if(win(t,3.3,3.8)>0){
+    const a = win(t,3.3,3.8);
+    label(ctx,plot.px+plot.pw-4,plot.py+16,
+      `m ≈ ${LR.m.toFixed(2)}   b ≈ ${LR.b.toFixed(2)}`,
+      {align:'right',color:COL.orange,alpha:a,font:FONT_MONO});
+  }
+}
+
+function renderGradientDescent(ctx,w,h,t){
+  const gap=28;
+  const plotL = stdPlot(w,h,{px:56,pr:w*0.52,py:36,pb:50,xMin:0,xMax:10,yMin:0,yMax:12,xlabel:'x',ylabel:'y'});
+  const plotR = stdPlot(w,h,{px:w*0.56,pr:24,py:36,pb:50,xMin:-1,xMax:6,yMin:0,yMax:10,xlabel:'slope m',ylabel:'cost J'});
+  drawAxes(ctx,plotL,{title:'data + current line'});
+  drawAxes(ctx,plotR,{title:'cost bowl',xStep:1,yStep:2});
+
+  drawPoints(ctx,plotL,linData,t,{start:0,dur:0.5});
+
+  // cost bowl: J(m) around LR.m for fixed b=LR.b
+  function costAt(m){
+    let s=0; linData.forEach(([x,y])=>{ const e=y-(m*x+LR.b); s+=e*e; });
+    return s/linData.length/9 + 1.2;
+  }
+  const bowl = x => costAt(x);
+  drawCurve(ctx,plotR,bowl,win(t,0.5,1.4),COL.grey,{width:2,start:0,end:1});
+
+  // gradient descent ball: start far from LR.m, converge
+  const startM = LR.m - 3.6;
+  const steps = 7;
+  const rollT = win(t,1.5,3.6);
+  const stepIdx = Math.min(steps-1, Math.floor(rollT*steps));
+  const localP = clamp01(rollT*steps - stepIdx);
+  // geometric convergence toward LR.m
+  function mAtStep(i){ return LR.m + (startM-LR.m)*Math.pow(0.55,i); }
+  const mNow = rollT<=0 ? startM : lerp(mAtStep(stepIdx), mAtStep(stepIdx+1), easeInOut(localP));
+  if(rollT>0){
+    // ball on bowl
+    const bx = plotR.x(mNow), by = plotR.y(clampY(bowl(mNow),plotR));
+    dot(ctx,bx,by,6,COL.orange,1);
+    // trail
+    ctx.strokeStyle=COL.orange; ctx.globalAlpha=0.35; ctx.lineWidth=1.5;
+    ctx.beginPath();
+    for(let i=0;i<=stepIdx;i++){
+      const mm = mAtStep(i);
+      const px=plotR.x(mm), py=plotR.y(clampY(bowl(mm),plotR));
+      if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+    }
+    ctx.stroke(); ctx.globalAlpha=1;
+    // matching line on left
+    drawLineProgress(ctx,plotL,mNow,LR.b,1,COL.blue,{start:0,end:1,width:2.6});
+  }
+  if(win(t,3.7,4.2)>0){
+    label(ctx,plotR.px+plotR.pw/2,plotR.py+14,'ball rolls to the bottom',{align:'center',color:COL.textDim,alpha:win(t,3.7,4.2)});
+  }
+}
+
+function renderMultiple(ctx,w,h,t){
+  const cx = w*0.5, cy = h*0.5;
+  const scale = Math.min(w,h)*0.34;
+  ctx.save();
+  ctx.translate(cx,cy);
+  const tilt = win(t,0.2,1.6);
+  const skewY = lerp(0, -0.42, easeInOut(tilt));
+  const skewX = lerp(0, 0.18, easeInOut(tilt));
+  // grid plane
+  ctx.strokeStyle = 'rgba(91,141,239,0.28)';
+  ctx.lineWidth=1;
+  const N=6, S=scale/N*2;
+  for(let i=-N;i<=N;i+=2){
+    ctx.beginPath();
+    for(let j=-N;j<=N;j+=1){
+      const gx = i*S/2, gy=j*S/2;
+      const px = gx + gy*skewX;
+      const py = gy*0.5 + gx*skewY;
+      if(j===-N) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+    }
+    ctx.globalAlpha = 0.35*tilt;
+    ctx.stroke();
+  }
+  for(let j=-N;j<=N;j+=2){
+    ctx.beginPath();
+    for(let i=-N;i<=N;i+=1){
+      const gx = i*S/2, gy=j*S/2;
+      const px = gx + gy*skewX;
+      const py = gy*0.5 + gx*skewY;
+      if(i===-N) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+    }
+    ctx.globalAlpha = 0.35*tilt;
+    ctx.stroke();
+  }
+  ctx.globalAlpha=1;
+  // points floating above/below plane
+  const ptsA = 20;
+  for(let i=0;i<10;i++){
+    const seedA = mulberry32(500+i)();
+    const seedB = mulberry32(900+i)();
+    const gx = (seedA-0.5)*scale*1.6, gy=(seedB-0.5)*scale*1.6;
+    const planeY = gy*0.5 + gx*skewY;
+    const off = (mulberry32(300+i)()-0.5)*70;
+    const appear = win(t, 1.6 + i*0.06, 2.2+i*0.06);
+    if(appear<=0) continue;
+    const px = gx + gy*skewX;
+    const py = planeY - off*appear;
+    ctx.beginPath();
+    ctx.moveTo(px,planeY); ctx.lineTo(px,py);
+    ctx.strokeStyle = off>0?COL.green:COL.red;
+    ctx.globalAlpha=0.5*appear; ctx.lineWidth=1; ctx.stroke(); ctx.globalAlpha=1;
+    dot(ctx,px,py,4,off>0?COL.green:COL.red, appear);
+  }
+  ctx.restore();
+  if(win(t,2.6,3.1)>0){
+    label(ctx,w/2,h-46,'x₁, x₂, x₃ ... each add a new axis',{align:'center',color:COL.textDim,alpha:win(t,2.6,3.1)});
+  }
+}
+
+function renderPoly(ctx,w,h,t){
+  const plot = stdPlot(w,h,{xMin:0,xMax:10,yMin:0,yMax:12,xlabel:'x',ylabel:'y'});
+  drawAxes(ctx,plot,{});
+  drawPoints(ctx,plot,curveData,t,{start:0,dur:0.5});
+  const f1 = x=>evalPoly(P1,x), f3 = x=>evalPoly(P3,x), f9 = x=>evalPoly(P9,x);
+  drawCurve(ctx,plot,f1,win(t,0.6,1.5),COL.grey,{width:2.2,dashed:true});
+  if(win(t,0.7,1.5)>0) label(ctx,plot.px+8,plot.y(f1(0.6))-10,'underfit (degree 1)',{color:COL.grey,alpha:win(t,0.9,1.5)});
+  drawCurve(ctx,plot,f3,win(t,1.8,2.9),COL.green,{width:3});
+  if(win(t,2.0,2.9)>0) label(ctx,plot.px+8,plot.y(clampY(f3(1.2),plot))-14,'good fit (degree 3)',{color:COL.green,alpha:win(t,2.2,2.9)});
+  drawCurve(ctx,plot,f9,win(t,3.2,4.4),COL.red,{width:1.8,dashed:true});
+  if(win(t,3.4,4.4)>0) label(ctx,plot.px+plot.pw-8,plot.py+16,'overfit (degree 9)',{align:'right',color:COL.red,alpha:win(t,3.6,4.4)});
+}
+
+function ridgeLasso(ctx,w,h,t,mode){
+  const plotL = stdPlot(w,h,{px:52,pr:w*0.55,py:36,pb:48,xMin:0,xMax:10,yMin:0,yMax:12,xlabel:'x',ylabel:'y'});
+  const plotR = stdPlot(w,h,{px:w*0.60,pr:30,py:40,pb:40,xMin:-6,xMax:6,yMin:-6,yMax:6});
+  drawAxes(ctx,plotL,{});
+  drawPoints(ctx,plotL,linData,t,{start:0,dur:0.5});
+
+  const dial = win(t,0.7,3.2); // 0 -> unregularized, 1 -> regularized
+  const overM = LR.m + 1.6, overB = LR.b - 4;
+  let m,b;
+  if(mode==='lasso'){
+    // coefficient goes to exactly zero as dial passes threshold
+    const shrink = easeInOut(Math.min(1,dial*1.3));
+    m = shrink<0.85 ? lerp(overM, 0, shrink/0.85) : 0;
+    b = lerp(overB, LR.m*0+ (linData.reduce((s,p)=>s+p[1],0)/linData.length), easeInOut(dial));
+  } else {
+    m = lerp(overM, LR.m*0.55, easeInOut(dial));
+    b = lerp(overB, LR.b+2, easeInOut(dial));
+  }
+  drawLineProgress(ctx,plotL,overM,overB,1,COL.grey,{width:1.6,dashed:true,alpha:0.5});
+  drawLineProgress(ctx,plotL,m,b,1,mode==='lasso'?COL.purple:COL.blue,{width:3});
+
+  // geometric constraint inset
+  ctx.save();
+  ctx.strokeStyle = COL.axis; ctx.lineWidth=1;
+  ctx.beginPath();
+  ctx.moveTo(plotR.px,plotR.y(0)); ctx.lineTo(plotR.px+plotR.pw,plotR.y(0));
+  ctx.moveTo(plotR.x(0),plotR.py); ctx.lineTo(plotR.x(0),plotR.py+plotR.ph);
+  ctx.stroke();
+  label(ctx,plotR.px+plotR.pw/2,plotR.py-10,'coefficient space  (w₁, w₂)',{align:'center',color:COL.textDim});
+
+  const R = Math.min(plotR.pw,plotR.ph)*0.32;
+  const cx0 = plotR.x(0), cy0 = plotR.y(0);
+  ctx.beginPath();
+  if(mode==='lasso'){
+    ctx.moveTo(cx0+R,cy0); ctx.lineTo(cx0,cy0-R); ctx.lineTo(cx0-R,cy0); ctx.lineTo(cx0,cy0+R); ctx.closePath();
+  } else {
+    ctx.arc(cx0,cy0,R,0,Math.PI*2);
+  }
+  ctx.strokeStyle = mode==='lasso'?COL.purple:COL.blue;
+  ctx.globalAlpha=0.9; ctx.lineWidth=2; ctx.stroke(); ctx.globalAlpha=1;
+
+  // contour ellipses (cost function) centered off-origin, shrinking toward optimum as "more data" not needed;
+  // show a few concentric ellipses around a fixed off-center true optimum
+  const ex = cx0+R*1.6, ey = cy0-R*0.9;
+  for(let i=1;i<=3;i++){
+    ctx.beginPath();
+    ctx.ellipse(ex,ey,R*0.5*i,R*0.32*i,0.4,0,Math.PI*2);
+    ctx.strokeStyle='rgba(255,255,255,0.12)'; ctx.lineWidth=1; ctx.stroke();
+  }
+  // touching point marker moves with dial
+  const touchX = mode==='lasso' ? cx0 : cx0 + R*Math.cos(-0.5);
+  const touchY = mode==='lasso' ? cy0-R : cy0 + R*Math.sin(-0.5);
+  const showTouch = win(t,2.0,3.2);
+  if(showTouch>0) dot(ctx,touchX,touchY,5,COL.orange,showTouch);
+  ctx.restore();
+
+  if(win(t,3.3,3.8)>0){
+    const txt = mode==='lasso' ? `w ≈ ${m.toFixed(2)}  (pushed to 0)` : `w ≈ ${m.toFixed(2)}  (shrunk, not 0)`;
+    label(ctx,plotL.px+plotL.pw-4,plotL.py+16,txt,{align:'right',color:COL.orange,alpha:win(t,3.3,3.8),font:FONT_MONO});
+  }
+}
+function renderRidge(ctx,w,h,t){ ridgeLasso(ctx,w,h,t,'ridge'); }
+function renderLasso(ctx,w,h,t){ ridgeLasso(ctx,w,h,t,'lasso'); }
+
+function renderElastic(ctx,w,h,t){
+  const plot = stdPlot(w,h,{px:56,pr:w*0.4,py:40,pb:50,xMin:-6,xMax:6,yMin:-6,yMax:6});
+  drawAxes(ctx,plot,{});
+  const cx=plot.x(0), cy=plot.y(0), R=Math.min(plot.pw,plot.ph)*0.34;
+  const alpha = (Math.sin(win(t,0.5,10)*0.0)+1); // static base
+  const a = clamp01(win(t,0.6,3.4)); // 0=diamond(L1) 1=circle(L2), we animate blend param p
+  const p = lerp(1, 2, easeInOut(a)); // superellipse exponent 1->2
+  ctx.beginPath();
+  const steps=100;
+  for(let i=0;i<=steps;i++){
+    const th = i/steps*Math.PI*2;
+    const cs=Math.cos(th), sn=Math.sin(th);
+    const x = Math.sign(cs)*Math.pow(Math.abs(cs), 2/p)*R;
+    const y = Math.sign(sn)*Math.pow(Math.abs(sn), 2/p)*R;
+    const px=cx+x, py=cy+y;
+    if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+  }
+  ctx.closePath();
+  ctx.strokeStyle=COL.orange; ctx.lineWidth=2.4; ctx.stroke();
+  label(ctx,cx,plot.py-12,'L1 (diamond) ↔ L2 (circle) blend',{align:'center',color:COL.textDim});
+
+  // right side: bar chart of coefficients shrinking/sparsifying differently
+  const bx = w*0.62, by=plot.py, bw=w*0.30, bh=plot.ph;
+  const feats = 5;
+  const ridgeVals = [1,0.8,0.6,0.4,0.2].map(v=>v*0.6);
+  const lassoVals = [1,0.8,0,0.4,0];
+  label(ctx,bx,by-12,'coefficient sizes',{color:COL.textDim});
+  for(let i=0;i<feats;i++){
+    const fw = bw/feats*0.55;
+    const gx = bx + i*(bw/feats) + (bw/feats-fw)/2;
+    const rv = lerp(1, lerp(ridgeVals[i], lassoVals[i], a), win(t,1.0,3.2));
+    const barH = Math.max(2, rv*bh*0.7);
+    ctx.fillStyle = rv<=0.02 ? COL.grey : COL.purple;
+    ctx.globalAlpha = win(t,0.8,1.4);
+    roundRect(ctx, gx, by+bh-barH, fw, barH, 3);
+    ctx.fill();
+    ctx.globalAlpha=1;
+    label(ctx,gx+fw/2, by+bh+16, 'w'+(i+1), {align:'center',color:COL.textDim,font:FONT_SM});
+  }
+}
+
+function renderSVR(ctx,w,h,t){
+  const plot = stdPlot(w,h,{xMin:0,xMax:10,yMin:0,yMax:12,xlabel:'x',ylabel:'y'});
+  drawAxes(ctx,plot,{});
+  const eps = 1.6*easeInOut(win(t,0.9,2.2));
+  drawPoints(ctx,plot,linData,t,{start:0,dur:0.5,color:COL.grey});
+  drawLineProgress(ctx,plot,LR.m,LR.b,1,COL.blue,{width:2.4,alpha:win(t,0.5,0.9)});
+  if(eps>0){
+    ctx.strokeStyle=COL.blueDim; ctx.setLineDash([6,5]); ctx.lineWidth=1.6;
+    [eps,-eps].forEach(off=>{
+      ctx.beginPath();
+      ctx.moveTo(plot.x(plot.xMin), plot.y(clampY(LR.m*plot.xMin+LR.b+off,plot)));
+      ctx.lineTo(plot.x(plot.xMax), plot.y(clampY(LR.m*plot.xMax+LR.b+off,plot)));
+      ctx.stroke();
+    });
+    ctx.setLineDash([]);
+    // fill tube
+    ctx.beginPath();
+    ctx.moveTo(plot.x(plot.xMin), plot.y(clampY(LR.m*plot.xMin+LR.b+eps,plot)));
+    ctx.lineTo(plot.x(plot.xMax), plot.y(clampY(LR.m*plot.xMax+LR.b+eps,plot)));
+    ctx.lineTo(plot.x(plot.xMax), plot.y(clampY(LR.m*plot.xMax+LR.b-eps,plot)));
+    ctx.lineTo(plot.x(plot.xMin), plot.y(clampY(LR.m*plot.xMin+LR.b-eps,plot)));
+    ctx.closePath();
+    ctx.fillStyle='rgba(91,141,239,0.08)'; ctx.fill();
+  }
+  const showPts = win(t,2.3,3.4);
+  if(showPts>0){
+    linData.forEach(([x,y])=>{
+      const inside = Math.abs(y-(LR.m*x+LR.b)) <= eps+0.02;
+      const px=plot.x(x), py=plot.y(clampY(y,plot));
+      dot(ctx,px,py, inside?4:5.4, inside?COL.grey:COL.orange, 1);
+      if(!inside){
+        ctx.strokeStyle=COL.orange; ctx.globalAlpha=0.8*showPts; ctx.lineWidth=1.4;
+        ctx.beginPath(); ctx.arc(px,py,8,0,Math.PI*2); ctx.stroke(); ctx.globalAlpha=1;
+      }
+    });
+  }
+  if(win(t,3.5,4.0)>0){
+    label(ctx,plot.px+plot.pw-4,plot.py+16,'only orange points (outside ε) shape the line',{align:'right',color:COL.orange,alpha:win(t,3.5,4.0)});
+  }
+}
+
+function drawTreeSlideCommon(ctx,plot,t,phaseSplit1,phaseSplit2,phaseSteps){
+  drawAxes(ctx,plot,{});
+  drawPoints(ctx,plot,curveData,t,{start:0,dur:0.5});
+  const s1 = win(t,phaseSplit1,phaseSplit1+0.7);
+  if(s1>0){
+    ctx.strokeStyle=COL.orange; ctx.setLineDash([5,4]); ctx.lineWidth=1.8;
+    ctx.globalAlpha=s1;
+    ctx.beginPath();
+    ctx.moveTo(plot.x(T1.t),plot.py); ctx.lineTo(plot.x(T1.t),plot.py+plot.ph);
+    ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha=1;
+    label(ctx,plot.x(T1.t),plot.py-8,'split @ x='+T1.t.toFixed(1),{align:'center',color:COL.orange,alpha:s1});
+  }
+}
+
+function renderTree(ctx,w,h,t){
+  const plot = stdPlot(w,h,{xMin:0,xMax:10,yMin:0,yMax:12,xlabel:'x',ylabel:'y'});
+  drawTreeSlideCommon(ctx,plot,t,0.6);
+  const step1 = win(t,1.4,2.3);
+  if(step1>0) drawStepExplicit(ctx,plot,treeSteps1.breakpoints,treeSteps1.values,win(t,1.4,2.3),COL.grey,{width:2,alpha:0.6});
+  const t2a = win(t,2.5,3.1), t2b = win(t,2.5,3.1);
+  if(t2a>0 && T2L){
+    ctx.strokeStyle=COL.purple; ctx.setLineDash([4,4]); ctx.lineWidth=1.4; ctx.globalAlpha=t2a;
+    ctx.beginPath(); ctx.moveTo(plot.x(T2L.t),plot.py); ctx.lineTo(plot.x(T2L.t),plot.py+plot.ph); ctx.stroke();
+    ctx.setLineDash([]); ctx.globalAlpha=1;
+  }
+  if(t2b>0 && T2R){
+    ctx.strokeStyle=COL.purple; ctx.setLineDash([4,4]); ctx.lineWidth=1.4; ctx.globalAlpha=t2b;
+    ctx.beginPath(); ctx.moveTo(plot.x(T2R.t),plot.py); ctx.lineTo(plot.x(T2R.t),plot.py+plot.ph); ctx.stroke();
+    ctx.setLineDash([]); ctx.globalAlpha=1;
+  }
+  drawStepExplicit(ctx,plot,treeSteps2.breakpoints,treeSteps2.values,win(t,3.2,4.2),COL.blue,{width:3});
+  if(win(t,4.3,4.8)>0){
+    label(ctx,plot.px+plot.pw-4,plot.py+16,'deeper splits → finer staircase',{align:'right',color:COL.textDim,alpha:win(t,4.3,4.8)});
+  }
+}
+
+function renderForest(ctx,w,h,t){
+  const plot = stdPlot(w,h,{xMin:0,xMax:10,yMin:0,yMax:12,xlabel:'x',ylabel:'y'});
+  drawAxes(ctx,plot,{});
+  drawPoints(ctx,plot,curveData,t,{start:0,dur:0.5,color:COL.grey});
+  const colors=[COL.red,COL.orange,COL.green,COL.purple,COL.yellow];
+  forestTrees.forEach((sp,i)=>{
+    const st = buildSteps(x=>x<sp.t?sp.leftMean:sp.rightMean, 0,10,[sp.t]);
+    const seg = win(t, 0.6+i*0.35, 1.1+i*0.35);
+    drawStepExplicit(ctx,plot,st.breakpoints,st.values,seg,colors[i%colors.length],{width:1.6,alpha:0.45});
+  });
+  const avgT = win(t,2.6,3.8);
+  if(avgT>0) drawStepExplicit(ctx,plot,forestSteps.breakpoints,forestSteps.values,avgT,COL.blue,{width:3.4});
+  if(win(t,3.9,4.4)>0){
+    label(ctx,plot.px+plot.pw-4,plot.py+16,'average of 5 trees → smoother, steadier',{align:'right',color:COL.textDim,alpha:win(t,3.9,4.4)});
+  }
+}
+
+function renderExtraTrees(ctx,w,h,t){
+  const plot = stdPlot(w,h,{xMin:0,xMax:10,yMin:0,yMax:12,xlabel:'x',ylabel:'y'});
+  drawAxes(ctx,plot,{});
+  drawPoints(ctx,plot,curveData,t,{start:0,dur:0.5,color:COL.grey});
+  // flash random candidate splits before settling
+  const flashT = win(t,0.6,1.6);
+  if(flashT>0 && flashT<1){
+    const idx = Math.floor(flashT*extraTrees.length*3)%extraTrees.length;
+    const rt = extraTrees[idx].t;
+    ctx.strokeStyle=COL.grey; ctx.globalAlpha=0.5; ctx.setLineDash([3,4]); ctx.lineWidth=1.2;
+    ctx.beginPath(); ctx.moveTo(plot.x(rt),plot.py); ctx.lineTo(plot.x(rt),plot.py+plot.ph); ctx.stroke();
+    ctx.setLineDash([]); ctx.globalAlpha=1;
+    label(ctx,plot.px+plot.pw-4,plot.py+16,'random split candidates...',{align:'right',color:COL.grey,alpha:1});
+  }
+  const colors=[COL.red,COL.orange,COL.green,COL.purple,COL.yellow,COL.blue];
+  extraTrees.forEach((sp,i)=>{
+    const st = buildSteps(x=>x<sp.t?sp.leftMean:sp.rightMean, 0,10,[sp.t]);
+    const seg = win(t, 1.7+i*0.2, 2.0+i*0.2);
+    drawStepExplicit(ctx,plot,st.breakpoints,st.values,seg,colors[i%colors.length],{width:1.5,alpha:0.4});
+  });
+  const avgT = win(t,3.2,4.2);
+  if(avgT>0) drawStepExplicit(ctx,plot,extraSteps.breakpoints,extraSteps.values,avgT,COL.blue,{width:3.4});
+  if(win(t,4.3,4.8)>0){
+    label(ctx,plot.px+plot.pw-4,plot.py+16,'random splits → cheaper, still averages out',{align:'right',color:COL.textDim,alpha:win(t,4.3,4.8)});
+  }
+}
+
+function renderGB(ctx,w,h,t){
+  const plot = stdPlot(w,h,{xMin:0,xMax:10,yMin:0,yMax:12,xlabel:'x',ylabel:'y'});
+  drawAxes(ctx,plot,{});
+  drawPoints(ctx,plot,curveData,t,{start:0,dur:0.5});
+  const stageDur = 1.15, startAt = 0.7;
+  const stageIdx = Math.min(GB.stages.length-1, Math.floor(Math.max(0,t-startAt)/stageDur));
+  const fn = GB.stages[stageIdx].predict;
+  const localStart = startAt + stageIdx*stageDur;
+  const drawT = win(t, localStart, localStart+stageDur*0.55);
+  const bpsSoFar = GB.stumps.slice(0,stageIdx).map(s=>s.t);
+  const steps = buildSteps(fn, 0,10, bpsSoFar);
+  if(stageIdx===0){
+    drawLineProgress(ctx,plot,0,GB.stages[0].predict(0),drawT,COL.grey,{width:2,dashed:true});
+  } else {
+    drawStepExplicit(ctx,plot,steps.breakpoints,steps.values,drawT,COL.blue,{width:3});
+  }
+  const residT = win(t, localStart+stageDur*0.55, localStart+stageDur*0.95);
+  if(residT>0 && stageIdx<GB.stumps.length){
+    drawResiduals(ctx,plot,curveData,fn,residT,{color:COL.red});
+  }
+  label(ctx,plot.px+plot.pw-4,plot.py+16,'stage '+stageIdx+' of '+(GB.stages.length-1),
+    {align:'right',color:COL.orange});
+  if(t> startAt+GB.stages.length*stageDur+0.3){
+    label(ctx,plot.px+plot.pw-4,plot.py+34,'each stage fits what\'s left over',{align:'right',color:COL.textDim});
+  }
+}
+
+function renderAdaBoost(ctx,w,h,t){
+  const plot = stdPlot(w,h,{xMin:0,xMax:10,yMin:0,yMax:12,xlabel:'x',ylabel:'y'});
+  drawAxes(ctx,plot,{});
+  const showR1 = win(t,0,0.6);
+  linData.forEach(([x,y],i)=>{
+    const appear = win(t, i/linData.length*0.4, i/linData.length*0.4+0.5);
+    if(appear<=0) return;
+    const r = 4.2*(1+ (win(t,1.6,2.4))*adaWeights2[i]*linData.length*0.7);
+    dot(ctx,plot.x(x),plot.y(clampY(y,plot)), r*easeOutBack(appear), COL.white, appear);
+  });
+  const l1 = win(t,0.6,1.3);
+  if(l1>0) drawStepExplicit(ctx,plot,buildSteps(adaPred1,0,10,[adaSplit1.t]).breakpoints,
+    buildSteps(adaPred1,0,10,[adaSplit1.t]).values, l1, COL.grey,{width:2,alpha:0.7});
+  if(win(t,1.3,1.9)>0){
+    label(ctx,plot.px+8,plot.py+16,'round 1: fit a stump',{color:COL.grey,alpha:win(t,1.3,1.9)});
+  }
+  if(win(t,1.9,2.6)>0){
+    label(ctx,plot.px+8,plot.py+34,'big points = high error → upweighted',{color:COL.orange,alpha:win(t,1.9,2.6)});
+  }
+  const l2 = win(t,2.6,3.3);
+  if(l2>0) drawStepExplicit(ctx,plot,buildSteps(adaPred2,0,10,[adaSplit2.t]).breakpoints,
+    buildSteps(adaPred2,0,10,[adaSplit2.t]).values, l2, COL.purple,{width:2,alpha:0.7});
+  const lf = win(t,3.4,4.2);
+  if(lf>0){
+    const bps = [...new Set([adaSplit1.t, adaSplit2.t])].sort((a,b)=>a-b);
+    const steps = buildSteps(adaFinal,0,10,bps);
+    drawStepExplicit(ctx,plot,steps.breakpoints,steps.values,lf,COL.blue,{width:3.4});
+  }
+  if(win(t,4.3,4.8)>0){
+    label(ctx,plot.px+plot.pw-4,plot.py+16,'final = weighted blend of both rounds',{align:'right',color:COL.textDim,alpha:win(t,4.3,4.8)});
+  }
+}
+
+function renderXGBoost(ctx,w,h,t){
+  const plot = stdPlot(w,h,{px:52,pr:w*0.5,py:36,pb:48,xMin:0,xMax:10,yMin:0,yMax:12,xlabel:'x',ylabel:'y'});
+  drawAxes(ctx,plot,{title:'boosted prediction'});
+  drawPoints(ctx,plot,curveData,t,{start:0,dur:0.4});
+  const finalSteps = buildSteps(GB.stages[GB.stages.length-1].predict,0,10,GB.stumps.map(s=>s.t));
+  drawStepExplicit(ctx,plot,finalSteps.breakpoints,finalSteps.values,win(t,0.4,1.4),COL.blue,{width:3});
+
+  // right: tree diagram with regularized leaf shrinkage
+  const rx=w*0.58, ry=h*0.22, rw=w*0.36, rh=h*0.5;
+  label(ctx,rx+rw/2,ry-10,'each tree + regularization Ω',{align:'center',color:COL.textDim});
+  const rootA = win(t,1.4,1.8);
+  if(rootA>0) dot(ctx,rx+rw/2,ry, 8, COL.orange, rootA);
+  const leafA = win(t,1.9,2.4);
+  const leaves = [[rx+rw*0.25,ry+rh*0.5],[rx+rw*0.75,ry+rh*0.5]];
+  leaves.forEach(([lx,ly])=>{
+    if(leafA>0){
+      ctx.strokeStyle=COL.grey; ctx.globalAlpha=leafA; ctx.lineWidth=1.6;
+      ctx.beginPath(); ctx.moveTo(rx+rw/2,ry); ctx.lineTo(lx,ly); ctx.stroke(); ctx.globalAlpha=1;
+      dot(ctx,lx,ly,7,COL.blue,leafA);
+    }
+  });
+  const shrinkA = win(t,2.6,3.4);
+  if(shrinkA>0){
+    leaves.forEach(([lx,ly],i)=>{
+      const val = (i===0?2.1:-1.4);
+      const shrunk = val*lerp(1,0.6,easeInOut(shrinkA));
+      label(ctx,lx,ly+22,shrunk.toFixed(2),{align:'center',color:COL.orange,font:FONT_MONO,alpha:shrinkA});
+    });
+    label(ctx,rx+rw/2,ry+rh*0.5+46,'leaf values shrink → less overfitting',{align:'center',color:COL.textDim,alpha:shrinkA});
+  }
+}
+
+function drawMiniTree(ctx,cx,cy,w,h,t,startAt,mode){
+  // mode: 'level' or 'leaf'
+  const depth1 = win(t,startAt,startAt+0.4);
+  const nodes = [];
+  const root = {x:cx, y:cy-h*0.4};
+  if(depth1>0) dot(ctx,root.x,root.y,7,COL.orange,depth1);
+  const l1 = {x:cx-w*0.28,y:cy-h*0.05}, r1={x:cx+w*0.28,y:cy-h*0.05};
+  const d2 = win(t,startAt+0.4,startAt+0.8);
+  [l1,r1].forEach(n=>{
+    if(d2>0){
+      ctx.strokeStyle=COL.grey; ctx.globalAlpha=d2; ctx.lineWidth=1.4;
+      ctx.beginPath(); ctx.moveTo(root.x,root.y); ctx.lineTo(n.x,n.y); ctx.stroke(); ctx.globalAlpha=1;
+      dot(ctx,n.x,n.y,6,COL.blue,d2);
+    }
+  });
+  if(mode==='level'){
+    const d3 = win(t,startAt+0.9,startAt+1.4);
+    const children = [
+      {p:l1, x:cx-w*0.42,y:cy+h*0.32}, {p:l1, x:cx-w*0.14,y:cy+h*0.32},
+      {p:r1, x:cx+w*0.14,y:cy+h*0.32}, {p:r1, x:cx+w*0.42,y:cy+h*0.32}
+    ];
+    children.forEach(n=>{
+      if(d3>0){
+        ctx.strokeStyle=COL.grey; ctx.globalAlpha=d3*0.8; ctx.lineWidth=1.2;
+        ctx.beginPath(); ctx.moveTo(n.p.x,n.p.y); ctx.lineTo(n.x,n.y); ctx.stroke(); ctx.globalAlpha=1;
+        dot(ctx,n.x,n.y,5,COL.green,d3);
+      }
+    });
+    label(ctx,cx,cy+h*0.5,'level-wise: grows evenly, row by row',{align:'center',color:COL.textDim,alpha:win(t,startAt+1.5,startAt+2)});
+  } else {
+    // leaf-wise: only expand the "worse" leaf (say r1) deeper, asymmetric
+    const d3 = win(t,startAt+0.9,startAt+1.3);
+    const c1={p:r1,x:cx+w*0.14,y:cy+h*0.32}, c2={p:r1,x:cx+w*0.42,y:cy+h*0.32};
+    [c1,c2].forEach(n=>{
+      if(d3>0){
+        ctx.strokeStyle=COL.grey; ctx.globalAlpha=d3*0.8; ctx.lineWidth=1.2;
+        ctx.beginPath(); ctx.moveTo(n.p.x,n.p.y); ctx.lineTo(n.x,n.y); ctx.stroke(); ctx.globalAlpha=1;
+        dot(ctx,n.x,n.y,5,COL.green,d3);
+      }
+    });
+    const d4 = win(t,startAt+1.4,startAt+1.8);
+    const c3={p:c2,x:cx+w*0.30,y:cy+h*0.62}, c4={p:c2,x:cx+w*0.54,y:cy+h*0.62};
+    [c3,c4].forEach(n=>{
+      if(d4>0){
+        ctx.strokeStyle=COL.grey; ctx.globalAlpha=d4*0.8; ctx.lineWidth=1.2;
+        ctx.beginPath(); ctx.moveTo(n.p.x,n.p.y); ctx.lineTo(n.x,n.y); ctx.stroke(); ctx.globalAlpha=1;
+        dot(ctx,n.x,n.y,5,COL.purple,d4);
+      }
+    });
+    if(depth1>0) dot(ctx,l1.x,l1.y,6,COL.blue,depth1);
+    label(ctx,cx,cy+h*0.5+22*0,'leaf-wise: chases the worst leaf deeper',{align:'center',color:COL.textDim,alpha:win(t,startAt+1.9,startAt+2.3)});
+  }
+}
+
+function renderLightGBM(ctx,w,h,t){
+  drawMiniTree(ctx, w*0.27, h*0.42, w*0.4, h*0.55, t, 0.3, 'level');
+  drawMiniTree(ctx, w*0.74, h*0.42, w*0.4, h*0.55, t, 1.2, 'leaf');
+  ctx.save();
+  ctx.strokeStyle=COL.axis; ctx.globalAlpha=0.6;
+  ctx.beginPath(); ctx.moveTo(w*0.5,h*0.12); ctx.lineTo(w*0.5,h*0.85); ctx.stroke();
+  ctx.restore();
+  const a = win(t,2.6,3.1);
+  if(a>0) label(ctx,w*0.5,h*0.94,'fewer, smarter splits → faster on big data',{align:'center',color:COL.orange,alpha:a});
+}
+
+function renderCatBoost(ctx,w,h,t){
+  const cats = ['Red','Blue','Green'];
+  const cx = w*0.22, startY = h*0.28, gap = h*0.16;
+  cats.forEach((c,i)=>{
+    const a = win(t, 0.3+i*0.4, 0.8+i*0.4);
+    if(a<=0) return;
+    ctx.save(); ctx.globalAlpha=a;
+    roundRect(ctx, cx-46, startY+i*gap-16, 92,32,8);
+    ctx.strokeStyle=COL.grey; ctx.lineWidth=1.4; ctx.stroke();
+    label(ctx,cx,startY+i*gap+5,c,{align:'center',color:COL.text});
+    ctx.restore();
+    const arrA = win(t,0.6+i*0.4,1.1+i*0.4);
+    if(arrA>0){
+      ctx.strokeStyle=COL.grey; ctx.globalAlpha=arrA*0.7; ctx.lineWidth=1.4;
+      ctx.beginPath(); ctx.moveTo(cx+50,startY+i*gap); ctx.lineTo(w*0.55-10,startY+i*gap); ctx.stroke();
+      ctx.globalAlpha=1;
+    }
+    const numA = win(t,1.0+i*0.4,1.5+i*0.4);
+    if(numA>0){
+      const val = [0.72,0.41,0.58][i];
+      ctx.save(); ctx.globalAlpha=numA;
+      roundRect(ctx, w*0.55-6, startY+i*gap-16, 92,32,8);
+      ctx.fillStyle='rgba(91,141,239,0.12)'; ctx.fill();
+      ctx.strokeStyle=COL.blue; ctx.lineWidth=1.4; ctx.stroke();
+      label(ctx,w*0.55+40,startY+i*gap+5,val.toFixed(2),{align:'center',color:COL.blue,font:FONT_MONO});
+      ctx.restore();
+    }
+  });
+  const noteA = win(t,2.4,3.0);
+  if(noteA>0) label(ctx,w*0.5,h*0.78,'category → target statistic (computed on prior rows only)',
+    {align:'center',color:COL.textDim,alpha:noteA});
+  const noteB = win(t,3.0,3.5);
+  if(noteB>0) label(ctx,w*0.5,h*0.84,'"ordered boosting" — no peeking at the future',
+    {align:'center',color:COL.orange,alpha:noteB});
+}
+
+function renderGPR(ctx,w,h,t){
+  const plot = stdPlot(w,h,{xMin:0,xMax:10,yMin:0,yMax:12,xlabel:'x',ylabel:'y'});
+  drawAxes(ctx,plot,{});
+  const priorA = win(t,0.2,1.4);
+  if(priorA<1){
+    gpAllSamples.slice(0,24).forEach((fn,i)=>{
+      const a = win(t, 0.2+i*0.02, 0.6+i*0.02);
+      if(a<=0) return;
+      drawCurve(ctx,plot,fn,1,COL.grey,{width:1,alpha:0.18*a,start:0,end:1});
+    });
+  }
+  const anchorA = win(t,1.3,1.9);
+  gpAnchors.forEach(([x,y],i)=>{
+    const a = win(t,1.3+i*0.1,1.7+i*0.1);
+    if(a>0) dot(ctx,plot.x(x),plot.y(clampY(y,plot)),5.5,COL.white,a);
+  });
+  const filterA = win(t,2.0,3.0);
+  if(filterA>0){
+    gpRejected.slice(0,20).forEach(fn=>{
+      drawCurve(ctx,plot,fn,1,COL.grey,{width:1,alpha:0.10*(1-filterA),start:0,end:1});
+    });
+    gpKept.forEach(fn=>{
+      drawCurve(ctx,plot,fn,1,COL.blue,{width:1.3,alpha:0.30*filterA,start:0,end:1});
+    });
+  }
+  const meanA = win(t,3.1,3.8);
+  if(meanA>0){
+    const meanFn = x => gpKept.reduce((s,fn)=>s+fn(x),0)/gpKept.length;
+    drawCurve(ctx,plot,meanFn,meanA,COL.blue,{width:3});
+    // uncertainty band: wider away from anchors
+    ctx.beginPath();
+    const res=80;
+    const distTo = x => Math.min(...gpAnchors.map(a=>Math.abs(a[0]-x)));
+    for(let i=0;i<=res;i++){
+      const x = plot.xMin+(plot.xMax-plot.xMin)*i/res;
+      const spread = 0.4+0.9*Math.min(1,distTo(x)/2.2);
+      const y = clampY(meanFn(x)+spread,plot);
+      const px=plot.x(x), py=plot.y(y);
+      if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+    }
+    for(let i=res;i>=0;i--){
+      const x = plot.xMin+(plot.xMax-plot.xMin)*i/res;
+      const spread = 0.4+0.9*Math.min(1,distTo(x)/2.2);
+      const y = clampY(meanFn(x)-spread,plot);
+      const px=plot.x(x), py=plot.y(y);
+      ctx.lineTo(px,py);
+    }
+    ctx.closePath();
+    ctx.fillStyle='rgba(91,141,239,0.10)';
+    ctx.globalAlpha=meanA;
+    ctx.fill(); ctx.globalAlpha=1;
+  }
+  if(win(t,3.9,4.4)>0){
+    label(ctx,plot.px+plot.pw-4,plot.py+16,'wide band far from data, narrow near it',{align:'right',color:COL.textDim,alpha:win(t,3.9,4.4)});
+  }
+}
+
+function renderBayesian(ctx,w,h,t){
+  const plotL = stdPlot(w,h,{px:52,pr:w*0.52,py:36,pb:48,xMin:0,xMax:10,yMin:0,yMax:12,xlabel:'x',ylabel:'y'});
+  const plotR = stdPlot(w,h,{px:w*0.58,pr:28,py:40,pb:44,xMin:-1,xMax:5,yMin:-2,yMax:16,xlabel:'slope m',ylabel:'intercept b'});
+  drawAxes(ctx,plotL,{title:'plausible lines'});
+  drawAxes(ctx,plotR,{title:'parameter space',xStep:1,yStep:4});
+  drawPoints(ctx,plotL,linData,t,{start:0,dur:0.4});
+
+  const thresholdT = win(t,0.6,3.4); // tightens over time: keep top fraction
+  const keepFrac = lerp(1, 0.035, easeInOut(thresholdT));
+  const keepN = Math.max(6, Math.floor(baySamples.length*keepFrac));
+  const kept = baySamples.slice(0,keepN);
+
+  kept.forEach((s,i)=>{
+    const a = 0.5*(1-i/kept.length)+0.06;
+    drawLineProgress(ctx,plotL,s.m,s.b,1,COL.purple,{width:1.1,alpha:a*0.5,start:0,end:1});
+    dot(ctx,plotR.x(s.m),plotR.y(clampY(s.b,plotR)),2.2,COL.purple,a);
+  });
+  const bestA = win(t,3.0,3.6);
+  if(bestA>0){
+    drawLineProgress(ctx,plotL,LR.m,LR.b,1,COL.blue,{width:3,alpha:bestA});
+  }
+  if(win(t,3.6,4.1)>0){
+    label(ctx,plotL.px+plotL.pw-4,plotL.py+16,'posterior mean',{align:'right',color:COL.blue,alpha:win(t,3.6,4.1)});
+  }
+  const priorLabelA = win(t,0.7,1.1) * (1-win(t,2.0,2.6));
+  if(priorLabelA>0) label(ctx,plotR.px+8,plotR.py+16,'wide prior',{color:COL.textDim,alpha:priorLabelA});
+  if(win(t,3.0,3.5)>0) label(ctx,plotR.px+8,plotR.py+16,'tight posterior',{color:COL.orange,alpha:win(t,3.0,3.5)});
+}
+
+function renderKNN(ctx,w,h,t){
+  const plot = stdPlot(w,h,{xMin:0,xMax:10,yMin:0,yMax:12,xlabel:'x',ylabel:'y'});
+  drawAxes(ctx,plot,{});
+  drawPoints(ctx,plot,linData,t,{start:0,dur:0.45,color:COL.grey});
+
+  const curveA = win(t,3.3,4.4);
+  if(curveA>0){
+    const res=140;
+    ctx.beginPath();
+    let started=false;
+    for(let i=0;i<=res;i++){
+      const x = plot.xMin+(plot.xMax-plot.xMin)*i/res;
+      const y = clampY(knnPredict(x,3).pred, plot);
+      const px=plot.x(x), py=plot.y(y);
+      if(x> lerp(plot.xMin,plot.xMax,curveA)) break;
+      if(!started){ctx.moveTo(px,py); started=true;} else ctx.lineTo(px,py);
+    }
+    ctx.strokeStyle=COL.blue; ctx.lineWidth=2.6; ctx.stroke();
+  }
+
+  const cyc = 3.0; // seconds per query sweep after intro
+  const introEnd = 1.0;
+  let x0;
+  if(t<introEnd){ x0 = 5.0; }
+  else {
+    const loopT = ((t-introEnd)% cyc)/cyc;
+    x0 = lerp(1.0, 9.0, easeInOut(win(loopT,0,1)));
+  }
+  const showQuery = win(t,0.4,1.0);
+  if(showQuery>0){
+    const {pred, nearest} = knnPredict(x0,3);
+    // query vertical line
+    ctx.strokeStyle=COL.orange; ctx.globalAlpha=0.8*showQuery; ctx.setLineDash([5,4]); ctx.lineWidth=1.6;
+    ctx.beginPath(); ctx.moveTo(plot.x(x0),plot.py); ctx.lineTo(plot.x(x0),plot.py+plot.ph); ctx.stroke();
+    ctx.setLineDash([]); ctx.globalAlpha=1;
+    // highlight nearest
+    nearest.forEach(([x,y])=>{
+      dot(ctx,plot.x(x),plot.y(clampY(y,plot)),6,COL.green,showQuery);
+    });
+    // prediction point
+    dot(ctx,plot.x(x0),plot.y(clampY(pred,plot)),6,COL.orange,showQuery);
+    ctx.strokeStyle=COL.orange; ctx.globalAlpha=0.5*showQuery; ctx.setLineDash([3,4]); ctx.lineWidth=1.2;
+    ctx.beginPath(); ctx.moveTo(plot.px,plot.y(clampY(pred,plot))); ctx.lineTo(plot.x(x0),plot.y(clampY(pred,plot))); ctx.stroke();
+    ctx.setLineDash([]); ctx.globalAlpha=1;
+    label(ctx,plot.x(x0),plot.py-10,'k=3 nearest',{align:'center',color:COL.green,alpha:showQuery});
+  }
+}
+
+function renderSummary(ctx,w,h,t){
+  const plot = stdPlot(w,h,{px:70,pr:60,py:60,pb:70,xMin:0,xMax:10,yMin:0,yMax:10,xlabel:'flexibility →',ylabel:'← stable      variance      high'});
+  drawAxes(ctx,plot,{xStep:100,yStep:100});
+  label(ctx,plot.px,plot.py-14,'bias–variance map',{color:COL.textDim});
+  const items = [
+    {name:'Linear',x:1.2,y:1.6,c:COL.blue},
+    {name:'Ridge/Lasso',x:1.8,y:1.3,c:COL.blue},
+    {name:'Polynomial',x:4.0,y:5.2,c:COL.green},
+    {name:'SVR',x:4.4,y:3.0,c:COL.green},
+    {name:'Single Tree',x:6.5,y:7.5,c:COL.orange},
+    {name:'KNN',x:5.6,y:5.6,c:COL.green},
+    {name:'Random Forest',x:6.0,y:3.0,c:COL.purple},
+    {name:'Extra Trees',x:6.3,y:3.2,c:COL.purple},
+    {name:'GB / XGBoost',x:7.2,y:3.6,c:COL.purple},
+    {name:'LightGBM / CatBoost',x:7.6,y:3.4,c:COL.purple},
+    {name:'AdaBoost',x:6.8,y:4.2,c:COL.purple},
+    {name:'GPR / Bayesian',x:5.0,y:2.2,c:COL.yellow},
+  ];
+  items.forEach((it,i)=>{
+    const a = win(t, i*0.22, i*0.22+0.6);
+    if(a<=0) return;
+    const px = plot.x(it.x), py = plot.y(it.y);
+    dot(ctx, px, py, 5*easeOutBack(a), it.c, a);
+    label(ctx, px+9, py+4, it.name, {color:COL.textDim, alpha:a, font:FONT_SM});
+  });
+  if(win(t,3.2,3.7)>0){
+    label(ctx,plot.px+plot.pw/2,plot.py+plot.ph+50,'ensembles push the tradeoff curve down and to the right',
+      {align:'center',color:COL.orange,alpha:win(t,3.2,3.7)});
+  }
+}
+
+function renderClosing(ctx,w,h,t){
+  const a = win(t,0.2,1.2);
+  ctx.save();
+  ctx.globalAlpha=a;
+  ctx.fillStyle=COL.text;
+  ctx.font = "500 " + Math.round(Math.min(w*0.045,30)) + "px 'Inter', sans-serif";
+  ctx.textAlign='center';
+  wrapText(ctx, '"What I cannot create, I do not understand."', w/2, h*0.42, w*0.7, 40);
+  ctx.font="14px 'Inter', sans-serif";
+  ctx.fillStyle=COL.textDim;
+  ctx.globalAlpha = win(t,0.9,1.6);
+  ctx.fillText('— every regression above: guess ŷ, measure (y−ŷ)², adjust.', w/2, h*0.42+70);
+  ctx.restore();
+
+  const plot = stdPlot(w,h,{px:w*0.28,pr:w*0.28,py:h*0.62,pb:h*0.12,xMin:0,xMax:10,yMin:0,yMax:12});
+  drawPoints(ctx,plot,linData,t,{start:1.6,dur:0.5,r:3});
+  drawLineProgress(ctx,plot,LR.m,LR.b,t,COL.blue,{start:2.2,end:3.0,width:2.4});
+}
+function wrapText(ctx,text,cx,y,maxW,lh){
+  const words=text.split(' ');
+  let line='', lines=[];
+  words.forEach(word=>{
+    const test=line+word+' ';
+    if(ctx.measureText(test).width>maxW && line){ lines.push(line); line=word+' '; }
+    else line=test;
+  });
+  lines.push(line);
+  const startY = y-(lines.length-1)*lh/2;
+  lines.forEach((l,i)=> ctx.fillText(l.trim(), cx, startY+i*lh));
+}
+
+/* ---------- NEW: Normal Equation (closed form) ---------- */
+function renderNormalEq(ctx,w,h,t){
+  const boxW = w*0.40, boxH = h*0.56, gap = w*0.06;
+  const lx = w/2 - gap/2 - boxW, ly = h*0.20;
+  const rx = w/2 + gap/2;
+  [{x:lx,label:'Gradient Descent',sub:'iterative'},{x:rx,label:'Normal Equation',sub:'closed-form'}].forEach((box,i)=>{
+    const a = win(t, 0.15+i*0.15, 0.6+i*0.15);
+    if(a<=0) return;
+    ctx.save(); ctx.globalAlpha=a;
+    ctx.strokeStyle=COL.axis; ctx.lineWidth=1.3;
+    roundRect(ctx, box.x, ly, boxW, boxH, 12); ctx.stroke();
+    label(ctx, box.x+boxW/2, ly+22, box.label, {align:'center',color:COL.text,font:"14px 'Inter', sans-serif"});
+    label(ctx, box.x+boxW/2, ly+40, box.sub, {align:'center',color:COL.textDim});
+    ctx.restore();
+  });
+  // left: small bowl with stepping ball
+  const cxL = lx+boxW/2, cyL = ly+boxH*0.62, R=boxW*0.32;
+  const bowlY = yy => cyL + (yy*yy)*R*0.9;
+  ctx.save();
+  ctx.strokeStyle=COL.grey; ctx.globalAlpha=win(t,0.7,1.1); ctx.lineWidth=1.6;
+  ctx.beginPath();
+  for(let i=-30;i<=30;i++){ const xx=i/30, px=cxL+xx*R, py=bowlY(xx); if(i===-30) ctx.moveTo(px,py); else ctx.lineTo(px,py); }
+  ctx.stroke(); ctx.restore();
+  const stepsN=6, loopT = win(t,1.1,3.4);
+  const stepIdx = Math.min(stepsN-1, Math.floor(loopT*stepsN));
+  const localP = clamp01(loopT*stepsN-stepIdx);
+  function xAtStep(i){ return -1*Math.pow(0.55,i); }
+  const xNow = loopT<=0 ? -1 : lerp(xAtStep(stepIdx), xAtStep(stepIdx+1), easeInOut(localP));
+  if(loopT>0){
+    dot(ctx, cxL+xNow*R, bowlY(xNow), 6, COL.orange, 1);
+    label(ctx, cxL, ly+boxH-14, 'many small steps → converges', {align:'center',color:COL.textDim,alpha:win(t,2.0,2.6)});
+  }
+  // right: single direct jump
+  const cxR = rx+boxW/2, cyR = ly+boxH*0.62;
+  ctx.save();
+  ctx.strokeStyle=COL.grey; ctx.globalAlpha=win(t,0.7,1.1); ctx.lineWidth=1.6;
+  ctx.beginPath();
+  for(let i=-30;i<=30;i++){ const xx=i/30, px=cxR+xx*R, py=cyR+(xx*xx)*R*0.9; if(i===-30) ctx.moveTo(px,py); else ctx.lineTo(px,py); }
+  ctx.stroke(); ctx.restore();
+  const jumpT = win(t,1.4,2.2);
+  if(jumpT>0){
+    const startPt=[cxR-R, cyR+R*0.9], endPt=[cxR, cyR];
+    const px = lerp(startPt[0],endPt[0], easeOutBack(jumpT));
+    const py = lerp(startPt[1],endPt[1], easeOutBack(jumpT));
+    dot(ctx, px, py, 6, COL.blue, 1);
+    label(ctx, cxR, ly+boxH-14, 'w = (XᵀX)⁻¹Xᵀy — one shot', {align:'center',color:COL.textDim,alpha:win(t,2.2,2.8)});
+  }
+  if(win(t,3.0,3.6)>0){
+    label(ctx, w/2, h*0.88, 'exact, but inverting XᵀX costs O(features³) — GD scales better', {align:'center',color:COL.orange,alpha:win(t,3.0,3.6)});
+  }
+}
+
+/* ---------- NEW: Evaluation Metrics ---------- */
+function renderMetrics(ctx,w,h,t){
+  const plot = stdPlot(w,h,{px:52,pr:w*0.46,py:36,pb:48,xMin:0,xMax:10,yMin:0,yMax:12,xlabel:'x',ylabel:'y'});
+  drawAxes(ctx,plot,{});
+  drawPoints(ctx,plot,linData,t,{start:0,dur:0.4});
+  drawLineProgress(ctx,plot,LR.m,LR.b,1,COL.blue,{width:2.6,alpha:win(t,0.4,0.8)});
+  drawResiduals(ctx,plot,linData,(x)=>LR.m*x+LR.b,win(t,0.8,1.4),{color:COL.red});
+
+  const cards = [
+    {key:'MAE', val:METRICS.mae, dec:2, note:'avg |error|'},
+    {key:'RMSE', val:METRICS.rmse, dec:2, note:'penalizes big misses'},
+    {key:'R²', val:METRICS.r2, dec:3, note:'variance explained'},
+  ];
+  const cx0 = w*0.58, cw = w*0.36, chH = h*0.16, gapY = h*0.06;
+  cards.forEach((c,i)=>{
+    const a = win(t, 1.4+i*0.35, 1.9+i*0.35);
+    if(a<=0) return;
+    const cy = h*0.14 + i*(chH+gapY);
+    ctx.save(); ctx.globalAlpha=a;
+    roundRect(ctx, cx0, cy, cw, chH, 10);
+    ctx.strokeStyle=COL.axis; ctx.lineWidth=1.2; ctx.stroke();
+    label(ctx, cx0+16, cy+22, c.key, {color:COL.textDim, font:"11px 'Inter', sans-serif"});
+    const shown = c.val*easeOut(win(t,1.5+i*0.35,2.3+i*0.35));
+    label(ctx, cx0+16, cy+46, shown.toFixed(c.dec), {color:COL.orange, font:"20px 'JetBrains Mono', monospace"});
+    label(ctx, cx0+cw-14, cy+46, c.note, {align:'right', color:COL.textDim, font:"11px 'Inter', sans-serif"});
+    ctx.restore();
+  });
+  const r2A = win(t,3.1,3.8);
+  if(r2A>0){
+    label(ctx,plot.px, plot.py+plot.ph+40, 'R² = 1 − (error variance / total variance)', {color:COL.textDim, alpha:r2A, font:FONT_MONO});
+  }
+}
+
+/* ---------- NEW: Assumptions & Residual Diagnostics ---------- */
+function renderAssumptions(ctx,w,h,t){
+  const panels = [
+    {kind:'good', title:'Good: random scatter', color:COL.green},
+    {kind:'nonlinear', title:'Bad: curved pattern', color:COL.red},
+    {kind:'funnel', title:'Bad: funnel (heteroscedastic)', color:COL.orange},
+    {kind:'auto', title:'Bad: wavy trend (autocorrelated)', color:COL.purple},
+  ];
+  const cols=2, pw=(w-60)/2, ph=(h-70)/2;
+  panels.forEach((pnl,i)=>{
+    const gx = 30 + (i%cols)*(pw+30), gy = 34 + Math.floor(i/cols)*(ph+36);
+    const a = win(t, i*0.35, i*0.35+0.5);
+    if(a<=0) return;
+    const plot = makePlot(gx, gy+14, pw, ph-30, 0, 1, -2.2, 2.2);
+    ctx.save(); ctx.globalAlpha=a;
+    ctx.strokeStyle=COL.axis; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(plot.px, plot.y(0)); ctx.lineTo(plot.px+plot.pw, plot.y(0)); ctx.stroke();
+    label(ctx, gx, gy, pnl.title, {color:pnl.color, font:"11px 'Inter', sans-serif"});
+    ctx.restore();
+    DIAG[pnl.kind].forEach(([x,y],k)=>{
+      const pa = win(t, i*0.35+0.15+k*0.02, i*0.35+0.5+k*0.02);
+      if(pa<=0) return;
+      dot(ctx, plot.x(x), plot.y(clampY(y,plot)), 2.6, pnl.color, pa*0.85);
+    });
+  });
+  if(win(t,2.6,3.1)>0){
+    label(ctx, w/2, h-14, 'residuals should look like patternless noise around 0', {align:'center',color:COL.textDim, alpha:win(t,2.6,3.1)});
+  }
+}
+
+/* ---------- NEW: Multicollinearity ---------- */
+function renderMulticollinearity(ctx,w,h,t){
+  const cx=w*0.30, cy=h*0.52, R=Math.min(w,h)*0.28;
+  drawAxes(ctx, makePlot(cx-R,cy-R,2*R,2*R,-1,1,-1,1), {});
+  const ang = lerp(Math.PI*0.5, Math.PI*0.08, easeInOut(win(t,0.5,2.4)));
+  const v1 = [Math.cos(0.15)*R, -Math.sin(0.15)*R];
+  const v2 = [Math.cos(ang)*R, -Math.sin(ang)*R];
+  [{v:v1,c:COL.blue,l:'x₁'},{v:v2,c:COL.orange,l:'x₂'}].forEach(o=>{
+    const a = win(t,0.1,0.5);
+    ctx.save(); ctx.globalAlpha=a; ctx.strokeStyle=o.c; ctx.lineWidth=2.6;
+    ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(cx+o.v[0], cy+o.v[1]); ctx.stroke();
+    label(ctx, cx+o.v[0]*1.12, cy+o.v[1]*1.12, o.l, {color:o.c, align:'center'});
+    ctx.restore();
+  });
+  const warnA = win(t,2.4,3.0);
+  if(warnA>0){
+    label(ctx, cx, cy+R+34, 'nearly parallel → hard to tell them apart', {align:'center',color:COL.red, alpha:warnA});
+  }
+  // right: coefficient instability bars jittering wildly when collinear
+  const bx = w*0.62, by=h*0.22, bw=w*0.32, bh=h*0.5;
+  label(ctx, bx, by-12, 'fitted coefficients (across 5 refits)', {color:COL.textDim});
+  const jr = mulberry32(11);
+  for(let trial=0; trial<5; trial++){
+    const a = win(t, 2.6+trial*0.15, 3.0+trial*0.15);
+    if(a<=0) continue;
+    const collinearity = win(t,0.5,2.4);
+    const wiggle = (jr()-0.5)*2*collinearity;
+    const v1x = 1.2+wiggle*1.6, v2x = 0.5-wiggle*1.6;
+    const fw = bw/2/2.6;
+    [v1x,v2x].forEach((val,k)=>{
+      const gx = bx + trial*(bw/5) + k*(bw/5/2.4);
+      const barH = Math.abs(val)*bh*0.16;
+      const baseY = by+bh*0.5;
+      ctx.fillStyle = k===0?COL.blue:COL.orange;
+      ctx.globalAlpha=a*0.85;
+      roundRect(ctx, gx, val>0?baseY-barH:baseY, fw*0.8, barH, 2);
+      ctx.fill(); ctx.globalAlpha=1;
+    });
+  }
+  ctx.save(); ctx.strokeStyle=COL.axis; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(bx,by+bh*0.5); ctx.lineTo(bx+bw,by+bh*0.5); ctx.stroke(); ctx.restore();
+}
+
+/* ---------- NEW: Feature Scaling ---------- */
+function renderFeatureScaling(ctx,w,h,t){
+  const boxW=w*0.40, boxH=h*0.56, gap=w*0.06;
+  const lx=w/2-gap/2-boxW, ly=h*0.18, rx=w/2+gap/2;
+  [{x:lx,label:'Unscaled features',sub:'elongated cost bowl'},{x:rx,label:'Scaled features',sub:'circular cost bowl'}].forEach((box,i)=>{
+    const a = win(t,0.1+i*0.15,0.55+i*0.15);
+    if(a<=0) return;
+    ctx.save(); ctx.globalAlpha=a;
+    ctx.strokeStyle=COL.axis; ctx.lineWidth=1.3; roundRect(ctx,box.x,ly,boxW,boxH,12); ctx.stroke();
+    label(ctx,box.x+boxW/2,ly+22,box.label,{align:'center',color:COL.text});
+    label(ctx,box.x+boxW/2,ly+40,box.sub,{align:'center',color:COL.textDim});
+    ctx.restore();
+  });
+  function contours(cx,cy,rx_,ry_,alpha){
+    for(let i=1;i<=4;i++){
+      ctx.beginPath(); ctx.ellipse(cx,cy,rx_*i/4,ry_*i/4,0,0,Math.PI*2);
+      ctx.strokeStyle='rgba(255,255,255,0.14)'; ctx.globalAlpha=alpha; ctx.lineWidth=1; ctx.stroke();
+    }
+    ctx.globalAlpha=1;
+  }
+  const cxL=lx+boxW/2, cyL=ly+boxH*0.58, RL=Math.min(boxW,boxH)*0.34;
+  contours(cxL,cyL,RL*1.5,RL*0.35, win(t,0.7,1.1));
+  const cxR=rx+boxW/2, cyR=ly+boxH*0.58, RR=Math.min(boxW,boxH)*0.30;
+  contours(cxR,cyR,RR,RR, win(t,0.7,1.1));
+  // zigzag path (unscaled) vs direct path (scaled)
+  const zigT = win(t,1.2,3.0);
+  if(zigT>0){
+    const zz = [[-1,0.85],[0.7,-0.55],[-0.4,0.32],[0.2,-0.16],[0,0]];
+    ctx.strokeStyle=COL.orange; ctx.lineWidth=2; ctx.globalAlpha=1;
+    ctx.beginPath();
+    const nShow = Math.max(1, Math.floor(zigT*zz.length));
+    for(let i=0;i<nShow;i++){
+      const px=cxL+zz[i][0]*RL*1.4, py=cyL+zz[i][1]*RL*0.32*1.4;
+      if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+      dot(ctx,px,py,3.4,COL.orange,1);
+    }
+    ctx.stroke();
+    label(ctx,cxL,ly+boxH-14,'zigzags slowly toward the minimum',{align:'center',color:COL.textDim});
+  }
+  const directT = win(t,1.6,2.4);
+  if(directT>0){
+    const sx=cxR-RR*0.95, sy=cyR+RR*0.7;
+    const px=lerp(sx,cxR,easeOut(directT)), py=lerp(sy,cyR,easeOut(directT));
+    ctx.strokeStyle=COL.green; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(sx,sy); ctx.lineTo(px,py); ctx.stroke();
+    dot(ctx,px,py,4,COL.green,1);
+    if(directT>0.9) label(ctx,cxR,ly+boxH-14,'heads straight for the minimum',{align:'center',color:COL.textDim});
+  }
+  if(win(t,3.1,3.6)>0){
+    label(ctx,w/2,h*0.9,'standardize: x → (x − mean) / std',{align:'center',color:COL.orange,alpha:win(t,3.1,3.6),font:FONT_MONO});
+  }
+}
+
+/* ---------- NEW: Train/Test Split & Learning Curves ---------- */
+function renderTrainTest(ctx,w,h,t){
+  const plot = stdPlot(w,h,{px:56,pr:w*0.48,py:36,pb:46,xMin:0,xMax:10,yMin:0,yMax:12,xlabel:'x',ylabel:'y'});
+  drawAxes(ctx,plot,{title:'80% train / 20% test'});
+  curveData.forEach((p,i)=>{
+    const isTest = i%5===4;
+    const a = win(t, i/curveData.length*0.6, i/curveData.length*0.6+0.5);
+    if(a<=0) return;
+    dot(ctx, plot.x(p[0]), plot.y(clampY(p[1],plot)), 4.4*easeOutBack(a), isTest?COL.orange:COL.blue, a);
+  });
+  if(win(t,0.9,1.3)>0){
+    label(ctx,plot.px+8,plot.py+16,'● train',{color:COL.blue,alpha:win(t,0.9,1.3)});
+    label(ctx,plot.px+70,plot.py+16,'● test',{color:COL.orange,alpha:win(t,0.9,1.3)});
+  }
+  // learning curves
+  const rx=w*0.56, ry=h*0.16, rw=w*0.38, rh=h*0.58;
+  const plot2 = makePlot(rx,ry,rw,rh,0,10,0,10);
+  drawAxes(ctx,plot2,{xlabel:'model complexity →',ylabel:'error',xStep:100,yStep:100});
+  function trainErr(x){ return 8*Math.exp(-x*0.5)+0.4; }
+  function testErr(x){ return 8*Math.exp(-x*0.5)+0.4 + 0.09*x*x*0.35; }
+  drawCurve(ctx,plot2,trainErr,win(t,1.4,2.6),COL.blue,{width:2.6});
+  drawCurve(ctx,plot2,testErr,win(t,1.6,2.8),COL.orange,{width:2.6});
+  const sweetA = win(t,2.9,3.4);
+  if(sweetA>0){
+    const sx=3.4;
+    ctx.strokeStyle=COL.green; ctx.setLineDash([4,4]); ctx.globalAlpha=sweetA; ctx.lineWidth=1.4;
+    ctx.beginPath(); ctx.moveTo(plot2.x(sx),plot2.py); ctx.lineTo(plot2.x(sx),plot2.py+plot2.ph); ctx.stroke();
+    ctx.setLineDash([]); ctx.globalAlpha=1;
+    label(ctx,plot2.x(sx),plot2.py-8,'sweet spot',{align:'center',color:COL.green,alpha:sweetA});
+  }
+  if(win(t,1.2,1.6)>0){
+    label(ctx,rx,ry-16,'train error ↓ always  ·  test error ↓ then ↑',{color:COL.textDim,alpha:win(t,1.2,1.6)});
+  }
+}
+
+/* ---------- NEW: Regularization Path ---------- */
+function renderRegPath(ctx,w,h,t){
+  const plotL = stdPlot(w,h,{px:52,pr:w*0.54,py:40,pb:48,xMin:0,xMax:4,yMin:-3.5,yMax:3.5,xlabel:'λ →',ylabel:'coefficient value'});
+  const plotR = stdPlot(w,h,{px:w*0.58,pr:28,py:40,pb:48,xMin:0,xMax:4,yMin:-3.5,yMax:3.5,xlabel:'λ →',ylabel:''});
+  drawAxes(ctx,plotL,{title:'Lasso (L1)',xStep:1,yStep:1});
+  drawAxes(ctx,plotR,{title:'Ridge (L2)',xStep:1,yStep:1});
+  const colors=[COL.blue,COL.orange,COL.green,COL.purple];
+  REG_W0.forEach((w0,i)=>{
+    const a = win(t, 0.3+i*0.2, 0.8+i*0.2);
+    if(a<=0) return;
+    drawCurve(ctx,plotL, lam=>lassoPathVal(w0,lam), win(t,0.3+i*0.2,2.4), colors[i], {width:2.4});
+    drawCurve(ctx,plotR, lam=>ridgePathVal(w0,lam), win(t,0.3+i*0.2,2.4), colors[i], {width:2.4});
+  });
+  const zeroA = win(t,2.6,3.2);
+  if(zeroA>0){
+    label(ctx,plotL.px+plotL.pw/2,plotL.py+plotL.ph+38,'coefficients hit exactly 0 (kinks)',{align:'center',color:COL.orange,alpha:zeroA});
+    label(ctx,plotR.px+plotR.pw/2,plotR.py+plotR.ph+38,'coefficients shrink smoothly, never 0',{align:'center',color:COL.textDim,alpha:zeroA});
+  }
+}
+
+/* ---------- NEW: The Kernel Trick ---------- */
+function renderKernelTrick(ctx,w,h,t){
+  const plot = stdPlot(w,h,{px:52,pr:w*0.52,py:40,pb:48,xMin:-4,xMax:4,yMin:0,yMax:10,xlabel:'x',ylabel:'y (not linearly fittable)'});
+  drawAxes(ctx,plot,{});
+  const humpData = [];
+  for(let i=0;i<13;i++){ const x=-3.5+i*(7/12); humpData.push([x, 8-1.1*x*x + (mulberry32(60+i)()-0.5)*0.6]); }
+  drawPoints(ctx,plot,humpData,t,{start:0,dur:0.4});
+  const liftA = win(t,0.7,2.3);
+  // pseudo-3D lift: project (x, x^2) with skew, similar technique to multiple-regression slide
+  if(liftA>0){
+    const cx=w*0.74, cy=h*0.5, scale=Math.min(w,h)*0.30;
+    ctx.save(); ctx.translate(cx,cy);
+    ctx.strokeStyle='rgba(91,141,239,0.3)'; ctx.lineWidth=1;
+    for(let gy=-1;gy<=1;gy+=0.5){
+      ctx.beginPath();
+      for(let gx=-1;gx<=1;gx+=0.05){
+        const px=gx*scale, py=gy*scale*0.5 - gx*scale*0.15;
+        if(gx===-1) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+      }
+      ctx.globalAlpha=0.4*liftA; ctx.stroke();
+    }
+    ctx.globalAlpha=1;
+    humpData.forEach(([x,y],i)=>{
+      const a = win(t, 0.8+i*0.05, 1.3+i*0.05);
+      if(a<=0) return;
+      const nx = x/4, nz = (x*x)/16;
+      const baseX = nx*scale, baseY = 0*scale*0.5 - nx*scale*0.15;
+      const liftY = baseY - nz*scale*0.9*a;
+      ctx.strokeStyle=COL.grey; ctx.globalAlpha=0.4*a; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(baseX,baseY); ctx.lineTo(baseX,liftY); ctx.stroke(); ctx.globalAlpha=1;
+      dot(ctx, baseX, liftY, 4, COL.green, a);
+    });
+    if(liftA>0.6){
+      ctx.strokeStyle=COL.blue; ctx.lineWidth=2.4; ctx.globalAlpha=win(t,1.8,2.3);
+      ctx.beginPath(); ctx.moveTo(-scale*0.9, -scale*0.75); ctx.lineTo(scale*0.9,-scale*0.75);
+      ctx.stroke(); ctx.globalAlpha=1;
+    }
+    ctx.restore();
+    label(ctx, w*0.74, h*0.16, 'lifted: (x, x²) — now a flat line fits', {align:'center',color:COL.textDim, alpha:win(t,1.6,2.1)});
+  }
+  const curveA = win(t,2.5,3.3);
+  if(curveA>0){
+    drawCurve(ctx,plot, x=>8-1.1*x*x, curveA, COL.blue, {width:2.8});
+    label(ctx,plot.px+8,plot.py+16,'projected back: a curve in original space',{color:COL.textDim,alpha:win(t,2.7,3.3)});
+  }
+}
+
+/* ---------- NEW: Feature Importance ---------- */
+function renderFeatureImportance(ctx,w,h,t){
+  const feats = [
+    {name:'square footage', val:0.42, c:COL.blue},
+    {name:'location score', val:0.27, c:COL.green},
+    {name:'age of building', val:0.16, c:COL.orange},
+    {name:'number of rooms', val:0.10, c:COL.purple},
+    {name:'nearby schools', val:0.05, c:COL.yellow},
+  ];
+  const bx = w*0.10, by = h*0.16, bw = w*0.78, rowH = (h*0.62)/feats.length;
+  label(ctx,bx,by-14,'how much each feature reduces error, averaged across all trees/splits',{color:COL.textDim});
+  feats.forEach((f,i)=>{
+    const a = win(t, 0.3+i*0.3, 0.8+i*0.3);
+    if(a<=0) return;
+    const ry = by + i*rowH;
+    label(ctx,bx,ry+rowH*0.55,f.name,{color:COL.textDim});
+    const labelW = 150;
+    const trackX = bx+labelW, trackW = bw-labelW;
+    ctx.strokeStyle=COL.axis; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(trackX,ry+rowH*0.6); ctx.lineTo(trackX+trackW,ry+rowH*0.6); ctx.stroke();
+    const barW = trackW*f.val*easeOut(win(t,0.4+i*0.3,1.1+i*0.3));
+    ctx.fillStyle=f.c; ctx.globalAlpha=a;
+    roundRect(ctx, trackX, ry+rowH*0.6-8, Math.max(2,barW), 16, 4); ctx.fill();
+    ctx.globalAlpha=1;
+    label(ctx, trackX+barW+8, ry+rowH*0.55+4, (f.val*100).toFixed(0)+'%', {color:f.c, font:FONT_MONO, alpha:a});
+  });
+  if(win(t,2.6,3.1)>0){
+    label(ctx,bx,h*0.92,'available for Random Forest, Extra Trees, and every boosting variant',{color:COL.textDim,alpha:win(t,2.6,3.1)});
+  }
+}
+
+/* ---------- NEW: Learning Rate & Shrinkage ---------- */
+function renderLearningRate(ctx,w,h,t){
+  const plotL = stdPlot(w,h,{px:52,pr:w*0.52,py:36,pb:48,xMin:0,xMax:10,yMin:0,yMax:12,xlabel:'x',ylabel:'y'});
+  const plotR = stdPlot(w,h,{px:w*0.58,pr:26,py:36,pb:48,xMin:0,xMax:10,yMin:0,yMax:12,xlabel:'x',ylabel:''});
+  drawAxes(ctx,plotL,{title:'η = 0.9, 3 trees'});
+  drawAxes(ctx,plotR,{title:'η = 0.15, 9 trees'});
+  drawPoints(ctx,plotL,curveData,t,{start:0,dur:0.35});
+  drawPoints(ctx,plotR,curveData,t,{start:0,dur:0.35});
+  const hiFinal = GB_HI.stages[GB_HI.stages.length-1];
+  const loFinal = GB_LO.stages[GB_LO.stages.length-1];
+  const hiSteps = buildSteps(hiFinal,0,10,GB_HI.stumps.map(s=>s.t));
+  const loSteps = buildSteps(loFinal,0,10,GB_LO.stumps.map(s=>s.t));
+  drawStepExplicit(ctx,plotL,hiSteps.breakpoints,hiSteps.values,win(t,0.6,1.6),COL.orange,{width:3});
+  drawStepExplicit(ctx,plotR,loSteps.breakpoints,loSteps.values,win(t,0.9,2.3),COL.blue,{width:3});
+  if(win(t,1.8,2.3)>0) label(ctx,plotL.px+8,plotL.py+16,'fast, can overshoot',{color:COL.orange,alpha:win(t,1.8,2.3)});
+  if(win(t,2.5,3.0)>0) label(ctx,plotR.px+8,plotR.py+16,'slow, steadier fit',{color:COL.blue,alpha:win(t,2.5,3.0)});
+  if(win(t,3.1,3.6)>0){
+    label(ctx,w/2,h*0.92,'Fₘ = Fₘ₋₁ + η·hₘ(x)  —  small η + many trees usually generalizes best',{align:'center',color:COL.textDim,alpha:win(t,3.1,3.6)});
+  }
+}
+
+/* ---------- NEW: GPR Kernel Functions ---------- */
+function renderGPRKernels(ctx,w,h,t){
+  const kinds = [
+    {name:'RBF (smooth)', c:COL.blue, k:(d)=>Math.exp(-d*d/1.2), sample:(seed)=>gpSampleFn(seed)},
+    {name:'Periodic', c:COL.green, k:(d)=>Math.exp(-2*Math.pow(Math.sin(d*1.2),2)), sample:(seed)=> {
+      const amp=1.5+seed()*0.5, freq=1.0+seed()*0.3, phase=seed()*Math.PI*2;
+      return x=>5.5+amp*Math.sin(freq*x+phase);
+    }},
+    {name:'Linear', c:COL.orange, k:(d)=>d, sample:(seed)=>{
+      const m=(seed()-0.5)*2.4, b=5.5+(seed()-0.5)*2;
+      return x=>m*x+b;
+    }},
+  ];
+  const colW = w/3;
+  kinds.forEach((kd,i)=>{
+    const a = win(t, i*0.5, i*0.5+0.6);
+    if(a<=0) return;
+    const cx = colW*i + colW/2;
+    label(ctx, cx, h*0.10, kd.name, {align:'center',color:kd.c, alpha:a});
+    // top: kernel shape k(d) vs distance
+    const kplot = makePlot(colW*i+30, h*0.16, colW-60, h*0.22, -4,4,0,1.1);
+    drawAxes(ctx,kplot,{xlabel:'distance',yStep:2});
+    drawCurve(ctx,kplot, d=>kd.k(Math.abs(d)), win(t,i*0.5+0.2,i*0.5+0.9), kd.c, {width:2.2});
+    // bottom: sample functions from that kernel
+    const fplot = makePlot(colW*i+30, h*0.50, colW-60, h*0.34, 0,10,2,9);
+    drawAxes(ctx,fplot,{xStep:5,yStep:5});
+    const seedFn = mulberry32(3000+i*17);
+    for(let s=0;s<3;s++){
+      const fa = win(t, i*0.5+0.6+s*0.15, i*0.5+1.1+s*0.15);
+      if(fa<=0) continue;
+      const fn = kd.sample(mulberry32(4000+i*101+s*7));
+      drawCurve(ctx,fplot, fn, fa, kd.c, {width:1.6, alpha:0.75});
+    }
+  });
+  if(win(t,2.2,2.7)>0){
+    label(ctx,w/2,h*0.94,'the kernel is a prior belief about how "wiggly" the truth can be',{align:'center',color:COL.textDim,alpha:win(t,2.2,2.7)});
+  }
+}
+
+/* ---------- NEW: Curse of Dimensionality ---------- */
+function renderCurseOfDim(ctx,w,h,t){
+  const plot = stdPlot(w,h,{xMin:0,xMax:22,yMin:0,yMax:1,xlabel:'number of dimensions',ylabel:'avg. distance to nearest neighbor'});
+  drawAxes(ctx,plot,{xStep:5,yStep:0.2});
+  const pts = CURSE_DIMS.map((d,i)=>[d, CURSE_VALS[i]]);
+  drawPoints(ctx,plot,pts,t,{start:0.3,dur:0.5,color:COL.orange,r:4});
+  const lineA = win(t,1.6,2.6);
+  if(lineA>0){
+    ctx.beginPath();
+    let started=false;
+    const showN = Math.max(1, Math.floor(lineA*pts.length));
+    for(let i=0;i<showN;i++){
+      const px=plot.x(pts[i][0]), py=plot.y(clampY(pts[i][1],plot));
+      if(!started){ctx.moveTo(px,py); started=true;} else ctx.lineTo(px,py);
+    }
+    ctx.strokeStyle=COL.blue; ctx.lineWidth=2.4; ctx.stroke();
+  }
+  if(win(t,2.8,3.4)>0){
+    label(ctx,plot.px+plot.pw-4,plot.py+16,'60 random points, computed live in every dimension',{align:'right',color:COL.textDim,alpha:win(t,2.8,3.4)});
+  }
+  if(win(t,3.5,4.0)>0){
+    label(ctx,plot.px+plot.pw-4,plot.py+34,'"nearest" neighbor stops meaning much → KNN struggles',{align:'right',color:COL.red,alpha:win(t,3.5,4.0)});
+  }
+}
+
+/* ---------- NEW: Correlation vs Causation ---------- */
+function renderCorrCausation(ctx,w,h,t){
+  const plot = stdPlot(w,h,{px:56,pr:56,py:44,pb:78,xMin:0,xMax:10,yMin:0,yMax:10,xlabel:'time →',ylabel:'value'});
+  drawAxes(ctx,plot,{});
+  const fA = x=>3+0.55*x+0.3*Math.sin(x), fB = x=>2+0.5*x+0.25*Math.sin(x+0.3);
+  drawCurve(ctx,plot,fA,win(t,0.3,1.3),COL.blue,{width:2.4});
+  drawCurve(ctx,plot,fB,win(t,0.5,1.5),COL.orange,{width:2.4});
+  if(win(t,1.4,1.9)>0){
+    label(ctx,plot.x(9),plot.y(clampY(fA(9),plot))-10,'A',{color:COL.blue,alpha:win(t,1.4,1.9)});
+    label(ctx,plot.x(9),plot.y(clampY(fB(9),plot))+16,'B',{color:COL.orange,alpha:win(t,1.4,1.9)});
+  }
+  const confA = win(t,2.0,2.8);
+  if(confA>0){
+    const nx = plot.px+plot.pw*0.5, ny = plot.py+plot.ph+40;
+    dot(ctx,nx,ny,7,COL.purple,confA);
+    label(ctx,nx,ny+22,'hidden confounder (e.g. season)',{align:'center',color:COL.purple,alpha:confA});
+    [[plot.x(4),plot.y(clampY(fA(4),plot))],[plot.x(4),plot.y(clampY(fB(4),plot))]].forEach(([px,py])=>{
+      ctx.strokeStyle=COL.purple; ctx.globalAlpha=confA*0.7; ctx.setLineDash([4,4]); ctx.lineWidth=1.4;
+      ctx.beginPath(); ctx.moveTo(nx,ny); ctx.lineTo(px,py); ctx.stroke();
+      ctx.setLineDash([]); ctx.globalAlpha=1;
+    });
+  }
+  if(win(t,3.0,3.6)>0){
+    label(ctx,w/2,plot.py+plot.ph+62,'A and B move together — neither one causes the other',{align:'center',color:COL.textDim,alpha:win(t,3.0,3.6)});
+  }
+}
+
+/* ============================================================
+   SLIDES METADATA
+============================================================ */
+const slides = [
+  {title:'Regression', family:'Overview', eq:'ŷ = f(x)',
+   breakdown:[{t:'ŷ',d:'the prediction — our best guess at y'},{t:'f',d:'the pattern the model learns from data'},{t:'x',d:'the input(s) we\'re allowed to look at'}],
+   theory:'Regression is the task of learning a function that maps inputs to a continuous number, rather than a category. Unlike classification, being \'close\' matters: predicting 205 when the truth is 200 is a good outcome, not a failure. Every technique in this deck — from a straight line to a thousand-tree ensemble — is really just a different family of shapes for f(x), fit by making some notion of \'how wrong are we\' as small as possible.',
+   derivation:'This isn\'t one specific equation so much as a placeholder for the whole idea of supervised learning on continuous targets. It\'s written this deliberately vague way because every method in this deck is really just a different, more specific choice of what f can look like, and a different recipe for searching for it in data.',
+   practical:'Every price prediction, demand forecast, sensor calibration, or dosage calculator you\'ve used starts from this same generic template before committing to one specific model family.',
+   bullets:['Draw a curve through the noise','Predict a number, not a category','One idea, many disguises'],
+   render:renderTitle},
+  {title:'The Big Idea', family:'Foundation', eq:'minimize  Σ (y − ŷ)²',
+   breakdown:[{t:'y − ŷ',d:'the miss — truth minus prediction'},{t:'( )²',d:'squaring punishes big misses harder, kills negative signs'},{t:'Σ',d:'add that up over every point we have'}],
+   theory:'Fitting a model is an optimization problem: pick parameters that minimize a cost function measuring prediction error. Squared error is the default choice because it is smooth (easy to differentiate), always positive, and penalizes large mistakes more than small ones. Minimizing Σ(y−ŷ)² over the training data turns \'find a good model\' into a well-defined calculus problem — exactly what lets a computer solve it automatically.',
+   derivation:'Squaring the error isn\'t arbitrary. It keeps the cost function smooth and differentiable everywhere (absolute value has a sharp corner at zero that breaks calculus-based optimization), it always returns a positive number so errors can\'t cancel out, and it corresponds to assuming the noise around the true pattern is Gaussian — a very common real-world assumption, backed by the Central Limit Theorem.',
+   practical:'This exact minimization is what a spreadsheet\'s trendline, a thermostat\'s predictive model, and a hedge fund\'s factor model are all doing under the hood, whether or not anyone calls it machine learning.',
+   bullets:['Every model makes a guess ŷ','We measure how wrong the guess is','Then adjust to be less wrong'],
+   render:renderBigIdea},
+  {title:'Linear Regression', family:'Linear Family', eq:'ŷ = m·x + b',
+   breakdown:[{t:'m',d:'slope — how much y rises per unit of x'},{t:'b',d:'intercept — value of y when x = 0'},{t:'fit',d:'m and b are chosen to make Σ(y−ŷ)² as small as possible'}],
+   theory:'Simple linear regression assumes the relationship between x and y is a straight line plus random noise: y = mx + b + ε. The best line minimizes total squared vertical distance to every point — Ordinary Least Squares (OLS). Among all unbiased linear estimators, OLS has the lowest variance (the Gauss–Markov theorem), which is why it remains the natural first model to try and the baseline every fancier method should beat.',
+   derivation:'The formulas for m and b come straight from calculus: take the partial derivative of Σ(y−ŷ)² with respect to m, and with respect to b, set both to zero, and solve the two equations together. That\'s exactly what produces the covariance-over-variance formula for the slope, m = Σ(x−x̄)(y−ȳ) / Σ(x−x̄)².',
+   practical:'Economists use this to estimate how price affects demand, real-estate models use it (with more features added) to estimate home value from square footage, and A/B test analysis often starts here to quantify a single lever\'s effect.',
+   bullets:['The single best straight line','m = slope, b = intercept','Chosen to minimize squared error'],
+   render:renderLinear},
+  {title:'Cost Function & Gradient Descent', family:'Linear Family', eq:'J(m,b) = (1/n) Σᵢ (yᵢ − ŷᵢ)²',
+   breakdown:[{t:'J',d:'the cost — average squared error over all n points'},{t:'∂J/∂m',d:'the bowl\'s slope in the m-direction, at the current spot'},{t:'m ← m − α·∂J/∂m',d:'step a little (α) downhill, then repeat'}],
+   theory:'The cost surface J(m,b) for squared error is a paraboloid — a smooth, convex bowl with exactly one minimum, no false valleys to get stuck in. Gradient descent computes the partial derivative of J with respect to each parameter, then steps in the opposite direction. The learning rate α controls the pace — too large and you overshoot and oscillate, too small and training crawls. This same mechanism, scaled up, trains every neural network in existence.',
+   derivation:'For most real datasets with many parameters, there\'s no algebraic shortcut — the zero-derivative equations become too complex to solve by hand. Gradient descent replaces \'solve exactly\' with \'take a step toward better,\' repeated until improvement becomes negligible — a strategy that works even where calculus alone can\'t produce a clean answer.',
+   practical:'This is the literal training loop inside every neural network, including the ones behind image recognition and large language models — regression\'s gradient descent is the same idea, just at a much smaller scale.',
+   bullets:['Cost is a bowl-shaped surface','The gradient points uphill','Step downhill until it flattens'],
+   render:renderGradientDescent},
+  {title:'The Normal Equation', family:'Linear Family', eq:'w = (XᵀX)⁻¹ Xᵀy',
+   breakdown:[{t:'X',d:'matrix of inputs — one row per data point'},{t:'Xᵀ',d:'X transposed — rows and columns swapped'},{t:'(XᵀX)⁻¹',d:'invert a small features × features matrix'}],
+   theory:'Because the least-squares cost is convex and differentiable, you can skip the iterative walk and solve for where the gradient is exactly zero — algebraically. That solution is w = (XᵀX)⁻¹Xᵀy: exact in one computation, no learning rate to tune, no risk of failing to converge. The catch is that inverting an n×n matrix costs roughly O(n³), fine for hundreds of features but painful for millions — which is exactly why gradient descent remains the workhorse at scale.',
+   derivation:'This formula falls out of the same zero-derivative trick, generalized to matrix form for many features at once. Multiplying both sides of Xw=y by Xᵀ makes XᵀX square and (usually) invertible, even when X itself isn\'t — that\'s the algebraic reason the transpose appears twice.',
+   practical:'Statistical software (R\'s lm(), Excel\'s LINEST, econometrics packages) computes this formula directly for small-to-medium datasets, where an exact one-step answer beats the overhead of iterative training.',
+   bullets:['A closed-form shortcut, no iterating','Exact — solves the bowl in one step','Slow when there are many features'],
+   render:renderNormalEq},
+  {title:'Evaluation Metrics', family:'Foundation', eq:'R² = 1 − SSE / SST',
+   breakdown:[{t:'SSE',d:'sum of squared errors — Σ(y−ŷ)², what\'s left unexplained'},{t:'SST',d:'total variance — Σ(y−ȳ)², spread around the mean'},{t:'R² = 1',d:'perfect fit;  R² = 0 → no better than guessing ȳ'}],
+   theory:'A model is only as good as the metric used to judge it. MAE treats every unit of error equally; RMSE, because it squares errors before averaging, is dominated by the worst mistakes. R² reframes error in relative terms — the fraction of the target\'s variance the model explains — so it is comparable across problems with different units. No single metric tells the whole story; a model can score well overall and still fail badly on the cases that matter most.',
+   derivation:'This ratio expresses \'what\'s left unexplained\' over \'what there was to explain in the first place\' — a way to score model quality on a universal 0-to-1 scale, instead of raw error units that depend on what\'s being measured (dollars, degrees, whatever).',
+   practical:'R² is the number quoted in almost every scientific paper and finance report reporting a regression fit — \'this factor explains 62% of the variance in returns\' is literally R² = 0.62.',
+   bullets:['MAE: average size of a miss','RMSE: punishes big misses harder','R²: fraction of variance explained'],
+   render:renderMetrics},
+  {title:'Multiple Linear Regression', family:'Linear Family', eq:'ŷ = b₀ + b₁x₁ + b₂x₂ + ... + bₙxₙ',
+   breakdown:[{t:'b₀',d:'baseline — the prediction when every x is 0'},{t:'bⱼ',d:'effect of xⱼ alone, holding all other x\'s fixed'},{t:'n',d:'number of features — dimensions in the fit'}],
+   theory:'Adding more predictors does not change the math, only the geometry: instead of a line through a 2D scatter, you fit a hyperplane through an (n+1)-dimensional cloud. Each coefficient bⱼ is the expected change in y from a one-unit increase in xⱼ, with every other feature held constant. That \'held constant\' clause is the whole value of the multivariable model — it isolates each feature\'s individual contribution instead of conflating them.',
+   derivation:'This is the exact same normal-equation-derived formula from simple linear regression, just written for a vector of features instead of a single x. The matrix-calculus derivation is identical — only the number of columns in X grows from one to many.',
+   practical:'Insurance premium models, salary prediction from experience/education/location, and clinical risk scores (blood pressure from age, weight, and diet) all use this structure directly.',
+   bullets:['More inputs, more dimensions','A line becomes a plane / hyperplane','Same least-squares idea, more axes'],
+   render:renderMultiple},
+  {title:'Assumptions & Residual Diagnostics', family:'Foundation', eq:'residual = y − ŷ',
+   breakdown:[{t:'E[residual]=0',d:'errors shouldn\'t trend up or down with x'},{t:'Var(residual)',d:'should stay roughly constant (homoscedastic)'},{t:'independence',d:'one point\'s error shouldn\'t predict the next one\'s'}],
+   theory:'Linear regression\'s guarantees — unbiased estimates, valid confidence intervals, honest p-values — depend on assumptions about the residuals: linearity, constant variance, independence, and approximate normality for inference. None of these are visible in the fitted line itself; they only show up in a residual plot. A model can have a high R² and still violate every one of these assumptions, which is why residual diagnostics belong in every serious analysis.',
+   derivation:'The proofs behind linear regression\'s confidence intervals and p-values (the Gauss–Markov theorem and the Central Limit Theorem) explicitly require these conditions on the residuals. If they\'re violated, the formulas for uncertainty still compute a number — it\'s just the wrong one, silently.',
+   practical:'Quality-control engineers and clinical researchers routinely plot residuals before publishing a regression result, specifically to catch violations that would invalidate their reported confidence intervals.',
+   bullets:['Linear regression assumes patternless residuals','Curves, funnels, or waves = a broken assumption','Always plot residuals before trusting the fit'],
+   render:renderAssumptions},
+  {title:'Multicollinearity', family:'Foundation', eq:'VIF = 1 / (1 − R²ⱼ)',
+   breakdown:[{t:'R²ⱼ',d:'how well feature j is predicted by the other features'},{t:'VIF',d:'variance inflation factor — how much overlap inflates uncertainty'},{t:'VIF > 10',d:'a common rule-of-thumb warning threshold'}],
+   theory:'When features carry overlapping information, the least-squares solution becomes numerically unstable — many different coefficient combinations fit the training data almost equally well, so small data changes can swing individual estimates wildly even as overall predictions stay reasonable. The Variance Inflation Factor asks how well a feature can be predicted from the others; a VIF above 10 is a common warning that its coefficient can no longer be trusted individually.',
+   derivation:'VIF is derived by regressing feature j on every other feature and taking that sub-regression\'s own R². If the other features can predict xⱼ almost perfectly, R²ⱼ approaches 1 and 1/(1−R²ⱼ) blows up — algebraically capturing \'this feature carries almost no unique information of its own.\'',
+   practical:'Data scientists run VIF checks before trusting individual coefficients in credit-scoring or medical-risk models, where a specific feature\'s weight needs to be defensible on its own, not just the model\'s overall accuracy.',
+   bullets:['Features that overlap confuse the model','Coefficients swing wildly on small changes','High VIF: consider dropping or combining'],
+   render:renderMulticollinearity},
+  {title:'Feature Scaling', family:'Foundation', eq:'x′ = (x − mean) / std',
+   breakdown:[{t:'mean',d:'shift so the feature is centered at 0'},{t:'std',d:'rescale so the spread becomes 1'},{t:'x′',d:'now every feature lives on the same footing'}],
+   theory:'Features on very different scales distort the geometry that gradient descent and regularization operate on, turning a round cost bowl into a long, narrow valley and forcing a slow zigzag descent. Regularization is affected even more directly: an L2 penalty punishes a coefficient in proportion to its numeric size, so an unscaled feature can be penalized unfairly just because its natural units happen to be large. Standardizing to mean 0, std 1 puts every feature on equal footing.',
+   derivation:'Subtracting the mean removes any arbitrary offset; dividing by the standard deviation rescales every feature to the same \'unit of spread,\' so no feature dominates purely because its raw numbers happen to be larger. This is literally converting every feature into a z-score.',
+   practical:'Every practical ML pipeline — scikit-learn\'s StandardScaler, deep learning\'s batch normalization — performs this exact transform before training, almost without exception.',
+   bullets:['Different scales stretch the cost bowl','Gradient descent then zigzags, wastes steps','Scaling also matters for regularization & SVR/KNN'],
+   render:renderFeatureScaling},
+  {title:'Polynomial Regression', family:'Linear Family', eq:'ŷ = b₀ + b₁x + b₂x² + ... + bₙxⁿ',
+   breakdown:[{t:'x², x³...',d:'new features engineered from powers of x'},{t:'still linear',d:'linear in the coefficients b — just not in x'},{t:'n',d:'degree — how much curvature is allowed'}],
+   theory:'Polynomial regression is still linear regression underneath — it is just fed engineered features x, x², x³, ... instead of x alone, so the same least-squares machinery and closed-form solution apply unchanged. Each added degree gives the curve one more bend to chase the training points with. Chase them too well, though, and the curve starts fitting noise instead of pattern, which is why degree is a hyperparameter to tune, not a free upgrade.',
+   derivation:'Because x², x³, etc. are just new columns computed from x, this is mathematically identical to multiple linear regression: the model is linear in the b\'s, which is exactly what lets least-squares still apply, even though the resulting curve in x is not straight at all.',
+   practical:'Modeling how a drug\'s effect changes with dosage, or how a physical process like projectile motion curves over time, often starts with a low-degree polynomial fit before moving to more complex models.',
+   bullets:['Bend the line into a curve','Too simple → underfit','Too flexible → memorizes noise'],
+   render:renderPoly},
+  {title:'Train/Test Split & Learning Curves', family:'Foundation', eq:'error(train) ≠ error(unseen)',
+   breakdown:[{t:'train error',d:'how well the model fits data it already saw'},{t:'test error',d:'how well it generalizes to new, unseen data'},{t:'growing gap',d:'train↓ but test↑ is the signature of overfitting'}],
+   theory:'A model\'s error on its own training data is a biased, overly optimistic estimate of future performance — it has had the chance to memorize quirks specific to that sample. A held-out test set the model never trains on gives an honest read on generalization. As complexity grows, training error keeps falling while test error falls, bottoms out, and rises again; that turning point is where overfitting begins.',
+   derivation:'This is less a formula than a provable phenomenon: a flexible enough model can always drive its own training error toward zero by memorizing the training set, so training error alone can never certify the model actually learned the underlying pattern rather than the specific sample.',
+   practical:'Every ML competition (like Kaggle) and every production ML system enforces a strict train/validation/test split for exactly this reason — it\'s the field\'s core defense against shipping an overfit model.',
+   bullets:['Hold out data the model never trains on','Training error always improves with complexity','Test error reveals the overfitting turn'],
+   render:renderTrainTest},
+  {title:'Ridge Regression (L2)', family:'Regularized', eq:'J = Σ(y−ŷ)² + λ Σ wⱼ²',
+   breakdown:[{t:'λ',d:'penalty strength — 0 recovers plain regression'},{t:'Σwⱼ²',d:'sum of squared coefficients (the "L2 norm")'},{t:'tradeoff',d:'fit the data well vs. keep every weight small'}],
+   theory:'Ridge adds a penalty proportional to the sum of squared coefficients, shrinking every coefficient toward zero in proportion to its size. Geometrically this constrains the solution to lie inside a circle (or hypersphere) around the origin; the fit gets pulled toward wherever that region first touches the unconstrained error contours. Because the L2 boundary is smooth and round, that contact point is essentially never exactly on an axis — ridge shrinks coefficients but almost never zeroes them out.',
+   derivation:'Adding λΣwⱼ² to the loss changes what \'minimum\' means: the optimizer now trades off fitting the data against keeping weights small. That added quadratic term still has a closed-form solution: w = (XᵀX+λI)⁻¹Xᵀy, where the λI term is also exactly what fixes the invertibility problems multicollinearity can cause.',
+   practical:'Genomics research (predicting a trait from thousands of correlated genetic markers) and any dataset with more features than data points relies on ridge specifically because plain least-squares becomes mathematically undefined there.',
+   bullets:['Penalize large coefficients','λ shrinks every weight toward 0','Weights get small, rarely exactly 0'],
+   render:renderRidge},
+  {title:'Lasso Regression (L1)', family:'Regularized', eq:'J = Σ(y−ŷ)² + λ Σ |wⱼ|',
+   breakdown:[{t:'Σ|wⱼ|',d:'sum of absolute coefficients (the "L1 norm")'},{t:'sharp corner',d:'L1\'s diamond shape makes exactly-0 a likely landing spot'},{t:'sparsity',d:'unimportant features get dropped outright'}],
+   theory:'Lasso replaces the squared penalty with an absolute-value penalty, making the constraint region a diamond with sharp corners sitting exactly on the axes. Error contours are disproportionately likely to first touch that region at a corner, where one or more coefficients are exactly zero. That geometry is the mechanism behind Lasso\'s most useful property: it does not just shrink coefficients, it can eliminate irrelevant features entirely, acting as automatic feature selection.',
+   derivation:'Absolute value, unlike squaring, has a non-differentiable kink exactly at zero — and it\'s that kink that gives the optimizer a genuine incentive to land exactly on zero rather than merely near it, unlike ridge\'s smooth penalty. There\'s no closed-form solution here; it requires iterative optimization such as coordinate descent.',
+   practical:'Lasso is the go-to when you have hundreds of candidate features (say, thousands of possible marketing signals) and want the model itself to reveal which ones actually matter.',
+   bullets:['Same idea, a sharper penalty','Some coefficients hit exactly 0','Doubles as feature selection'],
+   render:renderLasso},
+  {title:'The Regularization Path', family:'Regularized', eq:'wₗₐₛₛₒ(λ) = sign(w)·max(|w|−λ, 0)',
+   breakdown:[{t:'soft-threshold',d:'shrink |w| by λ, then clip at 0 if it goes negative'},{t:'sign(w)',d:'keeps the shrunk value pointing the same direction'},{t:'ridge, instead',d:'w(λ) = w / (1+λ) — smooth, never exactly 0'}],
+   theory:'Tracking every coefficient as λ sweeps from 0 upward reveals each penalty\'s personality. Lasso\'s soft-thresholding formula shows coefficients decreasing linearly and then locking at exactly zero once λ exceeds their magnitude — a sequence of sharp kinks. Ridge\'s formula, w/(1+λ), decays smoothly and asymptotically, always approaching zero but never arriving. The whole path is often computed cheaply in one pass, letting λ be chosen by cross-validation rather than retraining from scratch.',
+   derivation:'For the idealized case of uncorrelated features, the Lasso and Ridge optimization problems can each be solved feature-by-feature in closed form — that\'s exactly the soft-thresholding and w/(1+λ) formulas shown here. Real datasets are rarely perfectly uncorrelated, but this idealized path is exactly how the intuition for shrinkage and sparsity is usually taught.',
+   practical:'Software like glmnet computes this entire path efficiently in a single pass, letting practitioners pick λ visually or via cross-validation instead of retraining hundreds of separate models.',
+   bullets:['Watch every coefficient as λ grows','Lasso: sharp kinks, hits zero one by one','Ridge: smooth decay, never quite zero'],
+   render:renderRegPath},
+  {title:'Elastic Net', family:'Regularized', eq:'J = Σ(y−ŷ)² + λ₁Σ|wⱼ| + λ₂Σwⱼ²',
+   breakdown:[{t:'λ₁',d:'L1 strength — pushes toward sparsity'},{t:'λ₂',d:'L2 strength — keeps weights small and stable'},{t:'α',d:'mixing ratio that blends the two penalties'}],
+   theory:'Elastic Net combines both penalties because Lasso has a known weakness: with highly correlated features, it tends to pick one arbitrarily and zero out the rest, which is unstable and can discard useful signal. Ridge handles correlated features gracefully but never produces true sparsity. Blending the two, controlled by a mixing ratio α, keeps correlated groups together while still zeroing out features that contribute nothing.',
+   derivation:'This penalty is literally Lasso\'s penalty plus Ridge\'s penalty added together, so the resulting optimization inherits sparsity from the L1 term and stability from the L2 term. The mixing parameter α just interpolates between the two, recovering pure Lasso at α=1 and pure Ridge at α=0.',
+   practical:'Genomic and text-based models — where features are both numerous and correlated in clusters, like related genes or synonymous words — frequently default to Elastic Net over either penalty alone.',
+   bullets:['Blends Ridge and Lasso','α tunes the L1 / L2 mix','Good with correlated features'],
+   render:renderElastic},
+  {title:'Support Vector Regression', family:'Margin-based', eq:'|y − ŷ| ≤ ε  (else penalize)',
+   breakdown:[{t:'ε',d:'tolerance — errors smaller than this cost nothing'},{t:'ξ',d:'slack — how far a point pokes outside the tube'},{t:'objective',d:'minimize ‖w‖² + C·Σξ — flat line, few violations'}],
+   theory:'SVR only penalizes errors larger than a tolerance ε — anything closer counts as a perfect prediction and costs nothing. Points that do fall outside this ε-tube become \'support vectors,\' and the fitted line minimizes both its own steepness and the total slack those support vectors accumulate. The result ignores minor noise entirely and is defined by the handful of stubborn points just past the margin, rather than by every point in the data.',
+   derivation:'The full SVR optimization minimizes ‖w‖²/2 + C·Σξᵢ subject to the ε-tube constraint. Minimizing ‖w‖² is the same \'prefer a flat, simple line\' preference as ridge regression, while the slack variables ξᵢ are only charged when a point pokes outside the ε margin — this dual structure is solved via quadratic programming, the same machinery behind classification SVMs.',
+   practical:'SVR is popular in financial time-series prediction and other noisy-signal settings, where you explicitly don\'t want the model reacting to every small fluctuation inside a known noise band.',
+   bullets:['Draw a tolerance tube of width ε','Points inside: free, no penalty','Only points outside shape the fit'],
+   render:renderSVR},
+  {title:'The Kernel Trick', family:'Margin-based', eq:'K(x,x′) = φ(x)·φ(x′)',
+   breakdown:[{t:'φ(x)',d:'a mapping that lifts x into a higher dimension'},{t:'K(x,x′)',d:'their dot product up there — computed directly, cheaply'},{t:'RBF kernel',d:'K = exp(−‖x−x′‖² / 2σ²), a common bell-shaped choice'}],
+   theory:'Some patterns are not linear in the original feature space but become linear from a higher-dimensional angle — mapping x to (x, x²) turns a parabola into a plane. The kernel trick makes this practical: instead of explicitly computing that mapping φ(x), you only ever need the dot product φ(x)·φ(x′), which many kernel functions compute directly and cheaply from x and x′ alone. This lets SVR fit highly nonlinear relationships using fundamentally linear machinery underneath.',
+   derivation:'For many useful mappings φ, computing φ(x) explicitly would require infinite dimensions (as with the RBF kernel) — computationally impossible. But the SVR/SVM optimization never actually needs φ(x) itself, only dot products between mapped points, and clever kernel functions compute exactly that dot product using only the original x — that substitution is \'the trick.\'',
+   practical:'Nonlinear SVR with an RBF kernel is a standard choice in bioinformatics and small-to-medium tabular datasets where the true relationship is visibly curved but its exact functional form is unknown.',
+   bullets:['Lift data into a higher dimension','A flat fit up there = a curve back here','Never actually compute φ(x) — just K'],
+   render:renderKernelTrick},
+  {title:'Decision Tree Regressor', family:'Trees', eq:'ŷ = mean(y)  in that region',
+   breakdown:[{t:'split rule',d:'x < t ?  go left  :  go right'},{t:'criterion',d:'pick t that shrinks variance in y the most'},{t:'leaf value',d:'average y of every point that lands there'}],
+   theory:'A regression tree partitions the input space into rectangular regions by repeatedly asking threshold questions, choosing at each step the split that most reduces the variance of y within the resulting groups. Every point landing in a region gets that region\'s average y as its prediction. Trees assume nothing about the shape of the true function and can capture sharp, local structure a line never could — but grown deep enough, a single tree will carve out a region for nearly every training point, which is severe overfitting.',
+   derivation:'The split-selection rule — minimize the combined variance of the two child groups — is derived from the same \'minimize squared error\' goal as linear regression. The difference is the search: instead of solving for continuous coefficients with calculus, it\'s a search over a discrete set of candidate thresholds, checked one at a time.',
+   practical:'Decision trees are prized in banking and healthcare specifically because the \'if x < t\' logic is trivially explainable to a regulator or a doctor, unlike a black-box coefficient vector.',
+   bullets:['Ask yes/no questions about x','Each split reduces variance most','Predict the region\'s average'],
+   render:renderTree},
+  {title:'Random Forest Regressor', family:'Tree Ensembles', eq:'ŷ = (1/T) Σₜ treeₜ(x)',
+   breakdown:[{t:'T',d:'number of trees grown in the forest'},{t:'bootstrap',d:'each tree trains on a random resample of the data'},{t:'averaging',d:'cuts variance a lot, without adding much bias'}],
+   theory:'A single deep tree overfits because it has too much freedom to chase individual points. Random Forest fights this with two sources of randomness: each tree trains on a bootstrap resample of the data, and each split only considers a random subset of features. Individually these trees are still noisy, but their errors are only weakly correlated with each other — averaging many of them keeps the low bias of deep trees while dramatically reducing variance.',
+   derivation:'Averaging independent, unbiased-but-noisy estimators reduces variance in proportion to how correlated they are — a basic statistics result: Var(average) = Var(single)/T only when the estimators are uncorrelated. Bootstrapping and feature-subsampling are specifically engineered to decorrelate the trees so this variance reduction actually takes effect.',
+   practical:'Random Forests are a default \'first strong model\' across finance, ecology, and marketing analytics because they need almost no tuning and rarely overfit catastrophically.',
+   bullets:['Many trees on bootstrapped data','Each tree overfits differently','Averaging cancels their noise'],
+   render:renderForest},
+  {title:'Feature Importance', family:'Tree Ensembles', eq:'importance ∝ total error reduction',
+   breakdown:[{t:'per split',d:'how much variance that one split removed'},{t:'summed',d:'added up across every split, in every tree'},{t:'normalized',d:'often rescaled so all importances sum to 1'}],
+   theory:'Tree ensembles offer a built-in way to rank features: every time a feature is used for a split, that split reduces prediction error by some amount. Summing that reduction across every split, in every tree, and normalizing gives an importance score per feature with no separate model required. It is a major interpretability advantage, though correlated features tend to split the credit between them, understating each one\'s individual importance.',
+   derivation:'This score is a direct byproduct of how trees are built: since every split is chosen specifically to reduce variance the most, tallying how much variance each feature\'s splits removed across the whole forest is a natural exhaust of training, not an extra calculation bolted on afterward.',
+   practical:'Businesses use this to justify which factors to actually act on — a churn model revealing \'support ticket count\' as the top feature directly informs where to invest in customer service.',
+   bullets:['Which inputs actually moved the needle?','Summed across every split, every tree','Great for explaining a "black box" ensemble'],
+   render:renderFeatureImportance},
+  {title:'Extra Trees Regressor', family:'Tree Ensembles', eq:'ŷ = (1/T) Σₜ treeₜ(x)',
+   breakdown:[{t:'random t',d:'the split threshold is picked at random, not searched for'},{t:'random features',d:'often only a random subset is even considered'},{t:'payoff',d:'skipping the search makes training cheaper, adds diversity'}],
+   theory:'Extremely Randomized Trees push Random Forest\'s randomness further: instead of searching for the best split threshold at each node, it picks the threshold randomly and only checks whether that random choice happens to help. Each individual tree is weaker, but the resulting trees are even less correlated with each other, and averaging many weak, decorrelated learners can match or beat averaging fewer, stronger, more-correlated ones — while training considerably faster.',
+   derivation:'Skipping the optimal-split search trades a small amount of per-tree accuracy for a large reduction in correlation between trees — and by the same variance-reduction math as Random Forest, less correlation among ensemble members can outweigh each member being individually a bit weaker.',
+   practical:'Extra Trees are common in large-scale or real-time systems where the cost of exhaustively searching every split across millions of rows is a genuine bottleneck.',
+   bullets:['Splits chosen randomly, not optimally','Even more diversity between trees','Often faster, similarly accurate'],
+   render:renderExtraTrees},
+  {title:'Gradient Boosting Regressor', family:'Boosting', eq:'Fₘ(x) = Fₘ₋₁(x) + η · hₘ(x)',
+   breakdown:[{t:'F₀',d:'the starting guess — usually just mean(y)'},{t:'hₘ',d:'a small tree fit to the current leftover residuals'},{t:'η',d:'learning rate — how much of hₘ actually gets added'}],
+   theory:'Where Random Forest builds many independent trees and averages them, Gradient Boosting builds trees sequentially, each one trained specifically to predict the errors of everything built so far. Formally this is gradient descent taken in \'function space\' rather than parameter space: each tree is a step that most reduces the loss. Because each stage directly attacks the previous stage\'s mistakes, boosted ensembles often reach lower error than bagged ones, at the cost of being more sensitive to overfitting.',
+   derivation:'This update rule is literally gradient descent performed in \'function space\': instead of nudging a parameter vector by the negative gradient of the loss, each new tree hₘ is fit to approximate the negative gradient of the loss with respect to the current predictions — which, for squared error, works out to simply the residuals.',
+   practical:'Gradient boosting is a default choice for structured/tabular prediction in industry — credit scoring, click-through-rate prediction, and pricing engines lean on it heavily.',
+   bullets:['Start with one simple guess','Each new tree fits the leftover error','Add them up, slowly improving'],
+   render:renderGB},
+  {title:'Learning Rate & Shrinkage', family:'Boosting', eq:'η ∈ (0, 1]',
+   breakdown:[{t:'small η',d:'each tree adds a little — needs more trees to compensate'},{t:'large η',d:'each tree adds a lot — fewer trees, higher overshoot risk'},{t:'rule of thumb',d:'lower η + more trees ≈ better generalization'}],
+   theory:'The learning rate η in boosting is a form of regularization, not just a speed knob. A tree fit exactly to the current residuals and added at full strength can overcorrect, especially with noisy data — the next tree then has to overcorrect the overcorrection, chasing noise instead of signal. Shrinking each tree\'s contribution forces the ensemble into many small, conservative corrections rather than a few large, aggressive ones, which empirically tends to generalize better given enough additional trees.',
+   derivation:'Shrinking each step is mathematically the same idea as shrinking the step size in ordinary gradient descent — smaller steps trace a smoother path toward the minimum and are less likely to overshoot due to noisy gradient estimates from any one tree\'s imperfect fit.',
+   practical:'Kaggle-winning boosted models almost always pair a small learning rate (often 0.01–0.1) with thousands of trees rather than a handful of aggressive ones, trading training time for reliability.',
+   bullets:['High η: fast, few trees, risks overshoot','Low η: slow, many trees, steadier fit','Classic tradeoff: speed vs generalization'],
+   render:renderLearningRate},
+  {title:'AdaBoost Regressor', family:'Boosting', eq:'F(x) = Σₘ αₘ · hₘ(x)',
+   breakdown:[{t:'wᵢ',d:'weight on point i — starts equal for every point'},{t:'errₘ',d:'weighted error of learner m on the current weights'},{t:'αₘ',d:'learner m\'s vote strength — bigger when errₘ is smaller'}],
+   theory:'AdaBoost\'s central idea is adaptive reweighting: after each weak learner is fit, the points it got most wrong have their influence increased before the next learner trains, forcing that learner to focus where the ensemble is currently failing. Each learner also earns a vote weight based on its own accuracy. AdaBoost was one of the first boosting algorithms to work reliably in practice, though gradient boosting has since become the more common default for tabular regression.',
+   derivation:'The weight-update formula and the vote-strength αₘ both come from an explicit derivation that minimizes an exponential loss function, one round at a time — choosing exactly the weighting that most reduces that loss at each step is what gives AdaBoost its name and its provable training-error guarantees.',
+   practical:'AdaBoost remains popular in computer-vision pipelines (like classic face detection) and any setting needing a simple, fast, interpretable boosting method without a full gradient-boosting framework.',
+   bullets:['Fit a weak learner first','Up-weight the points it missed most','Next learner focuses on those'],
+   render:renderAdaBoost},
+  {title:'XGBoost Regressor', family:'Boosting', eq:'J = Σ loss(y,ŷ) + Ω(tree)',
+   breakdown:[{t:'Ω(tree)',d:'penalty on tree size — number of leaves & leaf weights'},{t:'2nd-order',d:'uses both gradient and curvature to pick each split'},{t:'gain',d:'a split survives only if it beats a minimum gain threshold'}],
+   theory:'XGBoost is gradient boosting engineered for speed and generalization. It uses a second-order Taylor expansion of the loss at each step, considering both gradient and curvature when growing each tree, giving more precise splits than first-order boosting. It also bakes regularization directly into the tree-building objective — penalizing leaf count and leaf magnitude — so overfitting is discouraged during construction, not just through hyperparameters chosen beforehand.',
+   derivation:'Expanding the loss function in a second-order Taylor series around the current prediction gives an approximate objective solvable in closed form for the optimal leaf value of any candidate tree structure — that\'s what lets XGBoost score potential splits extremely fast without literally retraining anything.',
+   practical:'XGBoost dominated structured-data Kaggle competitions for years and remains standard in production fraud-detection and demand-forecasting systems where squeezing out extra accuracy has real dollar value.',
+   bullets:['Gradient boosting, engineered for speed','Ω regularizes tree size & leaf values','Uses 2nd-order gradient info'],
+   render:renderXGBoost},
+  {title:'LightGBM Regressor', family:'Boosting', eq:'grow leaf-wise, not level-wise',
+   breakdown:[{t:'level-wise',d:'every leaf at the current depth expands together'},{t:'leaf-wise',d:'only the single worst leaf expands next'},{t:'payoff',d:'fewer total splits needed for the same accuracy'}],
+   theory:'Most tree-growing algorithms expand level by level, splitting every leaf at the current depth even ones that barely help. LightGBM grows leaf-wise instead: at every step it finds and splits whichever single leaf offers the greatest loss reduction, regardless of depth. This reaches a given accuracy with fewer total splits, but produces deeper, more asymmetric trees that need a max-depth limit — combined with histogram-based splitting, it trains dramatically faster on very large datasets.',
+   derivation:'Choosing the split with the globally maximum loss reduction, rather than the best split at each fixed depth, is a greedy strategy that provably reaches lower total loss with fewer splits. The tradeoff is that \'fewer splits\' doesn\'t mean \'shallower tree\' — it means a lopsided one, which is why depth limits matter more here than in level-wise growth.',
+   practical:'LightGBM is the go-to for very large tabular datasets — recommendation systems and ad-tech pipelines use it specifically for its training speed at scale.',
+   bullets:['Expands the worst leaf first','Deeper, asymmetric trees','Much faster on large datasets'],
+   render:renderLightGBM},
+  {title:'CatBoost Regressor', family:'Boosting', eq:'category → ordered target statistic',
+   breakdown:[{t:'target stat',d:'replace a category with an average of y for that category'},{t:'ordered',d:'only rows that came "before" it are used to compute that average'},{t:'why',d:'stops the true label from leaking into its own encoding'}],
+   theory:'Naively encoding a categorical feature as the average target value for that category leaks information — that average was partly computed from the very row being predicted. CatBoost\'s \'ordered\' target statistics fix this by only computing each row\'s encoding from rows that came before it in a random ordering, mimicking how the model would behave seeing data one point at a time. That fix, plus native categorical support, removes much of the manual encoding work other boosting libraries require.',
+   derivation:'The \'ordering\' constraint deliberately simulates an online-learning scenario — computing statistics only from \'past\' rows mathematically guarantees the encoding used for a row\'s prediction never depended on that row\'s own label, exactly the condition needed to avoid target leakage.',
+   practical:'CatBoost is favored in industries with rich categorical data, like retail (product categories, store IDs), where manual encoding of categories would otherwise take significant feature-engineering effort.',
+   bullets:['Handles categorical features natively','Encodes using target statistics','"Ordered" boosting avoids leakage'],
+   render:renderCatBoost},
+  {title:'Gaussian Process Regression', family:'Probabilistic', eq:'f(x) ~ GP( m(x), k(x,x\') )',
+   breakdown:[{t:'m(x)',d:'the prior mean function — often just 0'},{t:'k(x,x′)',d:'covariance — how correlated f(x) and f(x′) are'},{t:'posterior',d:'the prior, conditioned on the points we\'ve already seen'}],
+   theory:'Rather than committing to one function, a Gaussian Process defines a probability distribution over every function consistent with a chosen smoothness assumption. Before any data, this is the wide \'prior.\' Once data arrives, Bayes\' rule mechanically rules out every function that does not pass near the observed points, leaving a narrower \'posterior.\' A GP hands you not just a prediction but calibrated uncertainty at every input — naturally wide where data is sparse, narrow where it is dense.',
+   derivation:'A Gaussian Process is defined so that any finite set of function values follows a multivariate Gaussian distribution, with the kernel matrix as its covariance. Conditioning a multivariate Gaussian on some of its variables (the observed points) has a known closed-form formula from probability theory — that formula is exactly what produces the posterior mean and its uncertainty band.',
+   practical:'GPR is used in Bayesian optimization for tuning expensive-to-evaluate systems, like hyperparameter search or physical experiment design, precisely because it reports not just a prediction but how confident to be at each candidate point.',
+   bullets:['A distribution over entire functions','Data rules out inconsistent curves','Uncertainty shrinks near known points'],
+   render:renderGPR},
+  {title:'Kernels of a Gaussian Process', family:'Probabilistic', eq:'k(x,x′) shapes the prior',
+   breakdown:[{t:'RBF',d:'nearby points strongly correlated, far ones nearly independent'},{t:'periodic',d:'correlation repeats with distance — good for seasonality'},{t:'lengthscale',d:'controls how fast that correlation fades with distance'}],
+   theory:'The kernel k(x,x′) is the single design choice that defines what \'plausible function\' means to a GP — how strongly the function\'s value at one point should correlate with its value at another. RBF assumes smooth, gently varying functions with a lengthscale controlling how fast correlation fades. Periodic assumes the function repeats after some interval. Linear recovers ordinary linear regression as a special case. Choosing a kernel is choosing what kind of world you believe the data lives in.',
+   derivation:'Any valid kernel must produce a positive semi-definite covariance matrix for every possible set of input points — that constraint, via Mercer\'s theorem, is what separates a legitimate kernel from an arbitrary similarity function, and it\'s exactly what guarantees the resulting distribution over functions is well-defined.',
+   practical:'Climate scientists use periodic kernels to model seasonal temperature cycles, while RBF kernels are the default in most black-box optimization software, such as tuning a manufacturing process.',
+   bullets:['RBF: smooth, gently wandering functions','Periodic: repeating, seasonal patterns','Linear: trending, ever-widening functions'],
+   render:renderGPRKernels},
+  {title:'Bayesian Regression', family:'Probabilistic', eq:'p(w | D) ∝ p(D | w) · p(w)',
+   breakdown:[{t:'p(w)',d:'the prior — belief about w before seeing any data'},{t:'p(D|w)',d:'the likelihood — how well w explains the data we have'},{t:'p(w|D)',d:'the posterior — the updated belief after seeing it'}],
+   theory:'Ordinary least squares gives a single \'best\' set of coefficients and treats them as fixed. Bayesian regression treats the coefficients as uncertain quantities with a distribution: a prior belief (small coefficients more likely than huge ones) combines with how well each candidate explains the data, via Bayes\' rule, to produce a posterior distribution. The payoff is a full accounting of uncertainty, especially valuable with limited data, where \'the one best line\' can be dangerously overconfident.',
+   derivation:'This is Bayes\' theorem applied directly to model parameters: posterior is proportional to likelihood times prior. For linear regression with a Gaussian prior and Gaussian noise, that combination happens to have a closed-form Gaussian posterior too — precisely why Bayesian linear regression is tractable while many more complex Bayesian models are not.',
+   practical:'Bayesian regression shows up in scientific fields with small, expensive datasets — like clinical trials or physics experiments — where honestly representing uncertainty matters as much as the point estimate.',
+   bullets:['Start with a belief about w','Update it as evidence arrives','Result: a distribution, not one line'],
+   render:renderBayesian},
+  {title:'K-Nearest Neighbors Regression', family:'Instance-based', eq:'ŷ = average of k nearest yᵢ',
+   breakdown:[{t:'distance',d:'usually Euclidean: √Σ(xᵢ − x′ᵢ)²'},{t:'k',d:'small k = sensitive/noisy, large k = smooth/biased'},{t:'lazy learner',d:'no training step — all the work happens at prediction time'}],
+   theory:'KNN makes no attempt to learn a global formula at all. Instead it defers every decision to prediction time: given a new point, find the k closest training points (typically by Euclidean distance) and predict the average of their y values. This \'lazy learning\' can capture arbitrarily complex relationships since it assumes nothing about their shape, but it must store the entire training set and compute distances to every point at prediction time, which scales poorly as data grows.',
+   derivation:'There\'s no optimization or derivation here at all — that\'s the point. KNN is non-parametric: instead of assuming a functional form and solving for its best parameters, it directly estimates y from the empirical local average, relying on the assumption that nearby x\'s tend to have similar y\'s.',
+   practical:'KNN is a natural fit for recommendation systems (\'users like you also liked...\') and simple imputation of missing values based on similar records.',
+   bullets:['No formula is ever learned','Find the k closest points to x','Predict their average value'],
+   render:renderKNN},
+  {title:'The Curse of Dimensionality', family:'Instance-based', eq:'distance ↑  as  dimensions ↑',
+   breakdown:[{t:'unit cube',d:'random points scattered through a d-dimensional box'},{t:'volume',d:'grows exponentially with d — points thin out fast'},{t:'consequence',d:'"nearest" and "farthest" neighbor distances start to converge'}],
+   theory:'In one dimension, \'closest neighbor\' is intuitive. As dimensions are added, the volume of the space grows exponentially while the amount of data usually does not, so any fixed number of points becomes increasingly sparse. Strikingly, in high enough dimensions the distance to your nearest neighbor and to your farthest neighbor start to converge — \'near\' stops meaning anything distinctive, which is why every distance-based method degrades as dimensionality grows.',
+   derivation:'This can be shown directly: for random points in a d-dimensional unit cube, the expected distance between two points grows roughly with √d, while the volume available for points to spread into grows exponentially — so fixed data becomes proportionally sparser, and \'nearest neighbor\' becomes a less meaningful concept as d increases.',
+   practical:'This is exactly why practitioners run PCA or feature selection before applying KNN or clustering to high-dimensional data like gene-expression profiles or image pixels.',
+   bullets:['In 1D, "near" means something','Add dimensions: everything drifts apart','KNN (and distance itself) loses its edge'],
+   render:renderCurseOfDim},
+  {title:'Correlation ≠ Causation', family:'Foundation', eq:'corr(A,B) ⇏ A causes B',
+   breakdown:[{t:'corr(A,B)',d:'how much A and B move together, from −1 to 1'},{t:'confounder C',d:'a hidden cause driving both A and B at once'},{t:'causal claim',d:'needs an intervention or a designed experiment, not just data'}],
+   theory:'Every method in this deck finds patterns of association: as x moves, how does y tend to move? None of them, alone, can say whether x causes y, y causes x, or an unseen confounder drives them both together. Two quantities can be highly correlated purely because they share a common cause, with no direct link between them. Answering a genuinely causal question typically needs a designed experiment or dedicated causal-inference techniques, not just a fitted regression.',
+   derivation:'Correlation is a purely statistical, symmetric measure of co-movement computed from data alone — it carries no information about the direction or mechanism connecting two variables. Establishing causation formally requires either randomization (so confounders are balanced by design) or explicit causal assumptions built into a model, neither of which observational correlation alone can provide.',
+   practical:'This distinction is why regulatory bodies like the FDA require randomized controlled trials, not just observational correlation, before approving a drug based on a claimed effect.',
+   bullets:['A model finds patterns, not reasons','A hidden variable can drive both','Regression describes; it doesn\'t explain why'],
+   render:renderCorrCausation},
+  {title:'Choosing a Model', family:'Synthesis', eq:'error = bias² + variance + noise',
+   breakdown:[{t:'bias',d:'systematic error from a model that\'s too simple'},{t:'variance',d:'error from a model too sensitive to its training set'},{t:'noise',d:'irreducible error — no model can remove this part'}],
+   theory:'Every model in this deck sits somewhere on a spectrum from rigid-but-stable to flexible-but-erratic. Simple models have high bias but low variance, so they generalize predictably even if they miss subtle structure. Complex models have low bias but high variance, sensitive to the specific training sample. There is no universally best algorithm; the right choice depends on how much data you have, how noisy it is, and how much interpretability you are willing to trade for accuracy.',
+   derivation:'This decomposition comes from algebraically expanding the expected squared error of a prediction — it can be proven that expected test error splits exactly into these three additive terms for any estimator, which is why \'more flexible\' isn\'t automatically \'better\': flexibility trades bias for variance, and the noise term is a hard floor no model can go below.',
+   practical:'This tradeoff is the mental model practitioners use to choose between a simple, interpretable model and a complex ensemble when facing a real deadline and a fixed dataset size.',
+   bullets:['Simple models: stable, may underfit','Flexible models: sharp, may overfit','Ensembles balance the two'],
+   render:renderSummary},
+  {title:'The Thread', family:'Closing', eq:'ŷ = f(x) + ε',
+   breakdown:[{t:'f(x)',d:'the signal — the part we can hope to learn'},{t:'ε',d:'the noise — randomness no model can ever capture'},{t:'the goal',d:'get f̂ as close to f as the data allows, then stop'}],
+   theory:'Strip away the differences in geometry, randomness, and optimization tricks, and every method in this deck does the same two things: propose a shape for f(x), and adjust that shape to make (y−ŷ)² small on the data it is allowed to see. The real skill in regression is not memorizing formulas — it is judging which shape of f is plausible for your problem, and resisting the temptation to fit the training data perfectly, since a perfect fit is almost always a sign of memorizing noise instead of signal.',
+   derivation:'This equation is the underlying statistical model every method in this deck implicitly assumes: some true, learnable signal f(x), corrupted by unlearnable noise ε. Every algorithm\'s equation from the previous slides is really just a specific hypothesis about the shape of f, and a specific recipe for estimating it from data.',
+   practical:'Understanding this framing is what lets a practitioner move fluidly between tools — recognizing that a churn model, a demand forecast, and a drug-response curve are all, underneath, the same basic problem wearing different clothes.',
+   bullets:['Every method minimizes (y − ŷ)²','The difference is the shape of f','...and how it resists overfitting'],
+   render:renderClosing},
+];
+
+/* ============================================================
+   ENGINE / NAVIGATION
+============================================================ */
+let current = 0;
+let slideStart = performance.now();
+
+const elTitle = document.getElementById('slideTitle');
+const elCounter = document.getElementById('counter');
+const elEq = document.getElementById('eqText');
+const elExplain = document.getElementById('explainList');
+const elTheory = document.getElementById('theoryText');
+const elBullets = document.getElementById('bulletList');
+const elFamily = document.getElementById('familyTag');
+const elEqCard = document.getElementById('eqCard');
+const elExplainCard = document.getElementById('explainCard');
+const elTheoryCard = document.getElementById('theoryCard');
+const elBulletCard = document.getElementById('bulletCard');
+const elWhyDetails = document.getElementById('whyDetails');
+const elWhyDerivation = document.getElementById('whyDerivation');
+const elWhyPractical = document.getElementById('whyPractical');
+const elPrev = document.getElementById('prevBtn');
+const elNext = document.getElementById('nextBtn');
+const elDots = document.getElementById('dots');
+
+function buildDots(){
+  elDots.innerHTML='';
+  slides.forEach((s,i)=>{
+    const b=document.createElement('button');
+    b.className='dot'+(i===current?' active':'');
+    b.title=s.title;
+    b.addEventListener('click',()=>goTo(i));
+    elDots.appendChild(b);
+  });
+}
+function updateDots(){
+  [...elDots.children].forEach((d,i)=> d.classList.toggle('active', i===current));
+}
+function retrigger(el){
+  el.classList.remove('in');
+  void el.offsetWidth;
+  el.classList.add('in');
+}
+function buildBreakdown(list){
+  elExplain.innerHTML='';
+  list.forEach(item=>{
+    const li = document.createElement('li');
+    const termSpan = document.createElement('span');
+    termSpan.className='term';
+    termSpan.textContent = item.t;
+    li.appendChild(termSpan);
+    li.appendChild(document.createTextNode(item.d));
+    elExplain.appendChild(li);
+  });
+}
+function updateUI(){
+  const s = slides[current];
+  elTitle.textContent = s.title;
+  retrigger(elTitle);
+  elCounter.textContent = String(current+1).padStart(2,'0')+' / '+String(slides.length).padStart(2,'0');
+  elEq.textContent = s.eq;
+  buildBreakdown(s.breakdown||[]);
+  elTheory.textContent = s.theory||'';
+  elBullets.innerHTML = s.bullets.map(b=>'<li>'+b+'</li>').join('');
+  elFamily.innerHTML = 'Family: <span>'+s.family+'</span>';
+  elWhyDerivation.textContent = s.derivation||'';
+  elWhyPractical.textContent = s.practical||'';
+  elWhyDetails.open = false;
+  retrigger(elEqCard);
+  retrigger(elExplainCard);
+  retrigger(elTheoryCard);
+  retrigger(elBulletCard);
+  retrigger(elWhyDetails);
+  elPrev.disabled = current===0;
+  elNext.disabled = current===slides.length-1;
+  updateDots();
+}
+function goTo(idx){
+  idx = Math.max(0, Math.min(slides.length-1, idx));
+  if(idx===current) return;
+  current = idx;
+  slideStart = performance.now();
+  updateUI();
+}
+function next(){ if(current<slides.length-1) goTo(current+1); }
+function prev(){ if(current>0) goTo(current-1); }
+
+elPrev.addEventListener('click', prev);
+elNext.addEventListener('click', next);
+window.addEventListener('keydown', (e)=>{
+  if(e.key==='ArrowRight' || e.key===' '){ e.preventDefault(); next(); }
+  else if(e.key==='ArrowLeft'){ e.preventDefault(); prev(); }
+});
+
+function loop(now){
+  const t = (now-slideStart)/1000;
+  ctx.clearRect(0,0,W(),H());
+  try{
+    slides[current].render(ctx, W(), H(), t);
+  }catch(err){
+    console.error('render error on slide', current, err);
+  }
+  requestAnimationFrame(loop);
+}
+
+function init(){
+  resize();
+  buildDots();
+  updateUI();
+  requestAnimationFrame(loop);
+}
+init();
+</script>
+</body>
+</html>

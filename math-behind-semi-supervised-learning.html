@@ -1,0 +1,1579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Math Behind Semi-Supervised Learning</title>
+<style>
+  :root{
+    --bg:#0a0b0d;
+    --bg2:#0e1012;
+    --panel:#131417;
+    --panel-edge:#232529;
+    --ink:#e6e2d9;
+    --dim:#8b8f92;
+    --dim2:#5c6064;
+    --blue:#6c93b0;
+    --blue-soft:#3d5266;
+    --ochre:#c99f5c;
+    --ochre-soft:#6b5636;
+    --rose:#b3706a;
+    --sage:#7a9b83;
+    --line:#24262b;
+    --serif: Palatino Linotype, Book Antiqua, Georgia, "Times New Roman", serif;
+    --sans: "Segoe UI", Helvetica Neue, Arial, sans-serif;
+    --mono: SFMono-Regular, Consolas, "Courier New", monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; height:100%;
+    background:radial-gradient(ellipse at 50% -10%, #131519 0%, var(--bg) 55%, #060708 100%);
+    color:var(--ink);
+    font-family:var(--sans);
+    overflow:hidden;
+  }
+  #app{
+    height:100vh; width:100vw;
+    display:flex; flex-direction:column;
+    align-items:center;
+    padding:18px 18px 14px;
+  }
+  .topbar{
+    width:100%; max-width:1080px;
+    display:flex; align-items:baseline; justify-content:space-between;
+    padding:2px 6px 10px;
+    border-bottom:1px solid var(--line);
+    flex-shrink:0;
+  }
+  .brand{
+    font-family:var(--serif);
+    font-size:15px;
+    letter-spacing:0.08em;
+    color:var(--dim);
+    text-transform:uppercase;
+  }
+  .brand b{color:var(--ink); font-weight:600;}
+  .progress-track{
+    display:flex; gap:6px; align-items:center;
+  }
+  .dot{
+    width:7px; height:7px; border-radius:50%;
+    background:var(--panel-edge);
+    border:1px solid var(--line);
+    cursor:pointer;
+    transition:background .25s, transform .25s, border-color .25s;
+  }
+  .dot:hover{border-color:var(--dim);}
+  .dot.active{background:var(--ochre); border-color:var(--ochre); transform:scale(1.3);}
+  .dot.done{background:var(--dim2);}
+
+  .stage-wrap{
+    width:100%; max-width:1080px; flex:1;
+    display:flex; flex-direction:column;
+    min-height:0;
+    padding-top:10px;
+  }
+  .head{
+    flex-shrink:0;
+    min-height:64px;
+    padding:2px 4px 8px;
+  }
+  .eyebrow{
+    font-family:var(--mono);
+    font-size:11px;
+    letter-spacing:.14em;
+    color:var(--ochre);
+    text-transform:uppercase;
+    opacity:.85;
+    margin-bottom:4px;
+    height:14px;
+  }
+  h2.slide-title{
+    font-family:var(--serif);
+    font-weight:600;
+    font-size:28px;
+    margin:0 0 4px 0;
+    color:var(--ink);
+    letter-spacing:.01em;
+  }
+  p.slide-sub{
+    font-family:var(--sans);
+    font-size:14.5px;
+    color:var(--dim);
+    margin:0;
+    max-width:800px;
+    line-height:1.5;
+  }
+  .frame{
+    flex:1;
+    min-height:0;
+    position:relative;
+    border:1px solid var(--line);
+    border-radius:6px;
+    background:
+      linear-gradient(var(--line) 1px, transparent 1px) 0 0/100% 40px,
+      linear-gradient(90deg, var(--line) 1px, transparent 1px) 0 0/40px 100%,
+      var(--bg2);
+    background-blend-mode:overlay, overlay, normal;
+    opacity:1;
+    overflow:hidden;
+  }
+  .frame::before{
+    content:"";
+    position:absolute; inset:0;
+    background:radial-gradient(ellipse at 50% 40%, rgba(255,255,255,0.025) 0%, transparent 65%);
+    pointer-events:none;
+  }
+  svg#scene{
+    width:100%; height:100%;
+    display:block;
+  }
+  .formula-bar{
+    flex-shrink:0;
+    min-height:44px;
+    margin-top:10px;
+    padding:9px 16px;
+    border:1px solid var(--line);
+    border-radius:6px;
+    background:var(--panel);
+    font-family:var(--mono);
+    font-size:14px;
+    color:var(--blue);
+    display:flex;
+    align-items:center;
+    gap:10px;
+    visibility:hidden;
+  }
+  .formula-bar.show{visibility:visible;}
+  .formula-bar .tag{
+    font-family:var(--sans);
+    font-size:10px;
+    letter-spacing:.08em;
+    color:var(--dim2);
+    text-transform:uppercase;
+    border:1px solid var(--line);
+    border-radius:3px;
+    padding:2px 6px;
+    flex-shrink:0;
+  }
+  .formula-bar .ftext sub, .formula-bar .ftext sup{font-size:70%;}
+
+  .controls{
+    width:100%; max-width:1080px;
+    flex-shrink:0;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 4px 2px;
+  }
+  .navbtn{
+    background:var(--panel);
+    border:1px solid var(--panel-edge);
+    color:var(--ink);
+    font-family:var(--sans);
+    font-size:13px;
+    letter-spacing:.03em;
+    padding:9px 18px;
+    border-radius:5px;
+    cursor:pointer;
+    display:flex; align-items:center; gap:8px;
+    transition:border-color .2s, background .2s, transform .1s;
+  }
+  .navbtn:hover{border-color:var(--ochre); background:#16181b;}
+  .navbtn:active{transform:translateY(1px);}
+  .navbtn:disabled{opacity:.3; cursor:default; pointer-events:none;}
+  .navbtn .arrow{font-size:15px; line-height:1;}
+  .counter{
+    font-family:var(--mono);
+    font-size:12.5px;
+    color:var(--dim);
+    letter-spacing:.05em;
+  }
+  .counter b{color:var(--ink); font-weight:600;}
+  .hint{
+    font-family:var(--sans);
+    font-size:11px;
+    color:var(--dim2);
+    text-align:center;
+    flex:1;
+  }
+
+  /* SVG text defaults via classes (attrs also set inline for portability) */
+  .lbl{font-family:var(--sans);}
+  .lbl-serif{font-family:var(--serif);}
+  .lbl-mono{font-family:var(--mono);}
+  .flow{ animation: flowmove 1s linear infinite; }
+  @keyframes flowmove{ to{ stroke-dashoffset:-20; } }
+  @media (prefers-reduced-motion: reduce){ .flow{animation:none;} }
+
+  @media (max-width:720px){
+    h2.slide-title{font-size:21px;}
+    p.slide-sub{font-size:12.5px;}
+    .navbtn{padding:8px 12px; font-size:12px;}
+    .hint{display:none;}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="topbar">
+    <div class="brand"><b>The Math Behind It</b> &nbsp;·&nbsp; a beginner-friendly derivation</div>
+    <div class="progress-track" id="dots"></div>
+  </div>
+
+  <div class="stage-wrap">
+    <div class="head">
+      <div class="eyebrow" id="eyebrow"></div>
+      <h2 class="slide-title" id="slideTitle"></h2>
+      <p class="slide-sub" id="slideSub"></p>
+    </div>
+    <div class="frame">
+      <svg id="scene" viewBox="0 0 960 520" preserveAspectRatio="xMidYMid meet"></svg>
+    </div>
+    <div class="formula-bar" id="formulaBar">
+      <span class="tag">math</span>
+      <span class="ftext" id="formulaText"></span>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="navbtn" id="prevBtn"><span class="arrow">‹</span> Back</button>
+    <div class="hint" id="hint">Use ← → or Space to move through the lecture</div>
+    <div class="counter" id="counter"></div>
+    <button class="navbtn" id="nextBtn">Next <span class="arrow">›</span></button>
+  </div>
+</div>
+
+<script>
+/* ============================= ENGINE ============================= */
+const NS = "http://www.w3.org/2000/svg";
+const COL = {
+  bg:"#0a0b0d", ink:"#e6e2d9", dim:"#8b8f92", dim2:"#5c6064",
+  blue:"#6c93b0", blueSoft:"#3d5266", blueDim:"#3a4a56",
+  ochre:"#c99f5c", ochreSoft:"#6b5636", ochreDim:"#5a4a32",
+  rose:"#b3706a", roseSoft:"#5c3f3c",
+  sage:"#7a9b83", sageSoft:"#3f4f45",
+  gray:"#565a5f", grayLight:"#7d8186",
+  line:"#2a2d31", panel:"#131417", panelEdge:"#232529"
+};
+
+function svgEl(tag, attrs){
+  const e = document.createElementNS(NS, tag);
+  if(attrs) for(const k in attrs) if(attrs[k]!==undefined) e.setAttribute(k, attrs[k]);
+  return e;
+}
+function G(attrs){return svgEl("g",attrs);}
+function C(cx,cy,r,fill,extra){return svgEl("circle",Object.assign({cx,cy,r,fill},extra||{}));}
+function L(x1,y1,x2,y2,stroke,extra){return svgEl("line",Object.assign({x1,y1,x2,y2,stroke,"stroke-width":(extra&&extra.sw)||2},extra||{}));}
+function P(d,attrs){return svgEl("path",Object.assign({d,fill:"none"},attrs||{}));}
+function R(x,y,w,h,attrs){return svgEl("rect",Object.assign({x,y,width:w,height:h},attrs||{}));}
+function T(x,y,str,attrs){
+  const t = svgEl("text",Object.assign({x,y,fill:COL.ink,"font-family":"Segoe UI, Arial, sans-serif","font-size":15,"class":"lbl"},attrs||{}));
+  t.textContent = str;
+  return t;
+}
+function TSpans(x,y,lines,attrs){
+  const t = svgEl("text",Object.assign({x,y,fill:COL.ink,"font-family":"Segoe UI, Arial, sans-serif","font-size":15,"class":"lbl"},attrs||{}));
+  lines.forEach((ln,i)=>{
+    const ts = svgEl("tspan",{x, dy: i===0?0:18});
+    ts.textContent = ln;
+    t.appendChild(ts);
+  });
+  return t;
+}
+
+function easeInOutCubic(t){return t<0.5 ? 4*t*t*t : 1-Math.pow(-2*t+2,3)/2;}
+function easeOutCubic(t){return 1-Math.pow(1-t,3);}
+function easeOutBack(t){const c1=1.4,c3=c1+1; return 1+c3*Math.pow(t-1,3)+c1*Math.pow(t-1,2);}
+function easeLinear(t){return t;}
+function lerp(a,b,t){return a+(b-a)*t;}
+
+function raf(cb){return requestAnimationFrame(cb);}
+function wait(ms, token, getToken){
+  return new Promise(res=>{
+    setTimeout(()=>res(), ms);
+  });
+}
+function tween(duration, onUpdate, easing){
+  easing = easing || easeInOutCubic;
+  return new Promise(resolve=>{
+    const t0 = performance.now();
+    function step(now){
+      let p = Math.min(1, (now-t0)/duration);
+      onUpdate(easing(p), p);
+      if(p<1) raf(step); else resolve();
+    }
+    raf(step);
+  });
+}
+function hexToRgb(h){h=h.replace('#','');return [parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)];}
+function rgbToHex(r,g,b){return '#'+[r,g,b].map(x=>{x=Math.max(0,Math.min(255,Math.round(x)));return x.toString(16).padStart(2,'0');}).join('');}
+function blendHex(h1,h2,t){const a=hexToRgb(h1),b=hexToRgb(h2);return rgbToHex(lerp(a[0],b[0],t),lerp(a[1],b[1],t),lerp(a[2],b[2],t));}
+
+/* fade helper */
+function setOpacity(el,v){el.setAttribute("opacity",v);}
+async function fadeIn(el, duration){
+  el.setAttribute("opacity",0);
+  await tween(duration||500,(e)=>setOpacity(el,e), easeOutCubic);
+}
+async function fadeOut(el, duration){
+  await tween(duration||400,(e)=>setOpacity(el,1-e), easeOutCubic);
+}
+async function popIn(el, duration, scaleAttrCx, scaleAttrCy){
+  // for circles: animate r from 0 to target
+  const targetR = parseFloat(el.getAttribute("r"));
+  el.setAttribute("r",0);
+  el.setAttribute("opacity",0);
+  await tween(duration||450,(e)=>{
+    el.setAttribute("r", Math.max(0, targetR*e));
+    el.setAttribute("opacity", Math.min(1,Math.max(0,e*1.4)));
+  }, easeOutBack);
+  el.setAttribute("r", targetR);
+  el.setAttribute("opacity", 1);
+}
+function pathLength(pathEl){
+  try{return pathEl.getTotalLength();}catch(e){return 500;}
+}
+async function drawPath(pathEl, duration){
+  const len = pathLength(pathEl);
+  pathEl.setAttribute("stroke-dasharray", len);
+  pathEl.setAttribute("stroke-dashoffset", len);
+  pathEl.setAttribute("opacity",1);
+  await tween(duration||900,(e)=>{
+    pathEl.setAttribute("stroke-dashoffset", len*(1-e));
+  }, easeInOutCubic);
+}
+async function moveEl(el, x1,y1,x2,y2, duration, easing){
+  await tween(duration||700,(e)=>{
+    el.setAttribute("cx", lerp(x1,x2,e));
+    el.setAttribute("cy", lerp(y1,y2,e));
+  }, easing||easeInOutCubic);
+}
+async function moveAlongPath(el, pathD, duration, sizeAttr){
+  const tmp = svgEl("path",{d:pathD});
+  const len = tmp.getTotalLength();
+  await tween(duration||900,(e)=>{
+    const pt = tmp.getPointAtLength(len*e);
+    el.setAttribute("cx", pt.x);
+    el.setAttribute("cy", pt.y);
+  }, easeInOutCubic);
+}
+async function colorTo(el, fromColor, toColor, duration){
+  await tween(duration||600,(e)=>{
+    el.setAttribute("fill", blendHex(fromColor,toColor,e));
+  }, easeInOutCubic);
+}
+function arrowMarker(defs, id, color){
+  const marker = svgEl("marker",{id, markerWidth:8, markerHeight:8, refX:6, refY:3, orient:"auto", markerUnits:"strokeWidth"});
+  const p = svgEl("path",{d:"M0,0 L0,6 L7,3 z", fill:color});
+  marker.appendChild(p);
+  defs.appendChild(marker);
+  return `url(#${id})`;
+}
+
+/* ---------- shared composite drawing helpers ---------- */
+function makeArrow(svg, x1,y1,x2,y2, color, arrowUrl, extra){
+  const p = P(`M${x1},${y1} L${x2},${y2}`, Object.assign({stroke:color,"stroke-width":1.6,"marker-end":arrowUrl,opacity:0},extra||{}));
+  svg.appendChild(p);
+  return p;
+}
+function makeCurveArrow(svg, d, color, arrowUrl, extra){
+  const p = P(d, Object.assign({stroke:color,"stroke-width":1.6,"marker-end":arrowUrl,opacity:0},extra||{}));
+  svg.appendChild(p);
+  return p;
+}
+function box(svg, x,y,w,h, label, sub, colorEdge, attrs){
+  const g = G({opacity:0});
+  const r = R(x,y,w,h,Object.assign({rx:6,fill:COL.panel,stroke:colorEdge||COL.panelEdge,"stroke-width":1.3},attrs||{}));
+  g.appendChild(r);
+  const subLines = sub ? sub.split("\n") : [];
+  const labelY = subLines.length ? y+h/2-4-(subLines.length>1?8:0) : y+h/2+5;
+  if(label){
+    const t = T(x+w/2,labelY, label, {"text-anchor":"middle","font-size":14.5, fill:COL.ink, "font-family":"Palatino Linotype, Georgia, serif"});
+    g.appendChild(t);
+  }
+  if(subLines.length){
+    const ts = TSpans(x+w/2, labelY+18, subLines, {"text-anchor":"middle","font-size":10.5, fill:COL.dim});
+    g.appendChild(ts);
+  }
+  svg.appendChild(g);
+  return g;
+}
+function miniBars(svg, x, y, w, h, values, colors, labels){
+  // values: array 0..1 ; returns {group, rects} bottom-anchored bars in area (x,y,w,h)
+  const g = G({});
+  const n = values.length;
+  const gap = 10;
+  const bw = (w - gap*(n-1))/n;
+  const rects = [];
+  for(let i=0;i<n;i++){
+    const bx = x + i*(bw+gap);
+    const bh = Math.max(1, h*values[i]);
+    const rct = R(bx, y+h-bh, bw, bh, {rx:2, fill:colors[i]||COL.blue, opacity:0.92});
+    g.appendChild(rct);
+    rects.push(rct);
+    if(labels && labels[i]){
+      g.appendChild(T(bx+bw/2, y+h+16, labels[i], {"text-anchor":"middle","font-size":10.5, fill:COL.dim}));
+    }
+  }
+  const base = L(x-4, y+h, x+w+4, y+h, COL.line, {sw:1});
+  g.insertBefore(base, g.firstChild);
+  svg.appendChild(g);
+  return {g, rects, x, y, w, h};
+}
+async function setBars(barsObj, values, duration){
+  const {rects, y, h} = barsObj;
+  const starts = rects.map(r=>parseFloat(r.getAttribute("height")));
+  const startY = rects.map(r=>parseFloat(r.getAttribute("y")));
+  await tween(duration||700, (e)=>{
+    rects.forEach((r,i)=>{
+      const targetH = Math.max(1, h*values[i]);
+      const hh = lerp(starts[i], targetH, e);
+      r.setAttribute("height", hh);
+      r.setAttribute("y", y+h-hh);
+    });
+  }, easeInOutCubic);
+}
+function smallNode(svg, x,y, r, fill, extra){
+  return C(x,y,r,fill,Object.assign({stroke:"#000","stroke-opacity":0.25,"stroke-width":1},extra||{}));
+}
+async function pulseLoop(el, tok, rBase, rDelta, duration, cycles){
+  for(let i=0;i<cycles;i++){
+    if(!isCurrent(tok)) return;
+    await tween(duration, (e)=>{ el.setAttribute("r", rBase + rDelta*Math.sin(e*Math.PI)); }, easeInOutCubic);
+  }
+  if(isCurrent(tok)) el.setAttribute("r", rBase);
+}
+function flowPath(svg, d, color, extra){
+  const p = P(d, Object.assign({stroke:color,"stroke-width":1.6,"stroke-dasharray":"3 7", "class":"flow", opacity:0},extra||{}));
+  svg.appendChild(p);
+  return p;
+}
+async function countUp(el, from, to, duration, suffix){
+  await tween(duration, (e)=>{
+    const v = Math.round(lerp(from,to,e));
+    el.textContent = v + (suffix||"");
+  }, easeOutCubic);
+}
+async function countUpFloat(el, from, to, duration, digits, prefix){
+  await tween(duration, (e)=>{
+    const v = lerp(from,to,e);
+    el.textContent = (prefix||"") + v.toFixed(digits===undefined?2:digits);
+  }, easeInOutCubic);
+}
+function bulletList(svg, x, y, lines, color, lineHeight, fontSize){
+  const g = G({opacity:0});
+  lines.forEach((ln,i)=>{
+    const ty = y + i*(lineHeight||22);
+    g.appendChild(C(x,ty-4,2.6,color||COL.sage,{}));
+    g.appendChild(T(x+14,ty,ln,{"font-size":fontSize||12.5, fill:COL.ink}));
+  });
+  svg.appendChild(g);
+  return g;
+}
+function entropyOf(p){
+  // Shannon entropy in bits for a probability distribution array
+  return -p.reduce((s,pi)=> pi>0 ? s+pi*Math.log2(pi) : s, 0);
+}
+
+/* ============================= SLIDE CONTROLLER ============================= */
+let RUN_TOKEN = 0;
+function isCurrent(tok){ return tok===RUN_TOKEN; }
+async function guard(tok, promiseOrMs){
+  if(typeof promiseOrMs === "number") await new Promise(r=>setTimeout(r,promiseOrMs));
+  else await promiseOrMs;
+  return isCurrent(tok);
+}
+
+const svg = document.getElementById("scene");
+let defs;
+function resetSceneDefs(){
+  defs = svgEl("defs",{});
+  svg.appendChild(defs);
+  return {
+    arrBlue: arrowMarker(defs,"arrBlue",COL.blue),
+    arrOchre: arrowMarker(defs,"arrOchre",COL.ochre),
+    arrDim: arrowMarker(defs,"arrDim",COL.dim),
+    arrRose: arrowMarker(defs,"arrRose",COL.rose),
+    arrSage: arrowMarker(defs,"arrSage",COL.sage),
+    arrInk: arrowMarker(defs,"arrInk",COL.ink),
+  };
+}
+
+/* ============================= MATH-TEACHING HELPERS ============================= */
+function measureText(svg, str, fontSize, family){
+  const t = svgEl("text",{x:-9999,y:-9999,"font-size":fontSize,"font-family":family||"SFMono-Regular, Consolas, monospace"});
+  t.textContent = str;
+  svg.appendChild(t);
+  const w = t.getComputedTextLength();
+  svg.removeChild(t);
+  return w;
+}
+// Lay out a row of equation "chunks" left-to-right (or centered), all invisible to start.
+// parts: [{text, color, caption}]  ->  returns [{text,color,caption,el,x,width}]
+function layoutEquation(svg, x, y, parts, fontSize){
+  const family = "SFMono-Regular, Consolas, monospace";
+  fontSize = fontSize || 25;
+  const widths = parts.map(p => measureText(svg, p.text, fontSize, family));
+  const totalWidth = widths.reduce((a,b)=>a+b,0);
+  const startX = (x === "center") ? 480 - totalWidth/2 : x;
+  let cursor = startX;
+  const laidOut = [];
+  parts.forEach((p,i)=>{
+    const el = T(cursor, y, p.text, {"font-size":fontSize, fill:p.color||COL.ink, "font-family":family, opacity:0});
+    svg.appendChild(el);
+    laidOut.push(Object.assign({}, p, {el, x:cursor, width:widths[i], y}));
+    cursor += widths[i] + 5;
+  });
+  laidOut.totalWidth = totalWidth; laidOut.startX = startX;
+  return laidOut;
+}
+// Reveal one equation chunk, bracket it, caption it, pause, then clear the bracket+caption
+// (the chunk itself stays visible, now "explained"). Returns false if the slide moved on.
+async function explainPart(svg, tok, part, captionY, pauseMs){
+  const color = part.color || COL.sage;
+  await fadeIn(part.el, 420);
+  if(!isCurrent(tok)) return false;
+  const by = part.y + 11;
+  const bx1 = part.x - 2, bx2 = part.x + part.width + 2;
+  const bracket = P(`M${bx1},${by} L${bx1},${by+7} L${bx2},${by+7} L${bx2},${by}`,
+                     {stroke:color, "stroke-width":1.5, opacity:0});
+  svg.appendChild(bracket);
+  await fadeIn(bracket, 350);
+  if(!isCurrent(tok)) return false;
+  const cap = T((bx1+bx2)/2, captionY, part.caption || "", {"text-anchor":"middle","font-size":12.5, fill:color, opacity:0});
+  svg.appendChild(cap);
+  await fadeIn(cap, 420);
+  if(!isCurrent(tok)) return false;
+  await guard(tok, pauseMs===undefined ? 1150 : pauseMs);
+  if(!isCurrent(tok)) return false;
+  await Promise.all([fadeOut(bracket,320), fadeOut(cap,320)]);
+  bracket.remove(); cap.remove();
+  return isCurrent(tok);
+}
+// Reveal an entire equation row at once (no per-part callouts) — used once a formula is "known".
+async function revealEquation(parts, stagger){
+  for(const p of parts){ fadeIn(p.el, 400); await new Promise(r=>setTimeout(r, stagger===undefined?70:stagger)); }
+}
+// A small vertical stack of worked numeric steps, revealed one line at a time.
+async function workedSteps(svg, tok, x, y, lines, opts){
+  opts = opts||{};
+  const lineH = opts.lineHeight || 26;
+  const els = [];
+  for(let i=0;i<lines.length;i++){
+    const el = T(x, y+i*lineH, lines[i], {"font-size":opts.fontSize||14.5, fill:opts.color||COL.ink,
+                 "font-family":"SFMono-Regular, Consolas, monospace", opacity:0});
+    svg.appendChild(el);
+    els.push(el);
+    fadeIn(el, 400);
+    if(!await guard(tok, opts.stagger===undefined?450:opts.stagger)) return els;
+  }
+  return els;
+}
+
+/* ---------------- SLIDE 1 : TITLE ---------------- */
+async function slide01(svg, tok){
+  const A = resetSceneDefs();
+  const title = T(480,210,"The Math Behind It", {"text-anchor":"middle","font-size":36,"font-family":"Palatino Linotype, Georgia, serif","font-weight":600, fill:COL.ink, opacity:0});
+  svg.appendChild(title);
+  await fadeIn(title,850);
+  if(!isCurrent(tok)) return;
+
+  const sub = T(480,248,"every formula, opened up and rebuilt from scratch", {"text-anchor":"middle","font-size":15, fill:COL.dim, opacity:0});
+  svg.appendChild(sub);
+  await fadeIn(sub,700);
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,500);
+  const parts = layoutEquation(svg,"center",320,[
+    {text:"H(p)", color:COL.blue},
+    {text:" = ", color:COL.dim},
+    {text:"−Σ ", color:COL.ochre},
+    {text:"p·log p", color:COL.sage},
+  ],26);
+  await revealEquation(parts, 140);
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,500);
+  const promise1 = T(480,400,"no line of any equation will appear unexplained.", {"text-anchor":"middle","font-size":13, fill:COL.dim2, opacity:0, "font-family":"Palatino Linotype, Georgia, serif"});
+  svg.appendChild(promise1);
+  await fadeIn(promise1,700);
+}
+
+/* ---------------- SLIDE 2 : READING A PROBABILITY DISTRIBUTION ---------------- */
+async function slide02(svg, tok){
+  const A = resetSceneDefs();
+  const step = T(60,50,"a model never just says \"class A\" — it says how sure it is", {"font-size":13, fill:COL.ochre, opacity:0,"font-family":"SFMono-Regular, Consolas, monospace"});
+  svg.appendChild(step); await fadeIn(step,500);
+  if(!isCurrent(tok)) return;
+
+  const bars = miniBars(svg, 350, 130, 260, 150, [0.0,0.0], [COL.blue, COL.ochre], ["class A","class B"]);
+  await guard(tok,400);
+  if(!isCurrent(tok)) return;
+
+  await setBars(bars, [0.7,0.3], 900);
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,400);
+  const parts = layoutEquation(svg,"center",370,[
+    {text:"p(y", color:COL.ink, caption:"the model's output"},
+    {text:"|", color:COL.dim, caption:"\"given\" — conditioned on"},
+    {text:"x", color:COL.sage, caption:"the input we fed in"},
+    {text:")", color:COL.ink},
+  ],24);
+  for(const p of parts){
+    if(!p.caption){ fadeIn(p.el,300); continue; }
+    if(!await explainPart(svg, tok, p, 415, 1000)) return;
+  }
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,300);
+  const rule = T(480,460,"one hard rule:  p(A) + p(B) + ... always adds up to exactly 1", {"text-anchor":"middle","font-size":12.5, fill:COL.dim, opacity:0});
+  svg.appendChild(rule);
+  await fadeIn(rule,600);
+}
+
+/* ---------------- SLIDE 3 : ARGMAX AND CONFIDENCE ---------------- */
+async function slide03(svg, tok){
+  const A = resetSceneDefs();
+  const bars = miniBars(svg, 340, 110, 280, 150, [0.12,0.71,0.17], [COL.blue,COL.ochre,COL.sage], ["cat","dog","fox"]);
+  await guard(tok,500);
+  if(!isCurrent(tok)) return;
+
+  const step = T(60,50,"the winner is just: whichever bar is tallest", {"font-size":13, fill:COL.ochre, opacity:0,"font-family":"SFMono-Regular, Consolas, monospace"});
+  svg.appendChild(step); await fadeIn(step,500);
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,500);
+  const ring = R(bars.x+bars.w/3, bars.y-6, bars.w/3, bars.h+12, {fill:"none", stroke:COL.sage, "stroke-width":2, rx:4, opacity:0});
+  svg.appendChild(ring);
+  await fadeIn(ring,450);
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,400);
+  const parts = layoutEquation(svg,"center",320,[
+    {text:"ŷ", color:COL.sage, caption:"\"y hat\" — our guessed label"},
+    {text:" = ", color:COL.dim},
+    {text:"argmax", color:COL.ochre, caption:"\"the y that makes this biggest\" — not the max value itself, the y that produced it"},
+    {text:"_y ", color:COL.ochre},
+    {text:"p(y|x)", color:COL.ink, caption:"the whole distribution from the last slide"},
+  ],23);
+  for(const p of parts){
+    if(!p.caption){ fadeIn(p.el,300); continue; }
+    if(!await explainPart(svg, tok, p, 400, 1150)) return;
+  }
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,400);
+  const tauLine = T(480,455,"and if we also want to know HOW sure: confidence = max_y p(y|x) — compare it to a threshold τ", {"text-anchor":"middle","font-size":12, fill:COL.dim, opacity:0});
+  svg.appendChild(tauLine);
+  await fadeIn(tauLine,650);
+}
+
+/* ---------------- SLIDE 4 : MEASURING SURPRISE ---------------- */
+async function slide04(svg, tok){
+  const A = resetSceneDefs();
+  const step = T(60,50,"start with a question: how \"surprised\" should you be by an outcome?", {"font-size":13, fill:COL.ochre, opacity:0,"font-family":"SFMono-Regular, Consolas, monospace"});
+  svg.appendChild(step); await fadeIn(step,550);
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,500);
+  const certain = T(230,140,"p = 1.0  (certain)", {"text-anchor":"middle","font-size":13, fill:COL.sage, opacity:0});
+  const certain2 = T(230,164,"surprise = 0", {"text-anchor":"middle","font-size":13, fill:COL.sage, opacity:0});
+  const rare = T(720,140,"p = 0.01  (rare)", {"text-anchor":"middle","font-size":13, fill:COL.rose, opacity:0});
+  const rare2 = T(720,164,"surprise = a lot", {"text-anchor":"middle","font-size":13, fill:COL.rose, opacity:0});
+  [certain,certain2,rare,rare2].forEach(e=>svg.appendChild(e));
+  await Promise.all([fadeIn(certain,400),fadeIn(certain2,400),fadeIn(rare,400),fadeIn(rare2,400)]);
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,700);
+  const step2 = T(60,210,"we also want: two independent surprises should just ADD together", {"font-size":13, fill:COL.ochre, opacity:0,"font-family":"SFMono-Regular, Consolas, monospace"});
+  svg.appendChild(step2); await fadeIn(step2,550);
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,500);
+  const line1 = T(480,255,"but independent probabilities MULTIPLY:   p(both) = p₁ · p₂", {"text-anchor":"middle","font-size":14, fill:COL.dim, opacity:0, "font-family":"SFMono-Regular, Consolas, monospace"});
+  svg.appendChild(line1); await fadeIn(line1,550);
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,700);
+  const line2 = T(480,290,"log() is exactly the tool that turns multiplication into addition:", {"text-anchor":"middle","font-size":13.5, fill:COL.sage, opacity:0});
+  svg.appendChild(line2); await fadeIn(line2,550);
+  const line3 = T(480,318,"log(p₁ · p₂)  =  log(p₁) + log(p₂)", {"text-anchor":"middle","font-size":14.5, fill:COL.sage, opacity:0, "font-family":"SFMono-Regular, Consolas, monospace"});
+  svg.appendChild(line3); await fadeIn(line3,600);
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,900);
+  const step3 = T(60,360,"one fix needed: log(p) is negative for p<1, so we flip the sign", {"font-size":13, fill:COL.ochre, opacity:0,"font-family":"SFMono-Regular, Consolas, monospace"});
+  svg.appendChild(step3); await fadeIn(step3,550);
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,500);
+  const parts = layoutEquation(svg,"center",410,[
+    {text:"surprise(p)", color:COL.ink},
+    {text:" = ", color:COL.dim},
+    {text:"−", color:COL.rose, caption:"flips log's negative sign positive"},
+    {text:"log", color:COL.sage, caption:"turns multiply into add, and grows huge as p→0"},
+    {text:"(p)", color:COL.ink},
+  ],24);
+  for(const p of parts){
+    if(!p.caption){ fadeIn(p.el,300); continue; }
+    if(!await explainPart(svg, tok, p, 450, 1150)) return;
+  }
+}
+
+/* ---------------- SLIDE 5 : ENTROPY, THE AVERAGE SURPRISE ---------------- */
+async function slide05(svg, tok){
+  const A = resetSceneDefs();
+  const step = T(60,50,"entropy = the surprise you'd expect ON AVERAGE, across every outcome", {"font-size":13, fill:COL.ochre, opacity:0,"font-family":"SFMono-Regular, Consolas, monospace"});
+  svg.appendChild(step); await fadeIn(step,550);
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,500);
+  const line = T(480,110,"average = weight each outcome's surprise by how often it happens:", {"text-anchor":"middle","font-size":13, fill:COL.dim, opacity:0});
+  svg.appendChild(line); await fadeIn(line,550);
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,500);
+  const parts = layoutEquation(svg,"center",165,[
+    {text:"H(p)", color:COL.blue, caption:"entropy of the distribution p"},
+    {text:" = ", color:COL.dim},
+    {text:"Σ", color:COL.ochre, caption:"add this up over every possible outcome y"},
+    {text:"_y ", color:COL.ochre},
+    {text:"p(y)", color:COL.sage, caption:"the weight — how likely is y"},
+    {text:" · ", color:COL.dim},
+    {text:"(−log p(y))", color:COL.rose, caption:"the surprise of y, from the last slide"},
+  ],21);
+  for(const p of parts){
+    if(!p.caption){ fadeIn(p.el,300); continue; }
+    if(!await explainPart(svg, tok, p, 210, 1150)) return;
+  }
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,600);
+  const step2 = T(60,255,"worked example — a fair coin vs. a biased one", {"font-size":13, fill:COL.sage, opacity:0,"font-family":"SFMono-Regular, Consolas, monospace"});
+  svg.appendChild(step2); await fadeIn(step2,500);
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,400);
+  const linesFair = [
+    "fair coin:   p = [0.50, 0.50]",
+    "H = 0.50·(−log₂0.50) + 0.50·(−log₂0.50)",
+    "H = 0.50·1.00 + 0.50·1.00  =  1.00 bit   <- maximum uncertainty",
+  ];
+  await workedSteps(svg, tok, 90, 300, linesFair, {fontSize:14, lineHeight:27, stagger:650});
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,500);
+  const linesBiased = [
+    "biased coin: p = [0.90, 0.10]",
+    "H = 0.90·(−log₂0.90) + 0.10·(−log₂0.10)",
+    "H = 0.90·0.152 + 0.10·3.322  =  0.47 bit   <- much less uncertain",
+  ];
+  await workedSteps(svg, tok, 500, 300, linesBiased, {fontSize:14, lineHeight:27, stagger:650, color:COL.ochre});
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,500);
+  const note = T(480,455,"this exact H(p) is what \"entropy minimization\" (from the concepts lecture) pushes down.", {"text-anchor":"middle","font-size":12, fill:COL.dim, opacity:0});
+  svg.appendChild(note);
+  await fadeIn(note,650);
+}
+
+/* ---------------- SLIDE 6 : CROSS-ENTROPY ---------------- */
+async function slide06(svg, tok){
+  const A = resetSceneDefs();
+  const step = T(60,50,"now: what if the \"weights\" come from the TRUE label, not the model?", {"font-size":13, fill:COL.ochre, opacity:0,"font-family":"SFMono-Regular, Consolas, monospace"});
+  svg.appendChild(step); await fadeIn(step,550);
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,500);
+  const bars = miniBars(svg, 130, 110, 190, 130, [1,0], [COL.sage, COL.gray], ["true: A","true: B"]);
+  svg.appendChild(T(225,95,"true label y (one-hot)",{"text-anchor":"middle","font-size":11.5, fill:COL.sage}));
+  const bars2 = miniBars(svg, 470, 110, 190, 130, [0.7,0.3], [COL.blue,COL.ochre], ["pred: A","pred: B"]);
+  svg.appendChild(T(565,95,"model's guess p(y|x)",{"text-anchor":"middle","font-size":11.5, fill:COL.blue}));
+  await guard(tok,700);
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,500);
+  const step2 = T(60,285,"reuse the SAME averaging idea from entropy, swap in the true label as the weight:", {"font-size":12.5, fill:COL.dim, opacity:0});
+  svg.appendChild(step2); await fadeIn(step2,550);
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,500);
+  const parts = layoutEquation(svg,"center",340,[
+    {text:"CE(y,p)", color:COL.rose, caption:"cross-entropy: how surprised the TRUE label is by our guess"},
+    {text:" = ", color:COL.dim},
+    {text:"−Σ", color:COL.ochre, caption:"same sum-over-outcomes shape as entropy"},
+    {text:"_y ", color:COL.ochre},
+    {text:"y", color:COL.sage, caption:"1 for the true class, 0 for every other — it silences all but one term"},
+    {text:"·log p(y)", color:COL.blue, caption:"the model's own confidence in that true class"},
+  ],20);
+  for(const p of parts){
+    if(!p.caption){ fadeIn(p.el,300); continue; }
+    if(!await explainPart(svg, tok, p, 385, 1200)) return;
+  }
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,500);
+  const simp = T(480,440,"because y is one-hot, every term vanishes except the true class:  CE = −log p(true class)", {"text-anchor":"middle","font-size":12.5, fill:COL.dim, opacity:0});
+  svg.appendChild(simp);
+  await fadeIn(simp,600);
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,500);
+  const note = T(480,470,"CE = 0 only when p(true class) = 1 — this is the loss nearly every classifier is trained to minimize.", {"text-anchor":"middle","font-size":12, fill:COL.sage, opacity:0});
+  svg.appendChild(note);
+  await fadeIn(note,600);
+}
+
+/* ---------------- SLIDE 7 : THE WEIGHTED LOSS ---------------- */
+async function slide07(svg, tok){
+  const A = resetSceneDefs();
+  const step = T(60,50,"we now have two different goals to satisfy at once", {"font-size":13, fill:COL.ochre, opacity:0,"font-family":"SFMono-Regular, Consolas, monospace"});
+  svg.appendChild(step); await fadeIn(step,550);
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,500);
+  const g1 = box(svg,120,110,300,80,"L_sup","match the true labels\nwe DO have (cross-entropy)", COL.blue);
+  const g2 = box(svg,540,110,300,80,"L_unsup","stay confident / consistent\non unlabeled data", COL.ochre);
+  await Promise.all([fadeIn(g1,500), fadeIn(g2,500)]);
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,500);
+  const step2 = T(60,225,"an optimizer can only minimize ONE number — so we need to merge these into one", {"font-size":13, fill:COL.dim, opacity:0});
+  svg.appendChild(step2); await fadeIn(step2,550);
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,500);
+  const step3 = T(60,260,"simplest merge: just add them. but they may not deserve EQUAL trust —", {"font-size":13, fill:COL.dim, opacity:0});
+  svg.appendChild(step3); await fadeIn(step3,550);
+  if(!isCurrent(tok)) return;
+  await guard(tok,400);
+  const step4 = T(60,286,"so scale the second term by a knob, λ, before adding:", {"font-size":13, fill:COL.dim, opacity:0});
+  svg.appendChild(step4); await fadeIn(step4,500);
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,500);
+  const parts = layoutEquation(svg,"center",345,[
+    {text:"L", color:COL.ink, caption:"the one number the optimizer actually minimizes"},
+    {text:" = ", color:COL.dim},
+    {text:"L_sup", color:COL.blue, caption:"computed only on the few labeled points"},
+    {text:" + ", color:COL.dim},
+    {text:"λ", color:COL.rose, caption:"a dial from 0 to 1 (or beyond) — how much to trust the unsupervised term"},
+    {text:"·L_unsup", color:COL.ochre, caption:"computed on the unlabeled points"},
+  ],21);
+  for(const p of parts){
+    if(!p.caption){ fadeIn(p.el,300); continue; }
+    if(!await explainPart(svg, tok, p, 390, 1200)) return;
+  }
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,500);
+  const warn = T(480,440,"set λ too high too early, and a barely-trained model's bad guesses drown out the real labels.", {"text-anchor":"middle","font-size":12, fill:COL.rose, opacity:0});
+  svg.appendChild(warn);
+  await fadeIn(warn,600);
+  if(!isCurrent(tok)) return;
+  await guard(tok,500);
+  const fix = T(480,466,"the usual fix: start λ near 0, ramp it up as training (and trust) grows — λ(t).", {"text-anchor":"middle","font-size":12, fill:COL.sage, opacity:0});
+  svg.appendChild(fix);
+  await fadeIn(fix,600);
+}
+
+/* ---------------- SLIDE 8 : FROM DISTANCE TO SIMILARITY ---------------- */
+async function slide08(svg, tok){
+  const A = resetSceneDefs();
+  const step = T(60,50,"first, the ordinary distance between two points", {"font-size":13, fill:COL.ochre, opacity:0,"font-family":"SFMono-Regular, Consolas, monospace"});
+  svg.appendChild(step); await fadeIn(step,500);
+  if(!isCurrent(tok)) return;
+
+  const p1={x:220,y:220}, p2={x:420,y:130};
+  const tri = P(`M${p1.x},${p1.y} L${p2.x},${p1.y} L${p2.x},${p2.y}`, {stroke:COL.dim2,"stroke-width":1.3,"stroke-dasharray":"4 3", opacity:0});
+  svg.appendChild(tri); tri.setAttribute("opacity",1);
+  await drawPath(tri,700);
+  const hyp = P(`M${p1.x},${p1.y} L${p2.x},${p2.y}`, {stroke:COL.sage,"stroke-width":2, opacity:0});
+  svg.appendChild(hyp); hyp.setAttribute("opacity",1);
+  await drawPath(hyp,600);
+  [p1,p2].forEach(p=>{const c=C(p.x,p.y,5,COL.ink,{opacity:0}); svg.appendChild(c); popIn(c,300);});
+  svg.appendChild(T(p2.x+30,p1.y+18,"Δx",{"font-size":12, fill:COL.dim2}));
+  svg.appendChild(T(p2.x+10,(p1.y+p2.y)/2,"Δy",{"font-size":12, fill:COL.dim2}));
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,500);
+  const parts1 = layoutEquation(svg,540,175,[
+    {text:"d", color:COL.sage, caption:"Pythagoras: the straight-line distance"},
+    {text:" = ", color:COL.dim},
+    {text:"√(Δx²+Δy²)", color:COL.ink, caption:"in 2D — the familiar right-triangle formula"},
+  ],20);
+  for(const p of parts1){
+    if(!p.caption){ fadeIn(p.el,300); continue; }
+    if(!await explainPart(svg, tok, p, 220, 1000)) return;
+  }
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,400);
+  const gen = T(480,270,"in n dimensions, the same idea:   d(x,z) = √( Σᵢ (xᵢ−zᵢ)² )", {"text-anchor":"middle","font-size":14, fill:COL.dim, opacity:0, "font-family":"SFMono-Regular, Consolas, monospace"});
+  svg.appendChild(gen); await fadeIn(gen,600);
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,700);
+  const step2 = T(60,315,"but distance runs from 0 to infinity — we want a SIMILARITY: 1 when close, 0 when far", {"font-size":12.5, fill:COL.ochre, opacity:0,"font-family":"SFMono-Regular, Consolas, monospace"});
+  svg.appendChild(step2); await fadeIn(step2,550);
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,600);
+  const parts2 = layoutEquation(svg,"center",370,[
+    {text:"w", color:COL.blue, caption:"similarity — how much point i \"trusts\" point j"},
+    {text:" = exp( −", color:COL.dim, caption:"exp() squashes any real number into a smooth curve between 0 and 1"},
+    {text:"d²", color:COL.rose, caption:"squared distance — always positive, and grows fast as points separate"},
+    {text:" / 2σ²", color:COL.sage, caption:"σ sets the \"reach\": small σ = only very close points count as similar"},
+    {text:" )", color:COL.dim},
+  ],18);
+  for(const p of parts2){
+    if(!p.caption){ fadeIn(p.el,300); continue; }
+    if(!await explainPart(svg, tok, p, 410, 1250)) return;
+  }
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,400);
+  const note = T(480,450,"d = 0  →  w = 1  (identical).      d → ∞  →  w → 0  (irrelevant).", {"text-anchor":"middle","font-size":12.5, fill:COL.dim, opacity:0});
+  svg.appendChild(note);
+  await fadeIn(note,600);
+}
+
+/* ---------------- SLIDE 9 : TURNING POINTS INTO A GRAPH ---------------- */
+async function slide09(svg, tok){
+  const A = resetSceneDefs();
+  const step = T(60,50,"four points on a line — compute every pairwise similarity", {"font-size":13, fill:COL.ochre, opacity:0,"font-family":"SFMono-Regular, Consolas, monospace"});
+  svg.appendChild(step); await fadeIn(step,500);
+  if(!isCurrent(tok)) return;
+
+  const xs = [130, 260, 430, 480];
+  const y0 = 140;
+  const pts = xs.map(x=>({x,y:y0}));
+  svg.appendChild(L(90,y0,520,y0,COL.line,{sw:1}));
+  const dots = pts.map((p,i)=>{const c=C(p.x,p.y,7,COL.sage,{opacity:0}); svg.appendChild(c); svg.appendChild(T(p.x,p.y-16,"x"+(i+1),{"text-anchor":"middle","font-size":12, fill:COL.sage})); return c;});
+  for(const d of dots){ popIn(d,300); await guard(tok,80); }
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,400);
+  function w(d, sigma){ return Math.exp(-(d*d)/(2*sigma*sigma)); }
+  const sigma = 90;
+  const W = [];
+  for(let i=0;i<4;i++){ W.push([]); for(let j=0;j<4;j++){ W[i][j] = i===j? 0 : w(Math.abs(xs[i]-xs[j]), sigma); } }
+
+  const step2 = T(60,190,"w = exp(−d²/2σ²)  for every pair  ->  a 4×4 similarity matrix W", {"font-size":13, fill:COL.dim, opacity:0,"font-family":"SFMono-Regular, Consolas, monospace"});
+  svg.appendChild(step2); await fadeIn(step2,550);
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,500);
+  const mx = 200, my = 240, cell = 50;
+  svg.appendChild(T(mx-40,my-16,"W =",{"font-size":18, fill:COL.ink}));
+  const cellEls = [];
+  for(let i=0;i<4;i++){
+    for(let j=0;j<4;j++){
+      const cx0 = mx + j*cell, cy0 = my + i*cell;
+      const val = i===j ? "—" : W[i][j].toFixed(2);
+      const t = T(cx0+cell/2, cy0+cell/2+5, val, {"text-anchor":"middle","font-size":14, fill: i===j? COL.dim2 : COL.sage, "font-family":"SFMono-Regular, Consolas, monospace", opacity:0});
+      svg.appendChild(t); cellEls.push(t);
+    }
+  }
+  const gridBox = R(mx-6,my-6,4*cell+12,4*cell+12,{fill:"none", stroke:COL.line, "stroke-width":1.3, rx:5, opacity:0});
+  svg.appendChild(gridBox);
+  await fadeIn(gridBox,400);
+  for(const c of cellEls){ fadeIn(c,220); await guard(tok,35); }
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,500);
+  const dArrow = flowPath(svg,"M456,270 C 520,270 540,270 560,270", COL.dim); dArrow.setAttribute("opacity",0.8);
+  const step3 = T(650,240,"D = the row sums of W,\non the diagonal:", {"text-anchor":"middle","font-size":12.5, fill:COL.ochre, opacity:0});
+  svg.appendChild(step3); await fadeIn(step3,500);
+  const Dvals = W.map(row=>row.reduce((a,b)=>a+b,0));
+  const dText = T(650,300,"D = diag(" + Dvals.map(v=>v.toFixed(2)).join(", ") + ")", {"text-anchor":"middle","font-size":12.5, fill:COL.ochre, opacity:0, "font-family":"SFMono-Regular, Consolas, monospace"});
+  svg.appendChild(dText); await fadeIn(dText,550);
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,500);
+  const note = T(480,485,"D just tells you: \"how much total similarity does this point have to everyone else?\"", {"text-anchor":"middle","font-size":11.5, fill:COL.dim, opacity:0});
+  svg.appendChild(note);
+  await fadeIn(note,650);
+}
+
+/* ---------------- SLIDE 10 : FROM WORDS TO SYMBOLS ---------------- */
+async function slide10(svg, tok){
+  const A = resetSceneDefs();
+  const step = T(60,50,"the whole idea, in plain English first:", {"font-size":13, fill:COL.ochre, opacity:0,"font-family":"SFMono-Regular, Consolas, monospace"});
+  svg.appendChild(step); await fadeIn(step,500);
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,500);
+  const eng = T(480,100,"\"my new label = a weighted average of my neighbors' labels\"", {"text-anchor":"middle","font-size":14.5, fill:COL.ink, opacity:0, "font-family":"Palatino Linotype, Georgia, serif"});
+  svg.appendChild(eng); await fadeIn(eng,650);
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,700);
+  const step2 = T(60,150,"for one point i, that sentence becomes:", {"font-size":13, fill:COL.dim, opacity:0});
+  svg.appendChild(step2); await fadeIn(step2,500);
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,400);
+  const parts = layoutEquation(svg,"center",210,[
+    {text:"f_i", color:COL.sage, caption:"the (soft) label we're computing for point i"},
+    {text:" ← ", color:COL.dim},
+    {text:"Σ_j w_ij·f_j", color:COL.blue, caption:"sum, over every neighbor j: (similarity) × (their current label)"},
+    {text:" / ", color:COL.dim},
+    {text:"Σ_j w_ij", color:COL.ochre, caption:"divide by total similarity — this is exactly D_i from the last slide"},
+  ],17);
+  for(const p of parts){
+    if(!p.caption){ fadeIn(p.el,300); continue; }
+    if(!await explainPart(svg, tok, p, 250, 1250)) return;
+  }
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,600);
+  const step3 = T(60,290,"do that same thing for every point i at once — write it as a matrix:", {"font-size":13, fill:COL.ochre, opacity:0,"font-family":"SFMono-Regular, Consolas, monospace"});
+  svg.appendChild(step3); await fadeIn(step3,550);
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,500);
+  const parts2 = layoutEquation(svg,"center",350,[
+    {text:"F", color:COL.sage, caption:"ALL the labels stacked into one table (one row per point)"},
+    {text:" ← ", color:COL.dim},
+    {text:"D", color:COL.ochre, caption:"the degree matrix — since it's diagonal, \"inverting\" it just means 1÷each entry"},
+    {text:"⁻¹", color:COL.ochre},
+    {text:"W", color:COL.blue, caption:"the similarity matrix — multiplying by F sums each row's weighted neighbor labels"},
+    {text:"F", color:COL.sage},
+  ],20);
+  for(const p of parts2){
+    if(!p.caption){ fadeIn(p.el,300); continue; }
+    if(!await explainPart(svg, tok, p, 390, 1300)) return;
+  }
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,400);
+  const note = T(480,455,"same rule, no more writing a sum by hand for every single point — one line of matrix algebra.", {"text-anchor":"middle","font-size":12, fill:COL.dim, opacity:0});
+  svg.appendChild(note);
+  await fadeIn(note,600);
+}
+
+/* ---------------- SLIDE 11 : REPEATING UNTIL IT SETTLES ---------------- */
+async function slide11(svg, tok){
+  const A = resetSceneDefs();
+  const step = T(60,50,"apply F ← D⁻¹WF once, and the labels barely move. so: do it again.", {"font-size":13, fill:COL.ochre, opacity:0,"font-family":"SFMono-Regular, Consolas, monospace"});
+  svg.appendChild(step); await fadeIn(step,550);
+  if(!isCurrent(tok)) return;
+
+  const xs=[130,270,480,690,830], y0=140;
+  const pts = xs.map(x=>({x,y:y0}));
+  svg.appendChild(L(90,y0,870,y0,COL.line,{sw:1}));
+  const dots = pts.map((p,i)=>{const c=C(p.x,p.y,7,COL.gray,{opacity:0}); svg.appendChild(c); return c;});
+  for(const d of dots){ popIn(d,280); await guard(tok,60); }
+  dots[0].setAttribute("fill",COL.blue); dots[4].setAttribute("fill",COL.ochre);
+  svg.appendChild(T(pts[0].x,pts[0].y-18,"labeled: A",{"text-anchor":"middle","font-size":11, fill:COL.blue}));
+  svg.appendChild(T(pts[4].x,pts[4].y-18,"labeled: B",{"text-anchor":"middle","font-size":11, fill:COL.ochre}));
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,500);
+  function w(d,sigma){return Math.exp(-(d*d)/(2*sigma*sigma));}
+  const sigma=140;
+  const n=5;
+  const W=[]; for(let i=0;i<n;i++){W.push([]); for(let j=0;j<n;j++){W[i][j]= i===j?0:w(Math.abs(xs[i]-xs[j]),sigma);}}
+  const D=W.map(r=>r.reduce((a,b)=>a+b,0));
+  let F=[[1,0],[0,0],[0,0],[0,0],[0,1]];
+  const clamp=()=>{F[0]=[1,0]; F[4]=[0,1];};
+
+  const label = T(480,200,"", {"text-anchor":"middle","font-size":13, fill:COL.sage, opacity:1, "font-family":"SFMono-Regular, Consolas, monospace"});
+  svg.appendChild(label);
+
+  for(let iter=1; iter<=3; iter++){
+    if(!isCurrent(tok)) return;
+    const newF = F.map((row,i)=>{
+      let a=0,b=0;
+      for(let j=0;j<n;j++){ a+=W[i][j]*F[j][0]; b+=W[i][j]*F[j][1]; }
+      return [a/D[i], b/D[i]];
+    });
+    newF[0]=[1,0]; newF[4]=[0,1];
+    label.textContent = `iteration ${iter}: point 3 (middle) is now ${(newF[2][0]).toFixed(2)} A / ${(newF[2][1]).toFixed(2)} B`;
+    await Promise.all(dots.map((d,i)=>{
+      const from = blendHex(COL.blue, COL.ochre, F[i][1]);
+      const to = blendHex(COL.blue, COL.ochre, newF[i][1]);
+      return tween(700, e=>d.setAttribute("fill", blendHex(from,to,e)));
+    }));
+    F = newF;
+    if(!isCurrent(tok)) return;
+    await guard(tok,350);
+  }
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,500);
+  const why = T(480,280,"why clamp points 1 and 5 back to their true label every round?", {"text-anchor":"middle","font-size":13, fill:COL.rose, opacity:0});
+  svg.appendChild(why); await fadeIn(why,550);
+  const why2 = T(480,308,"otherwise their own certainty would get diluted by the very averaging they're supposed to drive.", {"text-anchor":"middle","font-size":12, fill:COL.dim, opacity:0});
+  svg.appendChild(why2); await fadeIn(why2,600);
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,700);
+  const conv = T(480,360,"repeating this stops changing anything once it converges — a FIXED POINT.", {"text-anchor":"middle","font-size":13, fill:COL.sage, opacity:0});
+  svg.appendChild(conv); await fadeIn(conv,600);
+  if(!isCurrent(tok)) return;
+  await guard(tok,500);
+  const conv2 = T(480,390,"like heat spreading through a rod until every point's temperature stops changing.", {"text-anchor":"middle","font-size":12, fill:COL.dim, opacity:0, "font-family":"Palatino Linotype, Georgia, serif"});
+  svg.appendChild(conv2); await fadeIn(conv2,600);
+}
+
+/* ---------------- SLIDE 12 : THE ENERGY VIEW ---------------- */
+async function slide12(svg, tok){
+  const A = resetSceneDefs();
+  const step = T(60,50,"a completely different way to arrive at the SAME rule: minimize disagreement", {"font-size":13, fill:COL.ochre, opacity:0,"font-family":"SFMono-Regular, Consolas, monospace"});
+  svg.appendChild(step); await fadeIn(step,550);
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,500);
+  const step2 = T(60,100,"define \"disagreement\" between two neighbors as the squared gap between their labels:", {"font-size":12.5, fill:COL.dim, opacity:0});
+  svg.appendChild(step2); await fadeIn(step2,550);
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,500);
+  const parts = layoutEquation(svg,"center",150,[
+    {text:"(f(i) − f(j))", color:COL.ink, caption:"the gap between two neighboring labels"},
+    {text:"²", color:COL.rose, caption:"squared: always positive, and penalizes big gaps much more than small ones"},
+  ],21);
+  for(const p of parts){
+    if(!p.caption){ fadeIn(p.el,300); continue; }
+    if(!await explainPart(svg, tok, p, 190, 1100)) return;
+  }
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,500);
+  const step3 = T(60,225,"weight it by similarity (disagreeing matters more between points that SHOULD agree), and sum over every edge:", {"font-size":12, fill:COL.dim, opacity:0});
+  svg.appendChild(step3); await fadeIn(step3,600);
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,500);
+  const parts2 = layoutEquation(svg,"center",270,[
+    {text:"E(F)", color:COL.blue, caption:"total \"tension\" in the whole graph"},
+    {text:" = ", color:COL.dim},
+    {text:"Σᵢⱼ", color:COL.ochre, caption:"sum over every pair of points"},
+    {text:" w_ij", color:COL.sage, caption:"how much this pair's disagreement should matter"},
+    {text:"(f(i)−f(j))²", color:COL.ink},
+  ],18);
+  for(const p of parts2){
+    if(!p.caption){ fadeIn(p.el,300); continue; }
+    if(!await explainPart(svg, tok, p, 310, 1200)) return;
+  }
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,500);
+  const step4 = T(60,350,"think: every edge is a spring. minimize E(F) = let every spring relax.", {"font-size":13, fill:COL.sage, opacity:0,"font-family":"SFMono-Regular, Consolas, monospace"});
+  svg.appendChild(step4); await fadeIn(step4,550);
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,700);
+  const calc = [
+    "calculus check — set the slope to zero at point i:",
+    "∂E/∂f(i) = 2·Σⱼ w_ij·(f(i)−f(j)) = 0",
+    "=>  f(i)·Σⱼw_ij = Σⱼ w_ij·f(j)",
+    "=>  f(i) = Σⱼw_ij f(j) / Σⱼw_ij      <-  EXACTLY the averaging rule!",
+  ];
+  await workedSteps(svg, tok, 90, 400, calc, {fontSize:13, lineHeight:22, stagger:750, color:COL.dim});
+}
+
+/* ---------------- SLIDE 13 : SOLVING IT IN ONE STEP ---------------- */
+async function slide13(svg, tok){
+  const A = resetSceneDefs();
+  const step = T(60,50,"looping forever is slow. is there a shortcut? start with plain numbers.", {"font-size":13, fill:COL.ochre, opacity:0,"font-family":"SFMono-Regular, Consolas, monospace"});
+  svg.appendChild(step); await fadeIn(step,550);
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,500);
+  const geo = T(480,110,"the geometric series identity you may already know:", {"text-anchor":"middle","font-size":13, fill:COL.dim, opacity:0});
+  svg.appendChild(geo); await fadeIn(geo,550);
+  const parts = layoutEquation(svg,"center",155,[
+    {text:"1/(1−x)", color:COL.sage, caption:"one clean formula..."},
+    {text:" = ", color:COL.dim},
+    {text:"1 + x + x² + x³ + ...", color:COL.blue, caption:"...that secretly equals adding infinitely many shrinking terms"},
+  ],19);
+  for(const p of parts){
+    if(!p.caption){ fadeIn(p.el,300); continue; }
+    if(!await explainPart(svg, tok, p, 195, 1150)) return;
+  }
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,500);
+  const numeric = ["check with x = 0.5:", "1/(1−0.5) = 2.000", "1 + 0.5 + 0.25 + 0.125 + 0.0625 + ...  ->  2.000   ✓ matches"];
+  await workedSteps(svg, tok, 250, 240, numeric, {fontSize:13.5, lineHeight:24, stagger:600});
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,700);
+  const step2 = T(60,335,"the same identity holds when x is replaced by a matrix:", {"font-size":13, fill:COL.ochre, opacity:0,"font-family":"SFMono-Regular, Consolas, monospace"});
+  svg.appendChild(step2); await fadeIn(step2,550);
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,500);
+  const parts2 = layoutEquation(svg,"center",380,[
+    {text:"(I−αS)⁻¹", color:COL.sage, caption:"\"invert once\" — solved in a single matrix operation"},
+    {text:" = ", color:COL.dim},
+    {text:"I + αS + (αS)² + (αS)³ + ...", color:COL.blue, caption:"= \"propagate a little, mix back, and repeat\" — run infinitely many times"},
+  ],16);
+  for(const p of parts2){
+    if(!p.caption){ fadeIn(p.el,300); continue; }
+    if(!await explainPart(svg, tok, p, 415, 1300)) return;
+  }
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,500);
+  const final = T(480,465,"so:   F* = (1−α)(I−αS)⁻¹Y   solves the ENTIRE infinite loop in one shot.", {"text-anchor":"middle","font-size":13, fill:COL.sage, opacity:0, "font-family":"SFMono-Regular, Consolas, monospace"});
+  svg.appendChild(final);
+  await fadeIn(final,650);
+}
+
+/* ---------------- SLIDE 14 : AVERAGES WITH MEMORY ---------------- */
+async function slide14(svg, tok){
+  const A = resetSceneDefs();
+  const step = T(60,50,"start with the simplest possible blend of two numbers:", {"font-size":13, fill:COL.ochre, opacity:0,"font-family":"SFMono-Regular, Consolas, monospace"});
+  svg.appendChild(step); await fadeIn(step,550);
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,500);
+  const parts = layoutEquation(svg,"center",110,[
+    {text:"blend", color:COL.ink},
+    {text:" = ", color:COL.dim},
+    {text:"α", color:COL.blue, caption:"how much of the OLD value to keep"},
+    {text:"·old", color:COL.blue},
+    {text:" + ", color:COL.dim},
+    {text:"(1−α)", color:COL.ochre, caption:"whatever's left over — how much of the NEW value to accept"},
+    {text:"·new", color:COL.ochre},
+  ],18);
+  for(const p of parts){
+    if(!p.caption){ fadeIn(p.el,300); continue; }
+    if(!await explainPart(svg, tok, p, 150, 1150)) return;
+  }
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,600);
+  const step2 = T(60,195,"now apply this every single training step — the \"old\" is just LAST step's blend:", {"font-size":12.5, fill:COL.dim, opacity:0});
+  svg.appendChild(step2); await fadeIn(step2,600);
+  const rec = T(480,225,"θ'ₜ = α·θ'ₜ₋₁ + (1−α)·θₜ    <- this is the EMA formula", {"text-anchor":"middle","font-size":14, fill:COL.sage, opacity:0, "font-family":"SFMono-Regular, Consolas, monospace"});
+  svg.appendChild(rec); await fadeIn(rec,600);
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,700);
+  const step3 = T(60,270,"unroll the recursion just twice, and a pattern appears:", {"font-size":13, fill:COL.ochre, opacity:0,"font-family":"SFMono-Regular, Consolas, monospace"});
+  svg.appendChild(step3); await fadeIn(step3,550);
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,500);
+  const lines = [
+    "θ'ₜ = α·θ'ₜ₋₁ + (1−α)θₜ",
+    "    = α(α·θ'ₜ₋₂+(1−α)θₜ₋₁) + (1−α)θₜ",
+    "    = α²θ'ₜ₋₂ + α(1−α)θₜ₋₁ + (1−α)θₜ",
+    "    = (1−α)·[ θₜ + α·θₜ₋₁ + α²·θₜ₋₂ + ... ]",
+  ];
+  await workedSteps(svg, tok, 90, 305, lines, {fontSize:13.5, lineHeight:24, stagger:750});
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,600);
+  const bars = miniBars(svg, 620, 260, 240, 100, [1,0.9,0.81,0.729,0.656,0.59], [COL.sage,COL.sage,COL.sage,COL.sage,COL.sage,COL.sage], ["t","t-1","t-2","t-3","t-4","t-5"]);
+  svg.appendChild(T(740,248,"weight on each past step (α=0.9)",{"text-anchor":"middle","font-size":10.5, fill:COL.dim}));
+  await guard(tok,600);
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,400);
+  const note = T(480,450,"every past step still counts — but older ones fade away geometrically. that's the smoothing.", {"text-anchor":"middle","font-size":12.5, fill:COL.sage, opacity:0});
+  svg.appendChild(note);
+  await fadeIn(note,600);
+}
+
+/* ---------------- SLIDE 15 : SOFTMAX & SHARPENING ---------------- */
+async function slide15(svg, tok){
+  const A = resetSceneDefs();
+  const step = T(60,50,"a network's raw output scores aren't probabilities yet — they can be negative, and don't sum to 1", {"font-size":12, fill:COL.ochre, opacity:0,"font-family":"SFMono-Regular, Consolas, monospace"});
+  svg.appendChild(step); await fadeIn(step,550);
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,500);
+  const raw = T(480,100,"raw scores (\"logits\"):   z = [ 2.0 , −0.5 , 0.8 ]", {"text-anchor":"middle","font-size":14, fill:COL.dim, opacity:0, "font-family":"SFMono-Regular, Consolas, monospace"});
+  svg.appendChild(raw); await fadeIn(raw,600);
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,600);
+  const step2 = T(60,140,"step 1 — force everything positive: exponentiate each score", {"font-size":12.5, fill:COL.ochre, opacity:0,"font-family":"SFMono-Regular, Consolas, monospace"});
+  svg.appendChild(step2); await fadeIn(step2,550);
+  const exps = [Math.exp(2.0), Math.exp(-0.5), Math.exp(0.8)];
+  const step2b = T(480,170,`eᶻ = [ ${exps.map(v=>v.toFixed(2)).join(" , ")} ]   <- all positive now`, {"text-anchor":"middle","font-size":13, fill:COL.dim, opacity:0, "font-family":"SFMono-Regular, Consolas, monospace"});
+  svg.appendChild(step2b); await fadeIn(step2b,600);
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,700);
+  const step3 = T(60,210,"step 2 — normalize: divide each by the total, so they sum to exactly 1", {"font-size":12.5, fill:COL.ochre, opacity:0,"font-family":"SFMono-Regular, Consolas, monospace"});
+  svg.appendChild(step3); await fadeIn(step3,550);
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,500);
+  const parts = layoutEquation(svg,"center",255,[
+    {text:"softmax(z)ᵢ", color:COL.blue, caption:"the i-th output probability"},
+    {text:" = ", color:COL.dim},
+    {text:"eᶻⁱ", color:COL.sage, caption:"this class's (positive) exponentiated score"},
+    {text:" / ", color:COL.dim},
+    {text:"Σⱼeᶻʲ", color:COL.ochre, caption:"total across all classes — forces the results to sum to 1"},
+  ],19);
+  for(const p of parts){
+    if(!p.caption){ fadeIn(p.el,300); continue; }
+    if(!await explainPart(svg, tok, p, 295, 1200)) return;
+  }
+  if(!isCurrent(tok)) return;
+
+  const sum = exps.reduce((a,b)=>a+b,0);
+  const softmaxed = exps.map(v=>v/sum);
+  await guard(tok,500);
+  const result = T(480,330,`p = [ ${softmaxed.map(v=>v.toFixed(2)).join(" , ")} ]   -- now a real probability distribution`, {"text-anchor":"middle","font-size":13, fill:COL.sage, opacity:0, "font-family":"SFMono-Regular, Consolas, monospace"});
+  svg.appendChild(result); await fadeIn(result,600);
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,700);
+  const step4 = T(60,380,"\"sharpening\": raise each p to the power 1/T (T<1), then normalize again", {"font-size":12.5, fill:COL.rose, opacity:0,"font-family":"SFMono-Regular, Consolas, monospace"});
+  svg.appendChild(step4); await fadeIn(step4,600);
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,500);
+  const sharp = T(480,415,"T=0.5:  p^(1/0.5) = p²  ->  big numbers get proportionally BIGGER, small ones shrink faster", {"text-anchor":"middle","font-size":12, fill:COL.rose, opacity:0});
+  svg.appendChild(sharp); await fadeIn(sharp,650);
+  if(!isCurrent(tok)) return;
+  await guard(tok,500);
+  const note = T(480,450,"lower T = more aggressive sharpening — this is exactly the knob MixMatch and label spreading tune.", {"text-anchor":"middle","font-size":12, fill:COL.dim, opacity:0});
+  svg.appendChild(note); await fadeIn(note,600);
+}
+
+/* ---------------- SLIDE 16 : BLENDING TWO POINTS ---------------- */
+async function slide16(svg, tok){
+  const A = resetSceneDefs();
+  const step = T(60,50,"the simplest way to \"walk\" from one point to another:", {"font-size":13, fill:COL.ochre, opacity:0,"font-family":"SFMono-Regular, Consolas, monospace"});
+  svg.appendChild(step); await fadeIn(step,550);
+  if(!isCurrent(tok)) return;
+
+  const p1={x:220,y:260}, p2={x:740,y:260};
+  svg.appendChild(L(p1.x,p1.y,p2.x,p2.y,COL.line,{sw:1.6}));
+  const d1=C(p1.x,p1.y,8,COL.blue,{opacity:0}); const d2=C(p2.x,p2.y,8,COL.ochre,{opacity:0});
+  svg.appendChild(d1); svg.appendChild(d2);
+  svg.appendChild(T(p1.x,p1.y+28,"x₁ (λ=1)",{"text-anchor":"middle","font-size":12, fill:COL.blue}));
+  svg.appendChild(T(p2.x,p2.y+28,"x₂ (λ=0)",{"text-anchor":"middle","font-size":12, fill:COL.ochre}));
+  await Promise.all([popIn(d1,400),popIn(d2,400)]);
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,500);
+  const walker = C(p1.x,p1.y,7,COL.blue,{opacity:0});
+  svg.appendChild(walker);
+  await fadeIn(walker,350);
+  const lamLbl = T((p1.x+p2.x)/2,220,"", {"text-anchor":"middle","font-size":13, fill:COL.sage, opacity:1, "font-family":"SFMono-Regular, Consolas, monospace"});
+  svg.appendChild(lamLbl);
+  await tween(2400,(e)=>{
+    const lam = 1-e;
+    const x = lerp(p1.x,p2.x,e);
+    walker.setAttribute("cx",x);
+    walker.setAttribute("fill", blendHex(COL.blue,COL.ochre,e));
+    lamLbl.textContent = `λ = ${lam.toFixed(2)}   ->   x̃ = ${lam.toFixed(2)}·x₁ + ${(1-lam).toFixed(2)}·x₂`;
+  }, easeInOutCubic);
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,500);
+  const step2 = T(60,320,"every point on the segment is one of these \"convex combinations\":", {"font-size":13, fill:COL.dim, opacity:0});
+  svg.appendChild(step2); await fadeIn(step2,550);
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,500);
+  const parts = layoutEquation(svg,"center",370,[
+    {text:"x̃", color:COL.sage, caption:"the new, blended point"},
+    {text:" = ", color:COL.dim},
+    {text:"λ", color:COL.blue, caption:"a slider between 0 and 1"},
+    {text:"·x₁", color:COL.blue},
+    {text:" + (1−λ)", color:COL.ochre},
+    {text:"·x₂", color:COL.ochre},
+  ],18);
+  for(const p of parts){
+    if(!p.caption){ fadeIn(p.el,300); continue; }
+    if(!await explainPart(svg, tok, p, 410, 1050)) return;
+  }
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,400);
+  const note = T(480,460,"and since the label is just another number attached to the point, mix IT the same way: ỹ=λy₁+(1−λ)y₂", {"text-anchor":"middle","font-size":12, fill:COL.sage, opacity:0});
+  svg.appendChild(note);
+  await fadeIn(note,650);
+}
+
+/* ---------------- SLIDE 17 : ANATOMY OF A REAL LOSS FUNCTION ---------------- */
+async function slide17(svg, tok){
+  const A = resetSceneDefs();
+  const step = T(60,50,"let's read FixMatch's actual loss — every symbol is now something you already know", {"font-size":12.5, fill:COL.ochre, opacity:0,"font-family":"SFMono-Regular, Consolas, monospace"});
+  svg.appendChild(step); await fadeIn(step,600);
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,600);
+  const parts = layoutEquation(svg,"center",190,[
+    {text:"L", color:COL.ink, caption:"the loss for one unlabeled point"},
+    {text:" = ", color:COL.dim},
+    {text:"𝟙[max p_weak > τ]", color:COL.rose, caption:"the gate: 1 if confident enough (slide 3's confidence check), else 0 — kills the whole term"},
+    {text:" · ", color:COL.dim},
+    {text:"CE(", color:COL.blue, caption:"slide 6's cross-entropy — compares a target to a prediction"},
+    {text:"argmax p_weak", color:COL.sage, caption:"slide 3's argmax — the pseudo-label, read off the easy (weak) view"},
+    {text:", p_strong", color:COL.ochre, caption:"the model's prediction on the HARD (strongly augmented) view"},
+    {text:")", color:COL.blue},
+  ],14.5);
+  for(const p of parts){
+    if(!p.caption){ fadeIn(p.el,300); continue; }
+    if(!await explainPart(svg, tok, p, 235, 1500)) return;
+  }
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,600);
+  const step2 = T(480,290,"read left to right, in plain English:", {"text-anchor":"middle","font-size":13, fill:COL.dim, opacity:0});
+  svg.appendChild(step2); await fadeIn(step2,550);
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,500);
+  const eng = T(480,325,"\"IF the easy view was confident, THEN penalize the hard view for disagreeing with it.\"", {"text-anchor":"middle","font-size":14.5, fill:COL.sage, opacity:0, "font-family":"Palatino Linotype, Georgia, serif"});
+  svg.appendChild(eng); await fadeIn(eng,700);
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,900);
+  const note = T(480,400,"four ideas from this notebook — confidence, argmax, a gate, and cross-entropy —", {"text-anchor":"middle","font-size":12.5, fill:COL.dim, opacity:0});
+  svg.appendChild(note); await fadeIn(note,600);
+  const note2 = T(480,428,"combine into one line that trains an entire state-of-the-art method.", {"text-anchor":"middle","font-size":12.5, fill:COL.dim, opacity:0});
+  svg.appendChild(note2); await fadeIn(note2,600);
+}
+
+/* ---------------- SLIDE 18 : CHEAT SHEET ---------------- */
+async function slide18(svg, tok){
+  const A = resetSceneDefs();
+  const items = [
+    ["argmax / confidence","picks the winning class,\nand how sure we are"],
+    ["−log p  (surprise)","the cost of an unlikely\noutcome turning out true"],
+    ["entropy  H(p)","average surprise — how\nuncertain a whole guess is"],
+    ["cross-entropy","the mismatch between a\ntrue label and a guess"],
+    ["λ · loss","one dial to balance two\ncompeting training goals"],
+    ["exp(−d²/2σ²)","turns raw distance into\na bounded 0-1 similarity"],
+    ["D⁻¹W  /  fᵀLf","neighbor-averaging, and\nits energy-minimizing twin"],
+    ["(I−αS)⁻¹","an infinite loop, solved\nin one matrix inversion"],
+    ["EMA","a running average where\nrecent history counts most"],
+    ["softmax + sharpen","scores -> probabilities\n-> confident probabilities"],
+    ["λx₁+(1−λ)x₂","walking the straight\nline between two points"],
+  ];
+  const cols=4, cw=210, ch=110, gx=14, gy=14;
+  const rows = Math.ceil(items.length/cols);
+  const startX = 480 - (cols*cw+(cols-1)*gx)/2;
+  const startY = 60;
+  const palette = [COL.blue,COL.ochre,COL.sage,COL.rose];
+  for(let i=0;i<items.length;i++){
+    const col=i%cols, row=Math.floor(i/cols);
+    const x = startX+col*(cw+gx), y=startY+row*(ch+gy);
+    const c = palette[i%4];
+    const g = box(svg, x, y, cw, ch, items[i][0], items[i][1], c);
+    fadeIn(g,450);
+    if(!await guard(tok,90)) return;
+  }
+  if(!isCurrent(tok)) return;
+
+  await guard(tok,400);
+  const closing = T(480,470,"none of this is magic — it's arithmetic and geometry, built up one honest step at a time.", {"text-anchor":"middle","font-size":13, fill:COL.sage, opacity:0, "font-family":"Palatino Linotype, Georgia, serif"});
+  svg.appendChild(closing);
+  await fadeIn(closing,700);
+}
+
+/* ============================= SLIDE REGISTRY ============================= */
+const SLIDES = [
+  { cat:"welcome", title:"The Math Behind It", sub:"Every equation from the concepts lecture, rebuilt piece by piece — starting from arithmetic, ending at the real formula.",
+    formula:"this notebook's promise:  no symbol appears without being named", build:slide01 },
+  { cat:"foundations", title:"Reading a Probability Distribution", sub:"A model doesn't answer with a single word — it answers with a whole bar chart of how likely each option is.",
+    formula:"p(y|x): a distribution over classes y, given input x — always sums to 1", build:slide02 },
+  { cat:"foundations", title:"The Best Guess, and How Sure We Are", sub:"argmax just means: report which option had the tallest bar — not the height itself.",
+    formula:"ŷ = argmax_y p(y|x);  confidence = max_y p(y|x)", build:slide03 },
+  { cat:"building blocks", title:"Measuring Surprise", sub:"Why every information-theoretic formula in this field has a log in it — derived from one requirement: surprises should add.",
+    formula:"surprise(p) = −log(p)", build:slide04 },
+  { cat:"building blocks", title:"Entropy: The Average Surprise", sub:"Weight every outcome's surprise by how likely it is, and add — worked by hand for a fair and a biased coin.",
+    formula:"H(p) = −Σ_y p(y)·log p(y)", build:slide05 },
+  { cat:"building blocks", title:"Cross-Entropy", sub:"Same averaging idea as entropy — but the weights come from the true label instead of the model's own guess.",
+    formula:"CE(y,p) = −Σ_y y·log p(y)  =  −log p(true class)", build:slide06 },
+  { cat:"building blocks", title:"Combining Two Goals: The Weighted Loss", sub:"An optimizer only minimizes one number — so two competing objectives get merged with a trust dial, λ.",
+    formula:"L = L_sup + λ·L_unsup", build:slide07 },
+  { cat:"building blocks", title:"From Distance to Similarity", sub:"Ordinary distance runs from 0 to infinity. Build a bounded 0-to-1 similarity out of it, step by step.",
+    formula:"w = exp(−d²/2σ²)", build:slide08 },
+  { cat:"graphs", title:"Turning Points Into a Graph", sub:"Apply the similarity formula to every pair of points at once, and stack the results into two small matrices.",
+    formula:"W: pairwise similarity.  D = diag(row sums of W)", build:slide09 },
+  { cat:"graphs", title:"From Words to Symbols", sub:"\"Average your neighbors' labels\" written as a sum for one point, then as one matrix equation for every point at once.",
+    formula:"f_i ← Σ_j w_ij f_j / Σ_j w_ij   ⟺   F ← D⁻¹WF", build:slide10 },
+  { cat:"graphs", title:"Repeating Until It Settles", sub:"Apply the update over and over — like heat spreading through a rod — clamping the labeled points each round.",
+    formula:"F^(t+1) = D⁻¹WF^(t), labeled rows reset to Y each step", build:slide11 },
+  { cat:"graphs · derivation", title:"The Energy View", sub:"A second route to the exact same rule: define a disagreement energy, and use one line of calculus to minimize it.",
+    formula:"E(F) = Σ_ij w_ij(f(i)−f(j))²;  ∂E/∂f(i)=0  ⟹  the averaging rule", build:slide12 },
+  { cat:"graphs · derivation", title:"Solving It in One Step", sub:"A geometric series turns an infinite loop into a single matrix inversion — first in plain numbers, then in matrices.",
+    formula:"(I−αS)⁻¹ = I + αS + (αS)² + ...   ⟹   F* = (1−α)(I−αS)⁻¹Y", build:slide13 },
+  { cat:"building blocks", title:"Averages With Memory", sub:"Unroll the exponential-moving-average recursion by hand, and watch exponentially decaying weights fall out.",
+    formula:"θ'_t = α·θ'_{t-1} + (1−α)·θ_t  =  (1−α)Σ_k α^k θ_{t-k}", build:slide14 },
+  { cat:"building blocks", title:"Softmax & Sharpening", sub:"Turn arbitrary scores into a real probability distribution in two steps, then learn the one knob that sharpens it.",
+    formula:"softmax(z)_i = e^{z_i}/Σ_j e^{z_j};  sharpen: p_i ← p_i^{1/T}/Σ_j p_j^{1/T}", build:slide15 },
+  { cat:"building blocks", title:"Blending Two Points", sub:"The straight line between two points, parameterized by one slider λ — and the same trick applied to labels.",
+    formula:"x̃ = λx₁ + (1−λ)x₂,  ỹ = λy₁ + (1−λ)y₂", build:slide16 },
+  { cat:"synthesis", title:"Anatomy of a Real Loss Function", sub:"Four ideas from this lecture — confidence, argmax, a gate, and cross-entropy — combine into FixMatch's actual training loss.",
+    formula:"L = 1[max p_weak > τ] · CE(argmax p_weak, p_strong)", build:slide17 },
+  { cat:"cheat sheet", title:"Every Tool, One Page", sub:"Eleven pieces of math, each built from something simpler, each one now doing real work inside semi-supervised learning.",
+    formula:"arithmetic + geometry, applied patiently, is most of what you just learned", build:slide18 },
+];
+
+/* ============================= CONTROLLER ============================= */
+let current = 0;
+let lastNavAt = 0;
+const dotsWrap = document.getElementById("dots");
+SLIDES.forEach((s,i)=>{
+  const d = document.createElement("div");
+  d.className = "dot";
+  d.title = s.title;
+  d.addEventListener("click", ()=>goTo(i));
+  dotsWrap.appendChild(d);
+});
+function renderDots(){
+  [...dotsWrap.children].forEach((d,i)=>{
+    d.classList.toggle("active", i===current);
+    d.classList.toggle("done", i<current);
+  });
+}
+function renderChrome(){
+  const s = SLIDES[current];
+  const num = String(current+1).padStart(2,'0');
+  document.getElementById("eyebrow").textContent = `${num} · ${s.cat}`;
+  document.getElementById("slideTitle").textContent = s.title;
+  document.getElementById("slideSub").textContent = s.sub;
+  const fb = document.getElementById("formulaBar");
+  const ft = document.getElementById("formulaText");
+  if(s.formula){
+    fb.classList.add("show");
+    ft.textContent = s.formula;
+  } else {
+    fb.classList.remove("show");
+    ft.textContent = "";
+  }
+  document.getElementById("counter").innerHTML = `<b>${current+1}</b> / ${SLIDES.length}`;
+  document.getElementById("prevBtn").disabled = current===0;
+  document.getElementById("nextBtn").innerHTML = current===SLIDES.length-1 ? "Restart <span class=\"arrow\">↺</span>" : "Next <span class=\"arrow\">›</span>";
+  renderDots();
+}
+function goTo(i){
+  if(i<0 || i>=SLIDES.length) return;
+  const now = performance.now();
+  if(now - lastNavAt < 260) return;
+  lastNavAt = now;
+  current = i;
+  RUN_TOKEN++;
+  const tok = RUN_TOKEN;
+  svg.innerHTML = "";
+  renderChrome();
+  SLIDES[current].build(svg, tok);
+}
+document.getElementById("prevBtn").addEventListener("click", ()=>goTo(current-1));
+document.getElementById("nextBtn").addEventListener("click", ()=>{
+  if(current===SLIDES.length-1) goTo(0); else goTo(current+1);
+});
+window.addEventListener("keydown",(e)=>{
+  if(e.key==="ArrowRight" || e.key===" "){ e.preventDefault(); if(current<SLIDES.length-1) goTo(current+1); }
+  else if(e.key==="ArrowLeft"){ e.preventDefault(); goTo(current-1); }
+});
+goTo(0);
+</script>
+</body>
+</html>

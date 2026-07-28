@@ -1,0 +1,2015 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Linear Algebra — A Visual Lecture</title>
+<style>
+  :root{
+    --bg:#08090b;
+    --panel:#0e1013;
+    --ink:#eae8e2;
+    --dim:#7a808a;
+    --dim2:#4c5158;
+    --grid:#1d2027;
+    --axis:#3a3f48;
+    --blue:#5b8fc7;
+    --gold:#c7a352;
+    --red:#b96b56;
+    --green:#6ea87c;
+    --purple:#9082b0;
+    --teal:#5aa39b;
+    --line:#22252b;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; height:100%;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+    overflow:hidden;
+  }
+  .stage{
+    height:100vh; width:100vw;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:14px; padding:18px;
+  }
+  .frame{
+    width:min(96vw, 1120px);
+    aspect-ratio: 960/540;
+    background:radial-gradient(ellipse at 50% 0%, #0c0d10 0%, #060708 75%);
+    border:1px solid #1a1c21;
+    border-radius:10px;
+    position:relative;
+    overflow:hidden;
+    box-shadow: 0 30px 80px -30px rgba(0,0,0,0.8), inset 0 0 0 1px rgba(255,255,255,0.02);
+  }
+  .topbar{
+    position:absolute; top:0; left:0; right:0;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:16px 22px 0 22px;
+    z-index:5;
+    pointer-events:none;
+  }
+  .eyebrow{
+    font-size:12px; letter-spacing:0.14em; text-transform:uppercase;
+    color:var(--dim); font-weight:600;
+  }
+  .eyebrow b{ color:var(--ink); font-weight:600; }
+  .slidecount{
+    font-size:11px; color:var(--dim2); letter-spacing:0.08em; font-variant-numeric: tabular-nums;
+  }
+  svg#stage-svg{
+    width:100%; height:100%; display:block;
+  }
+  .caption-wrap{
+    width:min(96vw, 1120px);
+    min-height:44px;
+    display:flex; align-items:flex-start; justify-content:center;
+    text-align:center;
+    padding:0 20px;
+  }
+  .caption{
+    font-size:16px; color:#c7c9cf; line-height:1.5; max-width:760px;
+    transition:opacity .25s ease;
+    font-weight:400;
+  }
+  .caption b{ color:var(--ink); font-weight:600; }
+  .caption.fade{ opacity:0; }
+  .controls{
+    display:flex; align-items:center; gap:16px;
+  }
+  .navbtn{
+    width:38px; height:38px; border-radius:50%;
+    background:#121419; border:1px solid #23262d;
+    color:var(--ink); font-size:17px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    transition: background .15s, transform .1s, border-color .15s;
+    user-select:none;
+  }
+  .navbtn:hover{ background:#181b21; border-color:#33373f; }
+  .navbtn:active{ transform:scale(0.92); }
+  .navbtn.small{ width:auto; height:32px; padding:0 12px; border-radius:16px; font-size:12px; letter-spacing:.04em; gap:6px; color:var(--dim); }
+  .navbtn.small:hover{ color:var(--ink); }
+  .dots{ display:flex; gap:6px; align-items:center; }
+  .dot{
+    width:6px; height:6px; border-radius:50%; background:#2a2d34;
+    cursor:pointer; transition: background .2s, transform .2s;
+  }
+  .dot:hover{ background:#484d57; }
+  .dot.active{ background:var(--blue); transform:scale(1.5); }
+  .hint{
+    position:absolute; bottom:16px; right:20px;
+    font-size:10.5px; color:#40444c; letter-spacing:.05em;
+    z-index:5; pointer-events:none;
+  }
+  text{ font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif; user-select:none; }
+  .mono{ font-family:'SFMono-Regular',ui-monospace,Menlo,Consolas,monospace; }
+  .serif{ font-family:Georgia,'Iowan Old Style','Palatino Linotype',serif; }
+
+  .overlay{
+    position:fixed; inset:0; background:rgba(4,5,6,0.72);
+    display:flex; align-items:center; justify-content:center;
+    z-index:50; opacity:0; pointer-events:none;
+    transition:opacity .22s ease;
+    padding:24px;
+  }
+  .overlay.open{ opacity:1; pointer-events:auto; }
+  .drawer{
+    width:min(94vw, 680px); max-height:82vh;
+    background:linear-gradient(180deg,#121419,#0d0f13);
+    border:1px solid #262a32; border-radius:14px;
+    box-shadow:0 40px 100px -30px rgba(0,0,0,0.9);
+    display:flex; flex-direction:column;
+    transform:translateY(10px) scale(0.98);
+    transition:transform .22s ease;
+  }
+  .overlay.open .drawer{ transform:translateY(0) scale(1); }
+  .drawer-head{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:18px 22px; border-bottom:1px solid #1e2127;
+  }
+  .drawer-eyebrow{ font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--dim2); font-weight:600; margin-bottom:4px; }
+  .drawer-title{ font-size:20px; font-weight:700; font-family:Georgia,'Iowan Old Style',serif; color:var(--ink); }
+  .drawer-close{
+    width:32px; height:32px; border-radius:50%; border:1px solid #262a32; background:#181b21;
+    color:var(--dim); font-size:15px; cursor:pointer; display:flex; align-items:center; justify-content:center;
+    flex-shrink:0;
+  }
+  .drawer-close:hover{ color:var(--ink); background:#1e2128; }
+  .drawer-body{ padding:20px 22px 26px 22px; overflow-y:auto; }
+  .dd-section{ margin-bottom:20px; }
+  .dd-section:last-child{ margin-bottom:0; }
+  .dd-label{
+    font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; font-weight:700;
+    margin-bottom:9px; display:flex; align-items:center; gap:7px;
+  }
+  .dd-label.why{ color:var(--gold); }
+  .dd-label.how{ color:var(--blue); }
+  .dd-label.uses{ color:var(--green); }
+  .dd-label.sub{ color:var(--purple); }
+  .dd-why{ font-size:14px; line-height:1.65; color:#cfd1d7; }
+  .dd-list{ margin:0; padding:0; list-style:none; }
+  .dd-list.how li{ counter-increment:step; }
+  .dd-list.how{ counter-reset:step; }
+  .dd-list.how li::before{ content:counter(step); }
+  .dd-list li{
+    font-size:13.5px; line-height:1.55; color:#b8bac0;
+    padding:6px 0 6px 26px; position:relative; border-bottom:1px solid #1a1c22;
+  }
+  .dd-list li:last-child{ border-bottom:none; }
+  .dd-list.sub li::before, .dd-list.uses li::before{ content:'\2022'; }
+  .dd-list li::before{
+    position:absolute; left:2px; top:6px; font-size:11.5px; font-weight:700; width:16px; text-align:center;
+  }
+  .dd-list.sub li::before{ color:var(--purple); }
+  .dd-list.how li::before{ color:var(--blue); }
+  .dd-list.uses li::before{ color:var(--green); }
+  .deepdive-btn{
+    display:flex; align-items:center; gap:6px;
+  }
+</style>
+</head>
+<body>
+
+<div class="stage">
+  <div class="frame">
+    <div class="topbar">
+      <div class="eyebrow" id="eyebrow">Linear Algebra</div>
+      <div class="slidecount" id="slidecount">1 / 18</div>
+    </div>
+    <svg id="stage-svg" viewBox="0 0 960 540" preserveAspectRatio="xMidYMid meet"></svg>
+    <div class="hint">← → to navigate&nbsp;&nbsp;·&nbsp;&nbsp;R to replay</div>
+  </div>
+  <div class="caption-wrap"><div class="caption" id="caption"></div></div>
+  <div class="controls">
+    <button class="navbtn" id="prevBtn" aria-label="previous">‹</button>
+    <div class="dots" id="dots"></div>
+    <button class="navbtn" id="nextBtn" aria-label="next">›</button>
+    <button class="navbtn small deepdive-btn" id="deepDiveBtn">📖 deep dive</button>
+    <button class="navbtn small" id="replayBtn">↻ replay</button>
+  </div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="drawer" id="drawer">
+    <div class="drawer-head">
+      <div>
+        <div class="drawer-eyebrow">Deep dive</div>
+        <div class="drawer-title" id="drawerTitle">Topic</div>
+      </div>
+      <button class="drawer-close" id="closeDrawer">✕</button>
+    </div>
+    <div class="drawer-body" id="drawerBody"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* ===================== constants ===================== */
+const NS = "http://www.w3.org/2000/svg";
+const LEFT_W = 660;     // clipped diagram region
+const PANEL_X = 700;    // right-hand text panel start
+const CX = 330, CY = 300, S = 46;
+const COL = {
+  blue:'#5b8fc7', gold:'#c7a352', red:'#b96b56', green:'#6ea87c',
+  purple:'#9082b0', teal:'#5aa39b', ink:'#eae8e2', dim:'#7a808a', grid:'#1d2027', axis:'#3a3f48'
+};
+
+/* ===================== tiny svg helpers ===================== */
+function el(tag, attrs, parent){
+  const e = document.createElementNS(NS, tag);
+  if(attrs) for(const k in attrs) e.setAttribute(k, attrs[k]);
+  if(parent) parent.appendChild(e);
+  return e;
+}
+function setA(e, attrs){ for(const k in attrs) e.setAttribute(k, attrs[k]); }
+function toX(x){ return CX + x*S; }
+function toY(y){ return CY - y*S; }
+function lerp(a,b,t){ return a + (b-a)*t; }
+
+/* ===================== easing ===================== */
+function easeInOutCubic(t){ return t<0.5 ? 4*t*t*t : 1-Math.pow(-2*t+2,3)/2; }
+function easeOutCubic(t){ return 1-Math.pow(1-t,3); }
+function easeOutBack(t){ const c1=1.70158,c3=c1+1; return 1+c3*Math.pow(t-1,3)+c1*Math.pow(t-1,2); }
+function easeOutElastic(t){ const c4=(2*Math.PI)/3; return t===0?0:t===1?1:Math.pow(2,-9*t)*Math.sin((t*9-0.75)*c4)+1; }
+function linear(t){ return t; }
+
+/* ===================== tween engine (cancellable) ===================== */
+function tween(duration, fn, easing, token){
+  easing = easing || easeInOutCubic;
+  return new Promise((resolve)=>{
+    if(token && token.cancelled){ resolve(); return; }
+    const start = performance.now();
+    function frame(now){
+      if(token && token.cancelled){ resolve(); return; }
+      let t = Math.min(1, (now-start)/duration);
+      fn(easing(t), t);
+      if(t<1) requestAnimationFrame(frame); else resolve();
+    }
+    requestAnimationFrame(frame);
+  });
+}
+function wait(ms, token){
+  return new Promise((resolve)=>{
+    if(token && token.cancelled){ resolve(); return; }
+    let done=false;
+    const id = setTimeout(()=>{ if(!done){done=true; resolve();} }, ms);
+    if(token){
+      const check = setInterval(()=>{
+        if(token.cancelled && !done){ done=true; clearTimeout(id); clearInterval(check); resolve(); }
+        if(done) clearInterval(check);
+      }, 40);
+    }
+  });
+}
+
+/* ===================== caption ===================== */
+function caption(text, dur){
+  dur = dur===undefined ? 260 : dur;
+  return new Promise((resolve)=>{
+    const c = document.getElementById('caption');
+    c.classList.add('fade');
+    setTimeout(()=>{
+      c.innerHTML = text;
+      c.classList.remove('fade');
+      resolve();
+    }, dur);
+  });
+}
+
+/* ===================== drawing primitives ===================== */
+function clipLeft(svg){
+  const defs = el('defs', {}, svg);
+  const cp = el('clipPath', {id:'leftClip'}, defs);
+  el('rect', {x:0,y:0,width:LEFT_W,height:540}, cp);
+  return defs;
+}
+
+function makeGrid(svg, opts){
+  opts = opts || {};
+  const range = opts.range || 9;
+  const color = opts.color || COL.grid;
+  const g = el('g', {'clip-path':'url(#leftClip)'}, svg);
+  const lines = [];
+  for(let i=-range; i<=range; i++){
+    const lv = el('line', {stroke:color, 'stroke-width':1}, g);
+    lines.push({e:lv, type:'v', k:i});
+    const lh = el('line', {stroke:color, 'stroke-width':1}, g);
+    lines.push({e:lh, type:'h', k:i});
+  }
+  function apply(M){
+    const a=M[0], b=M[1], c=M[2], d=M[3];
+    for(const ln of lines){
+      let x1,y1,x2,y2;
+      if(ln.type==='v'){ x1=ln.k; y1=-range; x2=ln.k; y2=range; }
+      else { x1=-range; y1=ln.k; x2=range; y2=ln.k; }
+      const tx1=a*x1+b*y1, ty1=c*x1+d*y1;
+      const tx2=a*x2+b*y2, ty2=c*x2+d*y2;
+      setA(ln.e, {x1:toX(tx1), y1:toY(ty1), x2:toX(tx2), y2:toY(ty2)});
+    }
+  }
+  apply([1,0,0,1]);
+  return {g, apply};
+}
+
+function makeAxes(svg, range){
+  range = range || 9;
+  const g = el('g', {'clip-path':'url(#leftClip)'}, svg);
+  el('line', {x1:toX(-range),y1:toY(0),x2:toX(range),y2:toY(0), stroke:COL.axis, 'stroke-width':1.4}, g);
+  el('line', {x1:toX(0),y1:toY(-range),x2:toX(0),y2:toY(range), stroke:COL.axis, 'stroke-width':1.4}, g);
+  return g;
+}
+
+function makeVector(svg, color, x0, y0, opts){
+  opts = opts || {};
+  const w = opts.width || 3;
+  const g = el('g', {opacity: opts.opacity===undefined?1:opts.opacity}, svg);
+  const line = el('line', {stroke:color, 'stroke-width':w, 'stroke-linecap':'round'}, g);
+  const head = el('polygon', {fill:color}, g);
+  let label = null;
+  if(opts.label){
+    label = el('text', {fill:color, 'font-size':opts.labelSize||15, 'font-weight':600}, g);
+    label.textContent = opts.label;
+  }
+  function update(x,y){
+    const ox = opts.origin ? toX(opts.origin[0]) : toX(0);
+    const oy = opts.origin ? toY(opts.origin[1]) : toY(0);
+    const X = opts.origin ? toX(opts.origin[0]+x) : toX(x);
+    const Y = opts.origin ? toY(opts.origin[1]+y) : toY(y);
+    setA(line, {x1:ox, y1:oy, x2:X, y2:Y});
+    const ang = Math.atan2(Y-oy, X-ox);
+    const hs = opts.headSize || 8.5;
+    const p1 = [X,Y];
+    const p2 = [X-hs*Math.cos(ang-0.42), Y-hs*Math.sin(ang-0.42)];
+    const p3 = [X-hs*Math.cos(ang+0.42), Y-hs*Math.sin(ang+0.42)];
+    head.setAttribute('points', p1.join(',')+' '+p2.join(',')+' '+p3.join(','));
+    if(label){
+      const len = Math.hypot(X-ox, Y-oy) || 1;
+      const nx = (X-ox)/len, ny=(Y-oy)/len;
+      label.setAttribute('x', X + nx*14 + ny*8);
+      label.setAttribute('y', Y + ny*14 - nx*8);
+    }
+  }
+  update(x0===undefined?0:x0, y0===undefined?0:y0);
+  return {g, line, head, update};
+}
+
+function textEl(svg, x, y, str, opts){
+  opts = opts || {};
+  const t = el('text', {
+    x:x, y:y, fill: opts.fill || COL.ink, 'font-size': opts.size || 15,
+    'font-weight': opts.weight || 400, 'text-anchor': opts.anchor || 'start',
+    opacity: opts.opacity===undefined?1:opts.opacity,
+    class: opts.mono ? 'mono' : (opts.serif ? 'serif':'')
+  }, svg);
+  t.textContent = str;
+  return t;
+}
+
+function fadeEl(target, from, to, dur, token){
+  return tween(dur, (e)=>{ target.setAttribute('opacity', lerp(from,to,e)); }, easeOutCubic, token);
+}
+
+function theoryPanel(svg, x, y, title, bullets, opts){
+  opts = opts || {};
+  const g = el('g', {opacity:0}, svg);
+  const label = el('text', {x, y, fill:COL.dim2, 'font-size':10.5, 'letter-spacing':'0.12em', 'font-weight':600}, g);
+  label.textContent = (title || 'key ideas').toUpperCase();
+  el('line', {x1:x, y1:y+11, x2:x+220, y2:y+11, stroke:'#20232a', 'stroke-width':1}, g);
+  const lineH = opts.lineH || 25;
+  bullets.forEach((b, i)=>{
+    const ty = y + 36 + i*lineH;
+    el('circle', {cx:x+3, cy:ty-4.5, r:2, fill:COL.dim2}, g);
+    const t = el('text', {x:x+14, y:ty, fill:COL.dim, 'font-size':opts.size || 12.5}, g);
+    t.textContent = b;
+  });
+  return g;
+}
+
+function mathPanel(svg, x, y, lines, opts){
+  opts = opts || {};
+  const g = el('g', {opacity:0}, svg);
+  const label = el('text', {x, y, fill:COL.dim2, 'font-size':10.5, 'letter-spacing':'0.12em', 'font-weight':600}, g);
+  label.textContent = (opts.title || 'the math').toUpperCase();
+  const lineH = opts.lineH || 24;
+  lines.forEach((ln, i)=>{
+    const t = el('text', {x, y: y+22+i*lineH, fill: opts.color || COL.ink, 'font-size': opts.size || 14.5, class:'mono'}, g);
+    t.textContent = ln;
+  });
+  return g;
+}
+
+function drawMatrixBox(svg, x, y, rows, opts){
+  // rows: array of arrays of strings/numbers
+  opts = opts || {};
+  const cw = opts.cw || 46, ch = opts.ch || 34;
+  const nr = rows.length, nc = rows[0].length;
+  const w = nc*cw, h = nr*ch;
+  const g = el('g', {opacity: opts.opacity===undefined?1:opts.opacity}, svg);
+  const bx = x, by = y;
+  // brackets
+  const bw = 8;
+  el('path', {d:`M ${bx+bw} ${by} L ${bx} ${by} L ${bx} ${by+h} L ${bx+bw} ${by+h}`,
+      stroke:COL.dim, 'stroke-width':1.6, fill:'none'}, g);
+  el('path', {d:`M ${bx+w-bw} ${by} L ${bx+w} ${by} L ${bx+w} ${by+h} L ${bx+w-bw} ${by+h}`,
+      stroke:COL.dim, 'stroke-width':1.6, fill:'none'}, g);
+  const cells = [];
+  for(let r=0;r<nr;r++){
+    const rowCells=[];
+    for(let c=0;c<nc;c++){
+      const cxp = bx + c*cw + cw/2;
+      const cyp = by + r*ch + ch/2 + 5;
+      const cellColor = (opts.colColors && opts.colColors[c]) ? opts.colColors[c] : COL.ink;
+      const t = el('text', {x:cxp, y:cyp, fill:cellColor, 'font-size':opts.fs||16,
+        'text-anchor':'middle', class:'mono', 'font-weight':600}, g);
+      t.textContent = rows[r][c];
+      rowCells.push(t);
+    }
+    cells.push(rowCells);
+  }
+  return {g, cells, w, h};
+}
+
+/* ===================== reusable linear-transform scene ===================== */
+function buildLinearScene(svg, opts){
+  opts = opts || {};
+  const range = opts.range || 9;
+  const grid = makeGrid(svg, {range});
+  makeAxes(svg, range);
+  let square = null;
+  if(opts.showSquare){
+    square = el('polygon', {points:'', fill:'rgba(144,130,176,0.22)', stroke:COL.purple, 'stroke-width':1.6, 'clip-path':'url(#leftClip)'}, svg);
+  }
+  const iHat = makeVector(svg, COL.blue, 1, 0, {label:'î', width:3.4});
+  const jHat = makeVector(svg, COL.gold, 0, 1, {label:'ĵ', width:3.4});
+  let curM = [1,0,0,1];
+  function applyAll(M){
+    grid.apply(M);
+    iHat.update(M[0], M[2]);
+    jHat.update(M[1], M[3]);
+    if(square){
+      const pts = [[0,0],[1,0],[1,1],[0,1]].map(([x,y])=>{
+        const tx=M[0]*x+M[1]*y, ty=M[2]*x+M[3]*y;
+        return toX(tx)+','+toY(ty);
+      });
+      square.setAttribute('points', pts.join(' '));
+    }
+    if(opts.onApply) opts.onApply(M);
+  }
+  applyAll(curM);
+  async function animateTo(M, duration, token, easing){
+    const from = curM.slice();
+    await tween(duration||1100, (e)=>{
+      const cur = [0,1,2,3].map(k=>lerp(from[k], M[k], e));
+      applyAll(cur);
+    }, easing||easeInOutCubic, token);
+    curM = M.slice();
+  }
+  return {grid, iHat, jHat, square, applyAll, animateTo, get current(){return curM;}};
+}
+
+/* ===================== slide chrome / title card ===================== */
+async function bigTitle(svg, title, sub, token){
+  const t = textEl(svg, 480, 250, title, {size:44, weight:700, anchor:'middle', serif:true, opacity:0});
+  const s = sub ? textEl(svg, 480, 288, sub, {size:15, weight:400, anchor:'middle', fill:COL.dim, opacity:0}) : null;
+  await tween(500, e=>{ t.setAttribute('opacity', e); if(s) s.setAttribute('opacity', e*0.9); }, easeOutCubic, token);
+  await wait(600, token);
+  return {t, s};
+}
+async function shrinkTitleToCorner(t, s, token){
+  const start = {x:480, y:250, size:44};
+  await tween(650, (e)=>{
+    const x = lerp(480, 46, e);
+    const y = lerp(250, 44, e);
+    const size = lerp(44, 20, e);
+    t.setAttribute('x', x); t.setAttribute('y', y);
+    t.setAttribute('font-size', size);
+    t.setAttribute('text-anchor', lerp(0,1,e) > 0.5 ? 'start':'middle');
+    if(s) s.setAttribute('opacity', 1-e);
+  }, easeInOutCubic, token);
+  t.setAttribute('text-anchor','start');
+  if(s) s.remove();
+}
+
+/* ===================== SLIDES ===================== */
+const SLIDES = [];
+
+/* ---- 0: Title ---- */
+SLIDES.push({
+  name:'Welcome',
+  async play(ctx){
+    const {svg, token} = ctx;
+    clipLeft(svg);
+    const g = makeGrid(svg, {range:9, color:'#161920'});
+    makeAxes(svg, 9);
+    await caption('A visual tour of the mathematics behind machine learning.', 10);
+    const title = textEl(svg, 480, 235, 'Linear Algebra', {size:54, weight:700, anchor:'middle', serif:true, opacity:0});
+    const sub = textEl(svg, 480, 275, 'the geometry of transformation', {size:16, anchor:'middle', fill:COL.dim, opacity:0});
+    await tween(700, e=>{ title.setAttribute('opacity',e); sub.setAttribute('opacity', e*0.9); }, easeOutCubic, token);
+    await wait(300, token);
+    // demonstrate a gentle shear as ambient motion
+    let M=[1,0,0,1];
+    await tween(1600, e=>{
+      const k = Math.sin(e*Math.PI)*0.35;
+      g.apply([1,k*0.6,k*0.3,1]);
+    }, easeInOutCubic, token);
+    g.apply([1,0,0,1]);
+    await wait(200, token);
+    const tp = theoryPanel(svg, PANEL_X, 130, 'in this lecture', [
+      'Objects: scalars → vectors → matrices → tensors',
+      'Transformations: rank, det, eigenstuff, SVD',
+      'Structure: basis, span, orthogonality',
+      'Applications: least squares, PCA'
+    ]);
+    await fadeEl(tp, 0, 1, 600, token);
+    const hint = textEl(svg, 480, 470, 'press next to begin →', {size:12.5, anchor:'middle', fill:COL.dim2, opacity:0});
+    await fadeEl(hint, 0, 1, 500, token);
+  }
+});
+
+/* ---- 1: Scalars ---- */
+SLIDES.push({
+  name:'Scalars',
+  async play(ctx){
+    const {svg, token} = ctx;
+    clipLeft(svg);
+    await caption('A <b>scalar</b> is a single number. It has size, but no direction.', 10);
+    // thermometer-like bar
+    const bx = 300, by=120, bw=44, bh=300;
+    el('rect', {x:bx,y:by,width:bw,height:bh, rx:22, fill:'none', stroke:COL.axis, 'stroke-width':2}, svg);
+    const fill = el('rect', {x:bx+4,y:by+bh-4,width:bw-8,height:0, rx:18, fill:COL.blue}, svg);
+    const valTxt = textEl(svg, bx+bw/2, by-26, '0', {size:26, weight:700, anchor:'middle', mono:true, opacity:0});
+    const tagTxt = textEl(svg, bx+bw/2, by+bh+34, 'magnitude only', {size:12.5, anchor:'middle', fill:COL.dim, opacity:0});
+    await fadeEl(valTxt, 0, 1, 300, token);
+    await fadeEl(tagTxt, 0, 1, 300, token);
+    const mp = mathPanel(svg, PANEL_X, 130, ['c ∈ ℝ', '(c·v)ᵢ = c · vᵢ']);
+    await fadeEl(mp, 0, 1, 500, token);
+    const tp = theoryPanel(svg, PANEL_X, 220, 'key ideas', [
+      'Scalars: 0-dimensional quantities',
+      'Live in the field ℝ (or ℂ)',
+      'Every matrix/vector entry is a scalar',
+      'Scaling is the simplest linear map'
+    ]);
+    await fadeEl(tp, 0, 1, 600, token);
+
+    async function setVal(v, color){
+      const maxV = 8, h0 = parseFloat(fill.getAttribute('height'));
+      const targetH = Math.min(1, Math.abs(v)/maxV) * (bh-8);
+      const startH = h0;
+      const startVal = parseFloat(valTxt.textContent);
+      await tween(900, (e)=>{
+        const hh = lerp(startH, targetH, e);
+        fill.setAttribute('height', hh);
+        fill.setAttribute('y', by+bh-4-hh);
+        fill.setAttribute('fill', color);
+        valTxt.textContent = lerp(startVal, v, e).toFixed(1);
+      }, easeInOutCubic, token);
+    }
+    await setVal(5, COL.blue);
+    await wait(500, token);
+    await caption('Scalars can scale other things — stretching or shrinking a vector.', 10);
+    await setVal(2, COL.gold);
+    await wait(400, token);
+    await caption('A negative scalar reverses direction when it multiplies a vector.', 10);
+    await setVal(-6, COL.red);
+    await wait(600, token);
+  }
+});
+
+/* ---- 2: Vectors ---- */
+SLIDES.push({
+  name:'Vectors',
+  async play(ctx){
+    const {svg, token} = ctx;
+    clipLeft(svg);
+    makeAxes(svg, 9);
+    const g = makeGrid(svg, {range:9});
+    await caption('A <b>vector</b> is an arrow: it carries both a length and a direction.', 10);
+    const v = makeVector(svg, COL.blue, 0, 0, {label:'v', width:3.4});
+    await tween(900, (e)=>{ v.update(3*e, 2*e); }, easeOutCubic, token);
+    await wait(300, token);
+    // drop projection lines
+    const dashX = el('line', {x1:toX(3),y1:toY(2),x2:toX(3),y2:toY(0), stroke:COL.dim2, 'stroke-width':1.3, 'stroke-dasharray':'4,4', opacity:0}, svg);
+    const dashY = el('line', {x1:toX(3),y1:toY(2),x2:toX(0),y2:toY(2), stroke:COL.dim2, 'stroke-width':1.3, 'stroke-dasharray':'4,4', opacity:0}, svg);
+    await fadeEl(dashX, 0, 1, 400, token);
+    await fadeEl(dashY, 0, 1, 400, token);
+    const cx = textEl(svg, toX(3), toY(0)+18, '3', {size:14, anchor:'middle', fill:COL.blue, mono:true, opacity:0});
+    const cy = textEl(svg, toX(0)-14, toY(2)+5, '2', {size:14, anchor:'middle', fill:COL.gold, mono:true, opacity:0});
+    await fadeEl(cx, 0, 1, 300, token);
+    await fadeEl(cy, 0, 1, 300, token);
+    drawMatrixBox(svg, PANEL_X, 130, [['3'],['2']], {cw:44, ch:34, colColors:[COL.ink], opacity:0});
+    const panel = svg.lastChild;
+    const lbl = textEl(svg, PANEL_X+22, 112, 'v =', {size:15, anchor:'middle', opacity:0, mono:true});
+    await Promise.all([fadeEl(panel,0,1,400,token), fadeEl(lbl,0,1,400,token)]);
+    const mp = mathPanel(svg, PANEL_X, 230, ['‖v‖ = √(3²+2²)', 'v ∈ ℝ²']);
+    await fadeEl(mp, 0, 1, 500, token);
+    const tp = theoryPanel(svg, PANEL_X, 320, 'key ideas', [
+      'Direction + magnitude, no fixed location',
+      'v ∈ ℝⁿ: n numbers, n dimensions',
+      'Vectors can represent points, velocities,',
+      'forces, or features in data'
+    ]);
+    await fadeEl(tp, 0, 1, 600, token);
+    await wait(700, token);
+
+    await caption('Only length and direction matter — slide it anywhere and it\u2019s the same vector.', 10);
+    await tween(1000, (e)=>{
+      const ox = lerp(0, -3, e), oy = lerp(0, -3.5, e);
+      v.line.setAttribute('x1', toX(ox)); v.line.setAttribute('y1', toY(oy));
+      v.update.__origin = [ox,oy];
+      const X = toX(ox+3), Y = toY(oy+2);
+      v.line.setAttribute('x2', X); v.line.setAttribute('y2', Y);
+      const ang = Math.atan2(Y-toY(oy), X-toX(ox));
+      const hs=8.5;
+      const p1=[X,Y];
+      const p2=[X-hs*Math.cos(ang-0.42), Y-hs*Math.sin(ang-0.42)];
+      const p3=[X-hs*Math.cos(ang+0.42), Y-hs*Math.sin(ang+0.42)];
+      v.head.setAttribute('points', p1.join(',')+' '+p2.join(',')+' '+p3.join(','));
+      v.g.lastChild.setAttribute('x', X+10); v.g.lastChild.setAttribute('y', Y-10);
+      dashX.setAttribute('opacity', 1-e); dashY.setAttribute('opacity', 1-e);
+      cx.setAttribute('opacity',1-e); cy.setAttribute('opacity',1-e);
+    }, easeInOutCubic, token);
+    await wait(500, token);
+  }
+});
+
+/* ---- 2b: Vector Operations ---- */
+SLIDES.push({
+  name:'Vector operations',
+  async play(ctx){
+    const {svg, token} = ctx;
+    clipLeft(svg);
+    makeAxes(svg, 9);
+    await caption('Vectors combine in two basic ways: <b>addition</b> and <b>scalar multiplication</b>.', 10);
+    const a = makeVector(svg, COL.blue, 2, 1, {label:'a'});
+    const b0 = makeVector(svg, COL.gold, 1, 2, {label:'b'});
+    await wait(500, token);
+    await caption('Slide b so its tail starts at the tip of a — tip to tail.', 10);
+    const bMoved = makeVector(svg, COL.gold, 0,0, {width:3, origin:[2,1], opacity:0});
+    await fadeEl(bMoved.g, 0, 1, 200, token);
+    await tween(700, e=>{ bMoved.update(1*e, 2*e); }, easeOutCubic, token);
+    await fadeEl(b0.g, 1, 0.15, 400, token);
+    await wait(300, token);
+    const sum = makeVector(svg, COL.teal, 0,0, {label:'a + b', width:3.6, labelSize:14});
+    await tween(800, e=>{ sum.update(3*e, 3*e); }, easeOutCubic, token);
+    const mp = mathPanel(svg, PANEL_X, 110, ['a = (2, 1),  b = (1, 2)', '(a+b)ᵢ = aᵢ + bᵢ', 'a + b = (3, 3)']);
+    await fadeEl(mp, 0, 1, 500, token);
+    await caption('The sum a + b is the vector from start to finish — a new arrow, a new destination.', 12);
+    await wait(700, token);
+
+    await caption('<b>Scalar multiplication</b> stretches a vector without turning it.', 10);
+    await Promise.all([fadeEl(bMoved.g,1,0,400,token), fadeEl(sum.g,1,0,400,token), fadeEl(b0.g,0.15,0,400,token), fadeEl(mp,1,0,400,token)]);
+    const mp2 = mathPanel(svg, PANEL_X, 110, ['(c·a)ᵢ = c · aᵢ', 'c = 2: a → 2a', 'c = -1: a → -a']);
+    await fadeEl(mp2, 0, 1, 500, token);
+    const tp = theoryPanel(svg, PANEL_X, 230, 'key ideas', [
+      'Addition: place tail-to-tip, join ends',
+      'Scaling: same line, new length/sign',
+      'Together define a vector space',
+      'Both operations are "linear"'
+    ]);
+    await fadeEl(tp, 0, 1, 600, token);
+    const scaled = makeVector(svg, COL.blue, 2, 1, {width:3.4, opacity:0.35});
+    await tween(1000, e=>{
+      const k = lerp(1, 2, e);
+      scaled.update(2*k, 1*k);
+    }, easeInOutCubic, token);
+    await wait(400, token);
+    await caption('Multiply by a negative number, and the vector reverses direction entirely.', 10);
+    await tween(1000, e=>{
+      const k = lerp(2, -1, e);
+      scaled.update(2*k, 1*k);
+    }, easeInOutCubic, token);
+    await wait(600, token);
+  }
+});
+
+/* ---- 2c: Norm & Length ---- */
+SLIDES.push({
+  name:'Norm & length',
+  async play(ctx){
+    const {svg, token} = ctx;
+    clipLeft(svg);
+    makeAxes(svg, 9);
+    await caption('The <b>norm</b> ‖v‖ measures how long a vector is.', 10);
+    const v = makeVector(svg, COL.teal, 4, 3, {label:'v', width:3.4});
+    await wait(400, token);
+    const legX = el('line', {x1:toX(0),y1:toY(0),x2:toX(4),y2:toY(0), stroke:COL.blue, 'stroke-width':2.4, opacity:0}, svg);
+    const legY = el('line', {x1:toX(4),y1:toY(0),x2:toX(4),y2:toY(3), stroke:COL.gold, 'stroke-width':2.4, opacity:0}, svg);
+    await fadeEl(legX,0,1,400,token);
+    await fadeEl(legY,0,1,400,token);
+    const t1 = textEl(svg, toX(2), toY(0)+18, '4', {size:13, anchor:'middle', fill:COL.blue, mono:true, opacity:0});
+    const t2 = textEl(svg, toX(4)+16, toY(1.5), '3', {size:13, anchor:'middle', fill:COL.gold, mono:true, opacity:0});
+    await fadeEl(t1,0,1,300,token); await fadeEl(t2,0,1,300,token);
+    await caption('Pythagoras still works: ‖v‖ = √(4² + 3²) = 5.', 10);
+    const formula = textEl(svg, PANEL_X, 130, '‖v‖ = √(4²+3²) = 5', {size:15, mono:true, opacity:0});
+    await fadeEl(formula, 0, 1, 500, token);
+    const tp = theoryPanel(svg, PANEL_X, 175, 'key ideas', [
+      'A norm generalizes "length" to ℝⁿ',
+      '‖v‖ = 0  only when v is the zero vector',
+      '‖cv‖ = |c| ‖v‖ (scales with c)',
+      'Defines distance: ‖a - b‖'
+    ]);
+    await fadeEl(tp, 0, 1, 600, token);
+    await wait(800, token);
+    await caption('Divide a vector by its own norm and you get a <b>unit vector</b> — same direction, length exactly 1.', 12);
+    const unit = makeVector(svg, COL.purple, 0.8, 0.6, {label:'v/‖v‖', width:3, labelSize:13});
+    await wait(900, token);
+  }
+});
+
+/* ---- 3: Matrices ---- */
+SLIDES.push({
+  name:'Matrices',
+  async play(ctx){
+    const {svg, token} = ctx;
+    clipLeft(svg);
+    await caption('A <b>matrix</b> is a rectangular table of numbers — think of it as columns of vectors, side by side.', 10);
+    const rows = [['2','0','1'],['1','3','2'],['0','1','2']];
+    const colColors = [COL.blue, COL.gold, COL.green];
+    const mb = drawMatrixBox(svg, 380, 150, rows, {cw:58, ch:48, fs:19, colColors, opacity:0});
+    await fadeEl(mb.g, 0, 1, 500, token);
+    const mp = mathPanel(svg, PANEL_X, 130, ['A ∈ ℝ³ˣ³', 'entry aᵢⱼ : row i, col j', 'a₂₁ = 1,  a₁₃ = 1']);
+    await fadeEl(mp, 0, 1, 500, token);
+    const tp = theoryPanel(svg, PANEL_X, 230, 'key ideas', [
+      'm×n matrix: m rows, n columns',
+      'Encodes a linear map ℝⁿ → ℝᵐ',
+      'Columns show where basis vectors land',
+      'Add/scale matrices entrywise'
+    ]);
+    await fadeEl(tp, 0, 1, 600, token);
+    await wait(500, token);
+    const names = ['first column', 'second column', 'third column'];
+    for(let c=0;c<3;c++){
+      await caption(`Column ${c+1} is itself a <b>vector</b> — ${names[c]} of the matrix.`, 10);
+      for(let r=0;r<3;r++){
+        await tween(260, e=>{
+          mb.cells[r][c].setAttribute('font-size', lerp(19,25,Math.sin(e*Math.PI)));
+        }, linear, token);
+      }
+      await wait(250, token);
+    }
+    await caption('A matrix packages multiple vectors together — and, as we\u2019ll see, describes a <b>transformation</b> of space.', 10);
+    await wait(400, token);
+  }
+});
+
+/* ---- 3b: Transpose ---- */
+SLIDES.push({
+  name:'Transpose',
+  async play(ctx){
+    const {svg, token} = ctx;
+    clipLeft(svg);
+    await caption('The <b>transpose</b> flips a matrix over its diagonal — rows become columns.', 12);
+    const rowsA = [['2','5','1'],['3','0','4']];
+    const mbA = drawMatrixBox(svg, 140, 200, rowsA, {cw:54, ch:44, fs:18, opacity:0});
+    const lblA = textEl(svg, 140 + (54*3)/2, 180, 'A  (2×3)', {size:13, anchor:'middle', fill:COL.dim, opacity:0, mono:true});
+    await Promise.all([fadeEl(mbA.g,0,1,400,token), fadeEl(lblA,0,1,400,token)]);
+    await wait(600, token);
+    await caption('Row 1 of A becomes column 1 of Aᵀ — every entry aᵢⱼ moves to position aⱼᵢ.', 12);
+    const arrow = textEl(svg, 350, 250, '→', {size:26, fill:COL.dim, opacity:0, anchor:'middle'});
+    await fadeEl(arrow, 0, 1, 400, token);
+    const rowsT = [['2','3'],['5','0'],['1','4']];
+    const mbT = drawMatrixBox(svg, 420, 150, rowsT, {cw:54, ch:44, fs:18, colColors:[COL.blue,COL.blue], opacity:0});
+    const lblT = textEl(svg, 420+54, 130, 'Aᵀ  (3×2)', {size:13, anchor:'middle', fill:COL.dim, opacity:0, mono:true});
+    await Promise.all([fadeEl(mbT.g,0,1,600,token), fadeEl(lblT,0,1,600,token)]);
+    const tp = theoryPanel(svg, PANEL_X, 130, 'key ideas', [
+      '(Aᵀ)ᵀ = A',
+      '(A+B)ᵀ = Aᵀ + Bᵀ',
+      '(AB)ᵀ = Bᵀ Aᵀ  (order reverses!)',
+      'A = Aᵀ defines a symmetric matrix'
+    ]);
+    await fadeEl(tp, 0, 1, 600, token);
+    await wait(700, token);
+    await caption('Transposing twice returns the original: (Aᵀ)ᵀ = A.', 10);
+    await wait(600, token);
+  }
+});
+
+/* ---- 4: Tensors ---- */
+SLIDES.push({
+  name:'Tensors',
+  async play(ctx){
+    const {svg, token} = ctx;
+    clipLeft(svg);
+    await caption('Zoom out: scalars, vectors and matrices are all part of one family — <b>tensors</b>.', 10);
+    const cx0=180, cy0=270;
+    // scalar: dot
+    const dot = el('circle', {cx:cx0, cy:cy0, r:0, fill:COL.blue}, svg);
+    const t0 = textEl(svg, cx0, cy0+50, 'scalar · 0 indices', {size:12, anchor:'middle', fill:COL.dim, opacity:0});
+    await tween(500, e=>{ dot.setAttribute('r', lerp(0,7,e)); }, easeOutBack, token);
+    await fadeEl(t0,0,1,300,token);
+    await wait(500, token);
+
+    await caption('Add one index and a scalar grows into a <b>vector</b> — a list of numbers, or an arrow.', 10);
+    const cx1=370;
+    const vec = makeVector(svg, COL.gold, 0,0, {opacity:0});
+    vec.g.setAttribute('transform', `translate(${cx1-CX} 0)`);
+    await fadeEl(vec.g, 0, 1, 200, token);
+    await tween(600, e=>{ vec.update(1.6*e, 1.1*e); }, easeOutCubic, token);
+    const t1 = textEl(svg, cx1+40, cy0+50, 'vector · 1 index', {size:12, anchor:'middle', fill:COL.dim, opacity:0});
+    await fadeEl(t1,0,1,300,token);
+    await wait(500, token);
+
+    await caption('Add another index and you get a <b>matrix</b> — a grid of numbers.', 10);
+    const gx=520, gy=180, cell=26;
+    const cellsG = el('g', {opacity:0}, svg);
+    for(let r=0;r<3;r++) for(let c=0;c<3;c++){
+      el('rect', {x:gx+c*cell, y:gy+r*cell, width:cell-3, height:cell-3, rx:3, fill:'none', stroke:COL.green, 'stroke-width':1.4}, cellsG);
+    }
+    await fadeEl(cellsG, 0, 1, 500, token);
+    const t2 = textEl(svg, gx+cell*1.5, gy+3*cell+26, 'matrix · 2 indices', {size:12, anchor:'middle', fill:COL.dim, opacity:0});
+    await fadeEl(t2,0,1,300,token);
+    await wait(600, token);
+
+    await caption('Keep going — a <b>tensor</b> generalizes this to any number of indices: a stack of grids.', 10);
+    const tx=620, ty=150;
+    const cubeG = el('g', {opacity:0}, svg);
+    for(let layer=0; layer<3; layer++){
+      const ox = tx + layer*16, oy = ty - layer*12;
+      const lg = el('g', {}, cubeG);
+      for(let r=0;r<3;r++) for(let c=0;c<3;c++){
+        el('rect', {x:ox+c*22, y:oy+r*22, width:19, height:19, rx:2.5,
+          fill: layer===2 ? 'rgba(144,130,176,0.18)':'none',
+          stroke:COL.purple, 'stroke-width':1.1, 'stroke-opacity': 1-layer*0.28}, lg);
+      }
+    }
+    await fadeEl(cubeG, 0, 1, 600, token);
+    const t3 = textEl(svg, tx+50, ty+3*22+34, 'tensor · N indices', {size:12, anchor:'middle', fill:COL.dim, opacity:0});
+    await fadeEl(t3,0,1,300,token);
+    const tp = theoryPanel(svg, PANEL_X, 140, 'key ideas', [
+      'Rank = number of indices needed',
+      'Scalar (0), vector (1), matrix (2)...',
+      'Neural net weights are often rank-3/4+',
+      'Same algebra rules, more dimensions'
+    ]);
+    await fadeEl(tp, 0, 1, 600, token);
+    await wait(700, token);
+  }
+});
+
+/* ---- 5: Matrix multiplication (linear transformation) ---- */
+SLIDES.push({
+  name:'Matrix multiplication',
+  async play(ctx){
+    const {svg, token} = ctx;
+    clipLeft(svg);
+    const scene = buildLinearScene(svg, {range:9});
+    const v = makeVector(svg, COL.teal, 2, 1, {label:'v', width:3});
+    await caption('Every matrix moves the plane: it drags <b style="color:#5b8fc7">î</b> and <b style="color:#c7a352">ĵ</b> to new places, and stretches the grid between them.', 12);
+    await wait(600, token);
+    drawMatrixBox(svg, PANEL_X, 120, [['2','1'],['1','2']], {cw:46, ch:38, colColors:[COL.blue,COL.gold], opacity:0});
+    const mb = svg.lastChild;
+    await fadeEl(mb, 0, 1, 400, token);
+    const mp = mathPanel(svg, PANEL_X, 230, ['(Mv)ᵢ = Σⱼ Mᵢⱼ vⱼ', 'Mv = (2·2+1·1, 1·2+2·1)', 'Mv = (5, 4)']);
+    await fadeEl(mp, 0, 1, 500, token);
+    const tp = theoryPanel(svg, PANEL_X, 340, 'key ideas', [
+      'Matrix × vector = linear transformation',
+      'Determined entirely by where î, ĵ land',
+      'Straight lines stay straight, origin fixed',
+      'AB means "first B, then A"'
+    ]);
+    await fadeEl(tp, 0, 1, 600, token);
+    await wait(300, token);
+    await caption('Watch <b>v</b> ride along with the grid — every vector moves the <em>same</em> way the basis does.', 10);
+    const M=[2,1,1,2];
+    const from=[1,0,0,1];
+    await tween(1400, (e)=>{
+      const cur=[0,1,2,3].map(k=>lerp(from[k],M[k],e));
+      scene.applyAll(cur);
+      v.update(cur[0]*2+cur[1]*1, cur[2]*2+cur[3]*1);
+    }, easeInOutCubic, token);
+    scene.curM = M;
+    await wait(700, token);
+    await caption('That\u2019s matrix multiplication: <b>Mv</b> is where v lands after the transformation carries it along.', 10);
+    await wait(700, token);
+  }
+});
+
+/* ---- 6: Identity matrix ---- */
+SLIDES.push({
+  name:'Identity matrix',
+  async play(ctx){
+    const {svg, token} = ctx;
+    clipLeft(svg);
+    const scene = buildLinearScene(svg, {range:9});
+    drawMatrixBox(svg, PANEL_X, 130, [['1','0'],['0','1']], {cw:46, ch:38, colColors:[COL.blue,COL.gold], opacity:0});
+    const mb = svg.lastChild;
+    await caption('The <b>identity matrix</b> sends î to (1,0) and ĵ to (0,1) — exactly where they already are.', 10);
+    await fadeEl(mb, 0, 1, 400, token);
+    const mp = mathPanel(svg, PANEL_X, 240, ['Iᵢⱼ = 1 if i=j, else 0', 'I · v = v  for every v']);
+    await fadeEl(mp, 0, 1, 500, token);
+    const tp = theoryPanel(svg, PANEL_X, 320, 'key ideas', [
+      'The "do nothing" transformation',
+      'AI = IA = A for every matrix A',
+      'Diagonal of 1s, zero elsewhere',
+      'Plays the role of "1" in matrix algebra'
+    ]);
+    await fadeEl(tp, 0, 1, 600, token);
+    await wait(400, token);
+    await caption('Apply it to anything, and nothing moves. It\u2019s the "do nothing" transformation.', 10);
+    await scene.animateTo([1.35,0.15,0.1,1.2], 700, token);
+    await scene.animateTo([1,0,0,1], 700, token);
+    await wait(300, token);
+    // pulse to emphasize "no change"
+    await tween(500, e=>{
+      const s = 1 + Math.sin(e*Math.PI)*0.03;
+      scene.grid.g.setAttribute('opacity', 1);
+    }, linear, token);
+    await caption('It\u2019s the multiplicative "1" of matrices: <b>I · M = M</b> for every matrix M.', 10);
+    await wait(600, token);
+  }
+});
+
+/* ---- 7: Inverse ---- */
+SLIDES.push({
+  name:'Inverse',
+  async play(ctx){
+    const {svg, token} = ctx;
+    clipLeft(svg);
+    const scene = buildLinearScene(svg, {range:9});
+    const M = [2,1,1,1.5];
+    const Minv = [1.5,-1,-1,2].map(x=>x/(2*1.5-1*1));
+    drawMatrixBox(svg, PANEL_X, 90, [['2','1'],['1','1.5']], {cw:46, ch:36, colColors:[COL.blue,COL.gold], opacity:0});
+    const mb1 = svg.lastChild;
+    await caption('Apply a matrix M and the grid warps.', 10);
+    await fadeEl(mb1, 0, 1, 400, token);
+    await scene.animateTo(M, 1100, token);
+    await wait(600, token);
+    await caption('The <b>inverse</b>, M<tspan>⁻¹</tspan>, is the matrix that undoes it — mapping space back home.', 10);
+    const mp = mathPanel(svg, PANEL_X, 230, ['M⁻¹(Mv) = v', 'for [[a,b],[c,d]]:', 'M⁻¹ = 1/(ad-bc) [[d,-b],[-c,a]]']);
+    await fadeEl(mp, 0, 1, 500, token);
+    const tp = theoryPanel(svg, PANEL_X, 340, 'key ideas', [
+      'Exists only when det(M) ≠ 0',
+      'Undoes M\u2019s transformation exactly',
+      'Singular matrices have no inverse',
+      'Used to solve Mx = b directly'
+    ]);
+    await fadeEl(tp, 0, 1, 600, token);
+    await scene.animateTo(Minv, 1300, token);
+    await wait(700, token);
+    await caption('Not every matrix has one — a transformation that <b>collapses</b> space can never be undone.', 12);
+    await wait(700, token);
+  }
+});
+
+/* ---- 7b: Linear Systems (Ax = b) ---- */
+SLIDES.push({
+  name:'Linear systems',
+  async play(ctx){
+    const {svg, token} = ctx;
+    clipLeft(svg);
+    const scene = buildLinearScene(svg, {range:9});
+    await caption('Solving <b>Ax = b</b> asks a geometric question: which vector x lands exactly on b once A transforms space?', 16);
+    const x = makeVector(svg, COL.teal, 1, 2, {label:'x', width:3.4});
+    const bLine = el('line', {x1:toX(0),y1:toY(0),x2:toX(4),y2:toY(3), stroke:COL.red, 'stroke-width':2, 'stroke-dasharray':'3,4', opacity:0}, svg);
+    const bHead = el('polygon', {fill:'none', stroke:COL.red, 'stroke-width':2, opacity:0}, svg);
+    const Xb=toX(4), Yb=toY(3), angB=Math.atan2(Yb-toY(0), Xb-toX(0)), hs=9;
+    bHead.setAttribute('points', [Xb,Yb].join(',')+' '+[Xb-hs*Math.cos(angB-0.42),Yb-hs*Math.sin(angB-0.42)].join(',')+' '+[Xb-hs*Math.cos(angB+0.42),Yb-hs*Math.sin(angB+0.42)].join(','));
+    const bLbl = textEl(svg, Xb+14, Yb, 'b', {size:15, weight:600, fill:COL.red, opacity:0});
+    await Promise.all([fadeEl(bLine,0,1,400,token), fadeEl(bHead,0,0.9,400,token), fadeEl(bLbl,0,1,400,token)]);
+    await wait(500, token);
+    drawMatrixBox(svg, PANEL_X, 90, [['2','1'],['1','1']], {cw:44, ch:36, colColors:[COL.blue,COL.gold], opacity:0});
+    const mb = svg.lastChild;
+    await fadeEl(mb, 0, 1, 400, token);
+    const mp = mathPanel(svg, PANEL_X, 200, ['2x₁ + x₂ = 4', 'x₁ + x₂ = 3', '⇒ x = (1, 2)']);
+    await fadeEl(mp, 0, 1, 500, token);
+    const tp = theoryPanel(svg, PANEL_X, 300, 'key ideas', [
+      'Unique solution iff A is invertible',
+      'No solution: b outside column space',
+      'Infinite solutions: A is rank-deficient',
+      'Gaussian elimination solves it directly'
+    ]);
+    await fadeEl(tp, 0, 1, 600, token);
+    await wait(400, token);
+    await caption('Watch x ride along with the grid as A is applied...', 10);
+    const M=[2,1,1,1], from=[1,0,0,1];
+    await tween(1400, (e)=>{
+      const cur=[0,1,2,3].map(k=>lerp(from[k],M[k],e));
+      scene.applyAll(cur);
+      x.update(cur[0]*1+cur[1]*2, cur[2]*1+cur[3]*2);
+    }, easeInOutCubic, token);
+    scene.curM = M;
+    await wait(300, token);
+    await caption('...it lands exactly on b. That landing point is the solution: <b>x = A⁻¹b</b>.', 12);
+    await wait(700, token);
+  }
+});
+
+/* ---- 8: Rank ---- */
+SLIDES.push({
+  name:'Rank',
+  async play(ctx){
+    const {svg, token} = ctx;
+    clipLeft(svg);
+    const scene = buildLinearScene(svg, {range:9});
+    await caption('<b>Rank</b> is the number of dimensions left standing after a transformation.', 10);
+    await wait(500, token);
+    await caption('This matrix keeps the plane fully 2-dimensional — <b>rank 2</b>, full rank.', 10);
+    await scene.animateTo([2,0.4,0.3,1.3], 1100, token);
+    await wait(700, token);
+    await caption('Now watch this one — its second column is just a copy, scaled, of the first.', 10);
+    await scene.animateTo([1,0,0,1], 500, token);
+    await wait(300, token);
+    const tag = textEl(svg, PANEL_X, 200, 'rank = 1', {size:20, weight:700, fill:COL.red, opacity:0, mono:true});
+    await scene.animateTo([2,1,4,2], 1300, token);
+    await fadeEl(tag, 0, 1, 400, token);
+    const mp = mathPanel(svg, PANEL_X, 240, ['rank(A) = dim(col space)', 'cols (2,1) & (4,2): dependent', '(4,2) = 2·(2,1)']);
+    await fadeEl(mp, 0, 1, 500, token);
+    const tp = theoryPanel(svg, PANEL_X, 340, 'key ideas', [
+      'rank ≤ min(rows, columns)',
+      'Full rank: transformation is invertible',
+      'Low rank: data/info is compressible',
+      'Basis of matrix factorization methods'
+    ]);
+    await fadeEl(tp, 0, 1, 600, token);
+    await caption('The whole plane gets squashed onto a single line — information is lost. That\u2019s <b>rank 1</b>.', 12);
+    await wait(800, token);
+  }
+});
+
+/* ---- 8b: Null Space & Column Space ---- */
+SLIDES.push({
+  name:'Null space & column space',
+  async play(ctx){
+    const {svg, token} = ctx;
+    clipLeft(svg);
+    const scene = buildLinearScene(svg, {range:9});
+    const M = [2,4,1,2];
+    drawMatrixBox(svg, PANEL_X, 90, [['2','4'],['1','2']], {cw:44, ch:36, colColors:[COL.blue,COL.gold], opacity:0});
+    const mb = svg.lastChild;
+    await caption('Take a matrix whose columns are dependent — it collapses the plane onto a line.', 12);
+    await fadeEl(mb, 0, 1, 400, token);
+    const nvecs = [];
+    for(const t of [-1.6, -0.8, 0.8, 1.6]){
+      const nv = makeVector(svg, COL.red, t*2, -t*1, {width:2.4, opacity:0.75});
+      nvecs.push({nv, x0:t*2, y0:-t*1});
+    }
+    await wait(500, token);
+    await caption('Every vector along this red line gets crushed straight to the origin — that\u2019s the <b>null space</b>.', 14);
+    await tween(1300, (e)=>{
+      const cur=[lerp(1,M[0],e), lerp(0,M[1],e), lerp(0,M[2],e), lerp(1,M[3],e)];
+      scene.applyAll(cur);
+      for(const n of nvecs) n.nv.update(cur[0]*n.x0+cur[1]*n.y0, cur[2]*n.x0+cur[3]*n.y0);
+    }, easeInOutCubic, token);
+    scene.curM = M;
+    await wait(700, token);
+    await caption('Meanwhile, everywhere the transformation <em>can</em> reach — here, just one line — is the <b>column space</b>.', 14);
+    const colLine = el('line', {stroke:COL.teal, 'stroke-width':2.6, opacity:0}, svg);
+    setA(colLine, {x1:toX(-4), y1:toY(-2), x2:toX(4), y2:toY(2)});
+    await fadeEl(colLine, 0, 0.85, 600, token);
+    const mp = mathPanel(svg, PANEL_X, 200, ['null(A) = {x : Ax = 0}', 'col(A) = {Ax : x ∈ ℝ²}', 'dim null + dim col = 2']);
+    await fadeEl(mp, 0, 1, 500, token);
+    const tp = theoryPanel(svg, PANEL_X, 310, 'key ideas', [
+      'Null space: the "lost" input directions',
+      'Column space: the reachable outputs',
+      'null(A) = {0} ⟺ A is injective',
+      'col(A) = ℝᵐ ⟺ A is surjective'
+    ]);
+    await fadeEl(tp, 0, 1, 600, token);
+    await wait(700, token);
+    await caption('Rank-nullity: dim(null space) + dim(column space) = the number of columns.', 12);
+    await wait(600, token);
+  }
+});
+
+/* ---- 9: Determinant ---- */
+SLIDES.push({
+  name:'Determinant',
+  async play(ctx){
+    const {svg, token} = ctx;
+    clipLeft(svg);
+    const detTxt = textEl(svg, PANEL_X, 110, 'det = 1.00', {size:20, weight:700, mono:true, opacity:0});
+    const areaTag = textEl(svg, PANEL_X, 140, 'area scale factor', {size:12, fill:COL.dim, opacity:0});
+    let squareRef = null;
+    const scene = buildLinearScene(svg, {range:9, showSquare:true, onApply:(M)=>{
+      const d = M[0]*M[3]-M[1]*M[2];
+      detTxt.textContent = 'det = ' + d.toFixed(2);
+      detTxt.setAttribute('fill', d<0 ? COL.red : COL.ink);
+      if(squareRef){
+        squareRef.setAttribute('fill', d<0 ? 'rgba(185,107,86,0.28)' : 'rgba(144,130,176,0.22)');
+        squareRef.setAttribute('stroke', d<0 ? COL.red : COL.purple);
+      }
+    }});
+    squareRef = scene.square;
+    const mp = mathPanel(svg, PANEL_X, 180, ['det [[a,b],[c,d]] = ad - bc']);
+    const tp = theoryPanel(svg, PANEL_X, 230, 'key ideas', [
+      'det(A) = 0  ⟺  A is singular (no inverse)',
+      'det(AB) = det(A)·det(B)',
+      '|det(A)| = volume/area scale factor',
+      'Sign flip = orientation flip'
+    ]);
+    await caption('The purple square has area 1. The <b>determinant</b> tells you its new area after transforming.', 12);
+    await Promise.all([fadeEl(detTxt,0,1,400,token), fadeEl(areaTag,0,1,400,token), fadeEl(mp,0,1,400,token), fadeEl(tp,0,1,600,token)]);
+    await wait(400, token);
+    await scene.animateTo([2,0.6,0.2,1.3], 1300, token);
+    await wait(700, token);
+    await caption('When the determinant is negative, the transformation <b>flips</b> the plane over — orientation reverses.', 12);
+    await scene.animateTo([-1.3,0.4,0.3,1.1], 1400, token);
+    await wait(800, token);
+    await caption('A determinant of zero would mean the square collapses entirely — area vanishes.', 10);
+    await wait(500, token);
+  }
+});
+
+/* ---- 9b: Trace ---- */
+SLIDES.push({
+  name:'Trace',
+  async play(ctx){
+    const {svg, token} = ctx;
+    clipLeft(svg);
+    await caption('The <b>trace</b> of a matrix is the sum of its diagonal entries.', 10);
+    const rows = [['4','1','0'],['2','3','1'],['0','2','5']];
+    const mb = drawMatrixBox(svg, 220, 150, rows, {cw:54, ch:46, fs:18, opacity:0});
+    await fadeEl(mb.g, 0, 1, 400, token);
+    await wait(400, token);
+    const diagIdx=[[0,0],[1,1],[2,2]];
+    const total = textEl(svg, PANEL_X, 140, 'tr(A) = 0', {size:20, weight:700, mono:true, opacity:0});
+    await fadeEl(total, 0, 1, 400, token);
+    let running=0;
+    const nums=[4,3,5];
+    for(let i=0;i<3;i++){
+      const [r,c] = diagIdx[i];
+      await tween(400, e=>{
+        mb.cells[r][c].setAttribute('fill', COL.teal);
+        mb.cells[r][c].setAttribute('font-size', lerp(18,24,Math.sin(e*Math.PI)));
+      }, linear, token);
+      running += nums[i];
+      total.textContent = 'tr(A) = ' + running;
+      await wait(300, token);
+    }
+    await caption('It shows up everywhere: it equals the sum of the eigenvalues, and it\u2019s invariant under change of basis.', 16);
+    const tp = theoryPanel(svg, PANEL_X, 200, 'key ideas', [
+      'tr(A) = Σ eigenvalues of A',
+      'tr(AB) = tr(BA)',
+      'Invariant under similarity: tr(Q⁻¹AQ)=tr(A)',
+      'Used in matrix norms & optimization'
+    ]);
+    await fadeEl(tp, 0, 1, 600, token);
+    await wait(700, token);
+  }
+});
+
+/* ---- 10: Eigenvalues & Eigenvectors ---- */
+SLIDES.push({
+  name:'Eigenvalues & eigenvectors',
+  async play(ctx){
+    const {svg, token} = ctx;
+    clipLeft(svg);
+    makeAxes(svg, 9);
+    const grid = makeGrid(svg, {range:9});
+    await caption('Most vectors get knocked off their line when a matrix transforms space...', 10);
+    const M = [3,1,1,3]; // symmetric, eigen-dirs (1,1) & (1,-1), eigvals 4 & 2
+    const N = 12;
+    const sweepVecs = [];
+    for(let i=0;i<N;i++){
+      const ang = (i/N)*Math.PI*2;
+      const x0=Math.cos(ang)*2.2, y0=Math.sin(ang)*2.2;
+      const v = makeVector(svg, '#586170', x0, y0, {width:2});
+      sweepVecs.push({v,x0,y0});
+    }
+    await wait(500, token);
+    await tween(1400, (e)=>{
+      const cur=[lerp(1,M[0],e), lerp(0,M[1],e), lerp(0,M[2],e), lerp(1,M[3],e)];
+      grid.apply(cur);
+      for(const s of sweepVecs){ s.v.update(cur[0]*s.x0+cur[1]*s.y0, cur[2]*s.x0+cur[3]*s.y0); }
+    }, easeInOutCubic, token);
+    await wait(500, token);
+    await caption('...except along special directions, called <b>eigenvectors</b> — they only stretch, never rotate.', 12);
+    for(const s of sweepVecs) await fadeEl(s.v.g, 1, 0.12, 500, token);
+    const mp = mathPanel(svg, PANEL_X, 130, ['Av = λv', 'det(A - λI) = 0', 'λ² - 6λ + 8 = 0 → λ=4,2']);
+    await fadeEl(mp, 0, 1, 500, token);
+    const tp = theoryPanel(svg, PANEL_X, 240, 'key ideas', [
+      'Eigenvector: direction preserved by A',
+      'Eigenvalue: the stretch factor along it',
+      'An n×n matrix has up to n eigenvalues',
+      'Foundation of PCA, PageRank, stability'
+    ]);
+    await fadeEl(tp, 0, 1, 600, token);
+    const k = 1/Math.SQRT2;
+    const e1 = makeVector(svg, COL.blue, k*2.2, k*2.2, {label:'λ=4', width:3.6});
+    const e2 = makeVector(svg, COL.gold, k*2.2, -k*2.2, {label:'λ=2', width:3.6});
+    await wait(300, token);
+    await tween(900, (e)=>{
+      e1.update(k*2.2*(2*e+ (1-e)), k*2.2*(2*e+(1-e)));
+    }, easeOutCubic, token);
+    await wait(200, token);
+    await caption('This direction stretches by <b>4×</b> — its <b>eigenvalue</b> is 4.', 10);
+    await wait(700, token);
+    await tween(900, (e)=>{
+      e2.update(k*2.2*(2*e+(1-e)), -k*2.2*(2*e+(1-e)));
+    }, easeOutCubic, token);
+    await caption('This one stretches by only <b>2×</b> — eigenvalue 2. The direction never changed, only its length.', 12);
+    await wait(800, token);
+  }
+});
+
+/* ---- 10b: Diagonalization ---- */
+SLIDES.push({
+  name:'Diagonalization',
+  async play(ctx){
+    const {svg, token} = ctx;
+    clipLeft(svg);
+    makeAxes(svg, 9);
+    const grid = makeGrid(svg, {range:9});
+    await caption('In the standard grid, this matrix looks like a shear-and-stretch.', 12);
+    const M=[3,1,1,3];
+    await tween(1100, e=>{
+      const cur=[lerp(1,M[0],e), lerp(0,M[1],e), lerp(0,M[2],e), lerp(1,M[3],e)];
+      grid.apply(cur);
+    }, easeInOutCubic, token);
+    await wait(600, token);
+    await caption('But tilt your axes to line up with the <b>eigenvectors</b>, and it\u2019s just plain stretching.', 14);
+    const k=1/Math.SQRT2;
+    const ax1 = makeVector(svg, COL.blue, k*3, k*3, {width:2.6, opacity:0});
+    const ax2 = makeVector(svg, COL.gold, k*3, -k*3, {width:2.6, opacity:0});
+    await Promise.all([fadeEl(ax1.g,0,1,500,token), fadeEl(ax2.g,0,1,500,token)]);
+    await wait(500, token);
+    drawMatrixBox(svg, PANEL_X, 120, [['4','0'],['0','2']], {cw:44, ch:36, colColors:[COL.blue,COL.gold], opacity:0});
+    const D = svg.lastChild;
+    const lbl = textEl(svg, PANEL_X, 100, 'D = Q⁻¹ M Q', {size:13, fill:COL.dim, opacity:0, mono:true});
+    await Promise.all([fadeEl(D,0,1,500,token), fadeEl(lbl,0,1,500,token)]);
+    const mp = mathPanel(svg, PANEL_X, 230, ['Q = [eigenvectors]', 'M = Q D Q⁻¹']);
+    await fadeEl(mp, 0, 1, 500, token);
+    const tp = theoryPanel(svg, PANEL_X, 300, 'key ideas', [
+      'Needs n independent eigenvectors',
+      'Powers become easy: Aᵏ = QDᵏQ⁻¹',
+      'Not every matrix is diagonalizable',
+      'Symmetric matrices always are'
+    ]);
+    await fadeEl(tp, 0, 1, 600, token);
+    await caption('Diagonalization finds that best-fitting frame — where a matrix reduces to independent, simple scalings.', 16);
+    await wait(800, token);
+  }
+});
+
+/* ---- 10c: Symmetric Matrices & Spectral Theorem ---- */
+SLIDES.push({
+  name:'Symmetric matrices',
+  async play(ctx){
+    const {svg, token} = ctx;
+    clipLeft(svg);
+    makeAxes(svg, 9);
+    await caption('A matrix is <b>symmetric</b> when it equals its own transpose: A = Aᵀ.', 10);
+    const mb1 = drawMatrixBox(svg, 200, 130, [['3','1'],['1','3']], {cw:50, ch:42, fs:18, opacity:0});
+    await fadeEl(mb1.g, 0, 1, 400, token);
+    const mp = mathPanel(svg, PANEL_X, 160, ['A = Aᵀ', 'A = QΛQᵀ,  QᵀQ = I']);
+    await fadeEl(mp, 0, 1, 500, token);
+    const tp = theoryPanel(svg, PANEL_X, 260, 'key ideas', [
+      'Guaranteed real eigenvalues',
+      'Eigenvectors always orthogonal',
+      'Covariance matrices are symmetric',
+      'Diagonalizable by an orthogonal Q'
+    ]);
+    await fadeEl(tp, 0, 1, 600, token);
+    await wait(500, token);
+    await caption('The <b>spectral theorem</b> guarantees something remarkable: its eigenvectors are always perpendicular.', 16);
+    const k=1/Math.SQRT2;
+    const e1 = makeVector(svg, COL.blue, 0, 0, {label:'λ=4'});
+    const e2 = makeVector(svg, COL.gold, 0, 0, {label:'λ=2'});
+    await tween(900, e=>{ e1.update(k*2.4*e, k*2.4*e); }, easeOutCubic, token);
+    await tween(900, e=>{ e2.update(k*2.4*e, -k*2.4*e); }, easeOutCubic, token);
+    const arcPath = el('path', {stroke:COL.dim, 'stroke-width':1.3, fill:'none', opacity:0}, svg);
+    const pts=[];
+    for(let i=0;i<=10;i++){
+      const a = lerp(-Math.PI/4, Math.PI/4, i/10);
+      pts.push(toX(0.6*Math.cos(a))+' '+toY(0.6*Math.sin(a)));
+    }
+    arcPath.setAttribute('d', 'M '+pts.join(' L '));
+    await fadeEl(arcPath, 0, 0.9, 400, token);
+    const deg = textEl(svg, toX(0.85), toY(0), '90°', {size:12, anchor:'middle', fill:COL.dim, opacity:0});
+    await fadeEl(deg, 0, 1, 300, token);
+    await caption('Real eigenvalues, orthogonal eigenvectors — symmetric matrices are the best-behaved transformations in linear algebra.', 18);
+    await wait(800, token);
+  }
+});
+
+/* ---- 11: Orthogonality ---- */
+SLIDES.push({
+  name:'Orthogonality',
+  async play(ctx){
+    const {svg, token} = ctx;
+    clipLeft(svg);
+    makeAxes(svg, 9);
+    await caption('Two vectors are <b>orthogonal</b> when they meet at a perfect right angle.', 10);
+    const a = makeVector(svg, COL.blue, 3, 0, {label:'a'});
+    const b = makeVector(svg, COL.gold, 0, 0, {label:'b'});
+    await wait(300, token);
+    await tween(800, e=>{ b.update(0, 2.4*e); }, easeOutCubic, token);
+    const sq = el('path', {d:'', stroke:COL.dim, 'stroke-width':1.3, fill:'none', opacity:0}, svg);
+    const rs=14;
+    sq.setAttribute('d', `M ${toX(0)} ${toY(0)-rs} L ${toX(0)+rs} ${toY(0)-rs} L ${toX(0)+rs} ${toY(0)}`);
+    await fadeEl(sq, 0, 1, 300, token);
+    const dotTxt = textEl(svg, PANEL_X, 130, 'a · b = 0', {size:20, weight:700, mono:true, opacity:0});
+    await fadeEl(dotTxt, 0, 1, 400, token);
+    const mp = mathPanel(svg, PANEL_X, 170, ['a · b = Σᵢ aᵢbᵢ', 'a·b = 3·0 + 0·2.4 = 0']);
+    await fadeEl(mp, 0, 1, 500, token);
+    await caption('Their <b>dot product</b> — the sum of matching components multiplied together — is exactly zero.', 12);
+    await wait(700, token);
+    await caption('Rotate b away from perpendicular, and the dot product becomes non-zero.', 10);
+    await tween(1200, e=>{
+      const ang = lerp(Math.PI/2, Math.PI/2 - 0.9, e);
+      const bx = 2.4*Math.cos(ang), by = 2.4*Math.sin(ang);
+      b.update(bx, by);
+      const d = 3*bx + 0*by;
+      dotTxt.textContent = 'a · b = ' + d.toFixed(2);
+      sq.setAttribute('opacity', Math.max(0, 1-e*3));
+    }, easeInOutCubic, token);
+    await wait(600, token);
+    await tween(900, e=>{
+      const ang = lerp(Math.PI/2-0.9, Math.PI/2, e);
+      const bx = 2.4*Math.cos(ang), by=2.4*Math.sin(ang);
+      b.update(bx,by);
+      const d = 3*bx;
+      dotTxt.textContent = 'a · b = ' + d.toFixed(2);
+      sq.setAttribute('opacity', e);
+    }, easeInOutCubic, token);
+    await caption('Orthogonal directions are independent — moving along one changes nothing about the other.', 12);
+    await wait(700, token);
+  }
+});
+
+/* ---- 11b: Orthogonal Matrices ---- */
+SLIDES.push({
+  name:'Orthogonal matrices',
+  async play(ctx){
+    const {svg, token} = ctx;
+    clipLeft(svg);
+    const scene = buildLinearScene(svg, {range:9});
+    await caption('An <b>orthogonal matrix</b> only rotates or reflects — it never stretches or skews.', 12);
+    const ang = 35*Math.PI/180;
+    const M = [Math.cos(ang), -Math.sin(ang), Math.sin(ang), Math.cos(ang)];
+    await scene.animateTo(M, 1300, token);
+    await wait(500, token);
+    await caption('Notice: the grid keeps every square shape — lengths and angles are perfectly preserved.', 14);
+    drawMatrixBox(svg, PANEL_X, 110, [['cosθ','-sinθ'],['sinθ','cosθ']], {cw:64, ch:36, fs:13, colColors:[COL.blue,COL.gold], opacity:0});
+    const mb = svg.lastChild;
+    await fadeEl(mb, 0, 1, 500, token);
+    const mp = mathPanel(svg, PANEL_X, 220, ['QᵀQ = QQᵀ = I', '‖Qv‖ = ‖v‖  (preserves length)']);
+    await fadeEl(mp, 0, 1, 500, token);
+    await caption('Its columns are <b>orthonormal</b>: unit length, and mutually perpendicular.', 12);
+    await wait(700, token);
+  }
+});
+
+/* ---- 11c: Gram-Schmidt Process ---- */
+SLIDES.push({
+  name:'Gram-Schmidt process',
+  async play(ctx){
+    const {svg, token} = ctx;
+    clipLeft(svg);
+    makeAxes(svg, 9);
+    await caption('Given two independent vectors, <b>Gram-Schmidt</b> builds a perpendicular pair from them.', 14);
+    const a = makeVector(svg, COL.blue, 3, 0.6, {label:'a'});
+    const b = makeVector(svg, COL.gold, 1.4, 2.6, {label:'b'});
+    await wait(500, token);
+    await caption('Keep a as the first direction. Now remove from b whatever part points along a...', 14);
+    const ax=3, ay=0.6, alen2=ax*ax+ay*ay;
+    const dot0 = 1.4*ax+2.6*ay;
+    const t0 = dot0/alen2;
+    const proj = makeVector(svg, COL.dim, 0,0, {width:2, opacity:0});
+    await fadeEl(proj.g, 0, 1, 300, token);
+    await tween(900, e=>{ proj.update(t0*ax*e, t0*ay*e); }, easeOutCubic, token);
+    const dash = el('line', {x1:toX(1.4),y1:toY(2.6),x2:toX(t0*ax),y2:toY(t0*ay), stroke:COL.dim,'stroke-width':1.2,'stroke-dasharray':'3,4', opacity:0}, svg);
+    await fadeEl(dash, 0, 1, 300, token);
+    await wait(500, token);
+    await caption('...what\u2019s left is perpendicular to a — the second orthogonal direction.', 12);
+    const perp = makeVector(svg, COL.teal, 0,0, {label:'b⊥', width:3.2, origin:[t0*ax, t0*ay]});
+    await tween(900, e=>{ perp.update((1.4-t0*ax)*e, (2.6-t0*ay)*e); }, easeOutCubic, token);
+    const mp = mathPanel(svg, PANEL_X, 130, ['b⊥ = b - (a·b / a·a) a', 'u₁ = a/‖a‖, u₂ = b⊥/‖b⊥‖']);
+    await fadeEl(mp, 0, 1, 500, token);
+    await wait(700, token);
+    await caption('Normalize both, and you have an <b>orthonormal basis</b> built from any starting vectors.', 14);
+    await wait(700, token);
+  }
+});
+
+/* ---- 12: Basis ---- */
+SLIDES.push({
+  name:'Basis',
+  async play(ctx){
+    const {svg, token} = ctx;
+    clipLeft(svg);
+    makeAxes(svg, 9);
+    await caption('î and ĵ form a <b>basis</b> — a minimal set of vectors that can build any other vector.', 12);
+    const iHat = makeVector(svg, COL.blue, 1, 0, {label:'î', width:3.4});
+    const jHat = makeVector(svg, COL.gold, 0, 1, {label:'ĵ', width:3.4});
+    await wait(500, token);
+    await caption('Scale î by 3...', 10);
+    const scaled_i = makeVector(svg, COL.blue, 0,0, {width:3.4, opacity:0.9});
+    await fadeEl(scaled_i.g, 0, 1, 200, token);
+    await tween(700, e=>{ scaled_i.update(3*e, 0); }, easeOutCubic, token);
+    await wait(300, token);
+    await caption('...then scale ĵ by 2, and add it on, tip to tail.', 10);
+    const scaled_j = makeVector(svg, COL.gold, 0,0, {width:3.4, origin:[3,0], opacity:0.9});
+    await fadeEl(scaled_j.g, 0, 1, 200, token);
+    await tween(700, e=>{ scaled_j.update(0, 2*e); }, easeOutCubic, token);
+    await wait(300, token);
+    const v = makeVector(svg, COL.teal, 0,0, {label:'v = 3î + 2ĵ', width:3.6, labelSize:14});
+    await tween(800, e=>{ v.update(3*e, 2*e); }, easeOutCubic, token);
+    const mp = mathPanel(svg, PANEL_X, 130, ['v = c₁e₁ + c₂e₂ + ... + cₙeₙ', 'coordinates: (c₁,...,cₙ)']);
+    await fadeEl(mp, 0, 1, 500, token);
+    await caption('Every vector is a combination of basis vectors: <b>v = 3î + 2ĵ</b>.', 10);
+    await wait(800, token);
+  }
+});
+
+/* ---- 12b: Linear Independence & Span ---- */
+SLIDES.push({
+  name:'Independence & span',
+  async play(ctx){
+    const {svg, token} = ctx;
+    clipLeft(svg);
+    makeAxes(svg, 9);
+    await caption('Two vectors are <b>linearly independent</b> when neither can be written as a multiple of the other.', 16);
+    const a = makeVector(svg, COL.blue, 2.6, 0.6, {label:'a'});
+    const b = makeVector(svg, COL.gold, 0.6, 2.2, {label:'b'});
+    await wait(500, token);
+    await caption('Together, independent vectors in the plane <b>span</b> the whole plane — reach anywhere.', 12);
+    const mp = mathPanel(svg, PANEL_X, 130, ['c₁a + c₂b = 0 ⇒ c₁=c₂=0', 'span{a,b} = {c₁a+c₂b : c₁,c₂∈ℝ}']);
+    await fadeEl(mp, 0, 1, 500, token);
+    await wait(400, token);
+    await caption('But add a third vector in the same plane, and it\u2019s automatically dependent...', 12);
+    const c = makeVector(svg, COL.red, 3.2, 2.8, {label:'c', width:3});
+    await wait(600, token);
+    await caption('...it\u2019s always some combination of the first two: c = 1·a + 1·b.', 12);
+    const c1 = makeVector(svg, COL.blue, 0,0, {width:2.4, opacity:0.8});
+    await tween(700, e=>{ c1.update(2.6*e, 0.6*e); }, easeOutCubic, token);
+    const c2 = makeVector(svg, COL.gold, 0,0, {width:2.4, opacity:0.8, origin:[2.6,0.6]});
+    await tween(700, e=>{ c2.update(0.6*e, 2.2*e); }, easeOutCubic, token);
+    await wait(800, token);
+  }
+});
+
+/* ---- 13: Vector Spaces ---- */
+SLIDES.push({
+  name:'Vector spaces',
+  async play(ctx){
+    const {svg, token} = ctx;
+    clipLeft(svg);
+    makeAxes(svg, 9);
+    await caption('A <b>vector space</b> is closed under addition and scaling — combine vectors freely, you never leave it.', 12);
+    const a = makeVector(svg, COL.blue, 1.6, 0.4, {label:'a'});
+    const b = makeVector(svg, COL.gold, 0.3, 1.5, {label:'b'});
+    await wait(500, token);
+    await caption('Every combination c₁a + c₂b lands somewhere in the plane...', 10);
+    const mp = mathPanel(svg, PANEL_X, 130, ['closure: u+v ∈ V,  cu ∈ V', 'axioms: assoc., commut.,', '0 vector, inverses, distrib.']);
+    await fadeEl(mp, 0, 1, 500, token);
+    const dots = el('g', {'clip-path':'url(#leftClip)'}, svg);
+    const rnd = (seed)=> { const x = Math.sin(seed*999)*10000; return x-Math.floor(x); };
+    for(let i=0;i<70;i++){
+      const c1 = rnd(i*3+1)*6-3, c2 = rnd(i*7+2)*6-3;
+      const px = c1*1.6+c2*0.3, py = c1*0.4+c2*1.5;
+      const d = el('circle', {cx:toX(px), cy:toY(py), r:0, fill:COL.purple, opacity:0.55}, dots);
+      tween(500+ (i%20)*30, e=>{ d.setAttribute('r', 2.1*e); }, easeOutCubic, token);
+    }
+    await wait(1300, token);
+    await caption('...and together they fill the <b>entire</b> plane. That span is a 2D vector space.', 12);
+    await wait(900, token);
+    await caption('But if a and b point along the same line, their span collapses to just that line.', 12);
+    await fadeEl(dots, 1, 0, 500, token);
+    await tween(900, e=>{
+      b.update(lerp(0.3,0.8,e), lerp(1.5,0.2,e));
+    }, easeInOutCubic, token);
+    const dots2 = el('g', {'clip-path':'url(#leftClip)'}, svg);
+    for(let i=-20;i<=20;i++){
+      const t = i/4;
+      el('circle', {cx:toX(t*1.6), cy:toY(t*0.4), r:1.6, fill:COL.purple, opacity:0.5}, dots2);
+    }
+    await wait(800, token);
+  }
+});
+
+/* ---- 13b: Change of Basis ---- */
+SLIDES.push({
+  name:'Change of basis',
+  async play(ctx){
+    const {svg, token} = ctx;
+    clipLeft(svg);
+    makeAxes(svg, 9);
+    await caption('The same vector can be described using different bases.', 10);
+    const gridB = makeGrid(svg, {range:9, color:'#3a2f45'});
+    gridB.g.setAttribute('opacity', 0);
+    const axB1 = makeVector(svg, COL.purple, 0,0, {width:2});
+    const axB2 = makeVector(svg, COL.purple, 0,0, {width:2});
+    const v = makeVector(svg, COL.teal, 3, 1.4, {label:'v', width:3.6});
+    const stdLbl = textEl(svg, PANEL_X, 100, 'standard: (3, 1.4)', {size:14, mono:true, opacity:0});
+    await fadeEl(stdLbl, 0, 1, 400, token);
+    await wait(600, token);
+    await caption('Now tilt the coordinate grid — v itself doesn\u2019t move, only how we <em>describe</em> it changes.', 16);
+    const ang = 32*Math.PI/180;
+    await fadeEl(gridB.g, 0, 0.8, 400, token);
+    await tween(1300, e=>{
+      const a = lerp(0, ang, e);
+      const M = [Math.cos(a), -Math.sin(a), Math.sin(a), Math.cos(a)];
+      gridB.apply(M);
+      axB1.update(M[0]*1.6, M[2]*1.6);
+      axB2.update(M[1]*1.6, M[3]*1.6);
+    }, easeInOutCubic, token);
+    await wait(500, token);
+    const M=[Math.cos(ang),-Math.sin(ang),Math.sin(ang),Math.cos(ang)];
+    const det=M[0]*M[3]-M[1]*M[2];
+    const c1 = (M[3]*3 - M[1]*1.4)/det;
+    const c2 = (-M[2]*3 + M[0]*1.4)/det;
+    const newLbl = textEl(svg, PANEL_X, 140, 'new basis: ('+c1.toFixed(2)+', '+c2.toFixed(2)+')', {size:14, mono:true, fill:COL.purple, opacity:0});
+    await fadeEl(newLbl, 0, 1, 500, token);
+    const mp = mathPanel(svg, PANEL_X, 230, ['[v]_B = P⁻¹ v', 'P = matrix of new basis vectors']);
+    await fadeEl(mp, 0, 1, 500, token);
+    await caption('Different coordinates, same arrow. Basis is a choice of description, not a property of the vector.', 16);
+    await wait(800, token);
+  }
+});
+
+/* ---- 14: Projection ---- */
+SLIDES.push({
+  name:'Projection',
+  async play(ctx){
+    const {svg, token} = ctx;
+    clipLeft(svg);
+    makeAxes(svg, 9);
+    await caption('<b>Projection</b> finds the shadow one vector casts onto the direction of another.', 12);
+    const a = makeVector(svg, COL.blue, 3.4, 0.6, {label:'a'});
+    const b = makeVector(svg, COL.gold, 1.4, 2.6, {label:'b'});
+    await wait(500, token);
+    const ax=3.4, ay=0.6;
+    const alen2 = ax*ax+ay*ay;
+    const dot0 = 1.4*ax + 2.6*ay;
+    const t0 = dot0/alen2;
+    await caption('Drop a perpendicular from the tip of b down onto the line through a.', 12);
+    const dash = el('line', {stroke:COL.dim, 'stroke-width':1.3, 'stroke-dasharray':'4,4', opacity:0}, svg);
+    setA(dash, {x1:toX(1.4), y1:toY(2.6), x2:toX(1.4), y2:toY(2.6)});
+    await fadeEl(dash, 0, 1, 300, token);
+    const p = makeVector(svg, COL.teal, 0, 0, {label:'p', width:3.4});
+    await tween(1100, e=>{
+      const px = t0*ax*e, py = t0*ay*e;
+      p.update(px, py);
+      setA(dash, {x1:toX(1.4), y1:toY(2.6), x2:toX(px), y2:toY(py)});
+    }, easeInOutCubic, token);
+    const rmk = el('rect', {x:toX(t0*ax)-9, y:toY(0)-9, width:9, height:9, fill:'none', stroke:COL.dim, 'stroke-width':1.2, opacity:0,
+      transform:`rotate(${-Math.atan2(ay,ax)*180/Math.PI} ${toX(t0*ax)} ${toY(t0*ay)})`}, svg);
+    await fadeEl(rmk, 0, 0.8, 300, token);
+    const formula = mathPanel(svg, PANEL_X, 140, ['p = (a·b / a·a) a', 'scalar proj: ‖p‖ = a·b / ‖a‖']);
+    await fadeEl(formula, 0, 1, 400, token);
+    await caption('<b>p</b> is the part of b that points along a — the closest point on that line to b.', 12);
+    await wait(900, token);
+  }
+});
+
+/* ---- 14b: Least Squares ---- */
+SLIDES.push({
+  name:'Least squares',
+  async play(ctx){
+    const {svg, token} = ctx;
+    clipLeft(svg);
+    makeAxes(svg, 9);
+    await caption('Often Ax = b has <b>no exact solution</b> — the data doesn\u2019t sit perfectly on any line.', 14);
+    const rnd = (seed)=> { const x = Math.sin(seed*999)*10000; return x-Math.floor(x); };
+    const pts=[];
+    for(let i=0;i<9;i++){
+      const px = -3.4 + i*0.85;
+      const py = 0.55*px + (rnd(i*5+1)-0.5)*1.3;
+      const d = el('circle', {cx:toX(px), cy:toY(py), r:0, fill:COL.teal}, svg);
+      pts.push({d,px,py});
+      tween(400, e=>{ d.setAttribute('r', 3*e); }, easeOutCubic, token);
+    }
+    await wait(700, token);
+    await caption('<b>Least squares</b> finds the line minimizing the total squared vertical distance to every point.', 16);
+    const line = el('line', {stroke:COL.gold, 'stroke-width':2.6, opacity:0}, svg);
+    setA(line, {x1:toX(-4), y1:toY(-4*0.55), x2:toX(4), y2:toY(4*0.55)});
+    await fadeEl(line, 0, 1, 600, token);
+    const mp = mathPanel(svg, PANEL_X, 130, ['minimize ‖Ax - b‖²', 'normal equations:', 'AᵀA x = Aᵀb']);
+    await fadeEl(mp, 0, 1, 500, token);
+    await wait(300, token);
+    for(const p of pts){
+      const fy = 0.55*p.px;
+      const seg = el('line', {x1:toX(p.px),y1:toY(p.py),x2:toX(p.px),y2:toY(fy), stroke:COL.red,'stroke-width':1.2,'stroke-dasharray':'2,3', opacity:0}, svg);
+      fadeEl(seg, 0, 0.8, 300, token);
+    }
+    await wait(600, token);
+    await caption('Geometrically, it\u2019s a <b>projection</b>: find the point in the column space of A closest to b.', 16);
+    await wait(700, token);
+  }
+});
+
+/* ---- 15: SVD ---- */
+SLIDES.push({
+  name:'Singular Value Decomposition',
+  async play(ctx){
+    const {svg, token} = ctx;
+    clipLeft(svg);
+    makeAxes(svg, 9);
+    await caption('<b>SVD</b> breaks any transformation into three simple moves: rotate, stretch, rotate.', 12);
+    const cx = toX(0), cy = toY(0), R = 2.1*S;
+    const gOuter = el('g', {transform:`rotate(0 ${cx} ${cy})`}, svg);
+    const gMid = el('g', {transform:`translate(${cx} ${cy}) scale(1 1) translate(${-cx} ${-cy})`}, gOuter);
+    const gInner = el('g', {transform:`rotate(0 ${cx} ${cy})`}, gMid);
+    el('circle', {cx, cy, r:R, fill:'none', stroke:COL.dim, 'stroke-width':1.6}, gInner);
+    const ax1 = makeVector(gInner, COL.blue, 0,0, {width:2.6});
+    const ax2 = makeVector(gInner, COL.gold, 0,0, {width:2.6});
+    ax1.update(2.1,0); ax2.update(0,2.1);
+    await wait(500, token);
+
+    const lbl = textEl(svg, PANEL_X, 110, 'V\u1d40 : rotate', {size:16, weight:700, fill:COL.teal, opacity:0, mono:true});
+    await fadeEl(lbl, 0, 1, 300, token);
+    const mp = mathPanel(svg, PANEL_X, 230, ['M = U Σ Vᵀ', 'U, V orthogonal; Σ diagonal', 'σᵢ = singular values ≥ 0']);
+    await fadeEl(mp, 0, 1, 500, token);
+    const thetaV = -28;
+    await tween(1100, e=>{
+      gInner.setAttribute('transform', `rotate(${lerp(0,thetaV,e)} ${cx} ${cy})`);
+    }, easeInOutCubic, token);
+    await wait(400, token);
+
+    lbl.textContent = 'Σ : stretch';
+    const sx=1.7, sy=0.55;
+    await tween(1100, e=>{
+      gMid.setAttribute('transform', `translate(${cx} ${cy}) scale(${lerp(1,sx,e)} ${lerp(1,sy,e)}) translate(${-cx} ${-cy})`);
+    }, easeInOutCubic, token);
+    await wait(400, token);
+
+    lbl.textContent = 'U : rotate';
+    const thetaU = 52;
+    await tween(1100, e=>{
+      gOuter.setAttribute('transform', `rotate(${lerp(0,thetaU,e)} ${cx} ${cy})`);
+    }, easeInOutCubic, token);
+    await wait(400, token);
+
+    await caption('The circle becomes an ellipse: <b>M = U Σ Vᵀ</b> — rotate, scale along new axes, rotate again.', 12);
+    await wait(900, token);
+  }
+});
+
+/* ---- 15b: Covariance Matrix ---- */
+SLIDES.push({
+  name:'Covariance matrix',
+  async play(ctx){
+    const {svg, token} = ctx;
+    clipLeft(svg);
+    makeAxes(svg, 9);
+    await caption('The <b>covariance matrix</b> summarizes how a dataset spreads and correlates.', 12);
+    const angle = 22*Math.PI/180;
+    const rnd = (seed)=> { const x = Math.sin(seed*999)*10000; return x-Math.floor(x); };
+    const g = el('g', {'clip-path':'url(#leftClip)'}, svg);
+    let sxx=0,syy=0,sxy=0,n=0;
+    for(let i=0;i<50;i++){
+      const u=(rnd(i*2+1)-0.5)*5.2, v=(rnd(i*2+2)-0.5)*1.4;
+      const x=u*Math.cos(angle)-v*Math.sin(angle), y=u*Math.sin(angle)+v*Math.cos(angle);
+      el('circle', {cx:toX(x),cy:toY(y),r:2.2, fill:COL.teal, opacity:0.7}, g);
+      sxx+=x*x; syy+=y*y; sxy+=x*y; n++;
+    }
+    sxx/=n; syy/=n; sxy/=n;
+    await fadeEl(g, 0, 1, 600, token);
+    await wait(600, token);
+    await caption('Its diagonal holds each direction\u2019s variance; the off-diagonal holds how x and y move together.', 16);
+    drawMatrixBox(svg, PANEL_X, 110, [[sxx.toFixed(1), sxy.toFixed(1)],[sxy.toFixed(1), syy.toFixed(1)]], {cw:56, ch:38, fs:15, opacity:0});
+    const mb = svg.lastChild;
+    await fadeEl(mb, 0, 1, 500, token);
+    const mp = mathPanel(svg, PANEL_X, 200, ['Σ = (1/n) Σᵢ xᵢxᵢᵀ', '(mean-centered data)']);
+    await fadeEl(mp, 0, 1, 500, token);
+    await wait(500, token);
+    await caption('Its <b>eigenvectors</b> point along the directions of greatest spread — exactly what PCA looks for next.', 16);
+    await wait(700, token);
+  }
+});
+
+/* ---- 16: PCA ---- */
+SLIDES.push({
+  name:'Principal Component Analysis',
+  async play(ctx){
+    const {svg, token} = ctx;
+    clipLeft(svg);
+    makeAxes(svg, 9);
+    await caption('Scattered data often leans in one direction more than others.', 10);
+    const angle = 25*Math.PI/180;
+    const rnd = (seed)=> { const x = Math.sin(seed*999)*10000; return x-Math.floor(x); };
+    const pts = [];
+    const g = el('g', {'clip-path':'url(#leftClip)'}, svg);
+    for(let i=0;i<50;i++){
+      const u = (rnd(i*2+1)-0.5)*5.4;
+      const v = (rnd(i*2+2)-0.5)*1.3;
+      const x = u*Math.cos(angle) - v*Math.sin(angle);
+      const y = u*Math.sin(angle) + v*Math.cos(angle);
+      const d = el('circle', {cx:toX(x), cy:toY(y), r:0, fill:COL.teal, opacity:0.75}, g);
+      pts.push({d,x,y});
+      tween(500, e=>{ d.setAttribute('r', 2.4*e); }, easeOutCubic, token);
+    }
+    await wait(700, token);
+    await caption('<b>PCA</b> finds the axis where the data spreads out the most — the first principal component.', 12);
+    const pc1 = makeVector(svg, COL.gold, 0,0, {width:3.2, label:'PC1'});
+    const pc2 = makeVector(svg, COL.dim, 0,0, {width:2});
+    await tween(1200, e=>{
+      const a = lerp(0, angle, e);
+      pc1.update(3.2*Math.cos(a), 3.2*Math.sin(a));
+      pc1.update.__last=a;
+      const nx = -3.2*Math.cos(a), ny=-3.2*Math.sin(a);
+      pc1.line.setAttribute('x1', toX(nx)); pc1.line.setAttribute('y1', toY(ny));
+      pc2.update(2*Math.cos(a+Math.PI/2), 2*Math.sin(a+Math.PI/2));
+    }, easeInOutCubic, token);
+    const mp = mathPanel(svg, PANEL_X, 130, ['maximize Var(wᵀx)', 'subject to ‖w‖ = 1', '⇒ Σw = λw  (top eigenvector)']);
+    await fadeEl(mp, 0, 1, 500, token);
+    await wait(700, token);
+    await caption('Projecting every point onto that axis reduces the data from 2 dimensions to 1 — with minimal loss.', 14);
+    await tween(1300, e=>{
+      for(const p of pts){
+        const t = p.x*Math.cos(angle) + p.y*Math.sin(angle);
+        const tx = t*Math.cos(angle), ty=t*Math.sin(angle);
+        p.d.setAttribute('cx', toX(lerp(p.x,tx,e)));
+        p.d.setAttribute('cy', toY(lerp(p.y,ty,e)));
+      }
+    }, easeInOutCubic, token);
+    await wait(900, token);
+  }
+});
+
+/* ---- 17: Closing ---- */
+SLIDES.push({
+  name:'Closing',
+  async play(ctx){
+    const {svg, token} = ctx;
+    clipLeft(svg);
+    await caption('Every idea here is one geometric story: numbers, arrows, grids — and how they move.', 12);
+    const labels = ['Scalars','Vectors','Matrices','Transpose','Tensors','Rank','Null space','Determinant','Trace','Eigenvectors','Diagonalization','Orthogonality','Gram-Schmidt','Basis','Span','Change of basis','Projection','Least squares','SVD','Covariance','PCA'];
+    const cx=480, cy=290, R=205;
+    const nodes = [];
+    const g = el('g', {}, svg);
+    for(let i=0;i<labels.length;i++){
+      const a = (i/labels.length)*Math.PI*2 - Math.PI/2;
+      const x = cx+R*Math.cos(a), y=cy+R*Math.sin(a)*0.62;
+      const dot = el('circle', {cx:x, cy:y, r:0, fill:COL.teal}, g);
+      const t = el('text', {x, y:y + (Math.sin(a)>0?20:-13), 'text-anchor':'middle', 'font-size':10.5, fill:COL.dim, opacity:0}, g);
+      t.textContent = labels[i];
+      nodes.push({x,y,dot,t});
+    }
+    for(let i=0;i<nodes.length;i++){
+      const n1=nodes[i], n2=nodes[(i+1)%nodes.length];
+      el('line', {x1:n1.x,y1:n1.y,x2:n2.x,y2:n2.y, stroke:'#23262e', 'stroke-width':1}, g);
+    }
+    const center = textEl(svg, cx, cy+6, 'Linear Algebra', {size:22, weight:700, anchor:'middle', serif:true, opacity:0});
+    await fadeEl(center, 0, 1, 500, token);
+    for(let i=0;i<nodes.length;i++){
+      const n = nodes[i];
+      tween(400, e=>{ n.dot.setAttribute('r', 3.2*e); }, easeOutBack, token);
+      fadeEl(n.t, 0, 1, 400, token);
+      await wait(60, token);
+    }
+    await wait(600, token);
+    await caption('Thank you for exploring the geometry of linear algebra.', 10);
+  }
+});
+
+/* ===================== deep dive content ===================== */
+const DEEPDIVE = [
+/* 0 Welcome */
+{ subtopics:['Vectors, matrices, tensors','Transformations & structure','Decompositions & data'],
+  why:'Linear algebra is the language for describing and manipulating multi-dimensional data using a small set of operations: addition, scaling, and linear transformation. Almost everything in machine learning — from a single neuron to a transformer — is built from these primitives.',
+  how:['Start with objects: scalars, vectors, matrices, tensors','Learn operations: addition, multiplication, inversion','Understand structure: rank, basis, orthogonality','Apply decompositions: eigen, SVD, PCA'],
+  uses:['Neural network layers are matrix multiplications','Computer graphics use transformation matrices','Search engines rank pages via eigenvectors','Data compression relies on SVD/PCA'] },
+/* 1 Scalars */
+{ subtopics:['Real numbers ℝ','Complex numbers ℂ (advanced)','Scalar fields'],
+  why:'A scalar is the simplest object — a single quantity with no direction. We need scalars because every vector and matrix is ultimately built from them: coordinates, weights, and transformation factors are all scalars. The "field" a vector space is built over (usually ℝ) is defined by which scalars are allowed.',
+  how:['Identify the quantity: is it just a size or count?','Check it has no direction or components','Use it to scale a vector: c·v'],
+  uses:['Temperature, mass, price — anything with only magnitude','The learning rate in gradient descent is a scalar','A neuron\u2019s bias term is a scalar'] },
+/* 2 Vectors */
+{ subtopics:['Position vectors','Displacement vectors','Feature vectors (ML)'],
+  why:'We need a way to describe a quantity with both size and direction — like velocity or force. Listing n numbers (v₁,...,vₙ) captures both: the entries tell you how far to move along each basis direction, and together they define one arrow in n-dimensional space.',
+  how:['Write the vector as a tuple of n numbers','Draw it as an arrow from the origin','Add/scale using the vector operations'],
+  uses:['A pixel\u2019s RGB color is a 3D vector','A word embedding is a 300+ dimension vector','A robot arm\u2019s pose is a vector in joint-space'] },
+/* 3 Vector Operations */
+{ subtopics:['Commutativity of addition','Associativity','Distributive laws'],
+  why:'Addition and scalar multiplication are defined component-wise so that combining vectors matches combining the physical quantities they represent — two displacements one after another should add to the total displacement. This is the unique rule consistent with the tip-to-tail picture.',
+  how:['To add: add matching components, (a+b)ᵢ=aᵢ+bᵢ','To scale: multiply every component by c','Combine both for any linear combination c₁a+c₂b'],
+  uses:['Averaging feature vectors (mean pooling in ML)','Physics: combining forces or velocities','Image blending as a weighted sum of pixel vectors'] },
+/* 4 Norm & Length */
+{ subtopics:['L2 norm (Euclidean)','L1 norm (Manhattan)','Unit vectors'],
+  why:'We define the norm from the Pythagorean theorem because along perpendicular axes, straight-line distance decomposes into right-angle legs. Generalizing a²+b²=c² to n dimensions gives ‖v‖=√(v₁²+...+vₙ²) — matching physical distance in any dimension.',
+  how:['Square every component','Sum the squares','Take the square root'],
+  uses:['Measuring distance between points (k-NN)','Normalizing vectors for cosine similarity','L2 regularization (weight penalty) in ML models'] },
+/* 5 Matrices */
+{ subtopics:['Square vs rectangular','Sparse matrices','Block matrices'],
+  why:'A matrix is a grid because it must describe how EACH of n input directions maps to an output — that needs n output vectors (columns), each living in m-dimensional output space, giving an m×n grid. This is exactly what matrix-vector multiplication requires.',
+  how:['Decide size: m rows (outputs) × n cols (inputs)','Fill aᵢⱼ with input j\u2019s effect on output i','Read columns as where each basis vector lands'],
+  uses:['An image is literally a matrix of pixel values','Adjacency matrices represent graphs/networks','Weight matrices connect neural network layers'] },
+/* 6 Transpose */
+{ subtopics:['Symmetric matrices','Transpose of a product','Conjugate transpose'],
+  why:'Flipping rows and columns reverses the "roles" of inputs and outputs. The rule (AB)ᵀ=BᵀAᵀ falls out of the index-swap definition directly: transposing a product must reverse multiplication order to keep the indices matching.',
+  how:['Swap aᵢⱼ with aⱼᵢ for every entry','Dimensions swap: n×m from m×n','Verify (Aᵀ)ᵀ = A'],
+  uses:['Computing AᵀA for least squares/normal equations','Symmetric matrices (A=Aᵀ) model covariance/energy','Transposing weights during backpropagation'] },
+/* 7 Tensors */
+{ subtopics:['Rank vs dimension','Tensor contraction','Tensors in deep learning'],
+  why:'As data gets richer, one or two indices aren\u2019t enough — a color video needs (time, height, width, channel), four indices. Rather than invent new math, we generalize the same index structure indefinitely, so matrix rules extend naturally to any number of dimensions.',
+  how:['Count how many independent indices the data needs','That count is the tensor\u2019s rank (order)','Operations generalize matrix rules index-by-index'],
+  uses:['A batch of color images is a rank-4 tensor','PyTorch/TensorFlow tensors are the core data structure','Physics: stress tensors, curvature tensors'] },
+/* 8 Matrix Multiplication */
+{ subtopics:['Associativity, not commutativity','Composition of transformations','Block matrix multiplication'],
+  why:'Matrix multiplication is defined as (AB)v=A(Bv) specifically so multiplying matrices corresponds to composing their transformations. If "first B then A" must be a single matrix, entries must combine via row-dot-column — any other rule would break composition.',
+  how:['Take the dot product of row i of A with column j of B','That gives entry (i,j) of the result','Repeat for every row/column pair'],
+  uses:['Stacking neural network layers','3D graphics: combining rotation, scale, translation','Markov chains: transition matrices compose over time'] },
+/* 9 Identity */
+{ subtopics:['Kronecker delta','Identity as neutral element','Permutation matrices'],
+  why:'We need a matrix meaning "do nothing," so matrix multiplication has a neutral element — like 1 for multiplication. Since columns show where basis vectors land, "do nothing" means î stays at (1,0,...), ĵ stays at (0,1,...): exactly the diagonal-of-ones matrix.',
+  how:['Put 1 on every diagonal entry (i=j)','Put 0 everywhere else','Confirm I·v = v for any v'],
+  uses:['Regularization baseline: A + λI','Represents "no transformation" in graphics pipelines','Identity/skip connections in ResNets'] },
+/* 10 Inverse */
+{ subtopics:['Singular vs invertible','Pseudo-inverse (non-square)','Adjugate formula'],
+  why:'We want an operation reversing a transformation, like division reverses multiplication. An inverse exists only if the map preserves all information (rank-deficient maps can\u2019t be undone). The 2×2 formula comes directly from solving AA⁻¹=I algebraically.',
+  how:['Compute det(A); if 0, no inverse exists','For 2×2: swap diagonal, negate off-diagonal, divide by det','Larger matrices: Gaussian elimination or adjugate'],
+  uses:['Solving Ax=b directly: x=A⁻¹b','Camera calibration & 3D reconstruction','Kalman filters use matrix inverses to update estimates'] },
+/* 11 Linear Systems */
+{ subtopics:['Consistent vs inconsistent','Homogeneous systems','Gaussian elimination'],
+  why:'A linear system is just Ax=b written out — each equation is a linear combination of unknowns set equal to a constant, so stacking m equations naturally becomes matrix-vector multiplication. Solving means inverting: which input x maps to the known output b?',
+  how:['Write equations as rows of A, constants as b','Use elimination or A⁻¹ to isolate x','Check by substituting the solution back'],
+  uses:['Circuit analysis (Kirchhoff\u2019s laws)','Structural engineering force-balance equations','Economic equilibrium models'] },
+/* 12 Rank */
+{ subtopics:['Row rank = column rank','Rank and invertibility','Low-rank approximation'],
+  why:'Rank measures how much of the output space a transformation can reach — the dimension of the column space, since that\u2019s the set of all possible outputs Av. Dependent columns mean some output directions are unreachable, and rank drops accordingly.',
+  how:['Row-reduce the matrix to echelon form','Count the non-zero pivot rows','That count is the rank'],
+  uses:['Recommender systems assume low-rank user-item matrices','Detecting redundant features/multicollinearity','Image compression via low-rank approximation'] },
+/* 13 Null/Column Space */
+{ subtopics:['Kernel (null space)','Image (column space)','Rank-nullity theorem'],
+  why:'Every map has inputs it destroys (sends to 0) and outputs it can reach. Null space = {x : Ax=0} captures "directions of no consequence." Rank-nullity (dim null + dim col = n) follows because every input dimension is either absorbed into the null space or contributes a new output dimension.',
+  how:['Solve Ax=0 to find the null space basis','Pivot columns of A span the column space','Verify dim(null) + rank(A) = number of columns'],
+  uses:['Detecting unidentifiable parameters in statistics','Robotics: null space of Jacobian = redundant motion','Signal processing: undetectable signal directions'] },
+/* 14 Determinant */
+{ subtopics:['Cofactor expansion','Determinant & eigenvalues','Determinant as volume'],
+  why:'det=ad-bc equals the signed area of the parallelogram formed by the columns — derivable directly from the area formula. This makes it the natural measure of how a transform scales area/volume, with sign showing whether orientation flips.',
+  how:['2×2: multiply diagonal, subtract anti-diagonal','Larger: expand along a row/column (cofactors)','Zero determinant means space collapses'],
+  uses:['Checking if a system has a unique solution','Computing volumes in physics/graphics','Jacobians for change of variables in calculus'] },
+/* 15 Trace */
+{ subtopics:['Trace & eigenvalues','Trace as linear functional','Trace in matrix calculus'],
+  why:'Trace equals the sum of eigenvalues because of how the characteristic polynomial factors: det(A-λI) expands to λⁿ-tr(A)λⁿ⁻¹+..., and matching coefficients shows the eigenvalues\u2019 sum must equal tr(A) — the simplest basis-independent summary of a matrix.',
+  how:['Add the diagonal entries a₁₁+a₂₂+...+aₙₙ','Equivalently, sum all eigenvalues','Use tr(AB)=tr(BA) to simplify expressions'],
+  uses:['Matrix norms (Frobenius norm uses trace)','Physics: trace of stress/inertia tensors','Trace regularization in ML loss functions'] },
+/* 16 Eigenvalues */
+{ subtopics:['Characteristic polynomial','Algebraic vs geometric multiplicity','Complex eigenvalues'],
+  why:'We seek directions where Av is just a scaled v (Av=λv) because these are the transform\u2019s "natural axes." Rearranging gives (A-λI)v=0, which has a nonzero solution only when A-λI is singular — det(A-λI)=0 is exactly the characteristic equation.',
+  how:['Set up det(A - λI) = 0','Solve the resulting polynomial for λ','For each λ, solve (A-λI)v=0 for v'],
+  uses:['Google PageRank: dominant eigenvector of link matrix','Vibration analysis: eigenvalues = resonant frequencies','PCA: eigenvectors of covariance = principal directions'] },
+/* 17 Diagonalization */
+{ subtopics:['Eigenbasis','Matrix powers','Defective matrices'],
+  why:'Describing a transform using its own eigenvectors as coordinate axes leaves nothing to do but scale each axis independently — no mixing. That\u2019s exactly a diagonal matrix, so A=QDQ⁻¹ is "change to eigenbasis, scale, change back."',
+  how:['Find all eigenvalues and eigenvectors of A','Put eigenvectors as columns of Q, eigenvalues in D','Verify A = Q D Q⁻¹'],
+  uses:['Fast Aᵏ computation (population growth, Markov chains)','Solving linear systems of differential equations','Simplifying repeated matrix ops in simulations'] },
+/* 18 Symmetric */
+{ subtopics:['Positive definite matrices','Quadratic forms','Spectral decomposition'],
+  why:'Symmetric matrices arise whenever a quantity is measured "both ways" the same (covariance of x,y = covariance of y,x). The spectral theorem guarantees real eigenvalues and orthogonal eigenvectors precisely because symmetry forces the characteristic roots real and the eigenvectors orthogonal.',
+  how:['Check A = Aᵀ entry by entry','Eigen-decompose: guaranteed real λ, orthogonal v','Write A = QΛQᵀ using orthonormal Q'],
+  uses:['Covariance/correlation matrices in statistics','Hessian matrices in optimization (convexity checks)','Graph Laplacians in spectral clustering'] },
+/* 19 Orthogonality */
+{ subtopics:['Dot product geometry','Orthogonal complement','Orthogonal projections'],
+  why:'a·b=Σaᵢbᵢ is defined so it matches ‖a‖‖b‖cos(θ): expand ‖a-b‖²=‖a‖²+‖b‖²-2a·b and compare to the law of cosines c²=a²+b²-2ab·cos(θ) — they must be the same quantity. Since cos(90°)=0, perpendicular vectors have zero dot product.',
+  how:['Multiply matching components aᵢ·bᵢ','Sum all the products','Zero result means the vectors are perpendicular'],
+  uses:['Cosine similarity in NLP/search','Orthogonal frequencies don\u2019t interfere (signal processing)','Physics: work = force · displacement'] },
+/* 20 Orthogonal Matrices */
+{ subtopics:['Rotation matrices','Reflection matrices','Preserving inner products'],
+  why:'We want transforms that don\u2019t distort shapes. QᵀQ=I means every pair of columns has zero dot product (perpendicular) and unit length — exactly the conditions to preserve every vector\u2019s length and every angle between vectors.',
+  how:['Check columns are unit length: ‖qᵢ‖=1','Check columns are mutually perpendicular','Confirm QᵀQ = I'],
+  uses:['3D rotations in graphics/robotics','QR decomposition for stable numerical solving','Preserving distances in orthogonal transforms'] },
+/* 21 Gram-Schmidt */
+{ subtopics:['QR decomposition','Orthonormalization','Numerical stability'],
+  why:'Given independent vectors, we want a perpendicular version spanning the same space, since orthogonal directions have no cross-terms. Subtracting b\u2019s projection onto a removes exactly the overlapping part, guaranteeing what\u2019s left is perpendicular by definition of projection.',
+  how:['Keep the first vector as-is','Subtract its projection from the next vector','Repeat for each vector, then normalize all'],
+  uses:['Building orthonormal bases for numerical algorithms','QR decomposition for stable least-squares solving','Constructing orthogonal basis functions in DSP'] },
+/* 22 Basis */
+{ subtopics:['Standard basis','Minimal spanning set','Basis and dimension'],
+  why:'We want the smallest set of "building block" vectors that reconstructs any vector via combination — fewer, and some vectors become unreachable; more, and it\u2019s redundant. This minimal, complete set is what makes coordinates well-defined and unique.',
+  how:['Choose vectors that are linearly independent','Confirm they span the whole space','Any vector\u2019s coordinates are then unique'],
+  uses:['Efficient feature representations in ML','Fourier/wavelet bases for signal compression','RGB/HSV are different bases for color'] },
+/* 23 Independence & Span */
+{ subtopics:['Testing independence','Spanning sets','Redundant vectors'],
+  why:'Independence is defined as "no nontrivial combination gives zero" because that guarantees every vector in the span has a UNIQUE representation — a nonzero combination equaling zero would let you add it to any representation and get another valid one.',
+  how:['Set c₁v₁+...+cₙvₙ = 0','Solve for the constants cᵢ','If only c=0 works, they\u2019re independent'],
+  uses:['Feature selection: removing dependent features','Detecting multicollinearity in regression','Compressed sensing relies on sparse independence'] },
+/* 24 Vector Spaces */
+{ subtopics:['Vector space axioms','Subspaces','Function spaces'],
+  why:'We formalize "vector space" with closure axioms (addition/scaling stay inside) because that\u2019s the minimal structure needed for all vector arithmetic to make sense — any space obeying these rules, even polynomials or functions, behaves just like arrows in ℝⁿ.',
+  how:['Check a zero vector exists','Check closure under addition','Check closure under scalar multiplication'],
+  uses:['Function spaces in Fourier analysis/quantum mechanics','Polynomial spaces in numerical approximation','State spaces in control theory & RL'] },
+/* 25 Change of Basis */
+{ subtopics:['Basis matrices','Coordinate transformation','Similarity transforms'],
+  why:'A vector is fixed, but its coordinate LIST depends on the basis — like measuring distance in miles vs km. [v]_B=P⁻¹v works because P (built from new basis vectors) converts new coordinates into standard ones, so P⁻¹ reverses that.',
+  how:['Build P with new basis vectors as columns','Compute P⁻¹','Multiply: [v]_B = P⁻¹v'],
+  uses:['Eigenbasis coordinates simplify computation','Robotics: converting between coordinate frames','Graphics: object/world/camera space transforms'] },
+/* 26 Projection */
+{ subtopics:['Orthogonal projection','Projection matrices','Least squares connection'],
+  why:'We want the closest point to b along a\u2019s direction. Geometry shows the closest point is where the leftover error (b-p) is perpendicular to a — solving (b-ta)·a=0 for t gives exactly t=(a·b)/(a·a).',
+  how:['Compute a·b and a·a','Divide: t = a·b / a·a','Multiply: p = t·a'],
+  uses:['Least squares regression (project onto column space)','Graphics: shadows and lighting calculations','Recommenders: projecting onto latent factors'] },
+/* 27 Least Squares */
+{ subtopics:['Normal equations','Residuals','Overdetermined systems'],
+  why:'When Ax=b has no exact solution, we minimize ‖Ax-b‖² instead. Setting its derivative to zero leads directly to AᵀAx=Aᵀb — meaning the residual (Ax-b) must be orthogonal to every column of A, otherwise x could be adjusted to reduce error further.',
+  how:['Form AᵀA and Aᵀb','Solve the normal equations for x','Or use QR/SVD for a numerically stable solve'],
+  uses:['Linear regression is literally least squares','Curve fitting in scientific data analysis','GPS positioning via noisy-measurement triangulation'] },
+/* 28 SVD */
+{ subtopics:['Singular values','Low-rank approximation','SVD vs eigendecomposition'],
+  why:'Not every matrix has eigenvectors — but every matrix can be built from rotate → stretch → rotate. This works because AᵀA is always symmetric positive semi-definite, so it always has orthogonal eigenvectors (V) and non-negative eigenvalues (σ²), which become SVD\u2019s pieces.',
+  how:['Compute AᵀA\u2019s eigenvectors → V, singular values σ','Compute AV to get U\u2019s directions (normalize)','Assemble M = U Σ Vᵀ'],
+  uses:['Recommender systems (matrix factorization)','Image compression (keep top singular values)','Latent semantic analysis in NLP'] },
+/* 29 Covariance */
+{ subtopics:['Variance vs covariance','Positive semi-definiteness','Correlation matrix'],
+  why:'To describe multi-dimensional spread, we need each dimension\u2019s variance AND how dimensions move together. Σ=(1/n)Σxᵢxᵢᵀ works because each outer product captures pairwise coordinate products, and averaging gives the expected co-movement.',
+  how:['Center the data (subtract the mean)','Compute xᵢxᵢᵀ for each point','Average all the outer products'],
+  uses:['Portfolio risk modeling in finance','Anomaly detection (Mahalanobis distance)','Feeds directly into PCA'] },
+/* 30 PCA */
+{ subtopics:['Explained variance','Dimensionality reduction','Whitening'],
+  why:'We want the direction where projected data spreads out most (retains most information). Maximizing Var(wᵀx) subject to ‖w‖=1 via Lagrange multipliers gives exactly Σw=λw — so the best direction is an eigenvector of the covariance matrix.',
+  how:['Compute the covariance matrix of centered data','Find its eigenvectors and eigenvalues','Project data onto the top-k eigenvectors'],
+  uses:['Compressing high-dimensional data (genomics, images)','Visualizing data in 2D/3D','Noise reduction before ML models'] },
+/* 31 Closing */
+{ subtopics:['Numerical linear algebra','Applications in deep learning','Optimization & calculus connections'],
+  why:'This tour covered the core vocabulary and intuition of linear algebra. The next step is applying these ideas to real data and models, where efficient computation (numerical linear algebra) and calculus-based optimization take over.',
+  how:['Implement these operations in NumPy/PyTorch','Apply them to a real dataset','Connect to calculus via gradients & derivatives'],
+  uses:['Build a linear regression from scratch','Run PCA on a real dataset','Study backpropagation as chained matrix derivatives'] }
+];
+
+/* ===================== controller ===================== */
+let currentToken = null;
+let currentIndex = 0;
+
+function buildDots(){
+  const dots = document.getElementById('dots');
+  dots.innerHTML = '';
+  SLIDES.forEach((s,i)=>{
+    const d = document.createElement('div');
+    d.className = 'dot' + (i===currentIndex?' active':'');
+    d.addEventListener('click', ()=> renderSlide(i));
+    dots.appendChild(d);
+  });
+}
+function updateChrome(i){
+  document.getElementById('eyebrow').innerHTML = 'Linear Algebra &nbsp;·&nbsp; <b>' + SLIDES[i].name + '</b>';
+  document.getElementById('slidecount').textContent = (i+1) + ' / ' + SLIDES.length;
+  const dots = document.querySelectorAll('.dot');
+  dots.forEach((d,idx)=> d.classList.toggle('active', idx===i));
+}
+
+async function renderSlide(i){
+  if(i<0 || i>=SLIDES.length) return;
+  if(currentToken) currentToken.cancelled = true;
+  const token = {cancelled:false};
+  currentToken = token;
+  currentIndex = i;
+  const svg = document.getElementById('stage-svg');
+  svg.innerHTML = '';
+  const c = document.getElementById('caption');
+  c.classList.add('fade');
+  c.textContent = '';
+  updateChrome(i);
+  const ctx = {svg, token};
+  try{ await SLIDES[i].play(ctx); }catch(err){ console.error(err); }
+}
+
+document.getElementById('prevBtn').addEventListener('click', ()=> renderSlide(currentIndex-1));
+document.getElementById('nextBtn').addEventListener('click', ()=> renderSlide(currentIndex+1));
+document.getElementById('replayBtn').addEventListener('click', ()=> renderSlide(currentIndex));
+
+/* ---- deep dive drawer ---- */
+const overlayEl = document.getElementById('overlay');
+const drawerTitleEl = document.getElementById('drawerTitle');
+const drawerBodyEl = document.getElementById('drawerBody');
+
+function renderDrawer(i){
+  const d = DEEPDIVE[i] || {};
+  drawerTitleEl.textContent = SLIDES[i].name;
+  let html = '';
+  if(d.subtopics && d.subtopics.length){
+    html += '<div class="dd-section"><div class="dd-label sub">Related subtopics</div><ul class="dd-list sub">'
+      + d.subtopics.map(s=>'<li>'+s+'</li>').join('') + '</ul></div>';
+  }
+  if(d.why){
+    html += '<div class="dd-section"><div class="dd-label why">Why this equation</div><p class="dd-why">'+d.why+'</p></div>';
+  }
+  if(d.how && d.how.length){
+    html += '<div class="dd-section"><div class="dd-label how">How to calculate it</div><ul class="dd-list how">'
+      + d.how.map(s=>'<li>'+s+'</li>').join('') + '</ul></div>';
+  }
+  if(d.uses && d.uses.length){
+    html += '<div class="dd-section"><div class="dd-label uses">Real-world uses</div><ul class="dd-list uses">'
+      + d.uses.map(s=>'<li>'+s+'</li>').join('') + '</ul></div>';
+  }
+  drawerBodyEl.innerHTML = html;
+}
+function openDrawer(){ renderDrawer(currentIndex); overlayEl.classList.add('open'); }
+function closeDrawer(){ overlayEl.classList.remove('open'); }
+
+document.getElementById('deepDiveBtn').addEventListener('click', openDrawer);
+document.getElementById('closeDrawer').addEventListener('click', closeDrawer);
+overlayEl.addEventListener('click', (e)=>{ if(e.target===overlayEl) closeDrawer(); });
+
+document.addEventListener('keydown', (e)=>{
+  if(overlayEl.classList.contains('open')){
+    if(e.key==='Escape'){ closeDrawer(); }
+    return;
+  }
+  if(e.key==='ArrowRight' || e.key===' '){ e.preventDefault(); renderSlide(currentIndex+1); }
+  else if(e.key==='ArrowLeft'){ e.preventDefault(); renderSlide(currentIndex-1); }
+  else if(e.key==='r' || e.key==='R'){ renderSlide(currentIndex); }
+});
+
+buildDots();
+renderSlide(0);
+
+})();
+</script>
+</body>
+</html>

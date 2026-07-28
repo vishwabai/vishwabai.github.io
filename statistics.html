@@ -1,0 +1,1610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Statistics — A Visual Field Guide</title>
+<style>
+  :root{
+    --bg:#0a0c0f;
+    --panel:#111418;
+    --ink:#e9e7df;
+    --dim:#868b93;
+    --grid:#20242a;
+    --line:#2a2e35;
+    --blue:#6e9bb3;
+    --blue-soft:#3d5866;
+    --amber:#c99b5f;
+    --sage:#7fa38a;
+    --rose:#b3728a;
+    --violet:#8c85b0;
+    --red:#c07a7a;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+    height:100vh;
+    overflow:hidden;
+    display:flex;
+    flex-direction:column;
+    -webkit-user-select:none;
+    user-select:none;
+  }
+  #app{flex:1; display:flex; flex-direction:column; min-height:0;}
+  .topbar{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:16px 36px 0;
+    font-family:ui-monospace,"SFMono-Regular",Consolas,"Courier New",monospace;
+    font-size:11px; letter-spacing:.16em; color:var(--dim); text-transform:uppercase;
+  }
+  .topbar .brand{color:var(--ink); opacity:.55;}
+  .topbar .counter{color:var(--dim);}
+  main.deck{flex:1; position:relative; min-height:0;}
+  .slide{
+    position:absolute; inset:0;
+    display:flex; flex-direction:column; align-items:center; justify-content:flex-start;
+    padding:6px 36px 0;
+    opacity:0; pointer-events:none;
+    transform:translateY(10px);
+    transition:opacity .45s ease, transform .45s ease;
+  }
+  .slide.active{opacity:1; pointer-events:auto; transform:translateY(0);}
+  .slide-head{width:100%; max-width:960px; text-align:center; margin-bottom:0;}
+  .eyebrow{
+    font-family:ui-monospace,"SFMono-Regular",Consolas,"Courier New",monospace;
+    font-size:12px; letter-spacing:.22em; color:var(--blue); opacity:.9;
+  }
+  h1.title{
+    font-family:Georgia,"Times New Roman",serif; font-weight:400;
+    font-size:clamp(26px,3.6vw,40px); letter-spacing:.01em; margin-top:2px; color:var(--ink);
+  }
+  .stage-wrap{width:100%; max-width:960px; flex:1; display:flex; align-items:center; justify-content:center; min-height:0; padding:4px 0;}
+  .stage{width:100%; aspect-ratio:920/480; max-height:100%;}
+  svg.scene{width:100%; height:100%; display:block; overflow:visible;}
+  .caption{
+    width:100%; max-width:740px; text-align:center; color:var(--dim);
+    font-size:14.5px; line-height:1.6; padding:2px 0 14px; min-height:40px;
+    opacity:0; transition:opacity .5s ease;
+  }
+  .caption.show{opacity:1;}
+  .caption b{color:var(--ink); font-weight:600;}
+  .caption .f{font-family:ui-monospace,"SFMono-Regular",Consolas,"Courier New",monospace; color:var(--amber);}
+  .math{
+    width:100%; max-width:760px; text-align:center; min-height:26px;
+    font-family:ui-monospace,"SFMono-Regular",Consolas,"Courier New",monospace;
+    font-size:15px; letter-spacing:.01em; color:var(--dim); padding:0 0 2px;
+  }
+  .math .step{opacity:0; transition:opacity .4s ease; margin-right:9px; display:inline-block;}
+  .math .step.result{color:var(--amber); font-weight:600;}
+  .math .step.eq{color:var(--ink);}
+  .theory-btn{
+    background:transparent; border:1px solid var(--line); color:var(--dim);
+    font-family:ui-monospace,"SFMono-Regular",Consolas,"Courier New",monospace;
+    font-size:11px; letter-spacing:.12em; padding:6px 13px; border-radius:2px;
+    cursor:pointer; text-transform:uppercase; transition:border-color .2s, color .2s;
+  }
+  .theory-btn:hover, .theory-btn.active{border-color:var(--blue); color:var(--blue);}
+  .theory-btn[disabled]{opacity:.2; pointer-events:none;}
+  .theory-drawer{
+    position:absolute; left:0; right:0; bottom:0; max-height:80%;
+    background:#0d0f13; border-top:1px solid var(--line);
+    transform:translateY(102%); transition:transform .4s cubic-bezier(.22,.8,.28,1);
+    padding:22px 44px 20px; overflow-y:auto; z-index:5;
+    box-shadow:0 -24px 50px rgba(0,0,0,.45);
+  }
+  .theory-drawer.open{transform:translateY(0);}
+  .theory-drawer .th-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; gap:16px; flex-wrap:wrap;}
+  .theory-drawer h3{font-family:Georgia,"Times New Roman",serif; font-weight:400; font-size:19px; color:var(--ink);}
+  .theory-drawer .th-controls{display:flex; align-items:center; gap:10px;}
+  .th-tabs{display:flex; gap:6px;}
+  .th-tab{
+    background:transparent; border:1px solid var(--line); color:var(--dim);
+    font-family:ui-monospace,"SFMono-Regular",Consolas,"Courier New",monospace;
+    font-size:10.5px; letter-spacing:.1em; padding:6px 12px; border-radius:2px;
+    cursor:pointer; text-transform:uppercase; transition:all .2s;
+  }
+  .th-tab.active{color:var(--ink); border-color:var(--blue); background:rgba(110,155,179,.10);}
+  .th-tab:hover{color:var(--blue);}
+  .theory-drawer .th-close{cursor:pointer; font-family:ui-monospace,monospace; font-size:12px; color:var(--dim); border:1px solid var(--line); padding:5px 11px; border-radius:2px; background:transparent; white-space:nowrap;}
+  .theory-drawer .th-close:hover{color:var(--blue); border-color:var(--blue);}
+  .tab-panel{display:none;}
+  .tab-panel.active{display:block;}
+  .theory-drawer ul{list-style:none; display:flex; flex-direction:column; gap:10px; max-width:820px; margin:0 auto;}
+  .theory-drawer li{font-size:13.5px; line-height:1.6; color:var(--dim); padding-left:17px; position:relative;}
+  .theory-drawer li::before{content:"—"; position:absolute; left:0; color:var(--blue); opacity:.8;}
+  .theory-drawer li b{color:var(--ink); font-weight:600;}
+  .theory-drawer li .f{font-family:ui-monospace,"SFMono-Regular",Consolas,"Courier New",monospace; color:var(--amber);}
+  .tab-panel[data-tab="why"] li::before{color:var(--sage);}
+  @media (max-width:640px){
+    .theory-drawer{padding:18px 20px 16px;}
+  }
+  .footer{display:flex; align-items:center; justify-content:space-between; padding:10px 36px 20px; gap:16px;}
+  .navbtn{
+    background:transparent; border:1px solid var(--line); color:var(--ink);
+    font-family:ui-monospace,"SFMono-Regular",Consolas,"Courier New",monospace;
+    font-size:11px; letter-spacing:.14em; padding:9px 18px; border-radius:2px;
+    cursor:pointer; transition:border-color .2s, color .2s, transform .12s;
+    text-transform:uppercase;
+  }
+  .navbtn:hover{border-color:var(--blue); color:var(--blue);}
+  .navbtn:active{transform:scale(.96);}
+  .navbtn[disabled]{opacity:.2; pointer-events:none;}
+  .progress{display:flex; gap:8px; flex-wrap:wrap; justify-content:center; max-width:50vw;}
+  .progress i{width:6px; height:6px; border-radius:50%; background:var(--line); display:block; transition:background .3s, transform .3s;}
+  .progress i.on{background:var(--blue); transform:scale(1.35);}
+  .hint{position:absolute; bottom:78px; left:0; right:0; text-align:center; font-size:11px; color:var(--dim); letter-spacing:.1em; opacity:.55; font-family:ui-monospace,monospace;}
+  @media (max-width:640px){
+    .topbar{padding:12px 18px 0;}
+    .slide{padding:4px 18px 0;}
+    .footer{padding:8px 18px 16px;}
+    .caption{font-size:13px;}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="topbar">
+    <span class="brand">STATISTICS · A VISUAL FIELD GUIDE</span>
+    <button class="theory-btn" id="theoryBtn">learn +</button>
+    <span class="counter" id="counter">01 / 13</span>
+  </div>
+
+  <main class="deck" id="deck">
+
+    <section class="slide" id="slide0">
+      <div class="slide-head">
+        <div class="eyebrow">FIELD GUIDE</div>
+        <h1 class="title">Statistics</h1>
+      </div>
+      <div class="stage-wrap"><div class="stage"><svg class="scene" id="svg-title" viewBox="0 0 920 480"></svg></div></div>
+      <div class="math" id="math0">
+        <span class="step eq" id="m0_1">the notation ahead:</span><span class="step eq" id="m0_2">x̄</span><span class="step eq" id="m0_3">σ²</span><span class="step eq" id="m0_4">σ</span><span class="step eq" id="m0_5">r</span><span class="step eq" id="m0_6">p</span>
+      </div>
+      <div class="caption" id="cap0">Twelve ideas, seen rather than memorized — the shape data takes, and how we describe that shape.</div>
+      <div class="theory-drawer" id="theory0">
+        <div class="th-head"><h3>How to use this guide</h3><div class="th-controls"><div class="th-tabs"><button class="th-tab active" data-tab="theory">Guide</button><button class="th-tab" data-tab="why">Notation</button></div><button class="th-close">close ×</button></div></div>
+        <div class="tab-panel active" data-tab="theory">
+        <ul>
+          <li>Twelve core ideas, each shown first as <b>motion</b> — data points literally balancing, sorting, stacking, or squaring — before any formula appears.</li>
+          <li>Every slide has a small derivation line under the animation, and a <b>learn</b> panel (this one) with two tabs: formal theory, and the reasoning + real-world uses behind the equation.</li>
+          <li>The concepts build on each other in order: mean → variance → std dev feed into covariance → correlation, and confidence intervals feed into hypothesis testing → p-values → ANOVA.</li>
+          <li>Navigate with <b>← →</b>, click anywhere on a slide, or the buttons below. Open this panel any time with the <b>learn</b> button, top right, or press <b>T</b>.</li>
+        </ul>
+        </div>
+        <div class="tab-panel" data-tab="why">
+        <ul>
+          <li><span class="f">x̄</span> (x-bar) — the <b>sample</b> mean. <span class="f">μ</span> (mu) — the <b>population</b> mean.</li>
+          <li><span class="f">σ²</span> (sigma-squared) — variance. <span class="f">σ</span> (sigma) — standard deviation.</li>
+          <li><span class="f">Σ</span> (capital sigma) — "sum of what follows." <span class="f">√</span> — square root.</li>
+          <li><span class="f">r</span> — Pearson correlation coefficient, always between −1 and +1.</li>
+          <li><span class="f">H₀ / H₁</span> — the null and alternative hypotheses. <span class="f">α</span> (alpha) — the significance threshold, commonly 0.05.</li>
+          <li><span class="f">p</span> — the p-value; <span class="f">z, t, F</span> — test statistics, each tied to a reference distribution.</li>
+        </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" id="slide1">
+      <div class="slide-head">
+        <div class="eyebrow">01 / MEAN</div>
+        <h1 class="title">Mean</h1>
+      </div>
+      <div class="stage-wrap"><div class="stage"><svg class="scene" id="svg-mean" viewBox="0 0 920 480"></svg></div></div>
+      <div class="math" id="math1">
+        <span class="step eq" id="m1_1">x̄ = Σxᵢ / n</span><span class="step eq" id="m1_2">= (2+3+5+7+8) / 5</span><span class="step result" id="m1_3">= 25 / 5 = 5</span>
+      </div>
+      <div class="caption" id="cap1">The mean is the point where the data <b>balances</b> — a seesaw with the numbers as weights.</div>
+      <div class="theory-drawer" id="theory1">
+        <div class="th-head"><h3>Mean</h3><div class="th-controls"><div class="th-tabs"><button class="th-tab active" data-tab="theory">Theory</button><button class="th-tab" data-tab="why">Why &amp; Uses</button></div><button class="th-close">close ×</button></div></div>
+        <div class="tab-panel active" data-tab="theory">
+        <ul>
+          <li><b>Definition:</b> the arithmetic average — sum of all values divided by how many there are.</li>
+          <li><b>Population vs. sample:</b> <span class="f">μ = (1/N)Σxᵢ</span> for a whole population, <span class="f">x̄ = (1/n)Σxᵢ</span> for a sample — same formula, different symbol depending on what data you have.</li>
+          <li><b>Why it balances:</b> the mean is the one value that makes the deviations on either side sum to exactly zero, <span class="f">Σ(xᵢ − x̄) = 0</span>.</li>
+          <li><b>Sensitive to outliers:</b> one extreme value can drag the mean far from where most of the data actually sits.</li>
+          <li><b>Best suited to:</b> roughly symmetric, interval/ratio-scale data without heavy skew.</li>
+        </ul>
+        </div>
+        <div class="tab-panel" data-tab="why">
+        <ul>
+          <li><b>Where the formula comes from:</b> ask "what single number c best represents this data?" and define "best" as minimizing total squared error, <span class="f">Σ(xᵢ−c)²</span>. Take the derivative with respect to c and set it to zero — the answer that falls out is exactly the mean. It isn't picked by convention; it's the unique least-squares answer.</li>
+          <li><b>Real-world use:</b> GPA, average order value in e-commerce dashboards, expected return of an investment in finance, average sensor reading in engineering.</li>
+          <li><b>Practical caution:</b> "average revenue per customer" can hide whether it's driven by a few big spenders or spread evenly — always pair the mean with a spread measure (variance/std dev) or the median.</li>
+        </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" id="slide2">
+      <div class="slide-head">
+        <div class="eyebrow">02 / MEDIAN</div>
+        <h1 class="title">Median</h1>
+      </div>
+      <div class="stage-wrap"><div class="stage"><svg class="scene" id="svg-median" viewBox="0 0 920 480"></svg></div></div>
+      <div class="math" id="math2">
+        <span class="step eq" id="m2_1">sorted: 2, 4, 5, 7, 9</span><span class="step result" id="m2_2">n=5 (odd) → median = x₍₃₎ = 5</span>
+      </div>
+      <div class="caption" id="cap2">Line the values up in order. The <b>median</b> is whoever is standing in the middle — unbothered by how far the extremes wander.</div>
+      <div class="theory-drawer" id="theory2">
+        <div class="th-head"><h3>Median</h3><div class="th-controls"><div class="th-tabs"><button class="th-tab active" data-tab="theory">Theory</button><button class="th-tab" data-tab="why">Why &amp; Uses</button></div><button class="th-close">close ×</button></div></div>
+        <div class="tab-panel active" data-tab="theory">
+        <ul>
+          <li><b>Definition:</b> the middle value of sorted data — the 50th percentile.</li>
+          <li><b>Formula:</b> odd n → <span class="f">x₍₍n+1₎/2₎</span>; even n → average of the two middle values, <span class="f">(x₍n/2₎ + x₍n/2+1₎)/2</span>.</li>
+          <li><b>Robust:</b> moving the largest value in a dataset arbitrarily far away doesn't move the median at all — unlike the mean.</li>
+          <li><b>Reading skew:</b> mean &gt; median usually signals a right-skewed distribution (long tail toward high values); mean &lt; median signals left skew.</li>
+          <li><b>Best suited to:</b> skewed data or data with outliers — income, house prices, response times.</li>
+        </ul>
+        </div>
+        <div class="tab-panel" data-tab="why">
+        <ul>
+          <li><b>Where the formula comes from:</b> instead of minimizing squared error like the mean, the median minimizes total <i>absolute</i> error, <span class="f">Σ|xᵢ−c|</span>. Absolute value grows linearly with distance instead of quadratically — that's the precise mathematical reason a huge outlier barely moves it.</li>
+          <li><b>Real-world use:</b> the U.S. Census reports <b>median</b> household income specifically to avoid a handful of billionaires skewing the picture; median home price listings; median page-load time.</li>
+          <li><b>Practical caution:</b> if a company reports "average salary" and it includes a few highly-paid executives, ask for the median instead — it tells you what a typical employee actually earns.</li>
+        </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" id="slide3">
+      <div class="slide-head">
+        <div class="eyebrow">03 / MODE</div>
+        <h1 class="title">Mode</h1>
+      </div>
+      <div class="stage-wrap"><div class="stage"><svg class="scene" id="svg-mode" viewBox="0 0 920 480"></svg></div></div>
+      <div class="math" id="math3">
+        <span class="step eq" id="m3_1">freq(2)=1, freq(3)=3, freq(5)=2, freq(7)=1</span><span class="step result" id="m3_2">mode = argmax freq(v) = 3</span>
+      </div>
+      <div class="caption" id="cap3">Stack repeats on top of each other. The <b>mode</b> is simply the tallest pile — the value that shows up most.</div>
+      <div class="theory-drawer" id="theory3">
+        <div class="th-head"><h3>Mode</h3><div class="th-controls"><div class="th-tabs"><button class="th-tab active" data-tab="theory">Theory</button><button class="th-tab" data-tab="why">Why &amp; Uses</button></div><button class="th-close">close ×</button></div></div>
+        <div class="tab-panel active" data-tab="theory">
+        <ul>
+          <li><b>Definition:</b> the most frequently occurring value (or values) in the data.</li>
+          <li><b>Only central-tendency measure for nominal data</b> — you can't average "red, blue, blue, green," but you can find its mode.</li>
+          <li><b>Shape:</b> a distribution can be unimodal, bimodal, or multimodal; multiple peaks often hint at mixed subpopulations hiding in one dataset.</li>
+          <li>For continuous data, "mode" usually refers to the peak of a fitted density curve rather than one exactly-repeated number.</li>
+          <li><b>Least used</b> of the three central tendencies for numeric data, but essential for categorical summaries.</li>
+        </ul>
+        </div>
+        <div class="tab-panel" data-tab="why">
+        <ul>
+          <li><b>Where it comes from:</b> unlike mean/median, mode isn't the solution to a minimization problem — it directly answers "which value shows up most," which is exactly why it works on categories with no numeric meaning at all.</li>
+          <li><b>Real-world use:</b> the most common shoe size a retailer stocks, the most frequently selected subscription plan, the most common word in a body of text (a core step in NLP).</li>
+          <li><b>Practical caution:</b> a retailer plans inventory around the <i>mode</i> shoe size, not the mean — you can't stock "size 8.3." Whenever the "average" of your data wouldn't be a valid value, look for the mode instead.</li>
+        </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" id="slide4">
+      <div class="slide-head">
+        <div class="eyebrow">04 / VARIANCE</div>
+        <h1 class="title">Variance</h1>
+      </div>
+      <div class="stage-wrap"><div class="stage"><svg class="scene" id="svg-variance" viewBox="0 0 920 480"></svg></div></div>
+      <div class="math" id="math4">
+        <span class="step eq" id="m4_1">σ² = (1/n) Σ(xᵢ − x̄)²</span><span class="step eq" id="m4_2">= (9+4+0+4+9) / 5</span><span class="step result" id="m4_3">= 26 / 5 = 5.2</span>
+      </div>
+      <div class="caption" id="cap4">Measure each point's distance from the mean, then <b>square it</b> — far points get punished disproportionately. Variance is the average of those squares.</div>
+      <div class="theory-drawer" id="theory4">
+        <div class="th-head"><h3>Variance</h3><div class="th-controls"><div class="th-tabs"><button class="th-tab active" data-tab="theory">Theory</button><button class="th-tab" data-tab="why">Why &amp; Uses</button></div><button class="th-close">close ×</button></div></div>
+        <div class="tab-panel active" data-tab="theory">
+        <ul>
+          <li><b>Definition:</b> the average squared deviation from the mean — one number summarizing spread.</li>
+          <li><b>Population:</b> <span class="f">σ² = (1/N)Σ(xᵢ−μ)²</span>. <b>Sample:</b> <span class="f">s² = (1/(n−1))Σ(xᵢ−x̄)²</span> — the n−1 is <b>Bessel's correction</b>, needed to keep the sample variance an unbiased estimate of the population variance.</li>
+          <li><b>Why square instead of using |xᵢ−x̄|?</b> Squaring is differentiable everywhere (unlike absolute value) and penalizes large deviations more — it's the choice that makes the mean the optimal "center."</li>
+          <li><b>Units are squared</b> (e.g. dollars²), which is awkward to interpret — that's the whole motivation for standard deviation.</li>
+          <li>Foundation for nearly everything downstream: std dev, covariance, correlation, confidence intervals, and ANOVA are all built on this idea.</li>
+        </ul>
+        </div>
+        <div class="tab-panel" data-tab="why">
+        <ul>
+          <li><b>Why squaring specifically:</b> squared deviations are smooth (differentiable everywhere), which is what let calculus derive the mean as the optimal center in the first place. They also have a rare, powerful property — for <i>independent</i> variables, variances simply add: <span class="f">Var(X+Y) = Var(X) + Var(Y)</span>. Absolute deviations don't have that property, which is why most of statistics builds on squared error, not absolute error.</li>
+          <li><b>Why n−1, concretely:</b> x̄ is computed <i>from</i> the same sample, and by construction it's the value that minimizes Σ(xᵢ−x̄)² for that particular sample — so this sum is systematically a little smaller than if you'd used the true (unknown) μ. Dividing by n−1 instead of n corrects exactly for that shrinkage, on average, across many samples.</li>
+          <li><b>Real-world use:</b> variance of investment returns = financial risk; variance in manufacturing measurements = quality-control tolerances; variance of a conversion rate directly determines how large an A/B test sample needs to be.</li>
+        </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" id="slide5">
+      <div class="slide-head">
+        <div class="eyebrow">05 / STANDARD DEVIATION</div>
+        <h1 class="title">Standard Deviation</h1>
+      </div>
+      <div class="stage-wrap"><div class="stage"><svg class="scene" id="svg-std" viewBox="0 0 920 480"></svg></div></div>
+      <div class="math" id="math5">
+        <span class="step eq" id="m5_1">σ = √σ² = √5.2 ≈ 2.28</span><span class="step eq" id="m5_2">P(μ−1σ &lt; X &lt; μ+1σ) ≈ 68%</span><span class="step result" id="m5_3">P(μ−2σ &lt; X &lt; μ+2σ) ≈ 95%</span>
+      </div>
+      <div class="caption" id="cap5">Undo the squaring with a square root, and variance shrinks back to the <b>original units</b> — a ruler you can lay against the data.</div>
+      <div class="theory-drawer" id="theory5">
+        <div class="th-head"><h3>Standard Deviation</h3><div class="th-controls"><div class="th-tabs"><button class="th-tab active" data-tab="theory">Theory</button><button class="th-tab" data-tab="why">Why &amp; Uses</button></div><button class="th-close">close ×</button></div></div>
+        <div class="tab-panel active" data-tab="theory">
+        <ul>
+          <li><b>Definition:</b> <span class="f">σ = √σ²</span> (or <span class="f">s = √s²</span> for a sample) — variance brought back into the original units.</li>
+          <li><b>Empirical rule (68-95-99.7):</b> holds for roughly bell-shaped (normal) distributions only — it is not guaranteed for skewed or heavy-tailed data.</li>
+          <li><b>Chebyshev's inequality</b> is the distribution-free fallback: for <i>any</i> distribution, at least <span class="f">1 − 1/k²</span> of the data lies within k standard deviations of the mean.</li>
+          <li>A small σ means the data huddles close to the mean; a large σ means it's spread wide — σ is the "typical distance" from center.</li>
+          <li>The <b>coefficient of variation</b> (σ/mean) is a handy way to compare spread across datasets with different units or scales.</li>
+        </ul>
+        </div>
+        <div class="tab-panel" data-tab="why">
+        <ul>
+          <li><b>Where the square root comes from:</b> it undoes the squaring in variance for one reason only — to get back to the original, interpretable units. "Spread in dollars," not "spread in dollars²."</li>
+          <li><b>Real-world use:</b> stock volatility is literally quoted as the standard deviation of returns; Six Sigma quality control is named after keeping defects beyond ±6σ from target; standardized tests (SAT, GRE) scale scores using σ.</li>
+          <li><b>Practical caution:</b> "this drug lowers blood pressure by 10 ± 2 mmHg" — that ± 2 is a standard deviation (or standard error), and it's what tells you how much to trust the "10."</li>
+        </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" id="slide6">
+      <div class="slide-head">
+        <div class="eyebrow">06 / COVARIANCE</div>
+        <h1 class="title">Covariance</h1>
+      </div>
+      <div class="stage-wrap"><div class="stage"><svg class="scene" id="svg-cov" viewBox="0 0 920 480"></svg></div></div>
+      <div class="math" id="math6">
+        <span class="step eq" id="m6_1">cov(X,Y) = (1/n) Σ(xᵢ−x̄)(yᵢ−ȳ)</span><span class="step eq" id="m6_2">same-sign pair → +area</span><span class="step result" id="m6_3">opposite-sign pair → −area</span>
+      </div>
+      <div class="caption" id="cap6">For every point, multiply its distance from mean-X by its distance from mean-Y. Same-direction pairs add <b>positive</b> area; opposite pairs add <b>negative</b> area.</div>
+      <div class="theory-drawer" id="theory6">
+        <div class="th-head"><h3>Covariance</h3><div class="th-controls"><div class="th-tabs"><button class="th-tab active" data-tab="theory">Theory</button><button class="th-tab" data-tab="why">Why &amp; Uses</button></div><button class="th-close">close ×</button></div></div>
+        <div class="tab-panel active" data-tab="theory">
+        <ul>
+          <li><b>Definition:</b> <span class="f">cov(X,Y) = (1/n)Σ(xᵢ−x̄)(yᵢ−ȳ)</span> — the average product of paired deviations.</li>
+          <li><b>Sign tells direction:</b> positive → X and Y tend to rise together; negative → one rises as the other falls; near zero → no consistent linear pattern.</li>
+          <li><b>cov(X,X) = Var(X)</b> — variance is just the covariance of a variable with itself.</li>
+          <li><b>The catch:</b> covariance's magnitude depends on the units of X and Y, so a covariance of "12" is meaningless without context — you can't compare it across different variable pairs.</li>
+          <li>That scaling problem is exactly what correlation, next, is built to fix.</li>
+        </ul>
+        </div>
+        <div class="tab-panel" data-tab="why">
+        <ul>
+          <li><b>Where the formula comes from:</b> if X and Y are both above their means at once (or both below), the product of their deviations is positive; if one is above while the other is below, it's negative. Summing these products literally tallies "how often, and how strongly, do they move together."</li>
+          <li><b>Real-world use:</b> the mathematical basis of portfolio diversification (Markowitz theory) — combining assets with negative covariance lowers overall portfolio risk.</li>
+          <li><b>Practical caution:</b> covariance tells you the direction of a relationship (ad spend up → sales up), but not how strong it is per unit — for that you need correlation or regression.</li>
+        </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" id="slide7">
+      <div class="slide-head">
+        <div class="eyebrow">07 / CORRELATION</div>
+        <h1 class="title">Correlation</h1>
+      </div>
+      <div class="stage-wrap"><div class="stage"><svg class="scene" id="svg-corr" viewBox="0 0 920 480"></svg></div></div>
+      <div class="math" id="math7">
+        <span class="step eq" id="m7_1">r = cov(X,Y) / (σx · σy)</span><span class="step result" id="m7_2">−1 ≤ r ≤ 1</span>
+      </div>
+      <div class="caption" id="cap7">Correlation is covariance <b>rescaled</b> to always land between −1 and +1 — a unit-free score for how tightly points hug a line.</div>
+      <div class="theory-drawer" id="theory7">
+        <div class="th-head"><h3>Correlation</h3><div class="th-controls"><div class="th-tabs"><button class="th-tab active" data-tab="theory">Theory</button><button class="th-tab" data-tab="why">Why &amp; Uses</button></div><button class="th-close">close ×</button></div></div>
+        <div class="tab-panel active" data-tab="theory">
+        <ul>
+          <li><b>Definition (Pearson's r):</b> <span class="f">r = cov(X,Y) / (σx · σy)</span> — covariance divided by both standard deviations, always between −1 and +1.</li>
+          <li><b>r = ±1</b> → perfect straight-line relationship. <b>r = 0</b> → no <i>linear</i> relationship — there could still be a strong curved one r won't detect.</li>
+          <li><b>Correlation ≠ causation:</b> two variables can move together because of a shared underlying cause, coincidence, or even reverse causation.</li>
+          <li><span class="f">r²</span>, the "coefficient of determination," is the share of one variable's variance that's explained by a linear fit with the other.</li>
+          <li>Like the mean, r is sensitive to outliers — a single extreme point can swing it substantially.</li>
+        </ul>
+        </div>
+        <div class="tab-panel" data-tab="why">
+        <ul>
+          <li><b>Where the bound of ±1 comes from:</b> dividing by σx·σy isn't arbitrary — the <b>Cauchy-Schwarz inequality</b> guarantees <span class="f">|cov(X,Y)| ≤ σx·σy</span> always, for any data. That's the actual mathematical proof that r can never exceed 1 in magnitude.</li>
+          <li><b>Real-world use:</b> correlating ad spend with revenue, screen time with grades, height with weight; a standard step in machine learning feature selection, to drop redundant, highly-correlated inputs.</li>
+          <li><b>Practical caution:</b> two variables can correlate strongly by pure chance in a small sample ("spurious correlation") — always sanity-check with domain knowledge, and a controlled experiment if you need to claim causation.</li>
+        </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" id="slide8">
+      <div class="slide-head">
+        <div class="eyebrow">08 / PERCENTILES</div>
+        <h1 class="title">Percentiles</h1>
+      </div>
+      <div class="stage-wrap"><div class="stage"><svg class="scene" id="svg-pct" viewBox="0 0 920 480"></svg></div></div>
+      <div class="math" id="math8">
+        <span class="step eq" id="m8_1">rank = ⌈ (p/100) × n ⌉</span><span class="step result" id="m8_2">Pₖ = value at that rank, sorted</span>
+      </div>
+      <div class="caption" id="cap8">Sort the data, then sweep from left to right. The <b>k-th percentile</b> is where k% of the data is already behind you.</div>
+      <div class="theory-drawer" id="theory8">
+        <div class="th-head"><h3>Percentiles</h3><div class="th-controls"><div class="th-tabs"><button class="th-tab active" data-tab="theory">Theory</button><button class="th-tab" data-tab="why">Why &amp; Uses</button></div><button class="th-close">close ×</button></div></div>
+        <div class="tab-panel active" data-tab="theory">
+        <ul>
+          <li><b>Definition:</b> the k-th percentile is the value below which k% of the (sorted) data falls.</li>
+          <li><b>Quartiles are special percentiles:</b> Q1 = P25, Q2 = P50 (the median), Q3 = P75.</li>
+          <li><b>IQR = Q3 − Q1</b> (interquartile range) is a robust spread measure, and the usual basis for flagging outliers — commonly anything beyond 1.5×IQR past Q1 or Q3.</li>
+          <li>Several valid interpolation methods exist (nearest-rank, linear, etc.) — different software can report slightly different percentile values for identical data.</li>
+          <li><b>Used for:</b> standardized test scores, growth charts, latency/performance benchmarking (e.g. "p99 latency").</li>
+        </ul>
+        </div>
+        <div class="tab-panel" data-tab="why">
+        <ul>
+          <li><b>Why rank-based, not value-based:</b> percentiles ignore the actual gaps between values and only care about order — that's exactly what makes them immune to a single huge outlier, and why a percentile rank survives a transform like converting to log-scale, while a raw value or z-score doesn't.</li>
+          <li><b>Real-world use:</b> pediatric growth charts (height/weight-for-age percentiles), test-score percentiles (SAT, GRE), and the software-engineering standard of reporting "p99 latency" as a reliability target.</li>
+          <li><b>Practical caution:</b> p99 latency matters more than average latency for user experience — the average can look great while 1% of users are having a genuinely terrible, slow experience.</li>
+        </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" id="slide9">
+      <div class="slide-head">
+        <div class="eyebrow">09 / CONFIDENCE INTERVAL</div>
+        <h1 class="title">Confidence Interval</h1>
+      </div>
+      <div class="stage-wrap"><div class="stage"><svg class="scene" id="svg-ci" viewBox="0 0 920 480"></svg></div></div>
+      <div class="math" id="math9">
+        <span class="step eq" id="m9_1">CI = x̄ ± z* · (σ / √n)</span><span class="step result" id="m9_2">95% CI → z* ≈ 1.96</span>
+      </div>
+      <div class="caption" id="cap9">One interval either does or doesn't contain the truth. But repeat the sampling many times, and about <b>95%</b> of the intervals will catch it.</div>
+      <div class="theory-drawer" id="theory9">
+        <div class="th-head"><h3>Confidence Interval</h3><div class="th-controls"><div class="th-tabs"><button class="th-tab active" data-tab="theory">Theory</button><button class="th-tab" data-tab="why">Why &amp; Uses</button></div><button class="th-close">close ×</button></div></div>
+        <div class="tab-panel active" data-tab="theory">
+        <ul>
+          <li><b>Definition:</b> a range, built from sample data, likely to contain the true population parameter.</li>
+          <li><b>Formula:</b> <span class="f">CI = x̄ ± z*·(σ/√n)</span> — or with a t-distribution instead of z when σ is unknown and n is small.</li>
+          <li><b>"95% confidence" describes the procedure</b>, not one specific interval: over many repeated samples, about 95% of the intervals built this way would contain the true value.</li>
+          <li><b>Common misconception:</b> "there's a 95% probability the true mean is in this interval" — the true mean is fixed; the randomness is in which sample (and interval) you happened to draw.</li>
+          <li>Wider interval ↔ more confidence or more variability; narrower interval ↔ larger sample size.</li>
+        </ul>
+        </div>
+        <div class="tab-panel" data-tab="why">
+        <ul>
+          <li><b>Where σ/√n comes from:</b> it's the standard error of the mean, and it follows directly from the Central Limit Theorem — averaging n independent draws shrinks the variance by a factor of n (<span class="f">Var(x̄) = σ²/n</span>), so the spread of the sampling distribution shrinks by √n. More data narrows the interval, but with diminishing returns: you need 4× the data to halve the width.</li>
+          <li><b>Where z* ≈ 1.96 comes from:</b> it's simply the point on the standard normal curve where 95% of the area falls within ±z* of the center — read directly off the normal distribution.</li>
+          <li><b>Real-world use:</b> political polling ("42% ± 3%, 19 times out of 20"), clinical-trial effect sizes, manufacturing tolerance ranges, A/B test result reporting.</li>
+        </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" id="slide10">
+      <div class="slide-head">
+        <div class="eyebrow">10 / HYPOTHESIS TESTING</div>
+        <h1 class="title">Hypothesis Testing</h1>
+      </div>
+      <div class="stage-wrap"><div class="stage"><svg class="scene" id="svg-ht" viewBox="0 0 920 480"></svg></div></div>
+      <div class="math" id="math10">
+        <span class="step eq" id="m10_1">z = (x̄ − μ₀) / (σ/√n)</span><span class="step result" id="m10_2">reject H₀ if |z| &gt; z_crit</span>
+      </div>
+      <div class="caption" id="cap10">Assume nothing is going on (<b>H₀</b>). If the data lands somewhere that assumption makes unlikely, we start to doubt it.</div>
+      <div class="theory-drawer" id="theory10">
+        <div class="th-head"><h3>Hypothesis Testing</h3><div class="th-controls"><div class="th-tabs"><button class="th-tab active" data-tab="theory">Theory</button><button class="th-tab" data-tab="why">Why &amp; Uses</button></div><button class="th-close">close ×</button></div></div>
+        <div class="tab-panel active" data-tab="theory">
+        <ul>
+          <li><b>H₀ (null):</b> the default "nothing interesting is happening" claim. <b>H₁ (alternative):</b> what you'd conclude instead if you reject H₀.</li>
+          <li>A <b>test statistic</b> (z, t, F, χ², ...) measures how far the observed data is from what H₀ predicts, in standardized units.</li>
+          <li><b>Significance level α</b> (commonly 0.05) is the risk of a false positive you're willing to accept — chosen <i>before</i> seeing the data.</li>
+          <li><b>Type I error</b> = rejecting a true H₀ (false alarm). <b>Type II error</b> = failing to reject a false H₀ (missed effect). There's a trade-off between them.</li>
+          <li>Failing to reject H₀ is <i>not</i> proof H₀ is true — it just means the data didn't give strong enough evidence against it.</li>
+        </ul>
+        </div>
+        <div class="tab-panel" data-tab="why">
+        <ul>
+          <li><b>Why standardize:</b> converting to <span class="f">z = (x̄−μ₀)/(σ/√n)</span> expresses "how many standard errors away from the null's prediction is my data," in a single number that can be compared against a universal reference — the standard normal table — regardless of the original units.</li>
+          <li><b>Real-world use:</b> drug trials (does this treatment outperform placebo?), manufacturing (has this process's average defect rate changed?), UX A/B tests (does a new button color change click-through rate?).</li>
+          <li><b>Practical caution:</b> the test gives a binary decision (reject / fail to reject) — it deliberately says nothing about the <i>size</i> of the effect. Always pair it with an effect size and a confidence interval.</li>
+        </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" id="slide11">
+      <div class="slide-head">
+        <div class="eyebrow">11 / P-VALUE</div>
+        <h1 class="title">p-value</h1>
+      </div>
+      <div class="stage-wrap"><div class="stage"><svg class="scene" id="svg-pval" viewBox="0 0 920 480"></svg></div></div>
+      <div class="math" id="math11">
+        <span class="step eq" id="m11_1">p = P(Z ≥ z_obs | H₀ true)</span><span class="step result" id="m11_2">reject H₀ if p &lt; α</span>
+      </div>
+      <div class="caption" id="cap11">The <b>p-value</b> is the shaded tail area beyond what we observed — the odds of seeing something this extreme if H₀ were actually true.</div>
+      <div class="theory-drawer" id="theory11">
+        <div class="th-head"><h3>p-value</h3><div class="th-controls"><div class="th-tabs"><button class="th-tab active" data-tab="theory">Theory</button><button class="th-tab" data-tab="why">Why &amp; Uses</button></div><button class="th-close">close ×</button></div></div>
+        <div class="tab-panel active" data-tab="theory">
+        <ul>
+          <li><b>Definition:</b> <span class="f">p = P(data this extreme or more | H₀ true)</span> — how surprising the data would be if the null hypothesis were correct.</li>
+          <li>Small p-value → the observed data would be unusual under H₀ → evidence against H₀.</li>
+          <li><b>A p-value is NOT</b> the probability that H₀ is true, and it's NOT the probability the result happened "by chance" — these are two of the most common misreadings.</li>
+          <li><b>Statistical significance ≠ practical significance:</b> with a large enough sample, even a tiny, real-world-meaningless effect can produce p &lt; 0.05.</li>
+          <li>Thresholds like α = 0.05 or 0.01 are conventions, not laws of nature — the "right" threshold depends on the cost of being wrong.</li>
+        </ul>
+        </div>
+        <div class="tab-panel" data-tab="why">
+        <ul>
+          <li><b>Why "or more extreme," not just "this exact value":</b> for continuous data, the chance of any single exact value is essentially zero — so the p-value instead sums up the probability of this result <i>and</i> anything even less consistent with H₀. That's what makes it a meaningful measure of how far into the unlikely tail the data landed.</li>
+          <li><b>Real-world use:</b> FDA drug-approval processes require pre-registered significance thresholds; scientific journals have historically used p &lt; 0.05 as an informal publication bar.</li>
+          <li><b>Practical caution:</b> that publication-bar convention is now widely criticized for encouraging "p-hacking." The American Statistical Association's 2016 statement explicitly warns against using a p-value alone to make a decision — always look at effect size and confidence intervals together.</li>
+        </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" id="slide12">
+      <div class="slide-head">
+        <div class="eyebrow">12 / ANOVA</div>
+        <h1 class="title">ANOVA</h1>
+      </div>
+      <div class="stage-wrap"><div class="stage"><svg class="scene" id="svg-anova" viewBox="0 0 920 480"></svg></div></div>
+      <div class="math" id="math12">
+        <span class="step eq" id="m12_1">F = MS_between / MS_within</span><span class="step result" id="m12_2">MS = SS / degrees of freedom</span>
+      </div>
+      <div class="caption" id="cap12">Compare the spread <b>between</b> group means to the ordinary noise <b>within</b> each group. A big ratio means the groups really differ.</div>
+      <div class="theory-drawer" id="theory12">
+        <div class="th-head"><h3>ANOVA</h3><div class="th-controls"><div class="th-tabs"><button class="th-tab active" data-tab="theory">Theory</button><button class="th-tab" data-tab="why">Why &amp; Uses</button></div><button class="th-close">close ×</button></div></div>
+        <div class="tab-panel active" data-tab="theory">
+        <ul>
+          <li><b>Definition:</b> Analysis of Variance — tests whether three or more group means are likely all equal, in a single test.</li>
+          <li><b>F-statistic:</b> <span class="f">F = MS_between / MS_within</span>, where each mean square is a sum of squares divided by its degrees of freedom.</li>
+          <li><b>Why not just run many t-tests?</b> Each individual test carries some false-positive risk; testing many pairs inflates the overall chance of a false positive (the "multiple comparisons" problem). One F-test controls this.</li>
+          <li>A significant F says <i>some</i> group differs — it doesn't say <i>which</i>. Post-hoc tests (e.g. Tukey's HSD) are needed to pinpoint that.</li>
+          <li><b>Assumes:</b> roughly normal, independent groups with similar variances across groups (homogeneity of variance).</li>
+        </ul>
+        </div>
+        <div class="tab-panel" data-tab="why">
+        <ul>
+          <li><b>Why a ratio of variances:</b> if the group means truly differ, the "between-group" variance (how spread out the group means are) should be large relative to the "within-group" variance (ordinary noise inside each group). The F-ratio is precisely engineered to compare that signal to that noise.</li>
+          <li><b>Real-world use:</b> comparing crop yields across different fertilizers, test scores across different teaching methods, or conversion rates across more than two website designs (multi-variant A/B/C testing).</li>
+          <li><b>Practical caution:</b> ANOVA only answers "is there a difference somewhere among these groups" — you'll almost always want a follow-up post-hoc test to say specifically which pair differs.</li>
+        </ul>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <div class="hint" id="hint">click, use ← → , or the buttons below · press T to learn more</div>
+  <div class="footer">
+    <button class="navbtn" id="prevBtn">← Prev</button>
+    <div class="progress" id="progress"></div>
+    <button class="navbtn" id="nextBtn">Next →</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ============================= ENGINE ============================= */
+const SVGNS = "http://www.w3.org/2000/svg";
+
+function E(tag, attrs, parent){
+  const e = document.createElementNS(SVGNS, tag);
+  attrs = attrs || {};
+  for(const k in attrs) e.setAttribute(k, attrs[k]);
+  if(parent) parent.appendChild(e);
+  return e;
+}
+function T(x, y, str, attrs, parent){
+  const t = E("text", Object.assign({x:x, y:y}, attrs || {}), parent);
+  t.textContent = str;
+  return t;
+}
+function G(parent, attrs){ return E("g", attrs || {}, parent); }
+
+function scaleX(v, domain, range){
+  return range[0] + (v - domain[0]) / (domain[1] - domain[0]) * (range[1] - range[0]);
+}
+
+/* easing */
+const easeOutCubic  = t => 1 - Math.pow(1 - t, 3);
+const easeInOutCubic= t => t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3) / 2;
+const easeOutBack   = t => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3*Math.pow(t-1,3) + c1*Math.pow(t-1,2); };
+const linear        = t => t;
+
+class Token{
+  constructor(){ this.cancelled = false; this.timers = []; }
+  cancel(){ this.cancelled = true; this.timers.forEach(clearTimeout); this.timers = []; }
+}
+
+function tween(duration, onUpdate, token, easing){
+  easing = easing || easeInOutCubic;
+  return new Promise(resolve => {
+    if(token.cancelled) return resolve();
+    const start = performance.now();
+    function frame(now){
+      if(token.cancelled) return resolve();
+      const t = Math.min((now - start) / duration, 1);
+      onUpdate(easing(t), t);
+      if(t < 1) requestAnimationFrame(frame); else resolve();
+    }
+    requestAnimationFrame(frame);
+  });
+}
+function wait(ms, token){
+  return new Promise(resolve => {
+    if(token.cancelled) return resolve();
+    const id = setTimeout(() => { if(!token.cancelled) resolve(); }, ms);
+    token.timers.push(id);
+  });
+}
+function animAttr(el, attr, from, to, duration, token, easing){
+  return tween(duration, p => el.setAttribute(attr, from + (to - from) * p), token, easing);
+}
+function fadeTo(el, target, duration, token, easing){
+  const cur = parseFloat(el.style.opacity);
+  const start = isNaN(cur) ? (parseFloat(el.getAttribute("opacity")) || 0) : cur;
+  return tween(duration, p => { el.style.opacity = start + (target - start) * p; }, token, easing || easeOutCubic);
+}
+function countUp(el, from, to, duration, token, fmt){
+  fmt = fmt || (v => Math.round(v).toString());
+  return tween(duration, p => { el.textContent = fmt(from + (to - from) * p); }, token, easeOutCubic);
+}
+function resetMath(ids){ ids.forEach(id => { const el = document.getElementById(id); if(el) el.style.opacity = 0; }); }
+function showMath(id, token, duration){ const el = document.getElementById(id); if(!el) return Promise.resolve(); return fadeTo(el, 1, duration || 450, token); }
+function gaussianPath(rangeX, baselineY, ampl, sigmaPx, muPx, steps){
+  steps = steps || 140;
+  let d = "";
+  for(let i = 0; i <= steps; i++){
+    const x = rangeX[0] + (rangeX[1] - rangeX[0]) * i / steps;
+    const z = (x - muPx) / sigmaPx;
+    const y = baselineY - ampl * Math.exp(-0.5 * z * z);
+    d += (i === 0 ? "M" : "L") + x.toFixed(1) + " " + y.toFixed(1) + " ";
+  }
+  return d;
+}
+function pathLength(el){ try { return el.getTotalLength(); } catch(e){ return 0; } }
+function drawOn(el, duration, token, easing){
+  const len = pathLength(el);
+  el.style.opacity = 1;
+  el.setAttribute("stroke-dasharray", len);
+  el.setAttribute("stroke-dashoffset", len);
+  return tween(duration, p => el.setAttribute("stroke-dashoffset", len * (1 - p)), token, easing || easeInOutCubic);
+}
+function mulberry32(seed){
+  return function(){
+    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+/* ============================= SLIDE 0 — TITLE ============================= */
+const TitleSlide = (function(){
+  const svg = document.getElementById("svg-title");
+  let loopId = null;
+
+  function reset(){
+    svg.innerHTML = "";
+    if(loopId) cancelAnimationFrame(loopId);
+    resetMath(["m0_1","m0_2","m0_3","m0_4","m0_5","m0_6"]);
+  }
+
+  async function play(token){
+    const rand = mulberry32(7);
+    const rangeX = [90, 830], baselineY = 360, ampl = 190, sigmaPx = 150, muPx = 460;
+    const curve = E("path", {d: gaussianPath(rangeX, baselineY, ampl, sigmaPx, muPx), fill:"none", stroke:"var(--blue)", "stroke-width":2, opacity:1}, svg);
+    E("line", {x1:rangeX[0], y1:baselineY, x2:rangeX[1], y2:baselineY, stroke:"var(--line)", "stroke-width":1.5}, svg);
+
+    const dots = [];
+    const n = 46;
+    for(let i = 0; i < n; i++){
+      const x = rangeX[0] + rand() * (rangeX[1] - rangeX[0]);
+      const z = (x - muPx) / sigmaPx;
+      const curveY = baselineY - ampl * Math.exp(-0.5*z*z);
+      const y = curveY + rand() * (baselineY - curveY);
+      const c = E("circle", {cx:x, cy:y, r: 3 + rand()*2.2, fill:"var(--amber)", opacity:0}, svg);
+      dots.push({el:c, x, baseY:y, phase: rand()*Math.PI*2});
+    }
+
+    await drawOn(curve, 1400, token, easeInOutCubic);
+    await Promise.all(dots.map((d,i) => wait(i*14, token).then(() => fadeTo(d.el, 0.75, 500, token))));
+    showMath("m0_1", token, 400);
+    ["m0_2","m0_3","m0_4","m0_5","m0_6"].forEach((id,i) => wait(200+i*180, token).then(()=>showMath(id, token, 400)));
+
+    function loop(now){
+      if(token.cancelled) return;
+      dots.forEach(d => { d.el.setAttribute("cy", d.baseY + Math.sin(now/1400 + d.phase) * 3.2); });
+      loopId = requestAnimationFrame(loop);
+    }
+    loopId = requestAnimationFrame(loop);
+  }
+  return {reset, play};
+})();
+
+/* ============================= SLIDE 1 — MEAN ============================= */
+const MeanSlide = (function(){
+  const svg = document.getElementById("svg-mean");
+  const values = [2,3,5,7,8];
+  const n = values.length;
+  const mean = values.reduce((a,b)=>a+b,0)/n;
+  const domain = [0,10], rangeX = [110,810], axisY = 260;
+  const X = v => scaleX(v, domain, rangeX);
+  let refs = {};
+
+  function poly(cx){ const w=18,h=30; return (cx-w)+","+(axisY+h)+" "+(cx+w)+","+(axisY+h)+" "+cx+","+axisY; }
+
+  function reset(){
+    svg.innerHTML = "";
+    resetMath(["m1_1","m1_2","m1_3"]);
+    const axisG = G(svg, {opacity:0});
+    E("line", {x1:rangeX[0], y1:axisY, x2:rangeX[1], y2:axisY, stroke:"var(--line)", "stroke-width":2}, axisG);
+    for(let v=0; v<=10; v+=1){
+      const tall = v%2===0;
+      E("line", {x1:X(v), y1:axisY-(tall?7:4), x2:X(v), y2:axisY+(tall?7:4), stroke:"var(--line)", "stroke-width":1.5}, axisG);
+      if(tall) T(X(v), axisY+26, String(v), {"text-anchor":"middle", fill:"var(--dim)", "font-size":13, "font-family":"ui-monospace,monospace"}, axisG);
+    }
+    const dots=[], labels=[];
+    values.forEach(v => {
+      const c = E("circle", {cx:X(v), cy:140, r:12, fill:"var(--blue)", opacity:0}, svg);
+      const l = T(X(v), 140-22, String(v), {"text-anchor":"middle", fill:"var(--ink)", "font-size":15, "font-family":"ui-monospace,monospace", opacity:0}, svg);
+      dots.push(c); labels.push(l);
+    });
+    const fulcrum = E("polygon", {points: poly(X(values[0])), fill:"var(--amber)", opacity:0}, svg);
+    const guide = E("line", {x1:X(mean), y1:axisY, x2:X(mean), y2:axisY+58, stroke:"var(--amber)", "stroke-width":1.5, "stroke-dasharray":"3 5", opacity:0}, svg);
+    const meanLabel = T(X(mean), axisY+78, "mean = " + mean, {"text-anchor":"middle", fill:"var(--amber)", "font-size":15, "font-family":"ui-monospace,monospace", opacity:0}, svg);
+    refs = {axisG, dots, labels, fulcrum, guide, meanLabel};
+  }
+
+  async function play(token){
+    const {axisG, dots, labels, fulcrum, guide, meanLabel} = refs;
+    await fadeTo(axisG, 1, 450, token);
+    await showMath("m1_1", token, 400);
+    for(let i=0;i<dots.length;i++){
+      if(token.cancelled) return;
+      await Promise.all([
+        animAttr(dots[i], "cy", 140, axisY, 620, token, easeOutBack),
+        fadeTo(dots[i], 1, 260, token),
+        fadeTo(labels[i], 1, 380, token)
+      ]);
+      await wait(90, token);
+    }
+    await wait(250, token);
+    await showMath("m1_2", token, 400);
+    await wait(150, token);
+    await fadeTo(fulcrum, 1, 300, token);
+    const startFx = X(values[0]), endFx = X(mean);
+    await tween(1050, p => fulcrum.setAttribute("points", poly(startFx + (endFx-startFx)*p)), token, easeInOutCubic);
+    await Promise.all([fadeTo(guide, 1, 400, token), fadeTo(meanLabel, 1, 450, token), showMath("m1_3", token, 450)]);
+    document.getElementById("cap1").classList.add("show");
+  }
+  return {reset, play};
+})();
+
+/* ============================= SLIDE 2 — MEDIAN ============================= */
+const MedianSlide = (function(){
+  const svg = document.getElementById("svg-median");
+  const original = [7,2,9,4,5];
+  const slotsX = [140, 335, 530, 725, 880-40];
+  const y = 240;
+  let refs = {};
+
+  function reset(){
+    svg.innerHTML = "";
+    resetMath(["m2_1","m2_2"]);
+    E("line", {x1:100, y1:340, x2:820, y2:340, stroke:"var(--line)", "stroke-width":1.5, opacity:.6}, svg);
+    const dots=[], labels=[];
+    original.forEach((v,i) => {
+      const c = E("circle", {cx:slotsX[i], cy:y, r:16, fill:"var(--blue)", opacity:0}, svg);
+      const l = T(slotsX[i], y+5, String(v), {"text-anchor":"middle", fill:"#0a0c0f", "font-size":15, "font-weight":"700", "font-family":"ui-monospace,monospace", opacity:0}, svg);
+      dots.push(c); labels.push(l);
+    });
+    const ring = E("circle", {cx:0, cy:0, r:16, fill:"none", stroke:"var(--amber)", "stroke-width":2, opacity:0}, svg);
+    const tag = T(0, y-40, "median", {"text-anchor":"middle", fill:"var(--amber)", "font-size":14, "font-family":"ui-monospace,monospace", opacity:0}, svg);
+    const bracketL = E("path", {d:"", fill:"none", stroke:"var(--dim)", "stroke-width":1.5, opacity:0}, svg);
+    const bracketR = E("path", {d:"", fill:"none", stroke:"var(--dim)", "stroke-width":1.5, opacity:0}, svg);
+    const lblL = T((slotsX[0]+slotsX[1])/2, y+80, "2 below", {"text-anchor":"middle", fill:"var(--dim)", "font-size":12.5, "font-family":"ui-monospace,monospace", opacity:0}, svg);
+    const lblR = T((slotsX[3]+slotsX[4])/2, y+80, "2 above", {"text-anchor":"middle", fill:"var(--dim)", "font-size":12.5, "font-family":"ui-monospace,monospace", opacity:0}, svg);
+    refs = {dots, labels, ring, tag, bracketL, bracketR, lblL, lblR};
+  }
+
+  async function play(token){
+    const {dots, labels, ring, tag, bracketL, bracketR, lblL, lblR} = refs;
+    for(let i=0;i<dots.length;i++){
+      if(token.cancelled) return;
+      await Promise.all([fadeTo(dots[i],1,300,token), fadeTo(labels[i],1,300,token)]);
+      await wait(70, token);
+    }
+    await wait(300, token);
+
+    const sorted = original.map((v,i)=>({v, from:i})).sort((a,b)=>a.v-b.v);
+    const anims = sorted.map((item, targetSlot) => {
+      const fromX = slotsX[item.from];
+      const toX = slotsX[targetSlot];
+      const dot = dots[item.from], lbl = labels[item.from];
+      return tween(900, p => {
+        const x = fromX + (toX-fromX)*p;
+        dot.setAttribute("cx", x); lbl.setAttribute("x", x);
+      }, token, easeInOutCubic);
+    });
+    await Promise.all(anims);
+    await wait(250, token);
+    await showMath("m2_1", token, 400);
+    await wait(150, token);
+
+    const midItem = sorted[2];
+    const midDot = dots[midItem.from];
+    const midX = slotsX[2];
+    ring.setAttribute("cx", midX); ring.setAttribute("cy", y);
+    tag.setAttribute("x", midX);
+    midDot.setAttribute("fill", "var(--amber)");
+    await Promise.all([fadeTo(ring,1,350,token), fadeTo(tag,1,350,token)]);
+    await tween(700, p => {
+      const s = 1 + 0.18*Math.sin(p*Math.PI);
+      ring.setAttribute("r", 16*s + 6);
+    }, token, easeOutCubic);
+
+    bracketL.setAttribute("d", "M"+slotsX[0]+" "+(y+55)+" L"+slotsX[0]+" "+(y+65)+" L"+slotsX[1]+" "+(y+65)+" L"+slotsX[1]+" "+(y+55));
+    bracketR.setAttribute("d", "M"+slotsX[3]+" "+(y+55)+" L"+slotsX[3]+" "+(y+65)+" L"+slotsX[4]+" "+(y+65)+" L"+slotsX[4]+" "+(y+55));
+    await Promise.all([fadeTo(bracketL,1,400,token), fadeTo(bracketR,1,400,token), fadeTo(lblL,1,450,token), fadeTo(lblR,1,450,token), showMath("m2_2", token, 450)]);
+    document.getElementById("cap2").classList.add("show");
+  }
+  return {reset, play};
+})();
+
+/* ============================= SLIDE 3 — MODE ============================= */
+const ModeSlide = (function(){
+  const svg = document.getElementById("svg-mode");
+  const raw = [2,3,3,3,5,5,7];
+  const domain=[0,8], rangeX=[140,780], axisY=360;
+  const X = v => scaleX(v, domain, rangeX);
+  const counts = {};
+  raw.forEach(v => counts[v] = (counts[v]||0)+1);
+  const uniq = Object.keys(counts).map(Number).sort((a,b)=>a-b);
+  let refs = {};
+
+  function reset(){
+    svg.innerHTML="";
+    resetMath(["m3_1","m3_2"]);
+    E("line", {x1:rangeX[0], y1:axisY, x2:rangeX[1], y2:axisY, stroke:"var(--line)", "stroke-width":2}, svg);
+    uniq.forEach(v => {
+      E("line", {x1:X(v), y1:axisY, x2:X(v), y2:axisY+8, stroke:"var(--line)", "stroke-width":1.5}, svg);
+      T(X(v), axisY+28, String(v), {"text-anchor":"middle", fill:"var(--dim)", "font-size":13, "font-family":"ui-monospace,monospace"}, svg);
+    });
+    const highlight = E("rect", {x:0,y:0,width:0,height:0, rx:8, fill:"var(--sage)", opacity:0}, svg);
+    const stacks = {};
+    uniq.forEach(v => {
+      stacks[v] = [];
+      for(let i=0;i<counts[v]; i++){
+        const c = E("circle", {cx:X(v), cy:60, r:11, fill:"var(--blue)", opacity:0}, svg);
+        stacks[v].push(c);
+      }
+    });
+    const tag = T(0, 0, "mode = 3", {"text-anchor":"middle", fill:"var(--sage)", "font-size":16, "font-family":"ui-monospace,monospace", opacity:0}, svg);
+    refs = {highlight, stacks, tag};
+  }
+
+  async function play(token){
+    const {highlight, stacks, tag} = refs;
+    for(const v of uniq){
+      for(let i=0;i<stacks[v].length;i++){
+        if(token.cancelled) return;
+        const targetY = axisY - (i+1)*24;
+        await Promise.all([
+          animAttr(stacks[v][i], "cy", 60, targetY, 520, token, easeOutBack),
+          fadeTo(stacks[v][i], 1, 260, token)
+        ]);
+        await wait(70, token);
+      }
+    }
+    await wait(300, token);
+    await showMath("m3_1", token, 400);
+    await wait(150, token);
+    const modeVal = uniq.reduce((best,v)=> counts[v]>counts[best]?v:best, uniq[0]);
+    const cx = X(modeVal), topY = axisY - counts[modeVal]*24 - 18;
+    highlight.setAttribute("x", cx-24); highlight.setAttribute("y", topY);
+    highlight.setAttribute("width", 48); highlight.setAttribute("height", axisY-topY);
+    highlight.setAttribute("opacity", 0);
+    svg.insertBefore(highlight, svg.firstChild.nextSibling);
+    tag.setAttribute("x", cx); tag.setAttribute("y", topY-16);
+    await Promise.all([fadeTo(highlight, .18, 400, token), fadeTo(tag, 1, 450, token), showMath("m3_2", token, 450)]);
+    await tween(600, p => { stacks[modeVal].forEach(c => c.setAttribute("r", 11 + 3*Math.sin(p*Math.PI))); }, token, easeOutCubic);
+    document.getElementById("cap3").classList.add("show");
+  }
+  return {reset, play};
+})();
+
+/* ============================= SLIDE 4 — VARIANCE ============================= */
+const VarianceSlide = (function(){
+  const svg = document.getElementById("svg-variance");
+  const values = [2,3,5,7,8];
+  const n = values.length;
+  const mean = values.reduce((a,b)=>a+b,0)/n;
+  const domain=[0,10], rangeX=[150,770], axisY=170;
+  const X = v => scaleX(v, domain, rangeX);
+  const pxPerUnit = (rangeX[1]-rangeX[0])/(domain[1]-domain[0]);
+  let refs = {};
+
+  function reset(){
+    svg.innerHTML="";
+    resetMath(["m4_1","m4_2","m4_3"]);
+    E("line", {x1:rangeX[0]-30, y1:axisY, x2:rangeX[1]+30, y2:axisY, stroke:"var(--line)", "stroke-width":2}, svg);
+    E("line", {x1:X(mean), y1:axisY-14, x2:X(mean), y2:axisY+320, stroke:"var(--amber)", "stroke-width":1.5, "stroke-dasharray":"3 5"}, svg);
+    T(X(mean), axisY-22, "mean = "+mean, {"text-anchor":"middle", fill:"var(--amber)", "font-size":13, "font-family":"ui-monospace,monospace"}, svg);
+
+    const dots=[], devLines=[], devLabels=[], squares=[], sqLabels=[];
+    values.forEach(v => {
+      const c = E("circle", {cx:X(v), cy:axisY, r:10, fill:"var(--blue)", opacity:0}, svg);
+      dots.push(c);
+      const dl = E("line", {x1:X(v), y1:axisY, x2:X(v), y2:axisY, stroke:"var(--dim)", "stroke-width":1.5, opacity:0}, svg);
+      devLines.push(dl);
+      const d = v-mean;
+      const lbl = T(X((v+mean)/2), axisY-10, (d>0?"+":"")+d, {"text-anchor":"middle", fill:"var(--dim)", "font-size":12, "font-family":"ui-monospace,monospace", opacity:0}, svg);
+      devLabels.push(lbl);
+      const side = Math.abs(d)*pxPerUnit;
+      const sq = E("rect", {x:Math.min(X(v),X(mean)), y:axisY, width:0, height:0, fill:"var(--rose)", opacity:0.28, stroke:"var(--rose)", "stroke-width":1.2}, svg);
+      squares.push(sq);
+      const sl = T(Math.min(X(v),X(mean))+side/2, axisY+side/2+5, d===0?"0":String(d*d), {"text-anchor":"middle", fill:"var(--ink)", "font-size":13, "font-family":"ui-monospace,monospace", opacity:0}, svg);
+      sqLabels.push(sl);
+    });
+    const sumText = T(rangeX[1]+30, axisY+40, "Σ = 0", {"text-anchor":"end", fill:"var(--ink)", "font-size":16, "font-family":"ui-monospace,monospace", opacity:0}, svg);
+    const varText = T(rangeX[1]+30, axisY+70, "", {"text-anchor":"end", fill:"var(--rose)", "font-size":16, "font-family":"ui-monospace,monospace", opacity:0}, svg);
+    refs = {dots, devLines, devLabels, squares, sqLabels, sumText, varText};
+  }
+
+  async function play(token){
+    const {dots, devLines, devLabels, squares, sqLabels, sumText, varText} = refs;
+    await Promise.all(dots.map(d => fadeTo(d,1,400,token)));
+    await wait(250, token);
+    await fadeTo(sumText, 1, 300, token);
+    await showMath("m4_1", token, 400);
+
+    let running = 0;
+    for(let i=0;i<values.length;i++){
+      if(token.cancelled) return;
+      const v = values[i], d = v-mean;
+      await Promise.all([fadeTo(devLines[i],1,300,token), fadeTo(devLabels[i],1,300,token)]);
+      await wait(150, token);
+      if(d !== 0){
+        const side = Math.abs(d)*pxPerUnit;
+        await Promise.all([
+          fadeTo(squares[i], 0.28, 350, token),
+          tween(500, p => { squares[i].setAttribute("height", side*p); }, token, easeOutCubic),
+          fadeTo(sqLabels[i], 1, 500, token)
+        ]);
+      }
+      running += d*d;
+      await countUp(sumText, running - d*d, running, 400, token, v => "Σ = " + Math.round(v));
+      await wait(140, token);
+    }
+    await wait(200, token);
+    await showMath("m4_2", token, 400);
+    await wait(300, token);
+    const variance = running/n;
+    await fadeTo(varText, 1, 400, token);
+    await Promise.all([
+      countUp(varText, 0, variance, 700, token, v => "variance = " + v.toFixed(2)),
+      showMath("m4_3", token, 500)
+    ]);
+    document.getElementById("cap4").classList.add("show");
+  }
+  return {reset, play};
+})();
+
+/* ============================= SLIDE 5 — STANDARD DEVIATION ============================= */
+const StdSlide = (function(){
+  const svg = document.getElementById("svg-std");
+  const values = [2,3,5,7,8];
+  const n = values.length;
+  const mean = values.reduce((a,b)=>a+b,0)/n;
+  const variance = values.reduce((a,v)=>a+(v-mean)*(v-mean),0)/n;
+  const sd = Math.sqrt(variance);
+  const rangeX=[80,840], baselineY=380, ampl=170, sigmaPx=82, muPx=460;
+  let refs = {};
+
+  function reset(){
+    svg.innerHTML="";
+    resetMath(["m5_1","m5_2","m5_3"]);
+    const intro = T(muPx, 60, "σ = √variance = √"+variance.toFixed(2)+" ≈ "+sd.toFixed(2), {"text-anchor":"middle", fill:"var(--amber)", "font-size":16, "font-family":"ui-monospace,monospace", opacity:0}, svg);
+    E("line", {x1:rangeX[0], y1:baselineY, x2:rangeX[1], y2:baselineY, stroke:"var(--line)", "stroke-width":1.5}, svg);
+    for(let k=-3;k<=3;k++){
+      const x = muPx+k*sigmaPx;
+      E("line", {x1:x, y1:baselineY, x2:x, y2:baselineY+8, stroke:"var(--line)", "stroke-width":1.5}, svg);
+      T(x, baselineY+26, k===0?"μ":(k>0?"+":"")+k+"σ", {"text-anchor":"middle", fill:"var(--dim)", "font-size":12.5, "font-family":"ui-monospace,monospace"}, svg);
+    }
+    const bandsG = G(svg, {});
+    const bandDefs = [
+      {k:3, color:"var(--blue-soft)"},
+      {k:2, color:"var(--blue-soft)"},
+      {k:1, color:"var(--blue)"}
+    ];
+    const bands = bandDefs.map(bd => E("rect", {x:muPx, y:baselineY-ampl-6, width:0, height:ampl+10, fill:bd.color, opacity:bd.k===1?0.5:0.32}, bandsG));
+    const curve = E("path", {d: gaussianPath(rangeX, baselineY, ampl, sigmaPx, muPx), fill:"none", stroke:"var(--ink)", "stroke-width":2, opacity:1}, svg);
+    const pctLabels = [
+      T(muPx+1.55*sigmaPx, baselineY-ampl*0.28, "68%", {"text-anchor":"middle", fill:"var(--ink)", "font-size":14, "font-family":"ui-monospace,monospace", opacity:0}, svg),
+      T(muPx+2.45*sigmaPx, baselineY-ampl*0.10, "95%", {"text-anchor":"middle", fill:"var(--dim)", "font-size":13, "font-family":"ui-monospace,monospace", opacity:0}, svg),
+      T(muPx+2.9*sigmaPx, baselineY+55, "99.7%", {"text-anchor":"middle", fill:"var(--dim)", "font-size":12, "font-family":"ui-monospace,monospace", opacity:0}, svg)
+    ];
+    refs = {intro, bands, curve, pctLabels};
+  }
+
+  async function play(token){
+    const {intro, bands, curve, pctLabels} = refs;
+    await fadeTo(intro, 1, 500, token);
+    await showMath("m5_1", token, 400);
+    await wait(500, token);
+    await tween(400, p => { intro.style.opacity = 1-p; }, token, easeOutCubic);
+    await drawOn(curve, 1200, token, easeInOutCubic);
+    await wait(150, token);
+
+    const order = [2,1,0]; // 3sigma band first (outer), then 2, then 1 -> but we want 1 drawn last on top visually already ordered by DOM
+    const kFor = [3,2,1];
+    const mathIds = [null, "m5_3", "m5_2"]; // aligns with kFor: k=3(none), k=2(95%), k=1(68%)
+    for(let idx=0; idx<bands.length; idx++){
+      if(token.cancelled) return;
+      const band = bands[idx], k = kFor[idx];
+      await tween(650, p => {
+        const w = k*sigmaPx*p;
+        band.setAttribute("x", muPx-w);
+        band.setAttribute("width", 2*w);
+      }, token, easeOutCubic);
+      await fadeTo(pctLabels[bands.length-1-idx], 1, 400, token);
+      if(mathIds[idx]) await showMath(mathIds[idx], token, 400);
+      await wait(200, token);
+    }
+    document.getElementById("cap5").classList.add("show");
+  }
+  return {reset, play};
+})();
+
+/* ============================= SLIDE 6 — COVARIANCE ============================= */
+const CovSlide = (function(){
+  const svg = document.getElementById("svg-cov");
+  const pts = [[1,2],[2,3.2],[3,3],[3.2,5],[4,4.2],[5,6],[6,5.1],[6.2,7],[7,6.3],[8,8]];
+  const meanX = pts.reduce((a,p)=>a+p[0],0)/pts.length;
+  const meanY = pts.reduce((a,p)=>a+p[1],0)/pts.length;
+  const cov = pts.reduce((a,p)=>a+(p[0]-meanX)*(p[1]-meanY),0)/pts.length;
+  const domain=[0,9], rangeX=[130,830];
+  const domainY=[0,9], rangeY=[420,60];
+  const X = v => scaleX(v, domain, rangeX);
+  const Y = v => scaleX(v, domainY, rangeY);
+  let refs = {};
+
+  function reset(){
+    svg.innerHTML="";
+    resetMath(["m6_1","m6_2","m6_3"]);
+    E("line", {x1:rangeX[0], y1:rangeY[0], x2:rangeX[1], y2:rangeY[0], stroke:"var(--line)", "stroke-width":1.5}, svg);
+    E("line", {x1:rangeX[0], y1:rangeY[0], x2:rangeX[0], y2:rangeY[1], stroke:"var(--line)", "stroke-width":1.5}, svg);
+
+    const quadG = G(svg, {opacity:0});
+    E("rect", {x:X(meanX), y:rangeY[1], width:rangeX[1]-X(meanX), height:Y(meanY)-rangeY[1], fill:"var(--blue)", opacity:0.10}, quadG);
+    E("rect", {x:rangeX[0], y:Y(meanY), width:X(meanX)-rangeX[0], height:rangeY[0]-Y(meanY), fill:"var(--blue)", opacity:0.10}, quadG);
+    E("rect", {x:X(meanX), y:Y(meanY), width:rangeX[1]-X(meanX), height:rangeY[0]-Y(meanY), fill:"var(--rose)", opacity:0.10}, quadG);
+    E("rect", {x:rangeX[0], y:rangeY[1], width:X(meanX)-rangeX[0], height:Y(meanY)-rangeY[1], fill:"var(--rose)", opacity:0.10}, quadG);
+
+    const meanLineX = E("line", {x1:X(meanX), y1:rangeY[1], x2:X(meanX), y2:rangeY[0], stroke:"var(--amber)", "stroke-width":1.5, "stroke-dasharray":"3 5", opacity:0}, svg);
+    const meanLineY = E("line", {x1:rangeX[0], y1:Y(meanY), x2:rangeX[1], y2:Y(meanY), stroke:"var(--amber)", "stroke-width":1.5, "stroke-dasharray":"3 5", opacity:0}, svg);
+
+    const rects = pts.map(p => E("rect", {x:Math.min(X(p[0]),X(meanX)), y:Math.min(Y(p[1]),Y(meanY)), width:Math.abs(X(p[0])-X(meanX)), height:Math.abs(Y(p[1])-Y(meanY)), fill:"none", stroke:(p[0]-meanX)*(p[1]-meanY)>=0?"var(--blue)":"var(--rose)", "stroke-width":1.3, opacity:0}, svg));
+    const dots = pts.map(p => E("circle", {cx:X(p[0]), cy:Y(p[1]), r:7, fill:"var(--ink)", opacity:0}, svg));
+    const covText = T(rangeX[1], 40, "cov ≈ 0.00", {"text-anchor":"end", fill:"var(--ink)", "font-size":16, "font-family":"ui-monospace,monospace", opacity:0}, svg);
+    refs = {quadG, meanLineX, meanLineY, rects, dots, covText};
+  }
+
+  async function play(token){
+    const {quadG, meanLineX, meanLineY, rects, dots, covText} = refs;
+    await Promise.all(dots.map((d,i) => wait(i*45, token).then(()=>fadeTo(d,1,320,token))));
+    await wait(200, token);
+    await fadeTo(quadG, 1, 400, token);
+    await Promise.all([fadeTo(meanLineX,1,400,token), fadeTo(meanLineY,1,400,token)]);
+    await wait(200, token);
+    await fadeTo(covText, 1, 300, token);
+    await showMath("m6_1", token, 400);
+    for(let i=0;i<rects.length;i++){
+      if(token.cancelled) return;
+      await fadeTo(rects[i], 0.9, 260, token);
+      covText.textContent = "adding term " + (i+1) + " / " + pts.length;
+      if(i===1) showMath("m6_2", token, 400);
+      if(i===2) showMath("m6_3", token, 400);
+      await wait(75, token);
+    }
+    await countUp(covText, 0, cov, 700, token, v => "cov ≈ " + v.toFixed(2));
+    document.getElementById("cap6").classList.add("show");
+  }
+  return {reset, play};
+})();
+
+/* ============================= SLIDE 7 — CORRELATION ============================= */
+const CorrSlide = (function(){
+  const svg = document.getElementById("svg-corr");
+  const domain=[0,10], rangeX=[160,800];
+  const domainY=[0,10], rangeY=[420,80];
+  const X = v => scaleX(v, domain, rangeX);
+  const Y = v => scaleX(v, domainY, rangeY);
+  const randA = mulberry32(11), randB = mulberry32(23), randC = mulberry32(41);
+  const N = 14;
+  function makeState(rand, slope, noise, intercept){
+    const arr = [];
+    for(let i=0;i<N;i++){
+      const x = 0.5 + (9/ (N-1))*i;
+      const y = Math.min(9.6, Math.max(0.4, intercept + slope*x + (rand()-0.5)*noise));
+      arr.push([x,y]);
+    }
+    return arr;
+  }
+  const stateA = makeState(randA, 0.85, 0.7, 0.6);   // strong positive
+  const stateB = makeState(randB, 0.0,  4.4, 5.0);   // ~no correlation
+  const stateC = makeState(randC, -0.85, 0.7, 9.2);  // strong negative
+  function corrOf(arr){
+    const mx = arr.reduce((a,p)=>a+p[0],0)/arr.length;
+    const my = arr.reduce((a,p)=>a+p[1],0)/arr.length;
+    let sxy=0, sxx=0, syy=0;
+    arr.forEach(p => { sxy += (p[0]-mx)*(p[1]-my); sxx += (p[0]-mx)**2; syy += (p[1]-my)**2; });
+    return sxy/Math.sqrt(sxx*syy);
+  }
+  const states = [stateA, stateB, stateC];
+  const rVals = states.map(corrOf);
+  let refs = {};
+
+  function reset(){
+    svg.innerHTML="";
+    resetMath(["m7_1","m7_2"]);
+    E("line", {x1:rangeX[0], y1:rangeY[0], x2:rangeX[1], y2:rangeY[0], stroke:"var(--line)", "stroke-width":1.5}, svg);
+    E("line", {x1:rangeX[0], y1:rangeY[0], x2:rangeX[0], y2:rangeY[1], stroke:"var(--line)", "stroke-width":1.5}, svg);
+    const rText = T(460, 60, "r = 0.00", {"text-anchor":"middle", fill:"var(--amber)", "font-size":26, "font-family":"ui-monospace,monospace", opacity:0}, svg);
+    const label = T(460, 90, "strong positive", {"text-anchor":"middle", fill:"var(--dim)", "font-size":13, "font-family":"ui-monospace,monospace", opacity:0}, svg);
+    const dots = stateA.map(p => E("circle", {cx:X(p[0]), cy:Y(p[1]), r:7.5, fill:"var(--blue)", opacity:0}, svg));
+    refs = {rText, label, dots};
+  }
+
+  async function play(token){
+    const {rText, label, dots} = refs;
+    const labels = ["strong positive", "no relationship", "strong negative"];
+    await Promise.all(dots.map((d,i)=>wait(i*35,token).then(()=>fadeTo(d,1,300,token))));
+    await Promise.all([fadeTo(rText,1,350,token), fadeTo(label,1,350,token)]);
+    await showMath("m7_1", token, 400);
+    await showMath("m7_2", token, 400);
+    await countUp(rText, 0, rVals[0], 600, token, v => "r = " + v.toFixed(2));
+    label.textContent = labels[0];
+
+    let prevState = stateA;
+    for(let s=1; s<states.length; s++){
+      if(token.cancelled) return;
+      await wait(700, token);
+      const from = prevState, target = states[s];
+      const fromR = rVals[s-1], toR = rVals[s];
+      await tween(1100, p => {
+        dots.forEach((d,i) => {
+          const px = from[i][0] + (target[i][0]-from[i][0])*p;
+          const py = from[i][1] + (target[i][1]-from[i][1])*p;
+          d.setAttribute("cx", X(px)); d.setAttribute("cy", Y(py));
+        });
+        rText.textContent = "r = " + (fromR + (toR-fromR)*p).toFixed(2);
+      }, token, easeInOutCubic);
+      label.textContent = labels[s];
+      prevState = target;
+    }
+    document.getElementById("cap7").classList.add("show");
+  }
+  return {reset, play};
+})();
+
+/* ============================= SLIDE 8 — PERCENTILES ============================= */
+const PctSlide = (function(){
+  const svg = document.getElementById("svg-pct");
+  const rand = mulberry32(99);
+  const values = Array.from({length:20}, () => Math.round(5 + rand()*90)).sort((a,b)=>a-b);
+  const domain=[0,100], rangeX=[90,830], axisY=280;
+  const X = v => scaleX(v, domain, rangeX);
+  function percentileValue(p){
+    const idx = Math.ceil(p/100*values.length)-1;
+    return values[Math.min(Math.max(idx,0), values.length-1)];
+  }
+  let refs = {};
+
+  function reset(){
+    svg.innerHTML="";
+    resetMath(["m8_1","m8_2"]);
+    E("line", {x1:rangeX[0], y1:axisY, x2:rangeX[1], y2:axisY, stroke:"var(--line)", "stroke-width":2}, svg);
+    const dots = values.map(v => E("circle", {cx:X(v), cy:axisY, r:8, fill:"var(--dim)", opacity:0}, svg));
+    const sweep = E("line", {x1:rangeX[0], y1:axisY-70, x2:rangeX[0], y2:axisY+40, stroke:"var(--amber)", "stroke-width":2, opacity:0}, svg);
+    const pctText = T(rangeX[0], axisY-84, "0%", {"text-anchor":"middle", fill:"var(--amber)", "font-size":16, "font-family":"ui-monospace,monospace", opacity:0}, svg);
+    const marks = [25,50,75].map(p => {
+      const g = G(svg, {opacity:0});
+      const x = X(percentileValue(p));
+      E("line", {x1:x, y1:axisY-46, x2:x, y2:axisY+6, stroke:"var(--sage)", "stroke-width":1.3, "stroke-dasharray":"2 4"}, g);
+      T(x, axisY-52, "P"+p+(p===50?" (median)":""), {"text-anchor":"middle", fill:"var(--sage)", "font-size":12, "font-family":"ui-monospace,monospace"}, g);
+      return g;
+    });
+    refs = {dots, sweep, pctText, marks};
+  }
+
+  async function play(token){
+    const {dots, sweep, pctText, marks} = refs;
+    await Promise.all(dots.map((d,i)=>wait(i*30,token).then(()=>fadeTo(d,1,250,token))));
+    await wait(200, token);
+    await Promise.all([fadeTo(sweep,1,300,token), fadeTo(pctText,1,300,token)]);
+    await showMath("m8_1", token, 400);
+    await showMath("m8_2", token, 400);
+
+    const checkpoints = [25,50,75,100];
+    let lastX = rangeX[0];
+    let passed = 0;
+    for(const cp of checkpoints){
+      if(token.cancelled) return;
+      const targetX = X(percentileValue(cp));
+      const startX = lastX;
+      await tween(900, p => {
+        const x = startX + (targetX-startX)*p;
+        sweep.setAttribute("x1", x); sweep.setAttribute("x2", x);
+        dots.forEach(d => { if(parseFloat(d.getAttribute("cx")) <= x) d.setAttribute("fill", "var(--blue)"); });
+        pctText.setAttribute("x", x);
+        pctText.textContent = Math.round((cp===100?100:cp)*p + (cp===25?0:checkpoints[checkpoints.indexOf(cp)-1])*(1-p)) + "%";
+      }, token, easeInOutCubic);
+      pctText.textContent = cp + "%";
+      lastX = targetX;
+      if(cp !== 100){
+        const markIdx = checkpoints.indexOf(cp);
+        await fadeTo(marks[markIdx], 1, 350, token);
+      }
+      await wait(280, token);
+    }
+    document.getElementById("cap8").classList.add("show");
+  }
+  return {reset, play};
+})();
+
+/* ============================= SLIDE 9 — CONFIDENCE INTERVAL ============================= */
+const CISlide = (function(){
+  const svg = document.getElementById("svg-ci");
+  const rand = mulberry32(5);
+  const domain=[30,70], rangeX=[120,800];
+  const X = v => scaleX(v, domain, rangeX);
+  const trueMean = 50;
+  const rows = 16;
+  const topY = 60, bottomY = 420;
+  const missIndex = 12; // one interval deliberately misses
+  const samples = [];
+  for(let i=0;i<rows;i++){
+    let center, half = 6.5 + rand()*1.5;
+    if(i === missIndex){ center = trueMean + (rand()>0.5?1:-1)*(half+2.5); }
+    else{ center = trueMean + (rand()-0.5)*9; }
+    samples.push({center, half, y: topY + (bottomY-topY)*i/(rows-1)});
+  }
+  let refs = {};
+
+  function reset(){
+    svg.innerHTML="";
+    resetMath(["m9_1","m9_2"]);
+    const trueLine = E("line", {x1:X(trueMean), y1:topY-25, x2:X(trueMean), y2:bottomY+15, stroke:"var(--ink)", "stroke-width":1.5, "stroke-dasharray":"3 5", opacity:0}, svg);
+    const trueLabel = T(X(trueMean), topY-34, "true mean μ", {"text-anchor":"middle", fill:"var(--ink)", "font-size":13, "font-family":"ui-monospace,monospace", opacity:0}, svg);
+    const bars = samples.map(s => {
+      const g = G(svg, {opacity:0});
+      E("line", {x1:X(s.center), y1:s.y, x2:X(s.center), y2:s.y, stroke:"var(--blue)", "stroke-width":3}, g);
+      E("circle", {cx:X(s.center), cy:s.y, r:3.2, fill:"var(--ink)"}, g);
+      return g;
+    });
+    const tally = T(800, 40, "captured: 0/16", {"text-anchor":"end", fill:"var(--ink)", "font-size":15, "font-family":"ui-monospace,monospace", opacity:0}, svg);
+    refs = {trueLine, trueLabel, bars, tally};
+  }
+
+  async function play(token){
+    const {trueLine, trueLabel, bars, tally} = refs;
+    await Promise.all([fadeTo(trueLine,1,450,token), fadeTo(trueLabel,1,450,token)]);
+    await wait(200, token);
+    await fadeTo(tally, 1, 300, token);
+    await showMath("m9_1", token, 400);
+    await showMath("m9_2", token, 400);
+    let captured = 0;
+    for(let i=0;i<samples.length;i++){
+      if(token.cancelled) return;
+      const s = samples[i];
+      const line = bars[i].querySelector("line");
+      const hit = Math.abs(s.center-trueMean) <= s.half;
+      line.setAttribute("stroke", hit ? "var(--blue)" : "var(--rose)");
+      bars[i].style.opacity = 0;
+      await tween(420, p => {
+        const w = s.half*2*p*(( (rangeX[1]-rangeX[0])/(domain[1]-domain[0]) ));
+        line.setAttribute("x1", X(s.center)-w/2);
+        line.setAttribute("x2", X(s.center)+w/2);
+        bars[i].style.opacity = p;
+      }, token, easeOutCubic);
+      if(hit) captured++;
+      tally.textContent = "captured: " + captured + "/" + (i+1);
+      await wait(55, token);
+    }
+    tally.textContent = "captured: " + captured + "/" + samples.length + " ≈ " + Math.round(captured/samples.length*100) + "%";
+    document.getElementById("cap9").classList.add("show");
+  }
+  return {reset, play};
+})();
+
+/* ============================= SLIDE 10 — HYPOTHESIS TESTING ============================= */
+const HTSlide = (function(){
+  const svg = document.getElementById("svg-ht");
+  const rangeX=[100,820], baselineY=340, ampl=180, sigmaPx=78, muPx=460;
+  const crit = 1.96;
+  const zObs = 2.35;
+  let refs = {};
+
+  function xAt(z){ return muPx + z*sigmaPx; }
+
+  function reset(){
+    svg.innerHTML="";
+    resetMath(["m10_1","m10_2"]);
+    E("line", {x1:rangeX[0], y1:baselineY, x2:rangeX[1], y2:baselineY, stroke:"var(--line)", "stroke-width":1.5}, svg);
+    for(let k=-3;k<=3;k++){
+      T(xAt(k), baselineY+24, k===0?"0":(k>0?"+":"")+k, {"text-anchor":"middle", fill:"var(--dim)", "font-size":12, "font-family":"ui-monospace,monospace"}, svg);
+    }
+    const curve = E("path", {d: gaussianPath(rangeX, baselineY, ampl, sigmaPx, muPx), fill:"none", stroke:"var(--ink)", "stroke-width":2, opacity:1}, svg);
+    const tailR = E("rect", {x:xAt(crit), y:baselineY-ampl-6, width:0, height:ampl+10, fill:"var(--rose)", opacity:0}, svg);
+    const tailL = E("rect", {x:xAt(-crit), y:baselineY-ampl-6, width:0, height:ampl+10, fill:"var(--rose)", opacity:0}, svg);
+    const critLineR = E("line", {x1:xAt(crit), y1:baselineY-ampl-6, x2:xAt(crit), y2:baselineY, stroke:"var(--rose)", "stroke-width":1.3, "stroke-dasharray":"3 4", opacity:0}, svg);
+    const critLineL = E("line", {x1:xAt(-crit), y1:baselineY-ampl-6, x2:xAt(-crit), y2:baselineY, stroke:"var(--rose)", "stroke-width":1.3, "stroke-dasharray":"3 4", opacity:0}, svg);
+    const rejL = T(xAt(-2.5), baselineY+50, "reject H₀", {"text-anchor":"middle", fill:"var(--rose)", "font-size":12, "font-family":"ui-monospace,monospace", opacity:0}, svg);
+    const rejR = T(xAt(2.5), baselineY+50, "reject H₀", {"text-anchor":"middle", fill:"var(--rose)", "font-size":12, "font-family":"ui-monospace,monospace", opacity:0}, svg);
+    const failC = T(muPx, baselineY+50, "fail to reject H₀", {"text-anchor":"middle", fill:"var(--dim)", "font-size":12, "font-family":"ui-monospace,monospace", opacity:0}, svg);
+    const marker = E("polygon", {points:"", fill:"var(--amber)", opacity:0}, svg);
+    const markerLine = E("line", {x1:xAt(0), y1:baselineY-ampl-40, x2:xAt(0), y2:baselineY, stroke:"var(--amber)", "stroke-width":1.5, "stroke-dasharray":"3 4", opacity:0}, svg);
+    const verdict = T(muPx, 45, "", {"text-anchor":"middle", fill:"var(--amber)", "font-size":15, "font-family":"ui-monospace,monospace", opacity:0}, svg);
+    refs = {curve, tailR, tailL, critLineR, critLineL, rejL, rejR, failC, marker, markerLine, verdict};
+  }
+
+  function markerPoly(x, y){ const w=9,h=16; return (x-w)+","+(y-h)+" "+(x+w)+","+(y-h)+" "+x+","+y; }
+
+  async function play(token){
+    const {curve, tailR, tailL, critLineR, critLineL, rejL, rejR, failC, marker, markerLine, verdict} = refs;
+    await drawOn(curve, 1300, token, easeInOutCubic);
+    await wait(150, token);
+    await Promise.all([
+      tween(500, p=>{ tailR.setAttribute("width", (rangeX[1]-xAt(crit))*p); }, token, easeOutCubic),
+      tween(500, p=>{ const w=(xAt(-crit)-rangeX[0])*p; tailL.setAttribute("x", xAt(-crit)-w); tailL.setAttribute("width", w); }, token, easeOutCubic),
+      fadeTo(tailR, 0.35, 500, token), fadeTo(tailL, 0.35, 500, token),
+      fadeTo(critLineR,1,500,token), fadeTo(critLineL,1,500,token)
+    ]);
+    await Promise.all([fadeTo(rejL,1,400,token), fadeTo(rejR,1,400,token), fadeTo(failC,1,400,token)]);
+    await showMath("m10_1", token, 400);
+    await showMath("m10_2", token, 400);
+    await wait(300, token);
+
+    marker.setAttribute("points", markerPoly(xAt(0), baselineY-ampl-24));
+    markerLine.setAttribute("x1", xAt(0)); markerLine.setAttribute("x2", xAt(0));
+    await Promise.all([fadeTo(marker,1,300,token), fadeTo(markerLine,1,300,token)]);
+    await tween(1000, p => {
+      const x = xAt(0 + zObs*p);
+      marker.setAttribute("points", markerPoly(x, baselineY-ampl-24));
+      markerLine.setAttribute("x1", x); markerLine.setAttribute("x2", x);
+    }, token, easeInOutCubic);
+
+    verdict.textContent = "z = " + zObs + "  →  reject H₀";
+    verdict.setAttribute("fill", "var(--rose)");
+    await fadeTo(verdict, 1, 450, token);
+    document.getElementById("cap10").classList.add("show");
+  }
+  return {reset, play};
+})();
+
+/* ============================= SLIDE 11 — P-VALUE ============================= */
+const PValSlide = (function(){
+  const svg = document.getElementById("svg-pval");
+  const rangeX=[100,820], baselineY=340, ampl=180, sigmaPx=78, muPx=460;
+  const zObs = 1.9;
+  const alpha = 0.05;
+  function normCdfTail(z){
+    // approximation of upper tail P(Z>z) for standard normal
+    const t = 1/(1+0.2316419*z);
+    const d = 0.3989423*Math.exp(-z*z/2);
+    const p = d*t*(0.3193815+t*(-0.3565638+t*(1.781478+t*(-1.821256+t*1.330274))));
+    return Math.max(p, 0.0001);
+  }
+  const pValue = normCdfTail(zObs);
+  let refs = {};
+  function xAt(z){ return muPx + z*sigmaPx; }
+
+  function reset(){
+    svg.innerHTML="";
+    resetMath(["m11_1","m11_2"]);
+    E("line", {x1:rangeX[0], y1:baselineY, x2:rangeX[1], y2:baselineY, stroke:"var(--line)", "stroke-width":1.5}, svg);
+    for(let k=-3;k<=3;k++){
+      T(xAt(k), baselineY+24, k===0?"0":(k>0?"+":"")+k, {"text-anchor":"middle", fill:"var(--dim)", "font-size":12, "font-family":"ui-monospace,monospace"}, svg);
+    }
+    const curve = E("path", {d: gaussianPath(rangeX, baselineY, ampl, sigmaPx, muPx), fill:"none", stroke:"var(--ink)", "stroke-width":2, opacity:1}, svg);
+    const tail = E("rect", {x:rangeX[1], y:baselineY-ampl-6, width:0, height:ampl+10, fill:"var(--amber)", opacity:0}, svg);
+    const marker = E("polygon", {points:"", fill:"var(--blue)", opacity:0}, svg);
+    const markerLine = E("line", {x1:xAt(zObs), y1:baselineY-ampl-30, x2:xAt(zObs), y2:baselineY, stroke:"var(--blue)", "stroke-width":1.5, "stroke-dasharray":"3 4", opacity:0}, svg);
+    const zLabel = T(xAt(zObs), baselineY-ampl-40, "observed z = "+zObs, {"text-anchor":"middle", fill:"var(--blue)", "font-size":13, "font-family":"ui-monospace,monospace", opacity:0}, svg);
+    const pText = T(muPx, 55, "p ≈ 0.000", {"text-anchor":"middle", fill:"var(--amber)", "font-size":20, "font-family":"ui-monospace,monospace", opacity:0}, svg);
+    const barY = 420;
+    const pBar = E("rect", {x:muPx-140, y:barY, width:0, height:12, fill:"var(--amber)", opacity:0}, svg);
+    const aBar = E("rect", {x:muPx-140, y:barY+22, width:0, height:12, fill:"var(--dim)", opacity:0}, svg);
+    const pBarLbl = T(muPx-150, barY+10, "p", {"text-anchor":"end", fill:"var(--amber)", "font-size":13, "font-family":"ui-monospace,monospace", opacity:0}, svg);
+    const aBarLbl = T(muPx-150, barY+32, "α = 0.05", {"text-anchor":"end", fill:"var(--dim)", "font-size":13, "font-family":"ui-monospace,monospace", opacity:0}, svg);
+    refs = {curve, tail, marker, markerLine, zLabel, pText, pBar, aBar, pBarLbl, aBarLbl};
+  }
+  function markerPoly(x,y){ const w=8,h=14; return (x-w)+","+(y-h)+" "+(x+w)+","+(y-h)+" "+x+","+y; }
+
+  async function play(token){
+    const {curve, tail, marker, markerLine, zLabel, pText, pBar, aBar, pBarLbl, aBarLbl} = refs;
+    await drawOn(curve, 1200, token, easeInOutCubic);
+    await wait(150, token);
+    marker.setAttribute("points", markerPoly(xAt(zObs), baselineY-ampl-16));
+    await Promise.all([fadeTo(marker,1,350,token), fadeTo(markerLine,1,350,token), fadeTo(zLabel,1,350,token)]);
+    await wait(250, token);
+
+    await Promise.all([
+      fadeTo(tail, 0.4, 300, token),
+      tween(900, p => {
+        const w = (rangeX[1]-xAt(zObs))*p;
+        tail.setAttribute("x", rangeX[1]-w); tail.setAttribute("width", w);
+      }, token, easeInOutCubic)
+    ]);
+    await fadeTo(pText, 1, 300, token);
+    await showMath("m11_1", token, 400);
+    await countUp(pText, 0, pValue, 700, token, v => "p ≈ " + v.toFixed(3));
+    await showMath("m11_2", token, 400);
+    await wait(300, token);
+
+    const maxBarW = 280, scale = maxBarW/0.10;
+    await Promise.all([fadeTo(pBar,1,300,token), fadeTo(aBar,1,300,token), fadeTo(pBarLbl,1,300,token), fadeTo(aBarLbl,1,300,token)]);
+    await Promise.all([
+      tween(700, p => pBar.setAttribute("width", Math.min(pValue,0.10)*scale*p), token, easeOutCubic),
+      tween(700, p => aBar.setAttribute("width", alpha*scale*p), token, easeOutCubic)
+    ]);
+    document.getElementById("cap11").classList.add("show");
+  }
+  return {reset, play};
+})();
+
+/* ============================= SLIDE 12 — ANOVA ============================= */
+const AnovaSlide = (function(){
+  const svg = document.getElementById("svg-anova");
+  const rand = mulberry32(3);
+  const groupX = [230, 460, 690];
+  const groupMeansVal = [4.2, 5.6, 7.1];
+  const domainY = [0,10], rangeY = [420,70];
+  const Y = v => scaleX(v, domainY, rangeY);
+  const groups = groupMeansVal.map(gm => {
+    const vals = [];
+    for(let i=0;i<7;i++) vals.push(Math.min(9.7, Math.max(0.3, gm + (rand()-0.5)*2.4)));
+    return vals;
+  });
+  const grand = groups.flat().reduce((a,b)=>a+b,0) / groups.flat().length;
+  let refs = {};
+
+  function reset(){
+    svg.innerHTML="";
+    resetMath(["m12_1","m12_2"]);
+    E("line", {x1:130, y1:rangeY[0], x2:790, y2:rangeY[0], stroke:"var(--line)", "stroke-width":1.5}, svg);
+    ["A","B","C"].forEach((lab,i) => T(groupX[i], rangeY[0]+26, "group "+lab, {"text-anchor":"middle", fill:"var(--dim)", "font-size":13, "font-family":"ui-monospace,monospace"}, svg));
+
+    const grandLine = E("line", {x1:130, y1:Y(grand), x2:790, y2:Y(grand), stroke:"var(--ink)", "stroke-width":1.5, "stroke-dasharray":"3 5", opacity:0}, svg);
+    const grandLabel = T(800, Y(grand)+4, "grand mean", {"text-anchor":"start", fill:"var(--ink)", "font-size":11.5, "font-family":"ui-monospace,monospace", opacity:0}, svg);
+
+    const colors = ["var(--blue)","var(--sage)","var(--amber)"];
+    const dotRefs = groups.map((vals,gi) => vals.map((v,i) => {
+      const jitterX = groupX[gi] + ((i%2===0?-1:1) * (10 + (i*6)%22));
+      return E("circle", {cx:jitterX, cy:70, r:7, fill:colors[gi], opacity:0}, svg);
+    }));
+    const meanTicks = groupMeansVal.map((gm,gi) => E("line", {x1:groupX[gi]-34, y1:Y(gm), x2:groupX[gi]+34, y2:Y(gm), stroke:colors[gi], "stroke-width":2.5, opacity:0}, svg));
+    const withinArrows = groups.map((vals,gi) => {
+      const top = Y(Math.max(...vals)), bot = Y(Math.min(...vals));
+      return E("line", {x1:groupX[gi]-52, y1:top, x2:groupX[gi]-52, y2:bot, stroke:"var(--dim)", "stroke-width":1.3, opacity:0}, svg);
+    });
+    const withinLbl = T(groupX[0]-62, (Y(Math.max(...groups[0]))+Y(Math.min(...groups[0])))/2, "within", {"text-anchor":"end", fill:"var(--dim)", "font-size":11, "font-family":"ui-monospace,monospace", opacity:0}, svg);
+    const betweenArrows = groupMeansVal.map((gm,gi) => E("line", {x1:groupX[gi], y1:Y(gm), x2:groupX[gi], y2:Y(grand), stroke:"var(--rose)", "stroke-width":1.6, opacity:0}, svg));
+    const betweenLbl = T(groupX[2]+62, (Y(groupMeansVal[2])+Y(grand))/2, "between", {"text-anchor":"start", fill:"var(--rose)", "font-size":11, "font-family":"ui-monospace,monospace", opacity:0}, svg);
+    const verdict = T(460, 45, "", {"text-anchor":"middle", fill:"var(--rose)", "font-size":15, "font-family":"ui-monospace,monospace", opacity:0}, svg);
+    refs = {grandLine, grandLabel, dotRefs, meanTicks, withinArrows, withinLbl, betweenArrows, betweenLbl, verdict};
+  }
+
+  async function play(token){
+    const {grandLine, grandLabel, dotRefs, meanTicks, withinArrows, withinLbl, betweenArrows, betweenLbl, verdict} = refs;
+    for(let gi=0; gi<dotRefs.length; gi++){
+      for(let i=0;i<dotRefs[gi].length;i++){
+        if(token.cancelled) return;
+        const targetY = Y(groups[gi][i]);
+        await Promise.all([
+          animAttr(dotRefs[gi][i], "cy", 70, targetY, 480, token, easeOutBack),
+          fadeTo(dotRefs[gi][i], 0.9, 260, token)
+        ]);
+        await wait(22, token);
+      }
+    }
+    await wait(150, token);
+    await Promise.all(meanTicks.map(t => fadeTo(t,1,350,token)));
+    await wait(150, token);
+    await Promise.all([fadeTo(grandLine,1,400,token), fadeTo(grandLabel,1,400,token)]);
+    await wait(200, token);
+    await Promise.all(withinArrows.map(a => fadeTo(a,1,350,token)).concat([fadeTo(withinLbl,1,350,token)]));
+    await wait(200, token);
+    await Promise.all(betweenArrows.map(a => fadeTo(a,1,350,token)).concat([fadeTo(betweenLbl,1,350,token)]));
+    await showMath("m12_1", token, 400);
+    await showMath("m12_2", token, 400);
+    await wait(300, token);
+    verdict.textContent = "large between, small within  →  groups likely differ";
+    await fadeTo(verdict, 1, 500, token);
+    document.getElementById("cap12").classList.add("show");
+  }
+  return {reset, play};
+})();
+
+/* ============================= DECK CONTROLLER ============================= */
+const slides = [TitleSlide, MeanSlide, MedianSlide, ModeSlide, VarianceSlide, StdSlide, CovSlide, CorrSlide, PctSlide, CISlide, HTSlide, PValSlide, AnovaSlide];
+const total = slides.length;
+let current = 0;
+let currentToken = null;
+
+const progressEl = document.getElementById("progress");
+for(let i=0;i<total;i++){
+  const dot = document.createElement("i");
+  progressEl.appendChild(dot);
+}
+const prevBtn = document.getElementById("prevBtn");
+const nextBtn = document.getElementById("nextBtn");
+const counterEl = document.getElementById("counter");
+const hintEl = document.getElementById("hint");
+const theoryBtn = document.getElementById("theoryBtn");
+
+function pad(n){ return n<10 ? "0"+n : ""+n; }
+
+function currentDrawer(){ return document.querySelector("#slide"+current+" .theory-drawer"); }
+function isDrawerOpen(){ const d = currentDrawer(); return d && d.classList.contains("open"); }
+function closeAllDrawers(){ document.querySelectorAll(".theory-drawer").forEach(d => d.classList.remove("open")); theoryBtn.classList.remove("active"); theoryBtn.textContent = "learn +"; }
+function toggleDrawer(){
+  const d = currentDrawer();
+  if(!d) return;
+  const opening = !d.classList.contains("open");
+  closeAllDrawers();
+  if(opening){ d.classList.add("open"); theoryBtn.classList.add("active"); theoryBtn.textContent = "learn ×"; }
+}
+theoryBtn.addEventListener("click", (e) => { e.stopPropagation(); toggleDrawer(); });
+document.querySelectorAll(".theory-drawer .th-close").forEach(btn => {
+  btn.addEventListener("click", (e) => { e.stopPropagation(); closeAllDrawers(); });
+});
+document.querySelectorAll(".theory-drawer").forEach(drawer => {
+  drawer.querySelectorAll(".th-tab").forEach(tabBtn => {
+    tabBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const target = tabBtn.getAttribute("data-tab");
+      drawer.querySelectorAll(".th-tab").forEach(t => t.classList.toggle("active", t === tabBtn));
+      drawer.querySelectorAll(".tab-panel").forEach(p => p.classList.toggle("active", p.getAttribute("data-tab") === target));
+    });
+  });
+});
+
+function updateChrome(){
+  counterEl.textContent = pad(current+1) + " / " + pad(total);
+  prevBtn.disabled = current === 0;
+  nextBtn.disabled = current === total-1;
+  Array.from(progressEl.children).forEach((d,i) => d.classList.toggle("on", i===current));
+  if(current > 0) hintEl.style.opacity = 0;
+}
+
+function goTo(index){
+  if(index < 0 || index >= total || index === current && document.getElementById("slide"+index).classList.contains("active")) return;
+  if(currentToken) currentToken.cancel();
+  closeAllDrawers();
+  document.querySelectorAll(".slide").forEach(s => s.classList.remove("active"));
+  document.querySelectorAll(".caption").forEach(c => c.classList.remove("show"));
+  const el = document.getElementById("slide"+index);
+  el.classList.add("active");
+  current = index;
+  updateChrome();
+  const token = new Token();
+  currentToken = token;
+  slides[index].reset();
+  slides[index].play(token);
+}
+
+prevBtn.addEventListener("click", () => goTo(current-1));
+nextBtn.addEventListener("click", () => goTo(current+1));
+document.getElementById("deck").addEventListener("click", (e) => {
+  if(e.target.closest(".navbtn") || e.target.closest(".theory-btn")) return;
+  if(e.target.closest(".theory-drawer")) return;
+  if(isDrawerOpen()){ closeAllDrawers(); return; }
+  goTo(Math.min(current+1, total-1));
+});
+window.addEventListener("keydown", (e) => {
+  if(e.key === "ArrowRight" || e.key === " "){ e.preventDefault(); goTo(current+1); }
+  else if(e.key === "ArrowLeft"){ e.preventDefault(); goTo(current-1); }
+  else if(e.key === "Escape"){ closeAllDrawers(); }
+  else if(e.key === "t" || e.key === "T"){ toggleDrawer(); }
+});
+
+/* init */
+document.getElementById("slide0").classList.add("active");
+updateChrome();
+slides[0].reset();
+currentToken = new Token();
+slides[0].play(currentToken);
+</script>
+</body>
+</html>

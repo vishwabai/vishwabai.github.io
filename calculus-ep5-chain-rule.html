@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Calculus · Episode 5 — Chain Rule</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #08090b; --panel: #101216; --line: #23262b; --line-soft: #1a1c20;
+    --text: #e6e4de; --text-dim: #8b8f96; --text-faint: #52565c;
+    --primary: #5f93b8; --primary-dim: #2c4356;
+    --secondary: #7fa889; --secondary-dim: #2f3e33;
+    --accent: #c9a15a; --danger: #b06a5f;
+    --glow-soft: 0 0 10px rgba(95,147,184,0.10);
+  }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html,body{ height:100%; background:var(--bg); color:var(--text); font-family:'Space Grotesk', sans-serif; overflow:hidden; -webkit-font-smoothing:antialiased; }
+  .mono{ font-family:'JetBrains Mono', monospace; }
+  #deck{ position:relative; width:100vw; height:100vh; background: radial-gradient(ellipse at 50% -10%, rgba(95,147,184,0.06), transparent 55%), var(--bg); }
+  .slide{ position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; padding: 5vh 6vw 10vh; opacity:0; visibility:hidden; transform: translateX(40px); transition: opacity .55s ease, transform .55s ease; pointer-events:none; overflow-y:auto; }
+  .slide.active{ opacity:1; visibility:visible; transform:translateX(0); pointer-events:auto; }
+  .slide.prev{ transform:translateX(-40px); }
+  .eyebrow{ font-family:'JetBrains Mono', monospace; letter-spacing:.25em; font-size:12px; color:var(--text-faint); text-transform:uppercase; margin-bottom:16px; opacity:0; }
+  .slide.active .eyebrow{ animation: fadeUp .6s ease forwards .05s; }
+  h1{ font-size:clamp(32px,5vw,58px); font-weight:600; letter-spacing:-0.01em; }
+  h2{ font-size:clamp(20px,2.5vw,30px); font-weight:600; margin-bottom:8px; text-align:center; }
+  .sub{ color:var(--text-dim); font-size:clamp(13px,1.3vw,17px); font-weight:400; margin-top:8px; max-width:660px; text-align:center; line-height:1.55; }
+  .stagger > * { opacity:0; transform:translateY(14px); }
+  .slide.active .stagger > *{ animation: fadeUp .6s ease forwards; }
+  .slide.active .stagger > *:nth-child(1){ animation-delay:.10s; }
+  .slide.active .stagger > *:nth-child(2){ animation-delay:.22s; }
+  .slide.active .stagger > *:nth-child(3){ animation-delay:.34s; }
+  .slide.active .stagger > *:nth-child(4){ animation-delay:.46s; }
+  .slide.active .stagger > *:nth-child(5){ animation-delay:.58s; }
+  @keyframes fadeUp{ to{ opacity:1; transform:translateY(0); } }
+  #chrome{ position:fixed; left:0; right:0; bottom:0; display:flex; align-items:center; gap:18px; padding:14px 5vw 18px; z-index:50; background:linear-gradient(to top, rgba(8,9,11,0.9), transparent); }
+  #progress-track{ flex:1; height:2px; background:var(--line-soft); border-radius:2px; overflow:hidden; }
+  #progress-fill{ height:100%; width:0%; background:var(--primary); transition:width .4s ease; box-shadow: var(--glow-soft); }
+  #counter{ font-family:'JetBrains Mono', monospace; font-size:12px; color:var(--text-faint); min-width:56px; text-align:right; }
+  .navbtn{ width:36px; height:36px; border-radius:50%; border:1px solid var(--line); background:var(--panel); color:var(--text-dim); cursor:pointer; display:flex; align-items:center; justify-content:center; transition: border-color .2s ease, color .2s ease, transform .15s ease; flex-shrink:0; }
+  .navbtn:hover{ border-color:var(--primary); color:var(--primary); }
+  .navbtn:active{ transform:scale(.94); }
+  .navbtn svg{ width:15px; height:15px; }
+  #title-badge{ position:fixed; top:20px; left:5vw; z-index:50; font-family:'JetBrains Mono', monospace; font-size:11px; letter-spacing:.15em; color:var(--text-faint); text-transform:uppercase; }
+  #title-badge span{ color:var(--primary); }
+  .hint{ position:fixed; top:20px; right:5vw; z-index:50; font-family:'JetBrains Mono', monospace; font-size:11px; color:var(--text-faint); opacity:.7; }
+  .card{ background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px 18px; }
+  .row{ display:flex; gap:20px; align-items:center; justify-content:center; }
+  .col{ display:flex; flex-direction:column; align-items:center; }
+  svg .draw{ stroke-dasharray: 700; stroke-dashoffset: 700; }
+  .slide.active svg .draw{ animation: drawLine 1.2s ease forwards; }
+  @keyframes drawLine{ to{ stroke-dashoffset:0; } }
+  button.ui{ font-family:'JetBrains Mono', monospace; background:var(--panel); border:1px solid var(--line); color:var(--text-dim); padding:8px 14px; border-radius:7px; cursor:pointer; font-size:12.5px; transition:.2s ease; }
+  button.ui:hover{ border-color:var(--primary); color:var(--text); }
+  button.ui.active{ border-color:var(--primary); color:var(--primary); background:var(--primary-dim); }
+  .eq{ font-family:'JetBrains Mono', monospace; font-size:15px; }
+  .eq .dim{ color:var(--text-faint); }
+  .eq .hi{ color:var(--accent); }
+  .partbox{ display:inline-block; padding:3px 7px; border-radius:5px; border:1px solid transparent; transition:.2s ease; }
+  .partbox.p1{ background:rgba(95,147,184,0.15); border-color:var(--primary-dim); color:var(--primary); }
+  .partbox.p2{ background:rgba(127,168,137,0.15); border-color:var(--secondary-dim); color:var(--secondary); }
+  .partbox.p3{ background:rgba(201,161,90,0.15); border-color:rgba(201,161,90,0.3); color:var(--accent); }
+  ::selection{ background:var(--primary-dim); }
+  .explain{ margin-top:12px; border:1px solid var(--line); border-radius:8px; background:var(--panel); max-width:640px; text-align:left; }
+  .explain summary{ cursor:pointer; padding:9px 14px; font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--primary); list-style:none; display:flex; align-items:center; gap:8px; user-select:none; }
+  .explain summary::-webkit-details-marker{ display:none; }
+  .explain summary::before{ content:'▸'; display:inline-block; color:var(--text-faint); transition:transform .2s ease; }
+  .explain[open] summary::before{ transform:rotate(90deg); }
+  .explain .explain-body{ padding:2px 14px 13px; font-size:12px; color:var(--text-dim); line-height:1.55; }
+  .explain .explain-body b{ color:var(--text); font-weight:500; }
+  .explain .explain-label{ font-family:'JetBrains Mono',monospace; font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--secondary); margin-top:9px; }
+  .explain .explain-label:first-child{ margin-top:0; }
+  .explain p{ margin-top:4px; }
+  @media (prefers-reduced-motion: reduce){ *{ animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; } }
+</style>
+</head>
+<body>
+
+<div id="title-badge">Calculus <span>·</span> Ep.05 Chain Rule</div>
+<div class="hint">← → or space</div>
+
+<div id="deck">
+
+  <!-- 1. INTRO -->
+  <section class="slide" data-title="Introduction">
+    <div class="col stagger" style="gap:2px;">
+      <div class="eyebrow">Episode Five</div>
+      <h1 style="letter-spacing:0.06em;">CHAIN RULE</h1>
+      <p class="sub">What happens when a function is stuffed inside another<br>function — and you need the rate of change of the whole thing.</p>
+    </div>
+  </section>
+
+  <!-- 2. PREREQUISITES -->
+  <section class="slide" data-title="Prerequisites">
+    <div class="eyebrow">Two things you already know</div>
+    <h2>Composition, and the derivative</h2>
+    <div class="row" style="margin-top:20px; gap:40px; flex-wrap:wrap; justify-content:center;">
+      <div class="card mono" style="font-size:14px;">f(g(x)) — g runs first, feeds into f</div>
+      <div class="card mono" style="font-size:14px;">f'(x) = lim(h→0) [f(x+h)−f(x)]/h</div>
+    </div>
+    <p class="sub" style="margin-top:18px; font-size:13px;">sin(x²) is exactly this: g(x)=x² runs first, then f(u)=sin(u) runs on the result. Neither rule you already have differentiates this directly — you need one more idea.</p>
+  </section>
+
+  <!-- 3. CORE CONCEPT — signature: chained machines with rate gauges -->
+  <section class="slide" data-title="Core Concept">
+    <div class="eyebrow">The core idea</div>
+    <h2>Rates multiply through a chain</h2>
+    <svg id="chain" width="620" height="230" viewBox="0 0 620 230" style="margin-top:6px;">
+      <rect x="10" y="70" width="90" height="55" rx="8" fill="var(--panel)" stroke="var(--secondary-dim)" stroke-width="1.5"/>
+      <text id="cm-in" x="55" y="102" text-anchor="middle" fill="var(--text)" font-family="JetBrains Mono" font-size="15">x = 1</text>
+      <line x1="100" y1="97" x2="165" y2="97" stroke="var(--line)" stroke-width="2"/>
+      <circle id="cm-dot1" cx="100" cy="97" r="5" fill="var(--accent)" opacity="0"/>
+      <rect x="170" y="55" width="120" height="85" rx="8" fill="var(--panel)" stroke="var(--secondary)" stroke-width="1.5"/>
+      <text x="230" y="80" text-anchor="middle" fill="var(--text-dim)" font-family="JetBrains Mono" font-size="12">g(x) = x²</text>
+      <text id="cm-mid" x="230" y="102" text-anchor="middle" fill="var(--secondary)" font-family="JetBrains Mono" font-size="15">?</text>
+      <text id="cm-gauge1" x="230" y="128" text-anchor="middle" fill="var(--text-faint)" font-family="JetBrains Mono" font-size="11">du/dx = ?</text>
+      <line x1="290" y1="97" x2="355" y2="97" stroke="var(--line)" stroke-width="2"/>
+      <circle id="cm-dot2" cx="290" cy="97" r="5" fill="var(--accent)" opacity="0"/>
+      <rect x="360" y="55" width="130" height="85" rx="8" fill="var(--panel)" stroke="var(--primary)" stroke-width="1.5"/>
+      <text x="425" y="80" text-anchor="middle" fill="var(--text-dim)" font-family="JetBrains Mono" font-size="12">f(u) = sin(u)</text>
+      <text id="cm-out" x="425" y="102" text-anchor="middle" fill="var(--primary)" font-family="JetBrains Mono" font-size="15">?</text>
+      <text id="cm-gauge2" x="425" y="128" text-anchor="middle" fill="var(--text-faint)" font-family="JetBrains Mono" font-size="11">dy/du = ?</text>
+      <text id="cm-combined" x="590" y="97" text-anchor="middle" fill="var(--accent)" font-family="JetBrains Mono" font-size="14" opacity="0">dy/dx = ?</text>
+    </svg>
+    <button class="ui" id="chain-run" style="margin-top:0;">run it, x = 1</button>
+    <p class="sub" style="margin-top:10px; font-size:13px;">The inner machine's rate (du/dx) and the outer machine's rate (dy/du) don't add — they <em style="color:var(--text)">multiply</em> to give the overall rate.</p>
+  </section>
+
+  <!-- 4. BREAKING DOWN THE FORMULA -->
+  <section class="slide" data-title="Breaking Down the Formula">
+    <div class="eyebrow">Reading the equation, piece by piece</div>
+    <h2>dy/dx &nbsp;=&nbsp; dy/du &nbsp;·&nbsp; du/dx</h2>
+    <div class="col" style="gap:14px; margin-top:18px; align-items:flex-start;">
+      <div class="card" style="max-width:560px;">
+        <span class="partbox p1 mono">dy/dx</span>
+        <span class="sub" style="display:inline; font-size:13px;"> — the thing we actually want: how fast the <b style="color:var(--text)">final output y</b> changes as <b style="color:var(--text)">x</b> changes</span>
+      </div>
+      <div class="card" style="max-width:560px;">
+        <span class="partbox p2 mono">dy/du</span>
+        <span class="sub" style="display:inline; font-size:13px;"> — the <b style="color:var(--text)">outer</b> function's own rate: how fast y changes for a small change in its direct input, u</span>
+      </div>
+      <div class="card" style="max-width:560px;">
+        <span class="partbox p3 mono">du/dx</span>
+        <span class="sub" style="display:inline; font-size:13px;"> — the <b style="color:var(--text)">inner</b> function's own rate: how fast u changes as x changes</span>
+      </div>
+    </div>
+    <details class="explain">
+      <summary>Why this equation? · real-world use</summary>
+      <div class="explain-body">
+        <div class="explain-label">Why it looks like fractions cancelling</div>
+        <p>Written in Leibniz notation, du seems to cancel: (dy/du)·(du/dx) = dy/dx, like ordinary fraction multiplication. That's a genuinely useful mnemonic — but du isn't literally a number here, so this isn't a proof. The proof comes from the limit definition, in the next slide.</p>
+        <div class="explain-label">Real-world use</div>
+        <p>This is exactly how unit conversions chain: km/hour × hour/day gives km/day — each rate cancels the shared unit in the middle, leaving only the outer units. The chain rule is that same "middle unit cancels" logic, applied to rates of change instead of unit conversions.</p>
+      </div>
+    </details>
+  </section>
+
+  <!-- 5. DERIVING IT — from the base definition -->
+  <section class="slide" data-title="Deriving It">
+    <div class="eyebrow">From the base definition, step by step</div>
+    <h2>Where dy/du · du/dx actually comes from</h2>
+    <div id="derive-steps" class="col" style="gap:8px; margin-top:14px; align-items:flex-start;"></div>
+  </section>
+
+  <!-- 6. GRAPH -->
+  <section class="slide" data-title="Graph">
+    <div class="eyebrow">Seeing it on a curve</div>
+    <h2 class="mono" style="font-size:19px;">h(x) = sin(x²) &nbsp;&nbsp;→&nbsp;&nbsp; h'(x) = cos(x²) · 2x</h2>
+    <canvas id="cgraph" width="520" height="270" style="margin-top:6px;"></canvas>
+    <div class="row" style="margin-top:6px; gap:14px;">
+      <span class="mono sub" style="margin:0; font-size:13px;">x =</span>
+      <input type="range" id="cg-slider" min="-2.5" max="2.5" step="0.02" value="1.1">
+      <span id="cg-readout" class="mono sub" style="margin:0; font-size:13px; min-width:190px; text-align:left;"></span>
+    </div>
+  </section>
+
+  <!-- 7. WORKED EXAMPLE 1 -->
+  <section class="slide" data-title="Worked Example 1">
+    <div class="eyebrow">Step by step</div>
+    <h2 class="mono" style="font-size:19px;">Differentiate: sin(x²)</h2>
+    <div id="worked1" class="col" style="gap:8px; margin-top:14px; align-items:flex-start;"></div>
+  </section>
+
+  <!-- 8. WORKED EXAMPLE 2 -->
+  <section class="slide" data-title="Worked Example 2">
+    <div class="eyebrow">One more, slightly harder</div>
+    <h2 class="mono" style="font-size:19px;">Differentiate: (x² + 1)⁵</h2>
+    <div id="worked2" class="col" style="gap:8px; margin-top:14px; align-items:flex-start;"></div>
+    <details class="explain">
+      <summary>Why this equation? · real-world use</summary>
+      <div class="explain-body">
+        <div class="explain-label">Why spot outer/inner first, always</div>
+        <p>Every chain-rule problem starts the same way: find the "last operation performed" (that's the outer function) and "everything inside it" (that's the inner function). Here, raising to the 5th power happens last, so u⁵ is outer and x²+1 is inner — get this identification right and the rest is just two easy derivatives multiplied together.</p>
+        <div class="explain-label">Real-world use</div>
+        <p>Compound growth formulas look exactly like this: (1 + rate)^time. Differentiating how a compounding quantity changes — investment value, population, radioactive decay — almost always means applying the chain rule to something raised to a power or an exponential, with a simpler expression nested inside.</p>
+      </div>
+    </details>
+  </section>
+
+  <!-- 9. INTUITION — gears / bike analogy -->
+  <section class="slide" data-title="Intuition">
+    <div class="eyebrow">Feynman's way of thinking about it</div>
+    <h2>Two gears turning together</h2>
+    <svg id="gears" width="320" height="220" viewBox="0 0 320 220" style="margin-top:6px;">
+      <g id="gear-small" transform-origin="110px 110px">
+        <circle cx="110" cy="110" r="45" fill="none" stroke="var(--secondary)" stroke-width="2"/>
+        <line x1="110" y1="110" x2="110" y2="68" stroke="var(--secondary)" stroke-width="2.5"/>
+      </g>
+      <g id="gear-big" transform-origin="230px 110px">
+        <circle cx="230" cy="110" r="75" fill="none" stroke="var(--primary)" stroke-width="2"/>
+        <line x1="230" y1="110" x2="230" y2="38" stroke="var(--primary)" stroke-width="2.5"/>
+      </g>
+    </svg>
+    <p class="sub" style="margin-top:4px; font-size:13px;">Turn the small gear (the <em style="color:var(--secondary)">inner</em> function) at its own rate. It drives the big gear (the <em style="color:var(--primary)">outer</em> function) — but the big gear's speed depends on <em style="color:var(--text)">both</em> its own size <em style="color:var(--text)">and</em> how fast it's being driven. That combined speed is the chain rule.</p>
+  </section>
+
+  <!-- 10. WHY IT WORKS THIS WAY — units cancel -->
+  <section class="slide" data-title="Why It Works">
+    <div class="eyebrow">Building intuition for the "why"</div>
+    <h2>The mnemonic, done honestly</h2>
+    <div class="card eq" style="font-size:18px; margin-top:18px; padding:20px 28px;">
+      dy/<span style="color:var(--danger); text-decoration:line-through;">du</span> &nbsp;·&nbsp; <span style="color:var(--danger); text-decoration:line-through;">du</span>/dx &nbsp;=&nbsp; dy/dx
+    </div>
+    <p class="sub" style="margin-top:16px; font-size:13px;">The "du cancels" picture is a genuinely good way to <em style="color:var(--text)">remember</em> the rule — but du and dx aren't ordinary numbers you can cancel by themselves. They're shorthand for a limiting process. The real justification is the derivation two slides back: multiplying two secant-slope ratios and taking the limit of the product.</p>
+    <details class="explain">
+      <summary>Why this equation? · real-world use</summary>
+      <div class="explain-body">
+        <div class="explain-label">Why the mnemonic is safe to use anyway</div>
+        <p>Even though "cancelling du" isn't a rigorous step on its own, the actual limit-based proof produces the exact same formula — so the shortcut always gives the right answer, even though the reasoning behind why is subtler than plain fraction cancellation.</p>
+        <div class="explain-label">Real-world use</div>
+        <p>Physicists and engineers lean on this "cancelling units" intuition constantly — converting between rates (m/s to km/hour), tracking how error propagates through a formula, or reasoning about dimensional analysis. It's an efficient shortcut precisely because it's backed by a real theorem, not just a coincidence of notation.</p>
+      </div>
+    </details>
+  </section>
+
+  <!-- 11. COMMON MISTAKES -->
+  <section class="slide" data-title="Common Mistakes">
+    <div class="eyebrow">Watch out for</div>
+    <h2>The mistake almost everyone makes first</h2>
+    <div class="row" style="margin-top:22px; gap:20px; flex-wrap:wrap; justify-content:center; max-width:820px;">
+      <div class="card" style="max-width:250px;">
+        <div class="mono eq" style="color:var(--danger); font-size:13px; margin-bottom:8px;">forgetting du/dx</div>
+        <p class="sub" style="text-align:left; margin:0; font-size:13px;">d/dx sin(x²) = cos(x²) is <em>not</em> the answer — you differentiated the outer shell and stopped. The inner derivative (2x) still needs to multiply in.</p>
+      </div>
+      <div class="card" style="max-width:250px;">
+        <div class="mono eq" style="color:var(--danger); font-size:13px; margin-bottom:8px;">applying it when not needed</div>
+        <p class="sub" style="text-align:left; margin:0; font-size:13px;">d/dx(x² + 3) needs no chain rule — nothing is nested inside anything. Chain rule is only for genuine composition, f(g(x)).</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 12. INTERACTIVE PRACTICE -->
+  <section class="slide" data-title="Interactive Practice">
+    <div class="eyebrow">Your turn</div>
+    <h2>Spot outer and inner, then combine</h2>
+    <div class="row" style="margin-top:10px; gap:8px;">
+      <button class="ui ep5-fn-btn active" data-fn="a">sin(x³)</button>
+      <button class="ui ep5-fn-btn" data-fn="b">(3x+1)⁴</button>
+      <button class="ui ep5-fn-btn" data-fn="c">e^(2x)</button>
+    </div>
+    <div id="practice-breakdown" class="col" style="gap:8px; margin-top:16px; align-items:flex-start;"></div>
+  </section>
+
+  <!-- 13. NOTATION -->
+  <section class="slide" data-title="Notation">
+    <div class="eyebrow">In Lagrange notation</div>
+    <h2>The same rule, written the other way</h2>
+    <div class="card eq" style="font-size:18px; margin-top:16px; padding:20px 28px;">
+      [f(g(x))]' &nbsp;=&nbsp; f'(g(x)) &nbsp;·&nbsp; g'(x)
+    </div>
+    <p class="sub" style="margin-top:14px; font-size:13px;">f'(g(x)) means: differentiate f as usual, then plug g(x) back in — <em style="color:var(--text)">not</em> f'(x). That's the piece people mix up most often.</p>
+  </section>
+
+  <!-- 14. SUMMARY -->
+  <section class="slide" data-title="Summary">
+    <div class="eyebrow">Recap</div>
+    <h2>Four ideas to keep</h2>
+    <div class="row stagger" style="margin-top:20px; gap:18px; align-items:stretch; flex-wrap:wrap; max-width:900px;">
+      <div class="card" style="width:190px;"><div class="mono" style="color:var(--primary); font-size:20px;">01</div><p class="sub" style="text-align:left; margin-top:6px; font-size:13px;">Spot the outer function and the inner function first.</p></div>
+      <div class="card" style="width:190px;"><div class="mono" style="color:var(--primary); font-size:20px;">02</div><p class="sub" style="text-align:left; margin-top:6px; font-size:13px;">dy/dx = dy/du · du/dx — the rates multiply.</p></div>
+      <div class="card" style="width:190px;"><div class="mono" style="color:var(--primary); font-size:20px;">03</div><p class="sub" style="text-align:left; margin-top:6px; font-size:13px;">Proven by splitting a secant slope into two factors and taking limits.</p></div>
+      <div class="card" style="width:190px;"><div class="mono" style="color:var(--primary); font-size:20px;">04</div><p class="sub" style="text-align:left; margin-top:6px; font-size:13px;">Never forget the inner derivative — it's the #1 mistake.</p></div>
+    </div>
+  </section>
+
+  <!-- 15. NEXT STEPS -->
+  <section class="slide" data-title="Next Steps">
+    <div class="eyebrow">Coming up — Episode 6</div>
+    <h2 style="max-width:640px;">What if a function has<br>more than one input?</h2>
+    <p class="sub" style="margin-top:14px;">f(x, y) depends on two variables at once — like temperature depending on both position and time. Differentiating "with respect to just one of them, holding the other still" is the idea behind <strong style="color:var(--primary);">Partial Derivatives</strong>.</p>
+    <svg width="300" height="120" viewBox="0 0 300 120" style="margin-top:20px;">
+      <rect x="20" y="20" width="80" height="80" rx="8" fill="none" stroke="var(--primary)" stroke-width="1.5"/>
+      <rect x="120" y="20" width="80" height="80" rx="8" fill="none" stroke="var(--secondary)" stroke-width="1.5" stroke-dasharray="4 3"/>
+      <text x="60" y="65" text-anchor="middle" fill="var(--primary)" font-family="JetBrains Mono" font-size="13">x</text>
+      <text x="160" y="65" text-anchor="middle" fill="var(--secondary)" font-family="JetBrains Mono" font-size="13">y</text>
+      <text x="250" y="65" text-anchor="middle" fill="var(--text-dim)" font-family="JetBrains Mono" font-size="13">f(x,y)</text>
+    </svg>
+  </section>
+
+</div>
+
+<div id="chrome">
+  <button class="navbtn" id="prevBtn" aria-label="previous"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></button>
+  <div id="progress-track"><div id="progress-fill"></div></div>
+  <div id="counter">01 / 15</div>
+  <button class="navbtn" id="nextBtn" aria-label="next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></button>
+</div>
+
+<script>
+(function(){
+  const slides = Array.from(document.querySelectorAll('.slide'));
+  const total = slides.length;
+  let idx = 0;
+  const progressFill = document.getElementById('progress-fill');
+  const counter = document.getElementById('counter');
+  const pad = n => String(n).padStart(2,'0');
+
+  function render(){
+    slides.forEach((s,i)=>{
+      s.classList.remove('active','prev');
+      if(i===idx) s.classList.add('active');
+      else if(i<idx) s.classList.add('prev');
+    });
+    progressFill.style.width = ((idx+1)/total*100)+'%';
+    counter.textContent = pad(idx+1)+' / '+pad(total);
+    initSlide(idx);
+  }
+  function goTo(n){ idx = Math.max(0, Math.min(total-1, n)); render(); }
+  document.getElementById('nextBtn').addEventListener('click',()=>goTo(idx+1));
+  document.getElementById('prevBtn').addEventListener('click',()=>goTo(idx-1));
+  window.addEventListener('keydown', e=>{
+    if(['ArrowRight',' ','PageDown'].includes(e.key)){ e.preventDefault(); goTo(idx+1); }
+    if(['ArrowLeft','PageUp'].includes(e.key)){ e.preventDefault(); goTo(idx-1); }
+  });
+  let touchX = null;
+  window.addEventListener('touchstart', e=>{ touchX = e.touches[0].clientX; });
+  window.addEventListener('touchend', e=>{
+    if(touchX===null) return;
+    const dx = e.changedTouches[0].clientX - touchX;
+    if(Math.abs(dx) > 50) goTo(dx<0 ? idx+1 : idx-1);
+    touchX = null;
+  });
+
+  /* ---- slide 3: chained machines with rate gauges ---- */
+  function initChain(){
+    const cmIn = document.getElementById('cm-in');
+    const cmMid = document.getElementById('cm-mid');
+    const cmOut = document.getElementById('cm-out');
+    const gauge1 = document.getElementById('cm-gauge1');
+    const gauge2 = document.getElementById('cm-gauge2');
+    const dot1 = document.getElementById('cm-dot1');
+    const dot2 = document.getElementById('cm-dot2');
+    const combined = document.getElementById('cm-combined');
+
+    function run(){
+      cmMid.textContent='?'; cmOut.textContent='?';
+      gauge1.textContent='du/dx = ?'; gauge2.textContent='dy/du = ?';
+      combined.setAttribute('opacity',0);
+      dot1.setAttribute('opacity',0); dot2.setAttribute('opacity',0);
+      dot1.setAttribute('cx',100); dot1.style.transition='none';
+      void dot1.offsetWidth;
+      dot1.style.transition='cx .6s ease';
+      dot1.setAttribute('opacity',1);
+      requestAnimationFrame(()=>dot1.setAttribute('cx',165));
+      setTimeout(()=>{
+        dot1.setAttribute('opacity',0);
+        const u = 1*1; // x^2 at x=1
+        cmMid.textContent = u.toFixed(2);
+        gauge1.textContent = 'du/dx = 2.00';
+      }, 650);
+      setTimeout(()=>{
+        dot2.setAttribute('cx',290); dot2.style.transition='none';
+        void dot2.offsetWidth;
+        dot2.style.transition='cx .6s ease';
+        dot2.setAttribute('opacity',1);
+        requestAnimationFrame(()=>dot2.setAttribute('cx',355));
+      }, 900);
+      setTimeout(()=>{
+        dot2.setAttribute('opacity',0);
+        const y = Math.sin(1);
+        cmOut.textContent = y.toFixed(3);
+        gauge2.textContent = 'dy/du = '+Math.cos(1).toFixed(3);
+      }, 1550);
+      setTimeout(()=>{
+        const val = Math.cos(1)*2;
+        combined.textContent = 'dy/dx = '+val.toFixed(3);
+        combined.style.transition='opacity .6s ease';
+        combined.setAttribute('opacity',1);
+      }, 1950);
+    }
+    document.getElementById('chain-run').onclick = run;
+    setTimeout(run, 500);
+  }
+
+  /* ---- slide 5: derivation from base definition ---- */
+  function initDerive(){
+    const box = document.getElementById('derive-steps');
+    if(!box) return;
+    box.innerHTML = '';
+    const lines = [
+      'want: d/dx [f(g(x))] &nbsp; = &nbsp; lim(h→0) [f(g(x+h)) − f(g(x))] / h',
+      'let k = g(x+h) − g(x) &nbsp;<span class="dim">(the change in the inner output)</span>',
+      'multiply and divide by k: &nbsp; [f(g(x)+k) − f(g(x))]/k &nbsp;·&nbsp; [g(x+h) − g(x)]/h',
+      'as h→0: k→0 too (since g is continuous), so the first factor → f\'(g(x))',
+      'the second factor, by definition, → g\'(x)',
+      '⟹ &nbsp; d/dx [f(g(x))] = f\'(g(x)) · g\'(x) &nbsp;&nbsp;&nbsp; — the chain rule'
+    ];
+    lines.forEach((l,i)=>{
+      const el = document.createElement('div');
+      el.className = 'card mono';
+      el.style.fontSize = '13px';
+      el.style.opacity = 0;
+      el.style.transform = 'translateY(10px)';
+      el.style.transition = 'opacity .5s ease, transform .5s ease';
+      el.style.transitionDelay = (i*0.3)+'s';
+      el.innerHTML = l;
+      if(i===lines.length-1){ el.style.color='var(--secondary)'; el.style.borderColor='var(--secondary-dim)'; }
+      box.appendChild(el);
+      requestAnimationFrame(()=>{ setTimeout(()=>{ el.style.opacity=1; el.style.transform='translateY(0)'; }, 20); });
+    });
+  }
+
+  /* ---- slide 6: h(x)=sin(x^2) graph ---- */
+  function drawChainGraph(){
+    const canvas = document.getElementById('cgraph');
+    if(!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const w=canvas.width,h=canvas.height, ox=w/2, oy=h/2, scale=70;
+    ctx.clearRect(0,0,w,h);
+    ctx.strokeStyle='#1a1c20'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(0,oy); ctx.lineTo(w,oy); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(ox,0); ctx.lineTo(ox,h); ctx.stroke();
+
+    const hf = x=>Math.sin(x*x);
+    const hp = x=>Math.cos(x*x)*2*x;
+
+    function plot(fn, color){
+      ctx.strokeStyle=color; ctx.lineWidth=2.2; ctx.beginPath();
+      let started=false;
+      for(let px=0;px<=w;px++){
+        const x=(px-ox)/scale;
+        const y=fn(x);
+        const py=oy-y*scale*0.9;
+        if(!started){ctx.moveTo(px,py);started=true;} else ctx.lineTo(px,py);
+      }
+      ctx.stroke();
+    }
+    plot(hf,'#5f93b8');
+    plot(hp,'#7fa889');
+    ctx.fillStyle='#5f93b8'; ctx.font='12px JetBrains Mono'; ctx.fillText('h(x)', 12, 20);
+    ctx.fillStyle='#7fa889'; ctx.fillText("h'(x)", 12, 38);
+
+    const slider = document.getElementById('cg-slider');
+    const x = parseFloat(slider.value);
+    const y = hf(x), yp = hp(x);
+    const px = ox + x*scale;
+    ctx.fillStyle='#c9a15a';
+    ctx.beginPath(); ctx.arc(px, oy-y*scale*0.9,5,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(px, oy-yp*scale*0.9,5,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle='rgba(201,161,90,0.3)';
+    ctx.beginPath(); ctx.moveTo(px,0); ctx.lineTo(px,h); ctx.stroke();
+
+    document.getElementById('cg-readout').textContent = `h'(${x.toFixed(2)}) = ${yp.toFixed(3)}`;
+  }
+  function initChainGraph(){
+    document.getElementById('cg-slider').oninput = drawChainGraph;
+    drawChainGraph();
+  }
+
+  /* ---- slide 7: worked example 1 ---- */
+  function initWorked1(){
+    const box = document.getElementById('worked1');
+    if(!box) return;
+    box.innerHTML = '';
+    const lines = [
+      '1. spot the layers: outer f(u) = sin(u), &nbsp; inner u = x²',
+      '2. differentiate the outer (leave the inside alone): f\'(u) = cos(u)',
+      '3. differentiate the inner: du/dx = 2x',
+      '4. multiply: cos(u) · 2x',
+      '5. substitute u back in: &nbsp; <span style="color:var(--secondary);">d/dx sin(x²) = cos(x²) · 2x</span>'
+    ];
+    lines.forEach((l,i)=>{
+      const el = document.createElement('div');
+      el.className = 'card mono';
+      el.style.fontSize = '13px';
+      el.style.opacity = 0;
+      el.style.transform = 'translateY(10px)';
+      el.style.transition = 'opacity .5s ease, transform .5s ease';
+      el.style.transitionDelay = (i*0.28)+'s';
+      el.innerHTML = l;
+      if(i===lines.length-1){ el.style.borderColor='var(--secondary-dim)'; }
+      box.appendChild(el);
+      requestAnimationFrame(()=>{ setTimeout(()=>{ el.style.opacity=1; el.style.transform='translateY(0)'; }, 20); });
+    });
+  }
+
+  /* ---- slide 8: worked example 2 ---- */
+  function initWorked2(){
+    const box = document.getElementById('worked2');
+    if(!box) return;
+    box.innerHTML = '';
+    const lines = [
+      '1. spot the layers: outer f(u) = u⁵, &nbsp; inner u = x² + 1',
+      '2. differentiate the outer: f\'(u) = 5u⁴',
+      '3. differentiate the inner: du/dx = 2x',
+      '4. multiply: 5u⁴ · 2x',
+      '5. substitute u back in: &nbsp; <span style="color:var(--secondary);">d/dx (x²+1)⁵ = 5(x²+1)⁴ · 2x</span>'
+    ];
+    lines.forEach((l,i)=>{
+      const el = document.createElement('div');
+      el.className = 'card mono';
+      el.style.fontSize = '13px';
+      el.style.opacity = 0;
+      el.style.transform = 'translateY(10px)';
+      el.style.transition = 'opacity .5s ease, transform .5s ease';
+      el.style.transitionDelay = (i*0.28)+'s';
+      el.innerHTML = l;
+      if(i===lines.length-1){ el.style.borderColor='var(--secondary-dim)'; }
+      box.appendChild(el);
+      requestAnimationFrame(()=>{ setTimeout(()=>{ el.style.opacity=1; el.style.transform='translateY(0)'; }, 20); });
+    });
+  }
+
+  /* ---- slide 9: gears rotating ---- */
+  function initGears(){
+    const small = document.getElementById('gear-small');
+    const big = document.getElementById('gear-big');
+    if(!small) return;
+    let a1=0, a2=0;
+    clearInterval(window.__gearTimer);
+    window.__gearTimer = setInterval(()=>{
+      a1 += 4;
+      a2 += 4*(45/75); // big gear turns slower, proportional to radius ratio
+      small.style.transform = `rotate(${a1}deg)`;
+      big.style.transform = `rotate(${a2}deg)`;
+    }, 40);
+  }
+
+  /* ---- slide 12: interactive breakdown ---- */
+  const practiceInfo = {
+    a: { outer:'sin(u)', inner:'u = x³', fp:"cos(u)", gp:'3x²', combined:'cos(x³) · 3x²' },
+    b: { outer:'u⁴', inner:'u = 3x+1', fp:'4u³', gp:'3', combined:'4(3x+1)³ · 3' },
+    c: { outer:'e^u', inner:'u = 2x', fp:'e^u', gp:'2', combined:'e^(2x) · 2' }
+  };
+  function drawPractice(key){
+    const box = document.getElementById('practice-breakdown');
+    box.innerHTML = '';
+    const info = practiceInfo[key];
+    const lines = [
+      `outer: f(u) = ${info.outer} &nbsp;&nbsp; inner: ${info.inner}`,
+      `f'(u) = ${info.fp}`,
+      `du/dx = ${info.gp}`,
+      `combine: &nbsp; <span style="color:var(--secondary);">${info.combined}</span>`
+    ];
+    lines.forEach((l,i)=>{
+      const el = document.createElement('div');
+      el.className = 'card mono';
+      el.style.fontSize = '13px';
+      el.style.opacity = 0;
+      el.style.transform = 'translateY(8px)';
+      el.style.transition = 'opacity .4s ease, transform .4s ease';
+      el.style.transitionDelay = (i*0.2)+'s';
+      el.innerHTML = l;
+      if(i===lines.length-1) el.style.borderColor='var(--secondary-dim)';
+      box.appendChild(el);
+      requestAnimationFrame(()=>{ setTimeout(()=>{ el.style.opacity=1; el.style.transform='translateY(0)'; }, 20); });
+    });
+  }
+  function initPractice(){
+    const buttons = document.querySelectorAll('.ep5-fn-btn');
+    buttons.forEach(b=>{
+      b.onclick = ()=>{
+        buttons.forEach(x=>x.classList.remove('active'));
+        b.classList.add('active');
+        drawPractice(b.dataset.fn);
+      };
+    });
+    drawPractice('a');
+  }
+
+  function initSlide(i){
+    const s = slides[i];
+    const t = s.dataset.title;
+    if(t==='Core Concept') initChain();
+    if(t==='Deriving It') initDerive();
+    if(t==='Graph') initChainGraph();
+    if(t==='Worked Example 1') initWorked1();
+    if(t==='Worked Example 2') initWorked2();
+    if(t==='Intuition') initGears();
+    if(t==='Interactive Practice') initPractice();
+  }
+
+  render();
+})();
+</script>
+</body>
+</html>
