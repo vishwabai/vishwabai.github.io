@@ -801,18 +801,29 @@ SLIDES.push({
     const minLbl = T(svg, cx, cy+22, 'minimum', {size:11, fill:COLORS.muted});
 
     const start = [cx-200, cy-90];
-    function mk(color,label){
+    function mk(color){
       const dot = C(svg, start[0], start[1], 9, color, color);
-      const lbl = T(svg, start[0], start[1]-16, label, {size:11, fill:color});
-      return {dot,lbl};
+      return {dot};
     }
-    const sgd = mk(COLORS.rose,'SGD');
-    const mom = mk(COLORS.blue,'Momentum');
-    const adam = mk(COLORS.green,'Adam');
+    const sgd = mk(COLORS.rose);
+    const mom = mk(COLORS.blue);
+    const adam = mk(COLORS.green);
 
-    const sgdPath = [[start[0],start[1]],[cx-140,cy-40],[cx-170,cy-70],[cx-90,cy-10],[cx-110,cy-30],[cx-20,cy+8],[cx,cy]];
-    const momPath = [[start[0],start[1]],[cx-120,cy-50],[cx-40,cy-15],[cx-5,cy+2],[cx,cy]];
-    const adamPath = [[start[0],start[1]],[cx-90,cy-45],[cx-10,cy-5],[cx,cy]];
+    // static legend (top-left) so labels never collide as the dots converge
+    const legendX = 60, legendY0 = 70;
+    const legendItems = [['SGD',COLORS.rose],['Momentum',COLORS.blue],['Adam',COLORS.green]].map(([label,color],i)=>{
+      const y = legendY0 + i*26;
+      const sw = C(svg, legendX, y, 6, color, color);
+      const lbl = T(svg, legendX+18, y+4, label, {size:13, fill:color});
+      return {sw, lbl};
+    });
+
+    // each path ends at a slightly different point clustered around the minimum
+    // (converging to the exact same pixel would stack the dots unreadably)
+    const end1 = [cx, cy], end2=[cx-10,cy+8], end3=[cx+9,cy+7];
+    const sgdPath = [[start[0],start[1]],[cx-140,cy-40],[cx-170,cy-70],[cx-90,cy-10],[cx-110,cy-30],[cx-20,cy+8],end1];
+    const momPath = [[start[0],start[1]],[cx-120,cy-50],[cx-40,cy-15],[cx-5,cy+2],end2];
+    const adamPath = [[start[0],start[1]],[cx-90,cy-45],[cx-10,cy-5],end3];
 
     function pathD(pts){ return pts.map((p,i)=>(i===0?'M':'L')+p[0]+' '+p[1]).join(' '); }
     const sgdTrail = P(svg, pathD(sgdPath), COLORS.rose, 1.5); sgdTrail.setAttribute('stroke-dasharray','3 4');
@@ -825,7 +836,6 @@ SLIDES.push({
       for(let i=1;i<pts.length;i++){
         const dx = pts[i][0]-pts[i-1][0], dy = pts[i][1]-pts[i-1][1];
         await moveBy(dotObj.dot, dx, dy, 260);
-        moveBy(dotObj.lbl, dx, dy, 260);
       }
     }
 
@@ -835,8 +845,10 @@ SLIDES.push({
       minPt.style.opacity=0; minLbl.style.opacity=0;
       await fadeIn(minPt,350); fadeIn(minLbl,300);
 
-      [sgd,mom,adam].forEach(o=>{o.dot.style.opacity=0;o.lbl.style.opacity=0;});
-      await Promise.all([sgd,mom,adam].map((o,i)=>Promise.all([popIn(o.dot,300,i*100),fadeIn(o.lbl,300,i*100)])));
+      legendItems.forEach(o=>{o.sw.style.opacity=0;o.lbl.style.opacity=0;});
+      [sgd,mom,adam].forEach(o=>{o.dot.style.opacity=0;});
+      await Promise.all([sgd,mom,adam].map((o,i)=>popIn(o.dot,300,i*100)));
+      legendItems.forEach((o,i)=>{fadeIn(o.sw,300,i*100); fadeIn(o.lbl,300,i*100);});
       await wait(400);
 
       await Promise.all([
@@ -1655,7 +1667,7 @@ SLIDES.push({
 
       [outBox,outT,tanhNode,tanhT,outArrowDown,hOut,hOutT].forEach(e=>e.style.opacity=0);
       await popIn(outBox,350); fadeIn(outT,300);
-      await popIn(tanhNode,300);
+      await popIn(tanhNode,300); fadeIn(tanhT,250);
       await drawPath(outArrowDown,400);
       await popIn(hOut,350); fadeIn(hOutT,300);
 
@@ -3883,40 +3895,93 @@ SLIDES.push({
   <p>These transformations directly teach the network which changes should not affect its prediction, a slightly rotated cat is still a cat, forcing it to learn features that are robust to that specific kind of variation, rather than memorizing incidental details of the exact training examples it happened to see.</p>
   <h4>The connection to earlier slides</h4>
   <p>SimCLR's two augmented views of one image, seen a few slides earlier, is data augmentation used as the entire training signal itself, rather than as a supporting technique layered on top of ordinary supervised training, the same transformations, repurposed for a fundamentally different, self-supervised objective.</p>
+  <h4>Stronger augmentations: Mixup and CutMix</h4>
+  <p>Simple geometric and color transforms only move a single image around; Mixup goes further by blending two images and their labels together in proportion, $\\tilde x = \\lambda x_i + (1-\\lambda)x_j$, $\\tilde y = \\lambda y_i + (1-\\lambda)y_j$, teaching the network to output calibrated in-between confidence rather than an overconfident single class. CutMix instead pastes a rectangular patch from one image onto another and mixes the label by the patch's area — cheaper than Mixup's pixel blending and empirically stronger, since it never produces the blurry, unrealistic images Mixup can create.</p>
+  <h4>Where augmentation stops helping</h4>
+  <p>An augmentation is only useful if it preserves the label a human would assign: rotating a handwritten "6" too far turns it into a "9", so the same transform that helps a cat classifier can silently corrupt a digit classifier. Augmentation also cannot manufacture information that was never in the training distribution — it perturbs existing examples, it doesn't add genuinely new visual content, so it complements more data rather than replacing it.</p>
   <h4>Real-world echo</h4>
-  <p>An extremely cheap, broadly applicable technique that reduces overfitting, especially valuable exactly when labeled data is scarce and collecting more of it is expensive or slow.</p>`,
+  <p>An extremely cheap, broadly applicable technique that reduces overfitting, especially valuable exactly when labeled data is scarce and collecting more of it is expensive or slow. Test-time augmentation — averaging predictions over several augmented copies of the same input at inference — is the same idea applied after training, trading extra compute for a small, nearly free accuracy boost.</p>`,
   build(container){
     const svg = mkSvg(container);
     const cap = mkCaption(container, 'Same label, different view — teaching the network what should not matter.');
 
-    const origX=200, origY=200;
-    const orig = R(svg, origX-40, origY-40, 80, 80, COLORS.chalk, 'rgba(255,255,255,0.05)', 2, 6);
-    const origLbl = T(svg, origX, origY-56, 'original: "cat"', {size:12, fill:COLORS.muted});
+    // a tiny reusable "cat face" icon: circle head, two triangle ears, two dot eyes, whisker-line nose.
+    // Outer group only positions (SVG attribute transform); inner group is animated via style.transform
+    // so rotate/flip actually interpolate correctly (mixing attribute+CSS transforms does not).
+    function catIcon(parent, cx, cy, scale, color){
+      const outer = G(parent, cx, cy);
+      const inner = se('g');
+      outer.appendChild(inner);
+      inner.style.transformBox = 'fill-box';
+      inner.style.transformOrigin = '50% 50%';
+      inner.style.transform = `scale(${scale})`;
+      C(inner, 0, 4, 26, color, 'rgba(255,255,255,0.05)', 2);
+      P(inner, 'M -20 -14 L -8 -30 L -2 -12 Z', color, 1.5, `${color}33`);
+      P(inner, 'M 20 -14 L 8 -30 L 2 -12 Z', color, 1.5, `${color}33`);
+      C(inner, -9, 0, 3, color, color);
+      C(inner, 9, 0, 3, color, color);
+      P(inner, 'M -6 12 Q 0 17 6 12', color, 1.5);
+      return {outer, inner, scale};
+    }
 
+    const origX=160, origY=230;
+    const origFrame = R(svg, origX-45, origY-45, 90, 90, COLORS.chalk, 'rgba(255,255,255,0.03)', 1.5, 8);
+    const origIcon = catIcon(svg, origX, origY, 1, COLORS.chalk);
+    const origLbl = T(svg, origX, origY-62, 'original: "cat"', {size:12, fill:COLORS.muted});
+
+    // 2x2 grid instead of a vertical stack of 4 — gives each label room to breathe
     const transforms = [
-      {name:'rotate', x:420, y:110},
-      {name:'flip', x:420, y:200},
-      {name:'crop', x:420, y:290},
-      {name:'color jitter', x:420, y:380}
+      {name:'rotate', x:460, y:110, kind:'rotate'},
+      {name:'flip', x:760, y:110, kind:'flip'},
+      {name:'crop', x:460, y:330, kind:'crop'},
+      {name:'color jitter', x:760, y:330, kind:'color'}
     ];
-    const boxes = transforms.map(t=>({
-      box: R(svg, t.x-35, t.y-35, 70, 70, COLORS.blue, 'rgba(127,179,213,0.1)', 2, 6),
-      lbl: T(svg, t.x, t.y-46, t.name, {size:11, fill:COLORS.blue}),
-      stillLbl: T(svg, t.x, t.y+56, 'still "cat"', {size:10, fill:COLORS.green}),
-      arrow: P(svg, `M 245 ${origY} Q 330 ${t.y} ${t.x-38} ${t.y}`, COLORS.muted, 1.2, 'none', true,'muted')
-    }));
+    const boxes = transforms.map(t=>{
+      const frame = R(svg, t.x-35, t.y-35, 70, 70, COLORS.blue, 'rgba(127,179,213,0.08)', 2, 6);
+      let clipRect=null, clipId=null;
+      if(t.kind==='crop'){
+        clipId = 'cropclip'+t.x+t.y;
+        const clip = se('clipPath',{id:clipId});
+        clipRect = se('rect',{x:t.x-35,y:t.y-35,width:70,height:70});
+        clip.appendChild(clipRect);
+        svg.appendChild(clip);
+      }
+      const icon = catIcon(svg, t.x, t.y, 0.72, COLORS.blue);
+      if(clipId) icon.outer.setAttribute('clip-path', `url(#${clipId})`);
+      return {
+        frame, icon, clipRect, kind:t.kind,
+        lbl: T(svg, t.x, t.y-46, t.name, {size:11, fill:COLORS.blue}),
+        stillLbl: T(svg, t.x, t.y+58, 'still "cat"', {size:10, fill:COLORS.green}),
+        arrow: P(svg, `M ${origX+48} ${origY} Q ${(origX+t.x)/2} ${t.y} ${t.x-38} ${t.y}`, COLORS.muted, 1.2, 'none', true,'muted')
+      };
+    });
 
-    const summaryLbl = T(svg, 500, 460, 'the label never changes — only the network\\u2019s view of the pixels does', {size:12, fill:COLORS.muted});
+    const summaryLbl = T(svg, 500, 500, 'the label never changes — only the network\\u2019s view of the pixels does', {size:12, fill:COLORS.muted});
 
     return { play: async ()=>{
-      [orig,origLbl].forEach(e=>e.style.opacity=0);
-      await popIn(orig,400); fadeIn(origLbl,300);
+      [origFrame,origIcon.outer,origLbl].forEach(e=>e.style.opacity=0);
+      await popIn(origFrame,400); await fadeIn(origIcon.outer,350); fadeIn(origLbl,300);
 
       for(const b of boxes){
-        [b.arrow,b.box,b.lbl,b.stillLbl].forEach(e=>e.style.opacity=0);
+        [b.arrow,b.frame,b.icon.outer,b.lbl,b.stillLbl].forEach(e=>e.style.opacity=0);
+        if(b.kind==='crop') b.clipRect.setAttribute('width', 70);
         await drawPath(b.arrow,350);
-        await popIn(b.box,350);
+        await popIn(b.frame,350);
+        await fadeIn(b.icon.outer,300);
         fadeIn(b.lbl,300);
+
+        // play the actual transformation live, so the box shows the real effect, not just a label
+        const base = `scale(${b.icon.scale})`;
+        if(b.kind==='rotate'){
+          await anim(b.icon.inner, [{transform:base+' rotate(0deg)'},{transform:base+' rotate(28deg)'}], {duration:600, easing:'ease-in-out'});
+        } else if(b.kind==='flip'){
+          await anim(b.icon.inner, [{transform:base+' scale(1,1)'},{transform:base+' scale(-1,1)'}], {duration:600, easing:'ease-in-out'});
+        } else if(b.kind==='crop'){
+          await anim(b.clipRect, [{width:'70px'},{width:'40px'}], {duration:600, easing:'ease-in-out'});
+          b.clipRect.setAttribute('width', 40);
+        } else if(b.kind==='color'){
+          await anim(b.icon.inner, [{filter:'hue-rotate(0deg) saturate(1)'},{filter:'hue-rotate(140deg) saturate(2)'}], {duration:600, easing:'ease-in-out'});
+        }
         await fadeIn(b.stillLbl,300);
       }
       await wait(300);
