@@ -1,0 +1,1375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Security Architecture — a Feynman walkthrough</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ============ ROOT / RESET ============ */
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#0a0b0d;
+  --dot: rgba(255,255,255,.055);
+  --ink:#eef0f2;
+  --ink-dim:#9aa1ac;
+  --ink-faint:#666d78;
+  --line: rgba(255,255,255,.14);
+  --line-soft: rgba(255,255,255,.08);
+  --card: rgba(255,255,255,.035);
+  --card-strong: rgba(255,255,255,.065);
+  --blue:#6f97dd;      /* authentication */
+  --blue-soft: rgba(111,151,221,.12);
+  --amber:#d3a05f;     /* authorization / delegation */
+  --amber-soft: rgba(211,160,95,.12);
+  --teal:#57ab93;      /* cryptography */
+  --teal-soft: rgba(87,171,147,.12);
+  --violet:#a97fc0;    /* operations / secrets */
+  --violet-soft: rgba(169,127,192,.12);
+  --green:#68b085;     /* architecture / philosophy */
+  --green-soft: rgba(104,176,133,.12);
+  --rose:#c67474;      /* threats / gaps */
+  --rose-soft: rgba(198,116,116,.12);
+}
+html,body{height:100%;background:var(--bg);}
+body{
+  font-family:'Inter',sans-serif;color:var(--ink);
+  background-image: radial-gradient(circle, var(--dot) 1.3px, transparent 1.3px);
+  background-size:26px 26px;
+  overflow:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* ============ FIXED STAGE SCAFFOLD ============ */
+#viewport{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding-bottom:92px;box-sizing:border-box;}
+#stage{width:1280px;height:720px;position:relative;transform-origin:center center;flex-shrink:0;
+  border:1px solid var(--line-soft); border-radius:14px; overflow:hidden;
+  box-shadow: 0 30px 80px rgba(0,0,0,.55);
+  background: linear-gradient(180deg, rgba(255,255,255,.015), transparent 220px);
+}
+
+/* ============ SLIDES ============ */
+.slide{position:absolute;inset:0;display:none;}
+.slide.active{display:block;}
+
+.eyebrow{position:absolute;left:64px;top:36px;font:600 12.5px/1 'JetBrains Mono',monospace;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint);}
+.eyebrow b{font-weight:700;padding:2px 8px;border-radius:4px;margin-right:8px;}
+.title{position:absolute;left:64px;top:56px;font:700 34px/1.18 'Space Grotesk',sans-serif;color:var(--ink);max-width:1150px;letter-spacing:-.01em;}
+.title .accent{position:relative;}
+
+.fillchip{position:absolute;right:64px;top:42px;max-width:420px;text-align:right;
+  font:500 12.5px/1.4 'JetBrains Mono',monospace;color:var(--ink-dim);}
+.fillchip b{color:var(--ink);font-weight:600;}
+
+/* recap / gap footer zone */
+.recap{position:absolute;left:64px;top:554px;width:1150px;font:500 14.5px/1.4 'Inter';color:var(--ink-dim);}
+.recap b{color:var(--ink);font-weight:600;}
+.gap{position:absolute;left:64px;top:582px;width:1150px;font:500 15px/1.4 'Inter';color:var(--rose);font-style:italic;}
+.gap b{font-weight:700;font-style:normal;}
+
+/* ============ REVEAL SYSTEM ============ */
+.rv{opacity:0;transform:translateY(10px);transition:opacity .55s cubic-bezier(.22,.61,.36,1), transform .55s cubic-bezier(.22,.61,.36,1);}
+.rv.in{opacity:1;transform:translateY(0);}
+.rv.pop{transform:scale(.86) translateY(6px);}
+.rv.pop.in{transform:scale(1) translateY(0);}
+
+/* step reveal (cumulative, click-through) */
+[data-step]{opacity:0;transform:translateY(8px);transition:opacity .5s ease, transform .5s ease, border-color .35s ease, background .35s ease;}
+[data-step].in{opacity:1;transform:translateY(0);}
+[data-step].active{border-color: var(--stepcolor,#fff) !important; box-shadow:0 0 0 1px var(--stepcolor,transparent) inset;}
+
+/* ============ PRIMITIVES ============ */
+/* underline-draw (Write) */
+.udraw{position:relative;display:inline-block;}
+.udraw i{position:absolute;left:0;right:0;bottom:-4px;height:2px;background:currentColor;
+  transform:scaleX(0);transform-origin:left;transition:transform .6s cubic-bezier(.22,.61,.36,1);}
+.udraw.in i{transform:scaleX(1);}
+
+/* indicate pulse */
+@keyframes mnpulse{0%{transform:scale(1)}45%{transform:scale(1.13)}100%{transform:scale(1)}}
+.mn-indicate{animation:mnpulse .8s cubic-bezier(.3,.5,.4,1);}
+
+/* circumscribe ring */
+.mn-ring{position:absolute;border:1.6px solid var(--ink);border-radius:14px;pointer-events:none;opacity:0;transform:scale(.92);
+  transition:opacity .35s ease, transform .35s ease;}
+.mn-ring.show{opacity:1;transform:scale(1);}
+.mn-ring.fade{opacity:0;transition:opacity .6s ease .8s;}
+
+/* svg path draw using pathLength trick: pathLength="1" everywhere */
+.pdraw{stroke-dasharray:1;stroke-dashoffset:1;transition:stroke-dashoffset .7s cubic-bezier(.22,.61,.36,1);}
+.pdraw.in{stroke-dashoffset:0;}
+.fdraw{opacity:0;transition:opacity .45s ease;}
+.fdraw.in{opacity:1;}
+
+/* ============ GENERIC DIAGRAM PARTS ============ */
+.card{position:absolute;border:1.3px solid var(--line);background:var(--card);border-radius:10px;padding:13px 16px;
+  box-shadow:0 10px 26px rgba(0,0,0,.35);}
+.card h4{font:700 14.5px 'Space Grotesk',sans-serif;color:var(--ink);margin-bottom:3px;letter-spacing:-.01em;}
+.card p{font:400 12.6px/1.42 'Inter';color:var(--ink-dim);}
+.card .mono{font-family:'JetBrains Mono',monospace;font-size:11.6px;color:var(--ink-dim);}
+.card.hi{border-color:var(--ink);}
+
+.chip{position:absolute;padding:4px 11px;border-radius:20px;border:1px solid var(--line);
+  font:600 11px 'JetBrains Mono',monospace;letter-spacing:.05em;text-transform:uppercase;
+  background:var(--card);color:var(--ink-dim);}
+
+.pill{display:inline-block;padding:2px 8px;border-radius:5px;font:600 11.5px 'JetBrains Mono',monospace;letter-spacing:.02em;}
+
+.formula{position:absolute;border:1.3px dashed var(--line);border-radius:9px;padding:11px 15px;
+  font:500 13.5px/1.5 'JetBrains Mono',monospace;color:var(--ink);background:rgba(255,255,255,.02);}
+.formula .lbl{display:block;font:600 10.5px 'JetBrains Mono';letter-spacing:.12em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:5px;}
+
+svg text{font-family:'Inter',sans-serif;fill:var(--ink);}
+svg .mono-t{font-family:'JetBrains Mono',monospace;}
+svg .dim{fill:var(--ink-dim);}
+svg .faint{fill:var(--ink-faint);}
+
+/* ============ NAV ============ */
+#nav{position:fixed;left:0;right:0;bottom:0;height:92px;display:flex;align-items:center;justify-content:center;gap:18px;z-index:50;
+  background:linear-gradient(180deg, transparent, rgba(0,0,0,.55) 40%);}
+#nav button{background:var(--card-strong);border:1px solid var(--line);color:var(--ink);
+  font:600 13px 'JetBrains Mono',monospace;letter-spacing:.03em;padding:11px 20px;border-radius:8px;cursor:pointer;
+  transition:background .2s, border-color .2s, transform .1s;}
+#nav button:hover{background:rgba(255,255,255,.11);border-color:rgba(255,255,255,.3);}
+#nav button:active{transform:scale(.97);}
+#nav button:disabled{opacity:.3;cursor:default;}
+#navmeta{font:500 12.5px 'JetBrains Mono',monospace;color:var(--ink-dim);min-width:230px;text-align:center;}
+#navmeta .hint{color:var(--ink-faint);font-size:11px;display:block;margin-top:2px;}
+
+#collideBadge{position:fixed;top:18px;right:18px;z-index:99;font:700 12px 'JetBrains Mono',monospace;
+  padding:6px 12px;border-radius:6px;display:none;}
+#progress{position:fixed;top:0;left:0;height:3px;background:linear-gradient(90deg,var(--blue),var(--teal),var(--amber));
+  transition:width .4s ease;z-index:60;}
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+<div id="viewport"><div id="stage">
+
+<!-- ============================================================ -->
+<!-- SLIDE 1 — TITLE -->
+<!-- ============================================================ -->
+<section class="slide" data-idx="1">
+  <div class="eyebrow rv" data-d="0"><b style="background:var(--blue-soft);color:var(--blue);">Security Architecture</b> a Feynman walkthrough</div>
+  <div style="position:absolute;left:64px;top:190px;width:900px;">
+    <div class="rv" data-d="1" style="font:700 58px/1.1 'Space Grotesk';letter-spacing:-.02em;">Every secure system<br>answers four questions.</div>
+    <div class="rv" data-d="2" style="margin-top:22px;font:400 17px/1.6 'Inter';color:var(--ink-dim);max-width:760px;">
+      Twenty terms — OAuth, JWT, RBAC, TLS, zero trust — are really just <b style="color:var(--ink);font-weight:600;">answers</b> to a small
+      set of plain-language problems. Learn the problems, and the terms stop being jargon.
+    </div>
+  </div>
+
+  <div style="position:absolute;left:64px;top:360px;">
+    <div class="card rv pop" data-d="3" style="left:0;top:0;width:266px;height:150px;border-color:var(--blue);">
+      <div class="mono" style="color:var(--blue);">Q1</div>
+      <h4 style="margin-top:6px;">Who are you?</h4>
+      <p><b style="color:var(--ink)">Authentication</b> — proving identity.</p>
+    </div>
+    <div class="card rv pop" data-d="4" style="left:286px;top:0;width:266px;height:150px;border-color:var(--amber);">
+      <div class="mono" style="color:var(--amber);">Q2</div>
+      <h4 style="margin-top:6px;">What can you do?</h4>
+      <p><b style="color:var(--ink)">Authorization</b> — granting permission.</p>
+    </div>
+    <div class="card rv pop" data-d="5" style="left:572px;top:0;width:266px;height:150px;border-color:var(--teal);">
+      <div class="mono" style="color:var(--teal);">Q3</div>
+      <h4 style="margin-top:6px;">Can it be read in transit?</h4>
+      <p><b style="color:var(--ink)">Encryption</b> — hiding the data itself.</p>
+    </div>
+    <div class="card rv pop" data-d="6" style="left:858px;top:0;width:266px;height:150px;border-color:var(--green);">
+      <div class="mono" style="color:var(--green);">Q4</div>
+      <h4 style="margin-top:6px;">What if one layer fails?</h4>
+      <p><b style="color:var(--ink)">Architecture</b> — assuming breach.</p>
+    </div>
+  </div>
+
+  <div class="gap rv" data-d="7" style="top:582px;">We'll build the whole picture one gap at a time — <b>starting with the oldest security system there is: a door.</b></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 2 — THE BIG PICTURE (bouncer analogy) -->
+<!-- ============================================================ -->
+<section class="slide" data-idx="2">
+  <div class="eyebrow rv" data-d="0"><b style="background:var(--blue-soft);color:var(--blue);">Foundations</b> Authentication vs. Authorization</div>
+  <div class="title rv" data-d="1">Two different questions, one bouncer.</div>
+
+  <svg width="1152" height="330" style="position:absolute;left:64px;top:120px;" viewBox="0 0 1152 330">
+    <!-- person -->
+    <g class="rv pop" data-d="2">
+      <circle cx="90" cy="150" r="34" fill="none" stroke="var(--ink-dim)" stroke-width="1.6"/>
+      <text x="90" y="157" text-anchor="middle" font-size="26">🙂</text>
+      <text x="90" y="205" text-anchor="middle" font-size="13" class="dim">Visitor</text>
+    </g>
+    <!-- arrow to bouncer -->
+    <path d="M132,150 L268,150" fill="none" stroke="var(--ink-faint)" stroke-width="1.6" stroke-dasharray="5,5" class="fdraw rv" data-d="3"/>
+    <!-- bouncer / checkpoint -->
+    <g class="rv pop" data-d="4">
+      <rect x="280" y="70" width="230" height="160" rx="12" fill="var(--blue-soft)" stroke="var(--blue)" stroke-width="1.4"/>
+      <text x="395" y="112" text-anchor="middle" font-size="14" font-weight="700">Checkpoint 1</text>
+      <text x="395" y="134" text-anchor="middle" font-size="12.5" class="dim">"Show me your ID."</text>
+      <text x="395" y="175" text-anchor="middle" font-size="34">🪪</text>
+      <text x="395" y="210" text-anchor="middle" font-size="12" class="mono-t" fill="var(--blue)">AUTHENTICATION</text>
+    </g>
+    <path d="M512,150 L648,150" fill="none" stroke="var(--ink-faint)" stroke-width="1.6" stroke-dasharray="5,5" class="fdraw rv" data-d="5"/>
+    <!-- authorization checkpoint -->
+    <g class="rv pop" data-d="6">
+      <rect x="660" y="70" width="230" height="160" rx="12" fill="var(--amber-soft)" stroke="var(--amber)" stroke-width="1.4"/>
+      <text x="775" y="112" text-anchor="middle" font-size="14" font-weight="700">Checkpoint 2</text>
+      <text x="775" y="134" text-anchor="middle" font-size="12.5" class="dim">"Are you on the VIP list?"</text>
+      <text x="775" y="175" text-anchor="middle" font-size="34">📋</text>
+      <text x="775" y="210" text-anchor="middle" font-size="12" class="mono-t" fill="var(--amber)">AUTHORIZATION</text>
+    </g>
+    <path d="M892,150 L1028,150" fill="none" stroke="var(--ink-faint)" stroke-width="1.6" stroke-dasharray="5,5" class="fdraw rv" data-d="7"/>
+    <g class="rv pop" data-d="8">
+      <rect x="1040" y="100" width="90" height="100" rx="10" fill="var(--green-soft)" stroke="var(--green)" stroke-width="1.4"/>
+      <text x="1085" y="150" text-anchor="middle" font-size="26">🎉</text>
+      <text x="1085" y="180" text-anchor="middle" font-size="11" class="dim">VIP room</text>
+    </g>
+  </svg>
+
+  <div class="rv" data-d="9" style="position:absolute;left:64px;top:462px;width:1150px;font:400 14.5px/1.55 'Inter';color:var(--ink-dim);">
+    Notice these are <b style="color:var(--ink);">independent</b> checks. Your ID can be 100% real (authenticated) while you're still
+    not on the list (unauthorized) — and a fake ID can occasionally slip past checkpoint 1 entirely. Systems keep these two checks
+    separate for the same reason: one answers <i>"is this really you"</i>, the other answers <i>"what did we agree you're allowed to do."</i>
+  </div>
+
+  <div class="recap rv" data-d="10">RECAP — security architecture is mostly the discipline of answering <b>"who"</b> and <b>"what"</b> correctly, every single time.</div>
+  <div class="gap rv" data-d="11">GAP — but how does checkpoint 1 actually <b>verify</b> an ID is real and not forged? <b>What makes proof, proof?</b></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 3 — AUTHENTICATION FACTORS -->
+<!-- ============================================================ -->
+<section class="slide" data-idx="3">
+  <div class="eyebrow rv" data-d="0"><b style="background:var(--blue-soft);color:var(--blue);">Authentication</b> Proving who you are</div>
+  <div class="fillchip rv" data-d="0">FILLS: what makes proof, proof</div>
+  <div class="title rv" data-d="1">Three kinds of evidence — and why one usually isn't enough.</div>
+
+  <div style="position:absolute;left:64px;top:130px;">
+    <div class="card rv pop" data-d="2" style="left:0;top:0;width:360px;height:180px;border-color:var(--blue);">
+      <div style="font-size:30px;">🧠</div>
+      <h4 style="margin-top:8px;">Something you <span style="color:var(--blue)">know</span></h4>
+      <p>Password, PIN, security question. Cheap to deploy — but it can be guessed, phished, or reused across sites.</p>
+    </div>
+    <div class="card rv pop" data-d="3" style="left:396px;top:0;width:360px;height:180px;border-color:var(--blue);">
+      <div style="font-size:30px;">📱</div>
+      <h4 style="margin-top:8px;">Something you <span style="color:var(--blue)">have</span></h4>
+      <p>Phone, hardware key, one-time code (OTP). Stealing it requires physical access, not just a database leak.</p>
+    </div>
+    <div class="card rv pop" data-d="4" style="left:792px;top:0;width:360px;height:180px;border-color:var(--blue);">
+      <div style="font-size:30px;">👁️</div>
+      <h4 style="margin-top:8px;">Something you <span style="color:var(--blue)">are</span></h4>
+      <p>Fingerprint, face, iris. Hardest to fake at a distance — but can't be rotated if it's ever compromised.</p>
+    </div>
+  </div>
+
+  <div class="rv pop" data-d="5" style="position:absolute;left:64px;top:346px;width:1092px;padding:16px 20px;" class="card">
+    <div style="display:flex;align-items:center;gap:14px;">
+      <span class="pill" style="background:var(--blue-soft);color:var(--blue);">MFA</span>
+      <span style="font:600 14.5px 'Space Grotesk';">Multi-Factor Authentication = combine two <i>different</i> categories.</span>
+    </div>
+    <p style="margin-top:8px;">Password (know) + OTP from your phone (have) means an attacker needs <b style="color:var(--ink)">both</b> your leaked
+    password <i>and</i> your physical phone. Two factors from the <b style="color:var(--ink)">same</b> category — two passwords — don't count;
+    they fail together, from the same one breach.</p>
+  </div>
+
+  <div class="rv" data-d="6" style="position:absolute;left:64px;top:472px;width:1150px;font:400 14px/1.5 'Inter';color:var(--ink-dim);">
+    <b style="color:var(--ink)">Practical use:</b> banking apps require know+have (password + SMS/OTP). High-security systems add have+are
+    (hardware key + biometric unlock on the key itself). This is the theory of authentication — now, how does a website actually
+    <i>remember</i> you passed this check, for every page you click afterward?
+  </div>
+
+  <div class="recap rv" data-d="7">RECAP — authentication factors are evidence categories; combining <b>different</b> categories is what makes MFA strong.</div>
+  <div class="gap rv" data-d="8">GAP — you only log in <b>once</b>. So how does the server remember it's still you on request #2, #3, #4000? <b>Why doesn't it ask again?</b></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 4 — SESSION AUTHENTICATION -->
+<!-- ============================================================ -->
+<section class="slide" data-idx="4">
+  <div class="eyebrow rv" data-d="0"><b style="background:var(--blue-soft);color:var(--blue);">Authentication</b> Staying logged in</div>
+  <div class="fillchip rv" data-d="0">FILLS: why it doesn't ask again</div>
+  <div class="title rv" data-d="1">Session authentication: the server keeps a receipt.</div>
+
+  <svg width="1152" height="290" style="position:absolute;left:64px;top:126px;" viewBox="0 0 1152 290">
+    <g class="rv pop" data-d="2">
+      <rect x="0" y="90" width="150" height="90" rx="10" fill="var(--card)" stroke="var(--line)" stroke-width="1.3"/>
+      <text x="75" y="125" text-anchor="middle" font-size="26">💻</text>
+      <text x="75" y="155" text-anchor="middle" font-size="12">Browser</text>
+    </g>
+    <g class="rv pop" data-d="3">
+      <rect x="480" y="20" width="220" height="230" rx="12" fill="var(--blue-soft)" stroke="var(--blue)" stroke-width="1.4"/>
+      <text x="590" y="52" text-anchor="middle" font-size="13" font-weight="700">Server</text>
+      <text x="590" y="90" text-anchor="middle" font-size="28">🗄️</text>
+      <text x="590" y="118" text-anchor="middle" font-size="11.5" class="dim">Session store</text>
+      <rect x="510" y="135" width="160" height="30" rx="5" fill="rgba(0,0,0,.25)" stroke="var(--line)"/>
+      <text x="590" y="155" text-anchor="middle" font-size="11" class="mono-t" fill="var(--blue)">id: 9f2a... → user 42</text>
+      <text x="590" y="196" text-anchor="middle" font-size="11" class="dim">(kept server-side —</text>
+      <text x="590" y="212" text-anchor="middle" font-size="11" class="dim">memory / Redis / DB)</text>
+    </g>
+    <g class="rv pop" data-d="4">
+      <rect x="1000" y="90" width="150" height="90" rx="10" fill="var(--card)" stroke="var(--line)" stroke-width="1.3"/>
+      <text x="1075" y="125" text-anchor="middle" font-size="26">🍪</text>
+      <text x="1075" y="155" text-anchor="middle" font-size="12">Cookie jar</text>
+    </g>
+    <!-- login request -->
+    <path d="M150,120 C 280,90 350,90 480,105" fill="none" stroke="var(--blue)" stroke-width="1.6" class="pdraw" data-step="1" pathLength="1"/>
+    <text x="300" y="82" text-anchor="middle" font-size="11.5" class="mono-t fdraw" data-step="1" fill="var(--blue)">POST /login (user+pass)</text>
+    <!-- set cookie -->
+    <path d="M700,150 C 830,150 900,150 1000,140" fill="none" stroke="var(--blue)" stroke-width="1.6" class="pdraw" data-step="2" pathLength="1"/>
+    <text x="850" y="128" text-anchor="middle" font-size="11.5" class="mono-t fdraw" data-step="2" fill="var(--blue)">Set-Cookie: sid=9f2a...</text>
+    <!-- subsequent requests -->
+    <path d="M1075,180 C 1075,240 300,260 150,200" fill="none" stroke="var(--ink-faint)" stroke-width="1.5" stroke-dasharray="5,5" class="pdraw" data-step="3" pathLength="1"/>
+    <text x="620" y="266" text-anchor="middle" font-size="11.5" class="mono-t fdraw" data-step="3" fill="var(--ink-dim)">every next request auto-attaches the cookie</text>
+    <path d="M150,200 C 260,235 380,230 480,190" fill="none" stroke="var(--ink-faint)" stroke-width="1.5" stroke-dasharray="5,5" class="pdraw" data-step="4" pathLength="1"/>
+    <text x="300" y="228" text-anchor="middle" font-size="11" class="mono-t fdraw" data-step="4" fill="var(--ink-dim)" style="display:none"></text>
+    <g data-step="5" class="rv">
+      <circle cx="590" cy="150" r="0" />
+    </g>
+  </svg>
+
+  <div class="card rv pop" data-d="5" style="left:64px;top:454px;width:1150px;padding:14px 20px;">
+    <p><b style="color:var(--ink)">The trade-off:</b> the server must hold state for every logged-in user (a session table that grows with
+    traffic), and that cookie is tied to <b style="color:var(--ink)">one domain</b> — it doesn't travel to a mobile app or a different
+    company's API. Fine for one website. Awkward once "the client" isn't a browser at all.</p>
+  </div>
+
+  <div class="recap rv" data-d="6">RECAP — session auth swaps "ask for a password every time" for "remember a random ID, server-side, and check a cookie."</div>
+  <div class="gap rv" data-d="7">GAP — what about a mobile app or another server calling your API — no cookie jar, no browser. <b>What proves who's calling then?</b></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 5 — API KEYS -->
+<!-- ============================================================ -->
+<section class="slide" data-idx="5">
+  <div class="eyebrow rv" data-d="0"><b style="background:var(--blue-soft);color:var(--blue);">Authentication</b> Machine-to-machine</div>
+  <div class="fillchip rv" data-d="0">FILLS: proof without a cookie jar</div>
+  <div class="title rv" data-d="1">API keys: a long password the <span class="udraw rv" data-d="2" style="color:var(--blue)">app</span><i></i> carries, not a person.</div>
+
+  <svg width="1152" height="230" style="position:absolute;left:64px;top:122px;" viewBox="0 0 1152 230">
+    <g class="rv pop" data-d="3">
+      <rect x="0" y="60" width="200" height="100" rx="10" fill="var(--card)" stroke="var(--line)" stroke-width="1.3"/>
+      <text x="100" y="105" text-anchor="middle" font-size="26">🤖</text>
+      <text x="100" y="135" text-anchor="middle" font-size="12">Client app / script</text>
+    </g>
+    <path d="M200,110 L390,110" stroke="var(--blue)" stroke-width="1.6" class="pdraw rv" data-d="4" pathLength="1"/>
+    <text x="295" y="95" text-anchor="middle" font-size="11.5" class="mono-t rv" data-d="4" fill="var(--blue)">Header: X-API-Key: sk_live_4f2c...</text>
+    <g class="rv pop" data-d="5">
+      <rect x="400" y="30" width="260" height="170" rx="12" fill="var(--blue-soft)" stroke="var(--blue)" stroke-width="1.4"/>
+      <text x="530" y="62" text-anchor="middle" font-size="13" font-weight="700">API gateway</text>
+      <text x="530" y="98" text-anchor="middle" font-size="26">🔑</text>
+      <text x="530" y="128" text-anchor="middle" font-size="11.5" class="dim">Look up key → which</text>
+      <text x="530" y="146" text-anchor="middle" font-size="11.5" class="dim">project / rate limit?</text>
+      <text x="530" y="176" text-anchor="middle" font-size="11" class="mono-t" fill="var(--rose)">no idea WHICH user</text>
+    </g>
+    <path d="M660,110 L850,110" stroke="var(--blue)" stroke-width="1.6" class="pdraw rv" data-d="6" pathLength="1"/>
+    <g class="rv pop" data-d="7">
+      <rect x="860" y="60" width="200" height="100" rx="10" fill="var(--card)" stroke="var(--line)" stroke-width="1.3"/>
+      <text x="960" y="105" text-anchor="middle" font-size="26">🗂️</text>
+      <text x="960" y="135" text-anchor="middle" font-size="12">Resource / data</text>
+    </g>
+  </svg>
+
+  <div style="position:absolute;left:64px;top:376px;">
+    <div class="card rv pop" data-d="8" style="left:0;top:0;width:562px;height:130px;">
+      <h4>Good fit for</h4>
+      <p>Server-to-server calls, CLIs, webhooks, internal scripts — anywhere there's no human sitting at a login screen.
+      Simple to issue, simple to check.</p>
+    </div>
+    <div class="card rv pop" data-d="9" style="left:588px;top:0;width:562px;height:130px;border-color:var(--rose);">
+      <h4 style="color:var(--rose)">Weak points</h4>
+      <p>Long-lived (leaks stay dangerous for months), usually <b style="color:var(--ink)">all-or-nothing</b> permission,
+      and represents an <i>app</i>, not a specific end-user's consent.</p>
+    </div>
+  </div>
+
+  <div class="recap rv" data-d="10">RECAP — API keys authenticate a <b>calling application</b>, not a person, and grant it broad, static access.</div>
+  <div class="gap rv" data-d="11">GAP — what if <b>a user</b> wants a third-party app to act on their behalf — read their calendar, say — without ever handing over their password? <b>How do you delegate, safely?</b></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 6 — OAUTH CONCEPT -->
+<!-- ============================================================ -->
+<section class="slide" data-idx="6">
+  <div class="eyebrow rv" data-d="0"><b style="background:var(--amber-soft);color:var(--amber);">Authorization</b> Delegated access</div>
+  <div class="fillchip rv" data-d="0">FILLS: delegating access safely</div>
+  <div class="title rv" data-d="1">OAuth: a <span class="udraw rv" data-d="2" style="color:var(--amber)">valet key</span><i></i>, not your car key.</div>
+
+  <div class="rv" data-d="3" style="position:absolute;left:64px;top:130px;width:1150px;font:400 15px/1.6 'Inter';color:var(--ink-dim);">
+    A valet key starts the engine and locks the glovebox. It can't open the trunk. It's a <b style="color:var(--ink)">separate, limited
+    credential</b> — you never hand over your actual house key. That's the entire idea behind OAuth: issue apps a limited token
+    instead of your password.
+  </div>
+
+  <svg width="1152" height="270" style="position:absolute;left:64px;top:220px;" viewBox="0 0 1152 270">
+    <g class="rv pop" data-d="4">
+      <circle cx="80" cy="80" r="36" fill="var(--card)" stroke="var(--line)" stroke-width="1.3"/>
+      <text x="80" y="90" text-anchor="middle" font-size="26">🙂</text>
+      <text x="80" y="140" text-anchor="middle" font-size="12" font-weight="600">Resource Owner</text>
+      <text x="80" y="156" text-anchor="middle" font-size="11" class="dim">(you)</text>
+    </g>
+    <g class="rv pop" data-d="5">
+      <rect x="270" y="30" width="190" height="100" rx="10" fill="var(--amber-soft)" stroke="var(--amber)" stroke-width="1.4"/>
+      <text x="365" y="65" text-anchor="middle" font-size="28">📆</text>
+      <text x="365" y="92" text-anchor="middle" font-size="12" font-weight="600">Client</text>
+      <text x="365" y="108" text-anchor="middle" font-size="10.5" class="dim">the third-party app</text>
+    </g>
+    <g class="rv pop" data-d="6">
+      <rect x="560" y="30" width="220" height="100" rx="10" fill="var(--card)" stroke="var(--line)" stroke-width="1.3"/>
+      <text x="670" y="65" text-anchor="middle" font-size="28">🏛️</text>
+      <text x="670" y="92" text-anchor="middle" font-size="12" font-weight="600">Authorization Server</text>
+      <text x="670" y="108" text-anchor="middle" font-size="10.5" class="dim">issues the valet key</text>
+    </g>
+    <g class="rv pop" data-d="7">
+      <rect x="880" y="30" width="220" height="100" rx="10" fill="var(--card)" stroke="var(--line)" stroke-width="1.3"/>
+      <text x="990" y="65" text-anchor="middle" font-size="28">🗂️</text>
+      <text x="990" y="92" text-anchor="middle" font-size="12" font-weight="600">Resource Server</text>
+      <text x="990" y="108" text-anchor="middle" font-size="10.5" class="dim">holds your calendar/data</text>
+    </g>
+    <text x="365" y="180" text-anchor="middle" font-size="12" class="rv" data-d="8" fill="var(--ink-dim)">"Let this app see my calendar? →</text>
+    <text x="670" y="200" text-anchor="middle" font-size="12" class="rv" data-d="9" fill="var(--ink-dim)">→ you approve, we issue a scoped token"</text>
+    <text x="990" y="180" text-anchor="middle" font-size="12" class="rv" data-d="10" fill="var(--ink-dim)">app calls the API with that token only</text>
+  </svg>
+
+  <div class="recap rv" data-d="11">RECAP — OAuth defines four roles so an app can act with <b>limited, revocable</b> permission — never your actual password.</div>
+  <div class="gap rv" data-d="12">GAP — great, four roles. But what's the exact <b>sequence of messages</b> that gets a real app a real token? <b>Walk through it — step by step.</b></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 7 — OAUTH 2.0 AUTHORIZATION CODE FLOW (STEP TOUR) -->
+<!-- ============================================================ -->
+<section class="slide" data-idx="7" data-total-steps="6">
+  <div class="eyebrow rv" data-d="0"><b style="background:var(--amber-soft);color:var(--amber);">Authorization</b> OAuth 2.0 · Authorization Code Flow</div>
+  <div class="fillchip rv" data-d="0">FILLS: the exact sequence</div>
+  <div class="title rv" data-d="1">Click <span class="mono" style="color:var(--amber)">Next</span> to run the flow, one message at a time.</div>
+
+  <svg width="1152" height="260" style="position:absolute;left:64px;top:120px;" viewBox="0 0 1152 260">
+    <rect x="0" y="20" width="170" height="80" rx="9" fill="var(--card)" stroke="var(--line)" stroke-width="1.3" class="rv" data-d="2"/>
+    <text x="85" y="55" text-anchor="middle" font-size="24" class="rv" data-d="2">🙂</text>
+    <text x="85" y="82" text-anchor="middle" font-size="11.5" class="rv" data-d="2">User (browser)</text>
+
+    <rect x="330" y="20" width="180" height="80" rx="9" fill="var(--amber-soft)" stroke="var(--amber)" stroke-width="1.4" class="rv" data-d="3"/>
+    <text x="420" y="55" text-anchor="middle" font-size="24" class="rv" data-d="3">📆</text>
+    <text x="420" y="82" text-anchor="middle" font-size="11.5" class="rv" data-d="3">Client app</text>
+
+    <rect x="680" y="20" width="220" height="80" rx="9" fill="var(--card)" stroke="var(--line)" stroke-width="1.3" class="rv" data-d="4"/>
+    <text x="790" y="55" text-anchor="middle" font-size="24" class="rv" data-d="4">🏛️</text>
+    <text x="790" y="82" text-anchor="middle" font-size="11.5" class="rv" data-d="4">Authorization Server</text>
+
+    <rect x="990" y="20" width="160" height="80" rx="9" fill="var(--card)" stroke="var(--line)" stroke-width="1.3" class="rv" data-d="5"/>
+    <text x="1070" y="55" text-anchor="middle" font-size="24" class="rv" data-d="5">🗂️</text>
+    <text x="1070" y="82" text-anchor="middle" font-size="11.5" class="rv" data-d="5">Resource server</text>
+
+    <!-- step 1: user clicks login -->
+    <path d="M170,60 L330,60" stroke="var(--amber)" stroke-width="1.6" class="pdraw" data-step="1" pathLength="1" style="--stepcolor:var(--amber)"/>
+    <text x="250" y="46" text-anchor="middle" font-size="10.8" class="mono-t fdraw" data-step="1" fill="var(--amber)">1. "Log in with X"</text>
+
+    <!-- step 2: client redirects to auth server -->
+    <path d="M510,60 L680,60" stroke="var(--amber)" stroke-width="1.6" class="pdraw" data-step="2" pathLength="1"/>
+    <text x="595" y="46" text-anchor="middle" font-size="10.2" class="mono-t fdraw" data-step="2" fill="var(--amber)">2. redirect: client_id, scope, redirect_uri</text>
+
+    <!-- step 3: user approves + auth code returned -->
+    <path d="M790,100 C 790,150 500,160 250,145" stroke="var(--amber)" stroke-width="1.6" fill="none" class="pdraw" data-step="3" pathLength="1"/>
+    <text x="520" y="176" text-anchor="middle" font-size="10.8" class="mono-t fdraw" data-step="3" fill="var(--amber)">3. user approves → redirected back with ?code=abc123</text>
+
+    <!-- step 4: client exchanges code for token, backend channel -->
+    <path d="M420,100 C 420,140 600,150 790,130" stroke="var(--teal)" stroke-width="1.6" fill="none" class="pdraw" data-step="4" pathLength="1"/>
+    <text x="600" y="122" text-anchor="middle" font-size="10.2" class="mono-t fdraw" data-step="4" fill="var(--teal)">4. POST /token: code + client_secret (server-to-server)</text>
+
+    <!-- step 5: access token returned -->
+    <path d="M790,100 C 790,200 550,210 430,155" stroke="var(--teal)" stroke-width="1.6" fill="none" class="pdraw" data-step="5" pathLength="1"/>
+    <text x="610" y="216" text-anchor="middle" font-size="10.8" class="mono-t fdraw" data-step="5" fill="var(--teal)">5. access_token (+ refresh_token, expires_in) returned</text>
+
+    <!-- step 6: client calls resource server -->
+    <path d="M510,60 L990,60" stroke="var(--green)" stroke-width="1.6" class="pdraw" data-step="6" pathLength="1"/>
+    <text x="750" y="235" text-anchor="middle" font-size="10.8" class="mono-t fdraw" data-step="6" fill="var(--green)">6. GET /calendar · Authorization: Bearer &lt;access_token&gt;</text>
+  </svg>
+
+  <div class="card rv pop" data-d="6" data-step="6" style="left:64px;top:400px;width:1150px;padding:13px 20px;">
+    <p><b style="color:var(--ink)">Why the detour through the browser (steps 1–3) instead of just sending a password?</b> The password
+    field only ever appears on the Authorization Server's own login page — the client app <i>never sees it</i>. And why exchange
+    a short-lived <span class="mono">code</span> for a token in step 4, instead of returning the token directly in step 3? Because step 3
+    happens in the browser's address bar (visible in logs, browser history); step 4 happens server-to-server, over a channel that also
+    proves the client's identity with a <span class="mono">client_secret</span>.</p>
+  </div>
+
+  <div class="recap rv pop" data-step="6" data-d="0" style="position:absolute;left:64px;top:554px;width:1150px;font:500 14.5px 'Inter';color:var(--ink-dim);">RECAP — six messages turn "user says yes" into a scoped, revocable <b style="color:var(--ink)">access_token</b> the client can use.</div>
+  <div class="gap rv pop" data-step="6" data-d="0" style="position:absolute;left:64px;top:582px;width:1150px;font:500 15px 'Inter';color:var(--rose);font-style:italic;">GAP — that access_token proves the app can read your calendar. It never says <b>whose</b> calendar, by name. <b>How does the app learn who you actually are?</b></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 8 — OPENID CONNECT -->
+<!-- ============================================================ -->
+<section class="slide" data-idx="8">
+  <div class="eyebrow rv" data-d="0"><b style="background:var(--blue-soft);color:var(--blue);">Identity</b> OpenID Connect (OIDC)</div>
+  <div class="fillchip rv" data-d="0">FILLS: how the app learns who you are</div>
+  <div class="title rv" data-d="1">OIDC = OAuth 2.0 <span style="color:var(--ink-faint)">+</span> a name badge.</div>
+
+  <div style="position:absolute;left:64px;top:132px;width:1150px;">
+    <div class="rv" data-d="2" style="font:400 15px/1.6 'Inter';color:var(--ink-dim);max-width:1000px;">
+      OAuth answers <i>"can this app act?"</i> — that's authorization. It was never designed to answer <i>"who is this human?"</i>
+      OIDC is a thin identity layer bolted on top: add <span class="mono" style="color:var(--blue)">scope=openid</span> to the same
+      request, and the Authorization Server hands back a second token alongside the access token.
+    </div>
+  </div>
+
+  <svg width="1152" height="230" style="position:absolute;left:64px;top:230px;" viewBox="0 0 1152 230">
+    <g class="rv pop" data-d="3">
+      <rect x="60" y="30" width="330" height="150" rx="12" fill="var(--amber-soft)" stroke="var(--amber)" stroke-width="1.4"/>
+      <text x="225" y="62" text-anchor="middle" font-size="13" font-weight="700" fill="var(--amber)">access_token</text>
+      <text x="225" y="100" text-anchor="middle" font-size="34">🎫</text>
+      <text x="225" y="130" text-anchor="middle" font-size="12" class="dim">"This app may call</text>
+      <text x="225" y="148" text-anchor="middle" font-size="12" class="dim">the calendar API."</text>
+      <text x="225" y="170" text-anchor="middle" font-size="11" class="mono-t" fill="var(--amber)">= authorization</text>
+    </g>
+    <text x="450" y="115" text-anchor="middle" font-size="26" class="rv" data-d="4" fill="var(--ink-faint)">+</text>
+    <g class="rv pop" data-d="5">
+      <rect x="520" y="30" width="330" height="150" rx="12" fill="var(--blue-soft)" stroke="var(--blue)" stroke-width="1.4"/>
+      <text x="685" y="62" text-anchor="middle" font-size="13" font-weight="700" fill="var(--blue)">id_token (a JWT)</text>
+      <text x="685" y="100" text-anchor="middle" font-size="34">🪪</text>
+      <text x="685" y="130" text-anchor="middle" font-size="12" class="dim">"This is user #42,</text>
+      <text x="685" y="148" text-anchor="middle" font-size="12" class="dim">name: Asha, verified email."</text>
+      <text x="685" y="170" text-anchor="middle" font-size="11" class="mono-t" fill="var(--blue)">= identity</text>
+    </g>
+    <text x="980" y="110" text-anchor="middle" font-size="13" class="rv" data-d="6" fill="var(--ink-dim)">"Sign in with Google"</text>
+    <text x="980" y="130" text-anchor="middle" font-size="13" class="rv" data-d="6" fill="var(--ink-dim)">buttons are exactly this.</text>
+  </svg>
+
+  <div class="recap rv" data-d="7">RECAP — <b>OAuth = permission</b> ("what the app can touch"), <b>OIDC = identity</b> ("who's logged in"). Different jobs, one flow.</div>
+  <div class="gap rv" data-d="8">GAP — we keep saying "token." What's actually <b>inside</b> one, and how does the resource server trust it without phoning the auth server every single request?</div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 9 — JWT STRUCTURE -->
+<!-- ============================================================ -->
+<section class="slide" data-idx="9" data-total-steps="4">
+  <div class="eyebrow rv" data-d="0"><b style="background:var(--blue-soft);color:var(--blue);">Identity / Tokens</b> JSON Web Token (JWT)</div>
+  <div class="fillchip rv" data-d="0">FILLS: what's inside a token</div>
+  <div class="title rv" data-d="1">A JWT is a fact, <span class="udraw rv" data-d="2" style="color:var(--blue)">sealed</span><i></i>, not stored.</div>
+
+  <div style="position:absolute;left:64px;top:106px;display:flex;gap:0;font:600 14.5px 'JetBrains Mono',monospace;">
+    <div class="rv pop" data-d="3" style="background:var(--blue-soft);color:var(--blue);padding:8px 14px;border-radius:8px 0 0 8px;border:1.3px solid var(--blue);">eyJhbGciOiJSUzI1NiJ9</div>
+    <div class="rv" data-d="3" style="padding:8px 4px;color:var(--ink-faint);">.</div>
+    <div class="rv pop" data-d="4" style="background:var(--amber-soft);color:var(--amber);padding:8px 14px;border:1.3px solid var(--amber);">eyJzdWIiOiI0MiIsImV4cCI6...</div>
+    <div class="rv" data-d="4" style="padding:8px 4px;color:var(--ink-faint);">.</div>
+    <div class="rv pop" data-d="5" style="background:var(--teal-soft);color:var(--teal);padding:8px 14px;border-radius:0 8px 8px 0;border:1.3px solid var(--teal);">4f8x9Za...signature</div>
+  </div>
+
+  <div style="position:absolute;left:64px;top:156px;">
+    <div class="card rv" data-d="6" style="left:0;top:0;width:295px;height:96px;border-color:var(--blue);">
+      <h4 style="color:var(--blue)">Header</h4>
+      <p class="mono">{ "alg":"RS256", "typ":"JWT" }</p>
+      <p style="margin-top:4px;">Which signing algorithm was used.</p>
+    </div>
+    <div class="card rv" data-d="7" style="left:330px;top:0;width:400px;height:96px;border-color:var(--amber);">
+      <h4 style="color:var(--amber)">Payload (claims)</h4>
+      <p class="mono">{ sub:"42", iss:"auth.co", exp:1893456 }</p>
+      <p style="margin-top:4px;"><b style="color:var(--ink)">sub</b>=who, <b style="color:var(--ink)">iss</b>=issuer, <b style="color:var(--ink)">exp</b>=expiry, <b style="color:var(--ink)">aud</b>=audience.</p>
+    </div>
+    <div class="card rv" data-d="8" style="left:756px;top:0;width:396px;height:96px;border-color:var(--teal);">
+      <h4 style="color:var(--teal)">Signature</h4>
+      <p>Cryptographic seal over header+payload. Change one character above, the seal breaks.</p>
+    </div>
+  </div>
+
+  <div class="formula rv pop" data-d="9" style="left:64px;top:264px;width:1150px;">
+    <span class="lbl">Formula</span>
+    signature = Sign( base64url(header) + "." + base64url(payload) , key, alg )
+  </div>
+
+  <svg width="1152" height="112" style="position:absolute;left:64px;top:328px;" viewBox="0 0 1152 112">
+    <text x="0" y="14" font-size="11.5" class="dim rv" data-d="10">Verification — no database lookup needed:</text>
+    <g data-step="1">
+      <rect x="0" y="26" width="230" height="60" rx="8" fill="var(--card)" stroke="var(--line)"/>
+      <text x="115" y="51" text-anchor="middle" font-size="11.5">token arrives</text>
+      <text x="115" y="70" text-anchor="middle" font-size="20">📨</text>
+    </g>
+    <path d="M230,56 L360,56" stroke="var(--teal)" stroke-width="1.6" class="pdraw" data-step="1" pathLength="1"/>
+    <g data-step="2">
+      <rect x="370" y="26" width="280" height="60" rx="8" fill="var(--teal-soft)" stroke="var(--teal)"/>
+      <text x="510" y="51" text-anchor="middle" font-size="11.5">recompute signature locally</text>
+      <text x="510" y="69" text-anchor="middle" font-size="11" class="mono-t" fill="var(--teal)">using the public key</text>
+    </g>
+    <path d="M650,56 L780,56" stroke="var(--teal)" stroke-width="1.6" class="pdraw" data-step="3" pathLength="1"/>
+    <g data-step="3">
+      <rect x="790" y="26" width="180" height="60" rx="8" fill="var(--card)" stroke="var(--line)"/>
+      <text x="880" y="51" text-anchor="middle" font-size="11.5">bytes match?</text>
+      <text x="880" y="70" text-anchor="middle" font-size="20">⚖️</text>
+    </g>
+    <path d="M970,56 L1080,56" stroke="var(--green)" stroke-width="1.6" class="pdraw" data-step="4" pathLength="1"/>
+    <g data-step="4">
+      <text x="1080" y="62" font-size="24">✅</text>
+    </g>
+  </svg>
+
+  <div class="card rv pop" data-step="4" style="left:64px;top:452px;width:1150px;padding:9px 20px;">
+    <p><b style="color:var(--ink)">HS256</b> (shared secret both sides must hold — fast, single-service) vs
+    <b style="color:var(--ink)">RS256</b> (private key signs, public key verifies — many services can check a token, none can forge one).</p>
+  </div>
+
+  <div class="recap rv pop" data-step="4" style="position:absolute;left:64px;top:524px;width:1150px;font:500 14.5px 'Inter';color:var(--ink-dim);">RECAP — a JWT is a self-contained, signed fact. No session store, no database round-trip to check it — that's what "stateless" means.</div>
+  <div class="gap rv pop" data-step="4" style="position:absolute;left:64px;top:552px;width:1150px;font:500 15px 'Inter';color:var(--rose);font-style:italic;">GAP — stateless also means no easy way to revoke a token early, so keep it short-lived. But now: we know exactly <b>who</b> this is. That still hasn't decided <b>what they're allowed to do</b> — and checking that for every user, one by one, doesn't scale. What does?</div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 10 — RBAC -->
+<!-- ============================================================ -->
+<section class="slide" data-idx="10">
+  <div class="eyebrow rv" data-d="0"><b style="background:var(--amber-soft);color:var(--amber);">Authorization models</b> Role-Based Access Control</div>
+  <div class="fillchip rv" data-d="0">FILLS: deciding permissions at scale</div>
+  <div class="title rv" data-d="1">RBAC: don't assign permissions to people — assign them to <span class="udraw rv" data-d="2" style="color:var(--amber)">roles</span><i></i>.</div>
+
+  <svg width="1152" height="230" style="position:absolute;left:64px;top:126px;" viewBox="0 0 1152 230">
+    <g class="rv pop" data-d="3"><circle cx="60" cy="40" r="20" fill="var(--card)" stroke="var(--line)"/><text x="60" y="47" text-anchor="middle" font-size="16">🙂</text></g>
+    <g class="rv pop" data-d="4"><circle cx="60" cy="100" r="20" fill="var(--card)" stroke="var(--line)"/><text x="60" y="107" text-anchor="middle" font-size="16">🙂</text></g>
+    <g class="rv pop" data-d="5"><circle cx="60" cy="160" r="20" fill="var(--card)" stroke="var(--line)"/><text x="60" y="167" text-anchor="middle" font-size="16">🙂</text></g>
+    <text x="60" y="200" text-anchor="middle" font-size="11" class="dim rv" data-d="6">Users</text>
+
+    <path d="M80,40 L280,90" stroke="var(--amber)" stroke-width="1.4" class="pdraw" data-d="7" style="stroke-dasharray:1;stroke-dashoffset:1;" pathLength="1"/>
+    <path d="M80,100 L280,90" stroke="var(--amber)" stroke-width="1.4" class="pdraw" data-d="7" style="stroke-dasharray:1;stroke-dashoffset:1;" pathLength="1"/>
+    <path d="M80,160 L280,150" stroke="var(--amber)" stroke-width="1.4" class="pdraw" data-d="8" style="stroke-dasharray:1;stroke-dashoffset:1;" pathLength="1"/>
+
+    <g class="rv pop" data-d="9">
+      <rect x="290" y="50" width="150" height="60" rx="8" fill="var(--amber-soft)" stroke="var(--amber)"/>
+      <text x="365" y="85" text-anchor="middle" font-size="13" font-weight="700">Editor</text>
+    </g>
+    <g class="rv pop" data-d="10">
+      <rect x="290" y="130" width="150" height="60" rx="8" fill="var(--amber-soft)" stroke="var(--amber)"/>
+      <text x="365" y="165" text-anchor="middle" font-size="13" font-weight="700">Viewer</text>
+    </g>
+    <text x="365" y="215" text-anchor="middle" font-size="11" class="dim rv" data-d="11">Roles</text>
+
+    <path d="M440,80 L640,50" stroke="var(--ink-faint)" stroke-width="1.3" class="pdraw" data-d="12" pathLength="1"/>
+    <path d="M440,80 L640,110" stroke="var(--ink-faint)" stroke-width="1.3" class="pdraw" data-d="12" pathLength="1"/>
+    <path d="M440,160 L640,110" stroke="var(--ink-faint)" stroke-width="1.3" class="pdraw" data-d="13" pathLength="1"/>
+
+    <g class="rv" data-d="14"><rect x="650" y="30" width="200" height="40" rx="6" fill="var(--card)" stroke="var(--line)"/><text x="750" y="55" text-anchor="middle" font-size="12">edit:document</text></g>
+    <g class="rv" data-d="15"><rect x="650" y="90" width="200" height="40" rx="6" fill="var(--card)" stroke="var(--line)"/><text x="750" y="115" text-anchor="middle" font-size="12">read:document</text></g>
+    <g class="rv" data-d="16"><rect x="650" y="150" width="200" height="40" rx="6" fill="var(--card)" stroke="var(--line)"/><text x="750" y="175" text-anchor="middle" font-size="12">delete:document</text></g>
+    <text x="750" y="205" text-anchor="middle" font-size="11" class="dim rv" data-d="17">Permissions</text>
+  </svg>
+
+  <div class="formula rv pop" data-d="18" style="left:900px;top:150px;width:314px;">
+    <span class="lbl">Rule</span>
+    access = grant, if<br>permission ∈ perms(role(user))
+  </div>
+
+  <div class="card rv" data-d="19" style="left:64px;top:398px;width:1150px;padding:12px 20px;">
+    <p><b style="color:var(--ink)">Practical:</b> Admin / Manager / Employee in a company tool — easy to explain, easy to audit
+    ("who's an Admin?"). <b style="color:var(--rose)">The weak spot — "role explosion":</b> the moment access needs a condition
+    ("only your own documents," "only during business hours"), you either bend one role to mean two different things, or you mint
+    a new near-duplicate role for every exception, until you have hundreds of roles that are really just <i>if-statements wearing
+    a role's name.</i></p>
+  </div>
+
+  <div class="recap rv" data-d="20">RECAP — RBAC maps <b>user → role → permission</b>. Simple, auditable, and static by design.</div>
+  <div class="gap rv" data-d="21">GAP — what if access should depend on <b>context</b> — whose document it is, what time it is, where the request is coming from? <b>Roles alone can't express "it depends."</b></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 11 — ABAC -->
+<!-- ============================================================ -->
+<section class="slide" data-idx="11">
+  <div class="eyebrow rv" data-d="0"><b style="background:var(--amber-soft);color:var(--amber);">Authorization models</b> Attribute-Based Access Control</div>
+  <div class="fillchip rv" data-d="0">FILLS: expressing "it depends"</div>
+  <div class="title rv" data-d="1">ABAC: the answer is computed, not looked up.</div>
+
+  <svg width="1152" height="220" style="position:absolute;left:64px;top:122px;" viewBox="0 0 1152 220">
+    <g class="rv pop" data-d="2"><rect x="0" y="10" width="220" height="50" rx="7" fill="var(--card)" stroke="var(--line)"/><text x="110" y="40" text-anchor="middle" font-size="11.5">Subject: dept=Cardiology</text></g>
+    <g class="rv pop" data-d="3"><rect x="0" y="70" width="220" height="50" rx="7" fill="var(--card)" stroke="var(--line)"/><text x="110" y="100" text-anchor="middle" font-size="11.5">Resource: patient.dept=Cardiology</text></g>
+    <g class="rv pop" data-d="4"><rect x="0" y="130" width="220" height="50" rx="7" fill="var(--card)" stroke="var(--line)"/><text x="110" y="160" text-anchor="middle" font-size="11.5">Action: read record</text></g>
+    <g class="rv pop" data-d="5"><rect x="0" y="190" width="220" height="0" rx="7"/></g>
+    <g class="rv pop" data-d="6"><rect x="0" y="190" width="220" height="0"/></g>
+    <g class="rv pop" data-d="7"><rect x="0" y="185" width="220" height="30" rx="7" fill="var(--card)" stroke="var(--line)" opacity="0"/></g>
+
+    <path d="M220,35 L390,85" stroke="var(--amber)" stroke-width="1.4" class="pdraw" data-d="8" pathLength="1"/>
+    <path d="M220,95 L390,95" stroke="var(--amber)" stroke-width="1.4" class="pdraw" data-d="9" pathLength="1"/>
+    <path d="M220,155 L390,105" stroke="var(--amber)" stroke-width="1.4" class="pdraw" data-d="10" pathLength="1"/>
+
+    <g class="rv pop" data-d="11">
+      <rect x="400" y="40" width="220" height="120" rx="10" fill="var(--amber-soft)" stroke="var(--amber)" stroke-width="1.4"/>
+      <text x="510" y="72" text-anchor="middle" font-size="13" font-weight="700">Policy engine</text>
+      <text x="510" y="105" text-anchor="middle" font-size="30">⚙️</text>
+      <text x="510" y="140" text-anchor="middle" font-size="10.5" class="dim">evaluates a rule live</text>
+    </g>
+
+    <path d="M620,100 L780,100" stroke="var(--amber)" stroke-width="1.6" class="pdraw" data-d="12" pathLength="1"/>
+
+    <g class="rv pop" data-d="13">
+      <rect x="790" y="60" width="180" height="80" rx="9" fill="var(--green-soft)" stroke="var(--green)"/>
+      <text x="880" y="95" text-anchor="middle" font-size="24">✅</text>
+      <text x="880" y="120" text-anchor="middle" font-size="11.5">departments match</text>
+    </g>
+    <g class="rv" data-d="14">
+      <text x="1080" y="80" text-anchor="middle" font-size="11" class="dim">Environment: 2:14pm,</text>
+      <text x="1080" y="98" text-anchor="middle" font-size="11" class="dim">office network ✓</text>
+    </g>
+  </svg>
+
+  <div class="formula rv pop" data-d="15" style="left:64px;top:366px;width:1150px;">
+    <span class="lbl">Formula</span>
+    access = Policy( subject.attrs, resource.attrs, action, environment.attrs ) → allow | deny
+  </div>
+
+  <div style="position:absolute;left:64px;top:436px;width:1150px;display:flex;gap:16px;">
+    <div class="card rv" data-d="16" style="position:relative;width:562px;">
+      <h4 style="color:var(--amber)">RBAC</h4>
+      <p>Static, coarse, cheap to audit. "Is this person an Editor?"</p>
+    </div>
+    <div class="card rv" data-d="17" style="position:relative;width:562px;">
+      <h4 style="color:var(--amber)">ABAC</h4>
+      <p>Dynamic, fine-grained, harder to reason about at a glance. "Do these five facts, right now, satisfy the rule?"</p>
+    </div>
+  </div>
+
+  <div class="recap rv" data-d="18">RECAP — most real systems use <b>both</b>: RBAC for the coarse "which product area," ABAC for the fine "which specific record, right now."</div>
+  <div class="gap rv" data-d="19">GAP — we've now secured <b>who</b> and <b>what</b>. But none of it matters if the data is simply <b>readable in transit</b>. What stops someone from just watching the wire?</div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 12 — ENCRYPTION IN TRANSIT vs AT REST -->
+<!-- ============================================================ -->
+<section class="slide" data-idx="12">
+  <div class="eyebrow rv" data-d="0"><b style="background:var(--teal-soft);color:var(--teal);">Cryptography</b> Two different padlocks</div>
+  <div class="fillchip rv" data-d="0">FILLS: stopping someone reading the wire</div>
+  <div class="title rv" data-d="1">Encrypt the pipe. Encrypt the warehouse. Two separate jobs.</div>
+
+  <div style="position:absolute;left:64px;top:130px;display:flex;gap:24px;">
+    <div class="card rv pop" data-d="2" style="position:relative;width:562px;height:280px;border-color:var(--teal);">
+      <div style="font-size:34px;">🚚🔒</div>
+      <h4 style="margin-top:8px;color:var(--teal);">Encryption in transit</h4>
+      <p style="margin-top:6px;">Protects data <b style="color:var(--ink)">while it moves</b> — browser to server, service to service.
+      An eavesdropper on the network sees only scrambled bytes.</p>
+      <p class="mono" style="margin-top:12px;">Mechanism: TLS (next slide)</p>
+      <p class="mono">Threat stopped: network sniffing, man-in-the-middle</p>
+      <p class="mono">Analogy: an armored truck for the drive</p>
+    </div>
+    <div class="card rv pop" data-d="3" style="position:relative;width:562px;height:280px;border-color:var(--teal);">
+      <div style="font-size:34px;">🏬🔒</div>
+      <h4 style="margin-top:8px;color:var(--teal);">Encryption at rest</h4>
+      <p style="margin-top:6px;">Protects data <b style="color:var(--ink)">while it's stored</b> — on disk, in a database, in a backup.
+      Stealing the hard drive gets you ciphertext, not the data.</p>
+      <p class="mono" style="margin-top:12px;">Mechanism: AES-256 (symmetric cipher)</p>
+      <p class="mono">Threat stopped: stolen disks, leaked backups</p>
+      <p class="mono">Analogy: a locked warehouse once the truck arrives</p>
+    </div>
+  </div>
+
+  <div class="card rv pop" data-d="4" style="left:64px;top:432px;width:1150px;padding:12px 20px;">
+    <p><b style="color:var(--ink)">Why you need both:</b> TLS alone doesn't help if someone steals your database file directly.
+    AES-at-rest alone doesn't help if the app decrypts data and then ships it over plain HTTP. Neither replaces the other —
+    <b style="color:var(--ink)">defense in depth</b>, a theme we'll come back to at the very end.</p>
+  </div>
+
+  <div class="recap rv" data-d="5">RECAP — "in transit" defends the network hop, "at rest" defends the storage. Different attacker, different control.</div>
+  <div class="gap rv" data-d="6">GAP — TLS claims to build a private channel between two total strangers, over a public network, without ever sending the secret itself. <b>How is that even possible?</b></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 13 — TLS HANDSHAKE (STEP TOUR) -->
+<!-- ============================================================ -->
+<section class="slide" data-idx="13" data-total-steps="5">
+  <div class="eyebrow rv" data-d="0"><b style="background:var(--teal-soft);color:var(--teal);">Cryptography</b> TLS — Transport Layer Security</div>
+  <div class="fillchip rv" data-d="0">FILLS: a secret shared, without sending the secret</div>
+  <div class="title rv" data-d="1">The handshake: agree on a secret in public, in plain sight.</div>
+
+  <svg width="1152" height="260" style="position:absolute;left:64px;top:118px;" viewBox="0 0 1152 260">
+    <rect x="0" y="90" width="150" height="70" rx="9" fill="var(--card)" stroke="var(--line)" stroke-width="1.3" class="rv" data-d="2"/>
+    <text x="75" y="118" text-anchor="middle" font-size="22" class="rv" data-d="2">💻</text>
+    <text x="75" y="145" text-anchor="middle" font-size="11.5" class="rv" data-d="2">Client</text>
+
+    <rect x="1000" y="90" width="150" height="70" rx="9" fill="var(--card)" stroke="var(--line)" stroke-width="1.3" class="rv" data-d="3"/>
+    <text x="1075" y="118" text-anchor="middle" font-size="22" class="rv" data-d="3">🖥️</text>
+    <text x="1075" y="145" text-anchor="middle" font-size="11.5" class="rv" data-d="3">Server</text>
+
+    <!-- step 1: clienthello -->
+    <path d="M150,110 L1000,110" stroke="var(--teal)" stroke-width="1.5" class="pdraw" data-step="1" pathLength="1"/>
+    <text x="575" y="98" text-anchor="middle" font-size="11" class="mono-t fdraw" data-step="1" fill="var(--teal)">1. ClientHello — "here's what ciphers I support, here's my key share"</text>
+
+    <!-- step 2: serverhello + cert -->
+    <path d="M1000,140 L150,140" stroke="var(--teal)" stroke-width="1.5" class="pdraw" data-step="2" pathLength="1"/>
+    <text x="575" y="160" text-anchor="middle" font-size="11" class="mono-t fdraw" data-step="2" fill="var(--teal)">2. ServerHello + certificate — "here's my public key, signed by a CA"</text>
+
+    <!-- step 3: cert check -->
+    <g data-step="3">
+      <rect x="0" y="175" width="150" height="55" rx="8" fill="var(--card)" stroke="var(--line)"/>
+      <text x="75" y="197" text-anchor="middle" font-size="20">🔍</text>
+      <text x="75" y="216" text-anchor="middle" font-size="10" class="dim">verify cert chain</text>
+    </g>
+
+    <!-- step 4: key derivation both sides -->
+    <g data-step="4">
+      <rect x="470" y="175" width="210" height="55" rx="8" fill="var(--teal-soft)" stroke="var(--teal)">
+      </rect>
+      <text x="575" y="197" text-anchor="middle" font-size="11.5" fill="var(--teal)" font-weight="700">shared secret derived</text>
+      <text x="575" y="216" text-anchor="middle" font-size="10" class="dim">(ECDHE — computed, never sent)</text>
+    </g>
+
+    <!-- step 5: encrypted -->
+    <g data-step="5">
+      <text x="575" y="252" text-anchor="middle" font-size="12" fill="var(--green)" font-weight="700">🔒 5. Finished — all further traffic is AES-encrypted</text>
+    </g>
+  </svg>
+
+  <div class="card rv pop" data-step="5" style="left:64px;top:396px;width:1150px;padding:13px 20px;">
+    <p><b style="color:var(--ink)">The trick (Diffie-Hellman key exchange):</b> both sides send a public "key share" over the open
+    network, and combine it with a private value <i>they never send anywhere</i>. The math works out so both land on the exact
+    same shared number — but an eavesdropper watching both messages can't reconstruct it without one of the private values.
+    <b style="color:var(--ink)">The certificate</b> in step 2 is what stops an impostor from just answering in the server's place:
+    it's signed by a Certificate Authority the browser already trusts, binding "this public key" to "this domain name."</p>
+  </div>
+
+  <div class="recap rv" data-step="5" style="position:absolute;left:64px;top:556px;width:1150px;font:500 14.5px 'Inter';color:var(--ink-dim);">RECAP — TLS gives you <b style="color:var(--ink)">confidentiality</b> (encrypted), <b style="color:var(--ink)">integrity</b> (tamper-evident), and <b style="color:var(--ink)">server identity</b> (the certificate) — that's the padlock icon in your browser.</div>
+  <div class="gap rv" data-step="5" style="position:absolute;left:64px;top:582px;width:1150px;font:500 15px 'Inter';color:var(--rose);font-style:italic;">GAP — notice: only the <b>server</b> proved its identity with a certificate. In service-to-service calls, how does Service A know Service B isn't an impostor <b>too</b>?</div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 14 — mTLS -->
+<!-- ============================================================ -->
+<section class="slide" data-idx="14">
+  <div class="eyebrow rv" data-d="0"><b style="background:var(--teal-soft);color:var(--teal);">Cryptography</b> Mutual TLS (mTLS)</div>
+  <div class="fillchip rv" data-d="0">FILLS: proving both identities</div>
+  <div class="title rv" data-d="1">mTLS: the handshake, but <span class="udraw rv" data-d="2" style="color:var(--teal)">both sides</span><i></i> show ID.</div>
+
+  <svg width="1152" height="220" style="position:absolute;left:64px;top:128px;" viewBox="0 0 1152 220">
+    <g class="rv pop" data-d="3">
+      <rect x="0" y="60" width="260" height="110" rx="10" fill="var(--card)" stroke="var(--line)" stroke-width="1.3"/>
+      <text x="130" y="100" text-anchor="middle" font-size="26">⚙️</text>
+      <text x="130" y="128" text-anchor="middle" font-size="12" font-weight="600">Service A</text>
+      <text x="130" y="148" text-anchor="middle" font-size="10.5" class="mono-t dim">cert: svc-a.internal</text>
+    </g>
+    <g class="rv pop" data-d="4">
+      <rect x="890" y="60" width="260" height="110" rx="10" fill="var(--card)" stroke="var(--line)" stroke-width="1.3"/>
+      <text x="1020" y="100" text-anchor="middle" font-size="26">⚙️</text>
+      <text x="1020" y="128" text-anchor="middle" font-size="12" font-weight="600">Service B</text>
+      <text x="1020" y="148" text-anchor="middle" font-size="10.5" class="mono-t dim">cert: svc-b.internal</text>
+    </g>
+    <path d="M260,95 L890,95" stroke="var(--teal)" stroke-width="1.5" class="pdraw rv" data-d="5" pathLength="1"/>
+    <text x="575" y="82" text-anchor="middle" font-size="11" class="mono-t rv" data-d="5" fill="var(--teal)">"here's MY cert" →</text>
+    <path d="M890,135 L260,135" stroke="var(--teal)" stroke-width="1.5" class="pdraw rv" data-d="6" pathLength="1"/>
+    <text x="575" y="155" text-anchor="middle" font-size="11" class="mono-t rv" data-d="6" fill="var(--teal)">← "here's MY cert"</text>
+    <g class="rv pop" data-d="7">
+      <rect x="440" y="0" width="270" height="45" rx="8" fill="var(--green-soft)" stroke="var(--green)"/>
+      <text x="575" y="27" text-anchor="middle" font-size="11.5" fill="var(--green)" font-weight="700">both verified → mutual trust</text>
+    </g>
+  </svg>
+
+  <div class="card rv pop" data-d="8" style="left:64px;top:382px;width:1150px;padding:13px 20px;">
+    <p><b style="color:var(--ink)">Practical use:</b> service meshes (Istio, Linkerd) issue every internal service a short-lived
+    certificate automatically, so microservices authenticate each other without ever sharing a static secret — no API key sitting
+    in a config file that could leak. This is a core building block of <b style="color:var(--ink)">zero trust</b> networking (slide 17).</p>
+  </div>
+
+  <div class="recap rv" data-d="9">RECAP — regular TLS proves the server's identity. <b>mTLS proves both.</b> No implicit trust just because a call came "from inside the network."</div>
+  <div class="gap rv" data-d="10">GAP — even a perfectly encrypted, mutually-verified connection needs a secret somewhere — a private key, a DB password, an API key. <b>Where do all those secrets actually live?</b></div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 15 — SECRETS MANAGEMENT -->
+<!-- ============================================================ -->
+<section class="slide" data-idx="15">
+  <div class="eyebrow rv" data-d="0"><b style="background:var(--violet-soft);color:var(--violet);">Operations</b> Secrets Management</div>
+  <div class="fillchip rv" data-d="0">FILLS: where secrets actually live</div>
+  <div class="title rv" data-d="1">Rule one: a secret never lives in <span class="udraw rv" data-d="2" style="color:var(--rose)">source code</span><i></i>.</div>
+
+  <svg width="1152" height="230" style="position:absolute;left:64px;top:126px;" viewBox="0 0 1152 230">
+    <g class="rv pop" data-d="3">
+      <rect x="0" y="70" width="220" height="90" rx="10" fill="var(--card)" stroke="var(--line)" stroke-width="1.3"/>
+      <text x="110" y="108" text-anchor="middle" font-size="26">⚙️</text>
+      <text x="110" y="136" text-anchor="middle" font-size="12">App, at boot</text>
+    </g>
+    <path d="M220,110 L440,110" stroke="var(--violet)" stroke-width="1.6" class="pdraw rv" data-d="4" pathLength="1"/>
+    <text x="330" y="97" text-anchor="middle" font-size="10.8" class="mono-t rv" data-d="4" fill="var(--violet)">"who's asking?" (mTLS cert / IAM role)</text>
+    <g class="rv pop" data-d="5">
+      <rect x="450" y="30" width="250" height="170" rx="12" fill="var(--violet-soft)" stroke="var(--violet)" stroke-width="1.4"/>
+      <text x="575" y="65" text-anchor="middle" font-size="13" font-weight="700">Secrets vault</text>
+      <text x="575" y="105" text-anchor="middle" font-size="32">🔐</text>
+      <text x="575" y="135" text-anchor="middle" font-size="11" class="dim">checks identity, policy,</text>
+      <text x="575" y="152" text-anchor="middle" font-size="11" class="dim">then hands over a</text>
+      <text x="575" y="169" text-anchor="middle" font-size="11" class="dim">short-lived credential</text>
+    </g>
+    <path d="M700,110 L920,110" stroke="var(--violet)" stroke-width="1.6" class="pdraw rv" data-d="6" pathLength="1"/>
+    <g class="rv pop" data-d="7">
+      <rect x="930" y="70" width="220" height="90" rx="10" fill="var(--card)" stroke="var(--line)" stroke-width="1.3"/>
+      <text x="1040" y="108" text-anchor="middle" font-size="26">🗄️</text>
+      <text x="1040" y="136" text-anchor="middle" font-size="12">DB password, unlocked</text>
+    </g>
+  </svg>
+
+  <div style="position:absolute;left:64px;top:380px;display:flex;gap:16px;">
+    <div class="card rv" data-d="8" style="position:relative;width:562px;border-color:var(--rose);">
+      <h4 style="color:var(--rose)">Without a vault</h4>
+      <p>Secret hardcoded in a config file → committed to git by accident → now permanently in the repo's history, visible to anyone who ever clones it.</p>
+    </div>
+    <div class="card rv" data-d="9" style="position:relative;width:562px;border-color:var(--violet);">
+      <h4 style="color:var(--violet)">With a vault</h4>
+      <p>Every access is logged and authenticated; a leaked credential can be revoked centrally, in one place, in seconds — not hunted down across a codebase.</p>
+    </div>
+  </div>
+
+  <div class="recap rv" data-d="10">RECAP — secrets should be <b>fetched at runtime, from an audited vault</b> — never baked into code, images, or env files.</div>
+  <div class="gap rv" data-d="11">GAP — even a securely stored secret is dangerous if it never changes. If one leaks silently, it stays useful to an attacker <b>forever</b>. What limits that window?</div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 16 — KEY ROTATION -->
+<!-- ============================================================ -->
+<section class="slide" data-idx="16">
+  <div class="eyebrow rv" data-d="0"><b style="background:var(--violet-soft);color:var(--violet);">Operations</b> Key Rotation</div>
+  <div class="fillchip rv" data-d="0">FILLS: limiting the leak window</div>
+  <div class="title rv" data-d="1">A secret's danger has a <span class="udraw rv" data-d="2" style="color:var(--violet)">shelf life</span><i></i> — shorten it on purpose.</div>
+
+  <svg width="1152" height="200" style="position:absolute;left:64px;top:140px;" viewBox="0 0 1152 200">
+    <line x1="0" y1="90" x2="1152" y2="90" stroke="var(--line)" stroke-width="1.3" class="rv" data-d="3"/>
+    <g class="rv pop" data-d="4">
+      <rect x="0" y="60" width="330" height="60" rx="8" fill="var(--teal-soft)" stroke="var(--teal)"/>
+      <text x="165" y="95" text-anchor="middle" font-size="12" fill="var(--teal)" font-weight="700">Key v1 — active</text>
+    </g>
+    <g class="rv pop" data-d="5">
+      <rect x="300" y="60" width="200" height="60" rx="8" fill="var(--amber-soft)" stroke="var(--amber)"/>
+      <text x="400" y="88" text-anchor="middle" font-size="11" fill="var(--amber)" font-weight="700">overlap window</text>
+      <text x="400" y="104" text-anchor="middle" font-size="9.5" class="dim">both keys valid — zero downtime</text>
+    </g>
+    <g class="rv pop" data-d="6">
+      <rect x="440" y="60" width="330" height="60" rx="8" fill="var(--teal-soft)" stroke="var(--teal)"/>
+      <text x="605" y="95" text-anchor="middle" font-size="12" fill="var(--teal)" font-weight="700">Key v2 — active</text>
+    </g>
+    <g class="rv pop" data-d="7">
+      <rect x="770" y="60" width="200" height="60" rx="8" fill="rgba(198,116,116,.1)" stroke="var(--rose)" stroke-dasharray="4,4"/>
+      <text x="870" y="95" text-anchor="middle" font-size="11" fill="var(--rose)">Key v1 — retired</text>
+    </g>
+    <g class="rv pop" data-d="8">
+      <rect x="960" y="60" width="192" height="60" rx="8" fill="var(--teal-soft)" stroke="var(--teal)"/>
+      <text x="1056" y="88" text-anchor="middle" font-size="11" fill="var(--teal)" font-weight="700">Key v3 — active</text>
+      <text x="1056" y="104" text-anchor="middle" font-size="9" class="dim">cycle repeats</text>
+    </g>
+  </svg>
+
+  <div class="formula rv pop" data-d="9" style="left:64px;top:378px;width:1150px;">
+    <span class="lbl">Intuition, not a strict equation</span>
+    blast radius  ∝  (secret lifetime)  ×  (number of systems trusting it)
+  </div>
+
+  <div class="card rv" data-d="10" style="left:64px;top:444px;width:1150px;height:94px;padding:10px 20px;">
+    <p><b style="color:var(--ink)">Why overlap matters:</b> rotate instantly and every request signed with the old key fails until
+    every service redeploys — an outage. Overlap both keys briefly instead, and rotation becomes invisible to users.
+    <b style="color:var(--ink)">Automated</b> scheduling also removes the human habit of "rotate it later" — which in practice means never.</p>
+  </div>
+
+  <div class="recap rv" data-d="11">RECAP — shorter-lived secrets shrink the damage a leak can do, and scheduled rotation makes "shorter-lived" the default, not an emergency response.</div>
+  <div class="gap rv" data-d="12">GAP — we've now locked down identity, permissions, encryption, and secrets — but all of it quietly assumed there's still a <b>trusted "inside"</b> of the network. What if there isn't one?</div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 17 — ZERO TRUST -->
+<!-- ============================================================ -->
+<section class="slide" data-idx="17">
+  <div class="eyebrow rv" data-d="0"><b style="background:var(--green-soft);color:var(--green);">Architecture</b> Zero Trust</div>
+  <div class="fillchip rv" data-d="0">FILLS: no trusted "inside"</div>
+  <div class="title rv" data-d="1"><span class="udraw rv" data-d="2" style="color:var(--green)">Never trust</span><i></i>, always verify — even from inside the building.</div>
+
+  <div style="position:absolute;left:64px;top:130px;display:flex;gap:24px;">
+    <div class="rv pop" data-d="3" style="position:relative;width:562px;">
+      <div class="card" style="position:relative;width:100%;height:280px;border-color:var(--rose);">
+        <h4 style="color:var(--rose);">Old model — castle & moat</h4>
+        <svg width="500" height="190" viewBox="0 0 500 190" style="margin-top:6px;">
+          <rect x="30" y="20" width="440" height="150" rx="10" fill="none" stroke="var(--rose)" stroke-width="1.6" stroke-dasharray="6,4"/>
+          <text x="250" y="40" text-anchor="middle" font-size="11" fill="var(--rose)">firewall perimeter</text>
+          <circle cx="120" cy="100" r="22" fill="var(--card)" stroke="var(--line)"/><text x="120" y="106" text-anchor="middle" font-size="16">⚙️</text>
+          <circle cx="250" cy="130" r="22" fill="var(--card)" stroke="var(--line)"/><text x="250" y="136" text-anchor="middle" font-size="16">⚙️</text>
+          <circle cx="380" cy="100" r="22" fill="var(--card)" stroke="var(--line)"/><text x="380" y="106" text-anchor="middle" font-size="16">⚙️</text>
+          <text x="250" y="165" text-anchor="middle" font-size="10.5" class="dim">once inside, services trust each other freely</text>
+        </svg>
+      </div>
+    </div>
+    <div class="rv pop" data-d="4" style="position:relative;width:562px;">
+      <div class="card" style="position:relative;width:100%;height:280px;border-color:var(--green);">
+        <h4 style="color:var(--green);">Zero trust</h4>
+        <svg width="500" height="190" viewBox="0 0 500 190" style="margin-top:6px;">
+          <circle cx="120" cy="100" r="22" fill="var(--card)" stroke="var(--green)" stroke-width="1.4"/><text x="120" y="106" text-anchor="middle" font-size="16">⚙️</text>
+          <circle cx="250" cy="130" r="22" fill="var(--card)" stroke="var(--green)" stroke-width="1.4"/><text x="250" y="136" text-anchor="middle" font-size="16">⚙️</text>
+          <circle cx="380" cy="100" r="22" fill="var(--card)" stroke="var(--green)" stroke-width="1.4"/><text x="380" y="106" text-anchor="middle" font-size="16">⚙️</text>
+          <path d="M142,100 L228,120" stroke="var(--green)" stroke-width="1.3"/>
+          <path d="M272,125 L358,102" stroke="var(--green)" stroke-width="1.3"/>
+          <text x="250" y="25" text-anchor="middle" font-size="10.5" fill="var(--green)">every hop: mTLS cert + token check</text>
+          <text x="250" y="165" text-anchor="middle" font-size="10.5" class="dim">no hop is trusted by default — network location proves nothing</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+
+  <div class="card rv" data-d="5" style="left:64px;top:428px;width:1150px;padding:12px 20px;">
+    <p><b style="color:var(--ink)">Built from pieces you already know:</b> mTLS (every hop proves identity), short-lived JWTs
+    (every call carries fresh, checkable authorization), and least privilege, next. Zero trust isn't one new tool — it's the
+    decision to apply <i>all</i> the earlier controls everywhere, not just at the edge.</p>
+  </div>
+
+  <div class="recap rv" data-d="6">RECAP — "inside the network" stops being a security boundary. Every single request re-proves identity and permission.</div>
+  <div class="gap rv" data-d="7">GAP — "verify every request" — verify against <b>what rule?</b> How much access should even a fully-verified request actually be handed?</div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 18 — PRINCIPLE OF LEAST PRIVILEGE -->
+<!-- ============================================================ -->
+<section class="slide" data-idx="18">
+  <div class="eyebrow rv" data-d="0"><b style="background:var(--green-soft);color:var(--green);">Architecture</b> Principle of Least Privilege</div>
+  <div class="fillchip rv" data-d="0">FILLS: how much access to grant</div>
+  <div class="title rv" data-d="1">Grant the <span class="udraw rv" data-d="2" style="color:var(--green)">minimum</span><i></i> needed for the task — nothing "just in case."</div>
+
+  <svg width="600" height="360" style="position:absolute;left:64px;top:130px;" viewBox="0 0 600 360">
+    <circle cx="300" cy="180" r="170" fill="rgba(198,116,116,.06)" stroke="var(--rose)" stroke-width="1.4" stroke-dasharray="5,5" class="rv" data-d="3"/>
+    <text x="300" y="30" text-anchor="middle" font-size="11.5" fill="var(--rose)" class="rv" data-d="3">everything this account COULD touch</text>
+    <circle cx="300" cy="180" r="70" fill="var(--green-soft)" stroke="var(--green)" stroke-width="1.6" class="rv pop" data-d="4"/>
+    <text x="300" y="176" text-anchor="middle" font-size="12" fill="var(--green)" font-weight="700" class="rv" data-d="5">what THIS task</text>
+    <text x="300" y="194" text-anchor="middle" font-size="12" fill="var(--green)" font-weight="700" class="rv" data-d="5">actually needs</text>
+  </svg>
+
+  <div style="position:absolute;left:700px;top:150px;width:490px;">
+    <div class="card rv pop" data-d="6" style="position:relative;width:100%;margin-bottom:14px;">
+      <h4>Scoped tokens</h4>
+      <p>A read-only API key for a reporting dashboard, instead of the same admin key used everywhere.</p>
+    </div>
+    <div class="card rv pop" data-d="7" style="position:relative;width:100%;margin-bottom:14px;">
+      <h4>Just-in-time elevation</h4>
+      <p>Request admin access for 1 hour to fix an incident; it expires automatically — no standing "always-on" superuser.</p>
+    </div>
+    <div class="card rv pop" data-d="8" style="position:relative;width:100%;">
+      <h4>Why it matters</h4>
+      <p>If this credential leaks tomorrow, the attacker only gets the small green circle — not the whole red one.</p>
+    </div>
+  </div>
+
+  <div class="recap rv" data-d="9">RECAP — least privilege is zero trust's answer to "how much." Every credential is scoped as tightly as the task allows.</div>
+  <div class="gap rv" data-d="10">GAP — how do we even know <b>which weaknesses</b> to defend against with all this, before a single line of code is written?</div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 19 — THREAT MODELING -->
+<!-- ============================================================ -->
+<section class="slide" data-idx="19">
+  <div class="eyebrow rv" data-d="0"><b style="background:var(--rose-soft);color:var(--rose);">Architecture</b> Threat Modeling</div>
+  <div class="fillchip rv" data-d="0">FILLS: knowing what to defend against</div>
+  <div class="title rv" data-d="1">Ask "what could go wrong here?" — <span class="udraw rv" data-d="2" style="color:var(--rose)">before</span><i></i> you build it.</div>
+
+  <div class="rv" data-d="3" style="position:absolute;left:64px;top:128px;width:1150px;font:400 14.5px/1.5 'Inter';color:var(--ink-dim);">
+    <b style="color:var(--ink)">STRIDE</b> is a checklist for that question — six ways any component or data flow can fail — each one mapping straight back to a control from this deck:
+  </div>
+
+  <div style="position:absolute;left:64px;top:174px;display:grid;grid-template-columns:repeat(3,1fr);gap:14px;width:1150px;">
+    <div class="card rv pop" data-d="4" style="position:relative;"><h4 style="color:var(--rose)">Spoofing</h4><p>Pretending to be someone else. → mitigated by <b style="color:var(--ink)">authentication, mTLS.</b></p></div>
+    <div class="card rv pop" data-d="5" style="position:relative;"><h4 style="color:var(--rose)">Tampering</h4><p>Altering data in flight or at rest. → mitigated by <b style="color:var(--ink)">TLS, signatures, checksums.</b></p></div>
+    <div class="card rv pop" data-d="6" style="position:relative;"><h4 style="color:var(--rose)">Repudiation</h4><p>Denying an action happened. → mitigated by <b style="color:var(--ink)">audit logs, signed tokens.</b></p></div>
+    <div class="card rv pop" data-d="7" style="position:relative;"><h4 style="color:var(--rose)">Info disclosure</h4><p>Data seen by the wrong party. → mitigated by <b style="color:var(--ink)">encryption in transit / at rest.</b></p></div>
+    <div class="card rv pop" data-d="8" style="position:relative;"><h4 style="color:var(--rose)">Denial of service</h4><p>Making the system unavailable. → mitigated by <b style="color:var(--ink)">rate limits, scoped API keys.</b></p></div>
+    <div class="card rv pop" data-d="9" style="position:relative;"><h4 style="color:var(--rose)">Elevation of privilege</h4><p>Gaining more access than granted. → mitigated by <b style="color:var(--ink)">RBAC/ABAC, least privilege.</b></p></div>
+  </div>
+
+  <div class="card rv" data-d="10" style="left:64px;top:448px;width:1150px;height:82px;padding:11px 20px;">
+    <p><b style="color:var(--ink)">Practical use:</b> before shipping a "share this document" button, walk it through all six
+    letters as a team — design-time, on paper, cheap. Skip it, and you discover these gaps in production instead.</p>
+  </div>
+
+  <div class="recap rv" data-d="11">RECAP — threat modeling doesn't add a new control; it tells you <b>which</b> of the controls you already have actually apply, and where.</div>
+  <div class="gap rv" data-d="12">GAP — no single control on this list is unbreakable. If <b>one</b> layer fails, what stops the whole system from falling with it?</div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 20 — DEFENSE IN DEPTH (CAPSTONE) -->
+<!-- ============================================================ -->
+<section class="slide" data-idx="20">
+  <div class="eyebrow rv" data-d="0"><b style="background:var(--green-soft);color:var(--green);">Architecture</b> Defense in Depth</div>
+  <div class="fillchip rv" data-d="0">FILLS: what happens when one layer fails</div>
+  <div class="title rv" data-d="1">No single layer has to be perfect — the <span class="udraw rv" data-d="2" style="color:var(--green)">stack</span><i></i> does.</div>
+
+  <svg width="620" height="440" style="position:absolute;left:64px;top:120px;" viewBox="0 0 620 440">
+    <circle cx="310" cy="220" r="200" fill="none" stroke="var(--line)" stroke-width="1.3" class="rv" data-d="3"/>
+    <text x="310" y="30" text-anchor="middle" font-size="11" class="dim rv" data-d="3">network / firewall</text>
+    <circle cx="310" cy="220" r="165" fill="none" stroke="var(--teal)" stroke-width="1.3" class="rv" data-d="4"/>
+    <text x="310" y="65" text-anchor="middle" font-size="11" fill="var(--teal)" class="rv" data-d="4">TLS / mTLS in transit</text>
+    <circle cx="310" cy="220" r="130" fill="none" stroke="var(--blue)" stroke-width="1.3" class="rv" data-d="5"/>
+    <text x="310" y="100" text-anchor="middle" font-size="11" fill="var(--blue)" class="rv" data-d="5">authentication</text>
+    <circle cx="310" cy="220" r="95" fill="none" stroke="var(--amber)" stroke-width="1.3" class="rv" data-d="6"/>
+    <text x="310" y="135" text-anchor="middle" font-size="11" fill="var(--amber)" class="rv" data-d="6">RBAC / ABAC</text>
+    <circle cx="310" cy="220" r="60" fill="none" stroke="var(--violet)" stroke-width="1.3" class="rv" data-d="7"/>
+    <text x="310" y="170" text-anchor="middle" font-size="10.5" fill="var(--violet)" class="rv" data-d="7">secrets + at-rest AES</text>
+    <circle cx="310" cy="220" r="28" fill="var(--green-soft)" stroke="var(--green)" stroke-width="1.6" class="rv pop" data-d="8"/>
+    <text x="310" y="218" text-anchor="middle" font-size="19" class="rv pop" data-d="8">🎯</text>
+    <text x="310" y="238" text-anchor="middle" font-size="9.5" fill="var(--green)" class="rv" data-d="9">the data</text>
+  </svg>
+
+  <div style="position:absolute;left:730px;top:150px;width:460px;">
+    <div class="rv" data-d="10" style="font:400 15px/1.6 'Inter';color:var(--ink-dim);">
+      An attacker who slips past one ring — a phished password, say — still meets a next one: MFA, then scoped permissions,
+      then a short-lived token, then an encrypted disk. <b style="color:var(--ink)">Each layer assumes an earlier one might
+      already have failed.</b> That assumption is the whole philosophy.
+    </div>
+    <div class="card rv pop" data-d="11" style="position:relative;width:100%;margin-top:20px;border-color:var(--green);">
+      <h4 style="color:var(--green)">The one-sentence version</h4>
+      <p>Every term in this deck is one ring in this circle. Learn where each ring sits, and "security architecture" stops being twenty words to memorize — it's one picture with twenty labels.</p>
+    </div>
+  </div>
+
+  <div class="recap rv" data-d="12">RECAP — layers compensate for each other's blind spots; that's the entire justification for having so many controls at once.</div>
+  <div class="gap rv" data-d="13">GAP — one last check: can you place all twenty terms on this one map, from memory?</div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 21 — SUMMARY / CONCEPT MAP -->
+<!-- ============================================================ -->
+<section class="slide" data-idx="21">
+  <div class="eyebrow rv" data-d="0"><b style="background:var(--card-strong);color:var(--ink);">Summary</b> The whole map, one picture</div>
+  <div class="title rv" data-d="1">Twenty terms. Four questions. One system.</div>
+
+  <div style="position:absolute;left:64px;top:120px;width:1150px;display:grid;grid-template-columns:repeat(4,1fr);gap:14px;">
+    <div class="card rv pop" data-d="2" style="position:relative;border-color:var(--blue);">
+      <h4 style="color:var(--blue)">Who are you — Authentication</h4>
+      <p class="mono">Password/MFA · Session auth · API keys · OAuth (delegated) · OIDC (identity) · JWT (portable proof)</p>
+    </div>
+    <div class="card rv pop" data-d="3" style="position:relative;border-color:var(--amber);">
+      <h4 style="color:var(--amber)">What can you do — Authorization</h4>
+      <p class="mono">RBAC (role → permission) · ABAC (policy over live attributes)</p>
+    </div>
+    <div class="card rv pop" data-d="4" style="position:relative;border-color:var(--teal);">
+      <h4 style="color:var(--teal)">Can it be read — Cryptography</h4>
+      <p class="mono">TLS · mTLS · Encryption in transit · Encryption at rest</p>
+    </div>
+    <div class="card rv pop" data-d="5" style="position:relative;border-color:var(--violet);">
+      <h4 style="color:var(--violet)">Keeping it running — Operations</h4>
+      <p class="mono">Secrets management · Key rotation</p>
+    </div>
+  </div>
+
+  <div class="rv pop" data-d="6" style="position:absolute;left:64px;top:298px;width:1150px;">
+    <div class="card" style="position:relative;width:100%;border-color:var(--green);padding:16px 22px;">
+      <h4 style="color:var(--green);font-size:16px;">Tying it together — Philosophy</h4>
+      <p style="font-size:13.5px;margin-top:4px;"><b style="color:var(--ink)">Threat modeling</b> tells you what to worry about.
+      <b style="color:var(--ink)">Zero trust</b> says verify everything, everywhere, always. <b style="color:var(--ink)">Least
+      privilege</b> says grant the smallest access that works. <b style="color:var(--ink)">Defense in depth</b> assumes every
+      single one of those will occasionally fail anyway — and builds the next ring regardless.</p>
+    </div>
+  </div>
+
+  <div class="rv" data-d="7" style="position:absolute;left:64px;top:430px;width:1150px;font:400 14.5px/1.6 'Inter';color:var(--ink-dim);">
+    The Feynman test for all of it: if you can't explain why <span class="mono" style="color:var(--ink)">RS256</span> exists
+    instead of just <span class="mono" style="color:var(--ink)">HS256</span> everywhere, or why OAuth bothers with a redirect
+    instead of just sending a token directly — go back one slide. Every design choice in this deck exists because of a specific
+    gap it closes, not because it sounded secure.
+  </div>
+
+  <div class="recap rv" data-d="8">You've walked the whole path: a door with two questions → proof of identity → delegated access → identity on top of that
+  → encrypting the channel → granting the right amount of access → assuming failure anyway.</div>
+  <div class="gap rv" data-d="9" style="color:var(--green);">That's security architecture — not twenty things to memorize, one habit of asking "what's still missing?" applied twenty times.</div>
+</section>
+
+</div></div>
+
+<div id="collideBadge"></div>
+<div id="nav">
+  <button id="prevBtn">&larr; Prev</button>
+  <div id="navmeta"><span id="navcount">1 / 21</span><span class="hint" id="navhint">↑ arrow keys also work</span></div>
+  <button id="nextBtn">Next &rarr;</button>
+</div>
+
+<script>
+(function(){
+  var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
+  var cur = 0;
+  var stage = document.getElementById('stage');
+  var prevBtn = document.getElementById('prevBtn');
+  var nextBtn = document.getElementById('nextBtn');
+  var navcount = document.getElementById('navcount');
+  var navhint = document.getElementById('navhint');
+  var progress = document.getElementById('progress');
+
+  function fitStage(){
+    var vw = window.innerWidth, vh = window.innerHeight - 92;
+    var scale = Math.min(vw/1280, vh/720) * 0.96;
+    stage.style.transform = 'scale(' + scale + ')';
+  }
+  window.addEventListener('resize', fitStage);
+  fitStage();
+
+  function revealIn(slide, stepMs){
+    stepMs = stepMs || 100;
+    var els = slide.querySelectorAll('.rv');
+    els.forEach(function(el){
+      var d = parseInt(el.getAttribute('data-d') || '0', 10);
+      setTimeout(function(){ el.classList.add('in'); }, d * stepMs);
+    });
+  }
+
+  function totalSteps(slide){
+    return parseInt(slide.getAttribute('data-total-steps') || '0', 10);
+  }
+
+  function showStep(slide, n){
+    var els = slide.querySelectorAll('[data-step]');
+    els.forEach(function(el){
+      var s = parseInt(el.getAttribute('data-step'), 10);
+      if (s <= n) { el.classList.add('in'); } else { el.classList.remove('in'); }
+      el.classList.toggle('active', s === n);
+    });
+    // step-gated rv elements (recap/gap/summary cards that appear only once steps finish)
+    var gated = slide.querySelectorAll('.rv[data-step]');
+    gated.forEach(function(el){
+      var s = parseInt(el.getAttribute('data-step'), 10);
+      el.classList.toggle('in', n >= s);
+    });
+  }
+
+  function enterSlide(i){
+    slides.forEach(function(s){ s.classList.remove('active'); });
+    var s = slides[i];
+    // reset reveal state so animation replays
+    s.querySelectorAll('.rv').forEach(function(el){ el.classList.remove('in'); });
+    s.querySelectorAll('[data-step]').forEach(function(el){ el.classList.remove('in','active'); });
+    s.dataset.stepDone = 0;
+    s.classList.add('active');
+    requestAnimationFrame(function(){ revealIn(s, 90); });
+    cur = i;
+    updateNav();
+    progress.style.width = (( (i+1) / slides.length ) * 100) + '%';
+  }
+
+  function updateNav(){
+    var s = slides[cur];
+    var total = totalSteps(s);
+    navcount.textContent = (cur+1) + ' / ' + slides.length;
+    if (total){
+      var done = parseInt(s.dataset.stepDone || '0', 10);
+      navhint.textContent = 'step ' + Math.min(done, total) + ' / ' + total + ' — click Next to continue';
+    } else {
+      navhint.textContent = '↑ arrow keys also work';
+    }
+    prevBtn.disabled = (cur === 0) && (!total || parseInt(s.dataset.stepDone||'0',10) === 0);
+    nextBtn.disabled = false;
+  }
+
+  function next(){
+    var s = slides[cur];
+    var total = totalSteps(s);
+    if (total){
+      var done = parseInt(s.dataset.stepDone || '0', 10);
+      if (done < total){
+        done++;
+        s.dataset.stepDone = done;
+        showStep(s, done);
+        updateNav();
+        return;
+      }
+    }
+    if (cur < slides.length - 1) enterSlide(cur + 1);
+  }
+
+  function prev(){
+    var s = slides[cur];
+    var total = totalSteps(s);
+    if (total){
+      var done = parseInt(s.dataset.stepDone || '0', 10);
+      if (done > 0){
+        done--;
+        s.dataset.stepDone = done;
+        showStep(s, done);
+        updateNav();
+        return;
+      }
+    }
+    if (cur > 0) enterSlide(cur - 1);
+  }
+
+  nextBtn.addEventListener('click', next);
+  prevBtn.addEventListener('click', prev);
+  window.addEventListener('keydown', function(e){
+    if (e.key === 'ArrowRight' || e.key === ' ') { next(); e.preventDefault(); }
+    else if (e.key === 'ArrowLeft') { prev(); e.preventDefault(); }
+    else if (e.key === 'c' || e.key === 'C') { mnCheckCollisions(); }
+  });
+
+  // ============ PRIMITIVES ============
+  window.mnIndicate = function(el){
+    if (!el) return;
+    el.classList.remove('mn-indicate');
+    void el.offsetWidth;
+    el.classList.add('mn-indicate');
+  };
+
+  window.mnCircumscribe = function(hostEl, x, y, w, h){
+    var ring = document.createElement('div');
+    ring.className = 'mn-ring';
+    ring.style.left = (x-8) + 'px';
+    ring.style.top = (y-8) + 'px';
+    ring.style.width = (w+16) + 'px';
+    ring.style.height = (h+16) + 'px';
+    hostEl.appendChild(ring);
+    requestAnimationFrame(function(){ ring.classList.add('show'); });
+    setTimeout(function(){ ring.classList.add('fade'); }, 1400);
+    setTimeout(function(){ ring.remove(); }, 2200);
+  };
+
+  // ============ COLLISION DETECTOR ============
+  window.mnCheckCollisions = function(opts){
+    opts = opts || {};
+    var slide = slides[cur];
+    var scale = parseFloat(stage.style.transform.replace(/[^0-9.]/g,'')) || 1;
+    var stageRect = stage.getBoundingClientRect();
+    var nodes = slide.querySelectorAll('[style*="left"]');
+    var boxes = [];
+    nodes.forEach(function(el){
+      var r = el.getBoundingClientRect();
+      if (r.width < 2 || r.height < 2) return;
+      boxes.push({
+        el: el,
+        x: (r.left - stageRect.left) / scale,
+        y: (r.top - stageRect.top) / scale,
+        w: r.width / scale,
+        h: r.height / scale
+      });
+    });
+    var overlaps = [];
+    for (var i=0;i<boxes.length;i++){
+      for (var j=i+1;j<boxes.length;j++){
+        var a = boxes[i], b = boxes[j];
+        if (a.el.contains(b.el) || b.el.contains(a.el)) continue;
+        var ox = Math.max(0, Math.min(a.x+a.w, b.x+b.w) - Math.max(a.x, b.x));
+        var oy = Math.max(0, Math.min(a.y+a.h, b.y+b.h) - Math.max(a.y, b.y));
+        if (ox > 4 && oy > 4){
+          overlaps.push([a.el, b.el, Math.round(ox), Math.round(oy)]);
+        }
+      }
+    }
+    document.querySelectorAll('.mn-collide-outline').forEach(function(n){ n.remove(); });
+    var badge = document.getElementById('collideBadge');
+    badge.style.display = 'block';
+    if (overlaps.length === 0){
+      badge.textContent = 'no overlaps ✓';
+      badge.style.background = 'rgba(104,176,133,.18)';
+      badge.style.color = '#8fd6ac';
+      badge.style.border = '1px solid #68b085';
+    } else {
+      badge.textContent = overlaps.length + ' overlaps';
+      badge.style.background = 'rgba(198,116,116,.18)';
+      badge.style.color = '#e79a9a';
+      badge.style.border = '1px solid #c67474';
+      console.log('mnCheckCollisions: overlaps on slide', cur+1, overlaps);
+      if (opts.highlight !== false){
+        overlaps.forEach(function(o){
+          [o[0], o[1]].forEach(function(el){
+            var r = el.getBoundingClientRect();
+            var out = document.createElement('div');
+            out.className = 'mn-collide-outline';
+            out.style.cssText = 'position:fixed;pointer-events:none;z-index:998;border:1.5px dashed #e05555;left:'+r.left+'px;top:'+r.top+'px;width:'+r.width+'px;height:'+r.height+'px;';
+            document.body.appendChild(out);
+          });
+        });
+      }
+    }
+    setTimeout(function(){ badge.style.display = 'none'; }, 3500);
+    return overlaps;
+  };
+
+  enterSlide(0);
+})();
+</script>
+</body>
+</html>

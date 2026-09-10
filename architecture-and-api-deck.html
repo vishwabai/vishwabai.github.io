@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Modern Software Architecture &amp; API Design — Deep Dive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0a0a0d;
+  --dot:rgba(255,255,255,.055);
+  --ink:#eae7e1;
+  --ink-dim:#8d8d95;
+  --ink-faint:#5c5c63;
+  --card:rgba(255,255,255,.035);
+  --card-strong:rgba(255,255,255,.06);
+  --border:rgba(255,255,255,.16);
+  --border-soft:rgba(255,255,255,.09);
+  --blue:#7fa2c4;
+  --green:#7fae94;
+  --amber:#c2996a;
+  --rose:#c08794;
+  --purple:#a294c4;
+  --mono:'JetBrains Mono',monospace;
+  --sans:'Inter',sans-serif;
+  --disp:'Space Grotesk',sans-serif;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;height:100%;background:var(--bg);}
+body{
+  background-image:radial-gradient(circle, var(--dot) 1.3px, transparent 1.3px);
+  background-size:26px 26px;
+  color:var(--ink);
+  font-family:var(--sans);
+  overflow:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+#viewport{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding-bottom:92px;box-sizing:border-box;}
+#stage{width:1280px;height:720px;position:relative;transform-origin:center center;flex-shrink:0;}
+
+.slide{position:absolute;inset:0;width:1280px;height:720px;display:none;}
+.slide.active{display:block;}
+
+.eyebrow{position:absolute;left:64px;top:36px;font-family:var(--mono);font-size:12.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-dim);}
+.title{position:absolute;left:64px;top:58px;font-family:var(--disp);font-size:32px;font-weight:600;color:var(--ink);max-width:1140px;line-height:1.25;}
+.title em{font-style:normal;color:var(--amber);}
+.caption{position:absolute;left:64px;right:64px;bottom:16px;font-size:13.5px;color:var(--ink-dim);line-height:1.55;font-family:var(--sans);}
+.caption b{color:var(--ink);font-weight:600;}
+
+.rv{opacity:0;transform:translateY(12px);transition:opacity .55s cubic-bezier(.2,.7,.3,1), transform .55s cubic-bezier(.2,.7,.3,1);}
+.rv.in{opacity:1;transform:translateY(0);}
+.rv.pop{transform:scale(.86);}
+.rv.pop.in{transform:scale(1);}
+
+/* boxes */
+.diagram-box{position:absolute;left:64px;top:128px;width:560px;height:462px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:22px;border:1.2px solid var(--border-soft);border-radius:14px;background:rgba(255,255,255,.015);}
+.text-box{position:absolute;left:656px;top:128px;width:560px;height:462px;display:flex;flex-direction:column;justify-content:center;gap:14px;}
+.wide-box{position:absolute;left:64px;top:128px;width:1152px;height:462px;}
+.grid-box{position:absolute;left:64px;top:128px;width:1152px;height:462px;display:grid;gap:18px;}
+.rgf-col{position:absolute;left:64px;top:118px;width:1152px;height:474px;display:flex;flex-direction:column;gap:14px;justify-content:center;}
+
+.node{border:1.4px solid var(--border);background:var(--card-strong);border-radius:10px;padding:13px 18px;font-family:var(--mono);font-size:13.5px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.35),0 10px 22px rgba(0,0,0,.28);color:var(--ink);}
+.node .sub{display:block;font-family:var(--sans);font-size:11px;color:var(--ink-dim);margin-top:3px;font-weight:400;}
+.node.accent-blue{border-color:rgba(127,162,196,.55);}
+.node.accent-green{border-color:rgba(127,174,148,.55);}
+.node.accent-amber{border-color:rgba(194,153,106,.55);}
+.node.accent-rose{border-color:rgba(192,135,148,.55);}
+.node.accent-purple{border-color:rgba(162,148,196,.55);}
+
+.row{display:flex;align-items:center;justify-content:center;gap:0;flex-wrap:wrap;}
+.stack{display:flex;flex-direction:column;align-items:center;gap:0;}
+.arrow-h{width:34px;height:2px;background:var(--border);position:relative;flex-shrink:0;}
+.arrow-h::after{content:'';position:absolute;right:-1px;top:-4px;border:5px solid transparent;border-left-color:var(--border);}
+.arrow-v{width:2px;height:26px;background:var(--border);margin:2px auto;position:relative;}
+.arrow-v::after{content:'';position:absolute;bottom:-1px;left:-4px;border:5px solid transparent;border-top-color:var(--border);}
+
+.def{font-size:16.5px;line-height:1.62;color:var(--ink);}
+.def b{color:var(--amber);font-weight:600;}
+.formula{font-family:var(--mono);font-size:13.5px;background:rgba(127,162,196,.06);border:1px dashed rgba(127,162,196,.4);border-radius:8px;padding:11px 15px;color:var(--blue);line-height:1.6;}
+.practical{border-left:2.5px solid var(--green);padding:8px 0 8px 14px;font-size:14px;color:var(--ink-dim);line-height:1.55;}
+.practical b{color:var(--green);font-weight:600;}
+.tag{display:inline-block;font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--amber);border:1px solid rgba(194,153,106,.5);border-radius:20px;padding:3px 11px;width:fit-content;}
+
+/* RGF bands */
+.rgf-band{border-left:3px solid var(--border);padding:12px 22px;border-radius:0 8px 8px 0;background:var(--card);}
+.rgf-recap{border-left-color:var(--ink-faint);}
+.rgf-recap .lbl{color:var(--ink-faint);}
+.rgf-recap .txt{font-family:var(--mono);font-size:13.5px;color:var(--ink-dim);}
+.rgf-gap{border-left-color:var(--amber);}
+.rgf-gap .lbl{color:var(--amber);}
+.rgf-gap .txt{font-family:var(--disp);font-size:21px;font-weight:500;color:var(--ink);font-style:italic;}
+.rgf-fill{border-left-color:var(--green);padding-top:16px;padding-bottom:18px;}
+.rgf-fill .lbl{color:var(--green);}
+.rgf-fill .fill-title{font-family:var(--disp);font-size:19px;color:var(--green);margin:2px 0 8px 0;}
+.rgf-fill .txt{font-size:15px;line-height:1.6;color:var(--ink);}
+.lbl{display:block;font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;margin-bottom:5px;}
+
+/* comparison cards */
+.ccard{border:1.2px solid var(--border-soft);background:var(--card);border-radius:12px;padding:20px 22px;display:flex;flex-direction:column;gap:8px;box-shadow:0 1px 3px rgba(0,0,0,.3),0 10px 24px rgba(0,0,0,.22);}
+.ccard h4{margin:0;font-family:var(--disp);font-size:17px;color:var(--ink);font-weight:600;}
+.ccard p{margin:0;font-size:13.5px;line-height:1.55;color:var(--ink-dim);}
+.ccard .ctag{font-family:var(--mono);font-size:10.5px;color:var(--blue);}
+
+/* tour */
+.tour-row{display:flex;align-items:center;justify-content:center;gap:0;margin-bottom:26px;}
+.tnode{border:1.4px solid var(--border);background:var(--card-strong);border-radius:10px;padding:12px 16px;font-family:var(--mono);font-size:12.5px;text-align:center;min-width:150px;color:var(--ink-dim);transition:border-color .4s, color .4s, transform .4s, box-shadow .4s;}
+.tnode.active{border-color:var(--amber);color:var(--ink);transform:scale(1.06);box-shadow:0 0 0 1px rgba(194,153,106,.25),0 8px 22px rgba(0,0,0,.35);}
+.tour-detail{border:1.2px solid var(--border-soft);background:rgba(255,255,255,.02);border-radius:12px;padding:22px 26px;min-height:210px;}
+.tour-detail h4{margin:0 0 8px 0;font-family:var(--disp);font-size:19px;color:var(--amber);}
+.tour-detail p{margin:0 0 8px 0;font-size:14.5px;line-height:1.6;color:var(--ink);}
+.tour-nav{display:flex;gap:10px;margin-top:14px;}
+.tour-btn{font-family:var(--mono);font-size:11.5px;color:var(--ink-dim);border:1px solid var(--border-soft);border-radius:20px;padding:5px 13px;}
+.tour-dots{display:flex;gap:6px;align-items:center;}
+.tour-dot{width:6px;height:6px;border-radius:50%;background:var(--ink-faint);}
+.tour-dot.on{background:var(--amber);}
+
+/* hexagon rings */
+.ring-wrap{position:relative;width:420px;height:420px;flex-shrink:0;}
+.ring{position:absolute;border-radius:50%;border:1.4px solid var(--border);display:flex;align-items:flex-start;justify-content:center;padding-top:16px;transition:border-color .4s, background .4s;}
+.ring .rlabel{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-dim);transition:color .4s;}
+.ring.active{border-color:var(--amber);background:rgba(194,153,106,.05);}
+.ring.active .rlabel{color:var(--amber);}
+.r0{width:120px;height:120px;left:150px;top:150px;align-items:center;padding-top:0;}
+.r1{width:210px;height:210px;left:105px;top:105px;}
+.r2{width:310px;height:310px;left:55px;top:55px;}
+.r3{width:420px;height:420px;left:0;top:0;}
+
+/* title slide */
+.title-hero{position:absolute;left:64px;top:170px;width:1152px;}
+.title-hero h1{font-family:var(--disp);font-size:52px;font-weight:700;margin:0 0 14px 0;line-height:1.15;color:var(--ink);}
+.title-hero h1 em{font-style:normal;color:var(--amber);}
+.title-hero p{font-size:17px;color:var(--ink-dim);max-width:760px;line-height:1.6;margin:0 0 30px 0;}
+.chips{display:flex;gap:10px;flex-wrap:wrap;max-width:1000px;}
+.chip{font-family:var(--mono);font-size:11.5px;color:var(--ink-dim);border:1px solid var(--border-soft);border-radius:20px;padding:6px 14px;}
+
+/* closing map */
+.map-col{display:flex;flex-direction:column;gap:10px;}
+.map-h{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-dim);margin-bottom:2px;}
+.map-item{font-size:13px;color:var(--ink);border-left:2px solid var(--border);padding-left:10px;line-height:1.5;}
+
+/* nav */
+#nav{position:fixed;left:0;right:0;bottom:0;height:92px;display:flex;align-items:center;justify-content:center;gap:18px;background:linear-gradient(to top, rgba(0,0,0,.55), transparent);z-index:50;}
+.navbtn{font-family:var(--mono);font-size:13px;letter-spacing:.04em;color:var(--ink);background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:24px;padding:10px 22px;cursor:pointer;user-select:none;transition:background .2s, border-color .2s;}
+.navbtn:hover{background:rgba(255,255,255,.09);border-color:rgba(255,255,255,.3);}
+.navbtn:active{transform:translateY(1px);}
+.navbtn.disabled{opacity:.3;pointer-events:none;}
+#counter{font-family:var(--mono);font-size:12.5px;color:var(--ink-dim);min-width:64px;text-align:center;}
+#progress{position:fixed;left:0;top:0;height:2px;background:var(--amber);z-index:60;transition:width .3s ease;}
+
+#collbadge{position:fixed;left:16px;top:16px;font-family:var(--mono);font-size:12px;padding:6px 12px;border-radius:6px;z-index:70;display:none;}
+</style>
+</head>
+<body>
+
+<div id="progress" style="width:0%"></div>
+<div id="collbadge"></div>
+
+<div id="viewport">
+  <div id="stage"></div>
+</div>
+
+<div id="nav">
+  <div class="navbtn" id="prevBtn">← prev</div>
+  <div id="counter">1 / 25</div>
+  <div class="navbtn" id="nextBtn">next →</div>
+</div>
+
+<script>
+/* ============================= CONTENT DATA ============================= */
+
+function rowHTML(nodes){
+  return '<div class="row">' + nodes.map((n,i)=>{
+    const arrow = i < nodes.length-1 ? '<div class="arrow-h rv" data-d="'+(i*2+1)+'"></div>' : '';
+    return '<div class="node accent-'+(n.c||'blue')+' rv pop" data-d="'+(i*2)+'">'+n.t+(n.s?'<span class="sub">'+n.s+'</span>':'')+'</div>'+arrow;
+  }).join('') + '</div>';
+}
+function stackHTML(nodes){
+  return '<div class="stack">' + nodes.map((n,i)=>{
+    const arrow = i < nodes.length-1 ? '<div class="arrow-v rv" data-d="'+(i*2+1)+'"></div>' : '';
+    return '<div class="node accent-'+(n.c||'blue')+' rv pop" data-d="'+(i*2)+'" style="width:300px;">'+n.t+(n.s?'<span class="sub">'+n.s+'</span>':'')+'</div>'+arrow;
+  }).join('') + '</div>';
+}
+function fanHTML(top, bottoms){
+  return '<div class="stack">'
+    + '<div class="node accent-amber rv pop" data-d="0" style="width:260px;">'+top+'</div>'
+    + '<div class="arrow-v rv" data-d="1"></div>'
+    + '<div class="row" style="gap:14px;">' + bottoms.map((b,i)=>'<div class="node accent-blue rv pop" data-d="'+(2+i)+'" style="width:150px;">'+b+'</div>').join('') + '</div>'
+    + '</div>';
+}
+
+function concept(o){
+  return {
+    type:'concept', eyebrow:o.eyebrow, title:o.title,
+    diagram:o.diagram, def:o.def, formula:o.formula, practical:o.practical, tag:o.tag, caption:o.caption
+  };
+}
+function rgf(o){ return Object.assign({type:'rgf'}, o); }
+function grid(o){ return Object.assign({type:'grid'}, o); }
+function tour(o){ return Object.assign({type:'tour'}, o); }
+
+const DECK = [
+
+/* ---------- 0: TITLE ---------- */
+{type:'title'},
+
+/* ---------- 1: Layered ---------- */
+concept({
+  eyebrow:'ARCHITECTURE · 01 — Foundations',
+  title:'Before anything else: <em>where does code go?</em>',
+  diagram: stackHTML([
+    {t:'PRESENTATION', s:'UI, controllers', c:'blue'},
+    {t:'BUSINESS LOGIC', s:'rules, workflows', c:'amber'},
+    {t:'DATA ACCESS', s:'repositories, queries', c:'green'},
+  ]),
+  def:'<b>Layered architecture</b> stacks code into horizontal bands. Each layer may only call the layer directly beneath it — never sideways, never up.',
+  formula:'Dependency Rule:  Layer(n)  →  calls only  →  Layer(n − 1)',
+  practical:'<b>Practical use:</b> almost every framework tutorial (Spring MVC, Django, Rails) teaches this by default — it\'s the "starter shape" of a backend.',
+  caption:'One idea: separate <b>what the user sees</b>, <b>what the business decides</b>, and <b>where data lives</b> — so a change in one doesn\'t ripple everywhere.'
+}),
+
+/* ---------- 2: 3-tier / N-tier ---------- */
+grid({
+  eyebrow:'ARCHITECTURE · 02 — Physical deployment',
+  title:'Layers on paper vs. layers on <em>machines</em>',
+  cols:2,
+  cards:[
+    {h:'3-Tier Architecture', body:'The same three layers, now deployed on three physically separate machines: a client, an application server, and a database server. This is <b>where</b> code runs, not just how it\'s organized.', tag:'e.g. browser → app server → SQL server', c:'blue'},
+    {h:'N-Tier Architecture', body:'Generalizes 3-tier to any number of tiers — add a caching tier, a message-queue tier, a CDN tier — whenever one physical concern needs to scale or fail independently of the others.', tag:'e.g. CDN → API → cache → DB → queue', c:'green'},
+  ],
+  caption:'<b>Practical use:</b> N-tier shows up whenever you draw a real infra diagram — a load balancer tier, a Redis tier, and a Postgres tier are one N-tier system.'
+}),
+
+/* ---------- 3: Monolith (RGF) ---------- */
+rgf({
+  eyebrow:'ARCHITECTURE · 03 — Shipping the thing',
+  title:'One codebase, layered nicely. Now — <em>who deploys it?</em>',
+  recap:'Layers organize <b>code</b>. 3-tier/N-tier organize <b>machines</b>.',
+  gap:'but everything — UI, logic, data access — still builds and ships as ONE unit. What happens when 50 engineers push to that one unit, every day?',
+  fillTitle:'Monolithic architecture',
+  fillBody:'The entire application is one deployable artifact. Simple to build, test, and run locally — there\'s only one thing to start. But as it grows: one bug can crash the whole app, one team\'s slow test suite blocks everyone\'s release, and scaling means duplicating the <em>entire</em> app, even the 5% under load.',
+  practical:'<b>Practical use:</b> almost every product starts here on purpose — Shopify and GitHub ran (and partly still run) as monoliths for years. It\'s the right choice until deploy pain outweighs its simplicity.',
+  caption:'Feynman check: could you explain this to a friend using one sentence? "It\'s one app, one deploy button, one thing that can go down."'
+}),
+
+/* ---------- 4: Modular Monolith (RGF) ---------- */
+rgf({
+  eyebrow:'ARCHITECTURE · 04 — Adding boundaries',
+  title:'The monolith works — until the codebase turns to <em>spaghetti</em>',
+  recap:'A monolith is one deployable unit. Simple, but everything can touch everything.',
+  gap:'we don\'t want to split deployment yet — that\'s a bigger cost. Can we get clean boundaries <b>inside</b> the one deploy?',
+  fillTitle:'Modular monolith',
+  fillBody:'Still one deployable artifact — but internally split into modules with enforced boundaries (own folder, own internal API, no reaching into another module\'s tables directly). You get most of microservices\' organizational clarity without any of its network cost.',
+  practical:'<b>Practical use:</b> Shopify\'s core codebase today — a famous, deliberate modular monolith serving millions of stores, split into ~100+ internal components.',
+  caption:'This is usually the <b>right next step</b> before microservices, not a lesser version of them.'
+}),
+
+/* ---------- 5: SOA (RGF) ---------- */
+rgf({
+  eyebrow:'ARCHITECTURE · 05 — Whole-company scale',
+  title:'Modules help one team. What about <em>ten teams, ten products</em>?',
+  recap:'Modular monolith = clean boundaries, still one deploy, still one team\'s app.',
+  gap:'a whole company has many products that need to release on their own schedules and share some capabilities (billing, auth). One monolith can\'t hold that. Now what?',
+  fillTitle:'Service-oriented architecture (SOA)',
+  fillBody:'The system is split into larger-grained services (e.g. "Billing service", "Customer service"), often integrated through a shared middleware layer called an <b>Enterprise Service Bus (ESB)</b> that routes, transforms, and orchestrates messages between them — emphasizing reuse across the whole org.',
+  practical:'<b>Practical use:</b> large enterprises (banks, telecoms) in the 2000s–2010s standardized on SOA + ESB to let legacy systems interoperate without a full rewrite.',
+  caption:'The ESB is the key artifact here — and, as you\'ll see next, it becomes the thing microservices deliberately avoids.'
+}),
+
+/* ---------- 6: Microservices (RGF) ---------- */
+rgf({
+  eyebrow:'ARCHITECTURE · 06 — Removing the middleman',
+  title:'The ESB routes everything — so <em>everything depends on it</em>',
+  recap:'SOA splits the org into services, glued together by a shared ESB.',
+  gap:'when every service depends on one central bus (and often one shared database), that bus becomes a bottleneck and a single point of failure. How do we decouple further?',
+  fillTitle:'Microservices',
+  fillBody:'Small, independently deployable services, each owning <b>its own data</b> — no shared database — communicating directly over lightweight protocols (HTTP/gRPC/events), with no central broker required. Each team can choose its own stack, deploy on its own schedule, and scale only the service under load.',
+  formula:'Conway\'s Law: a system\'s architecture mirrors the communication structure of the organization that builds it.',
+  practical:'<b>Practical use:</b> Netflix, Amazon, Uber — hundreds to thousands of small services, each independently deployed dozens of times a day.',
+  caption:'Trade-off: you now own network calls, retries, distributed tracing, and data consistency across services — real operational cost.'
+}),
+
+/* ---------- 7: Serverless (RGF) ---------- */
+rgf({
+  eyebrow:'ARCHITECTURE · 07 — Removing the server',
+  title:'Even microservices still means <em>managing servers</em>',
+  recap:'Microservices = small, independent, owning their own data.',
+  gap:'each service still needs someone to provision it, patch it, and scale it up and down as traffic changes. Can we make even that disappear?',
+  fillTitle:'Serverless architecture',
+  fillBody:'Code runs as small, stateless, event-triggered <b>functions</b> (FaaS — e.g. AWS Lambda) or managed backend services. The cloud provider handles provisioning and scaling — including scaling to exactly zero when idle. You write a function; the platform decides how many copies to run.',
+  formula:'Cost ≈ invocations × execution_duration × memory_allocated  (pay only while code runs)',
+  practical:'<b>Practical use:</b> spiky, event-driven workloads — image thumbnailing on upload, a Slack-bot webhook handler, nightly batch jobs — where paying for an always-on server would be wasteful.',
+  caption:'Trade-off: <b>cold starts</b> (first request pays a startup penalty) and vendor lock-in to the provider\'s runtime.'
+}),
+
+/* ---------- 8: Event-Driven ---------- */
+concept({
+  eyebrow:'ARCHITECTURE · 08 — Decoupling in time',
+  title:'What if services didn\'t call each other <em>directly</em> at all?',
+  diagram: fanHTML('ORDER PLACED <span class="sub">event</span>', ['Inventory','Shipping','Email','Analytics']),
+  def:'In <b>event-driven architecture</b>, a component publishes an event ("order placed") to a broker and moves on — it never calls the interested parties directly, and doesn\'t even know who they are.',
+  formula:'Publisher → Broker (queue/topic) → many independent Subscribers',
+  practical:'<b>Practical use:</b> Kafka, RabbitMQ, SNS/SQS. Add a brand-new subscriber (say, fraud detection) later without touching the publisher\'s code at all.',
+  caption:'Trade-off: powerful decoupling, but tracing "what happened, in what order, and why" across services gets genuinely harder — you need distributed tracing.'
+}),
+
+/* ---------- 9: Extensibility grid ---------- */
+grid({
+  eyebrow:'ARCHITECTURE · 09 — Composition patterns',
+  title:'Three ways to build systems out of <em>swappable pieces</em>',
+  cols:3,
+  cards:[
+    {h:'Pipe-and-Filter', body:'Data flows through independent processing steps ("filters") connected by "pipes," each filter transforming and passing data onward.', tag:'e.g. Unix pipes: cat | grep | sort', c:'blue'},
+    {h:'Plugin Architecture', body:'The core exposes extension points; functionality is added via plugins loaded at runtime — without touching core code.', tag:'e.g. VS Code extensions, WordPress', c:'amber'},
+    {h:'Component-Based', body:'Software built from independent, reusable components with well-defined interfaces, composed together into applications.', tag:'e.g. React/Vue UI components', c:'green'},
+  ],
+  caption:'All three share one idea: <b>define a stable interface, let the implementation behind it vary freely.</b>'
+}),
+
+/* ---------- 10: Ports & Adapters family (TOUR) ---------- */
+tour({
+  eyebrow:'ARCHITECTURE · 10 — One idea, four names',
+  title:'Hexagonal · Clean · Onion · Ports &amp; Adapters — <em>same core idea</em>',
+  ringMode:true,
+  steps:[
+    {ring:'r0', h:'The Core (Entities / Domain)', p:'Pure business rules — no framework, no database import, no HTTP anywhere in sight. This code could run in any language and wouldn\'t know the difference.'},
+    {ring:'r1', h:'Use Cases (Application Logic)', p:'Orchestrates the core to perform a task ("place an order"). Still knows nothing about REST or SQL — it depends only on abstract <b>ports</b> (interfaces) it defines.'},
+    {ring:'r2', h:'Interface Adapters / Ports', p:'Translates between the outside world and the use cases — a REST controller, a database repository implementation — each one <b>implementing</b> a port the core defined.'},
+    {ring:'r3', h:'Frameworks &amp; Drivers (Outside)', p:'Express, Postgres, Kafka — the actual technology choices. They plug into the adapters. Swap Postgres for MongoDB, and the core never notices.'},
+  ],
+  caption:'<b>The rule that unifies all four names:</b> dependencies always point <b>inward</b>. The center never imports the edge.'
+}),
+
+/* ---------- 11: DDD ---------- */
+concept({
+  eyebrow:'ARCHITECTURE · 11 — Modeling the domain',
+  title:'The word "Order" means <em>different things</em> to different teams',
+  diagram: '<div class="stack">'
+    + '<div class="row" style="gap:20px;">'
+      + '<div class="node accent-blue rv pop" data-d="0" style="width:220px;">SALES <span class="sub">bounded context</span><br><span class="sub">Order = a quote to close</span></div>'
+      + '<div class="node accent-green rv pop" data-d="1" style="width:220px;">SHIPPING <span class="sub">bounded context</span><br><span class="sub">Order = a package to route</span></div>'
+    + '</div>'
+    + '<div class="arrow-v rv" data-d="2"></div>'
+    + '<div class="node accent-amber rv pop" data-d="3" style="width:340px;">Shared "Ubiquitous Language" — <span class="sub">precise inside each context, translated at the boundary</span></div>'
+    + '</div>',
+  def:'<b>Domain-Driven Design</b> models software around the business domain itself, using a shared vocabulary with domain experts. Each <b>bounded context</b> gets its own precise meaning for shared words — resolved deliberately at the seams, not left ambiguous.',
+  practical:'<b>Practical use:</b> the natural seams DDD draws (bounded contexts) are usually where you\'d later cut a monolith into microservices — DDD and microservices are frequently designed together.',
+  caption:'This is a modeling discipline more than a single diagram — it pairs naturally with hexagonal/clean architecture for the "core" layer.'
+}),
+
+/* ---------- 12: CQRS (RGF) ---------- */
+rgf({
+  eyebrow:'ARCHITECTURE · 12 — Splitting the model',
+  title:'One model tries to serve <em>both reads and writes</em>',
+  recap:'DDD gives us a rich domain model for business rules — great for writes.',
+  gap:'but reads often need a totally different shape — a dashboard wants a flattened, joined, pre-aggregated view, not the same object writes use. One model struggles to do both well. What now?',
+  fillTitle:'CQRS — Command Query Responsibility Segregation',
+  fillBody:'Split the model in two: a <b>command</b> model handles writes and enforces business rules; a separate, differently-shaped <b>query</b> model (sometimes even a different database) serves reads — updated asynchronously from the write side.',
+  formula:'Commands → Write Model → events → Read Model(s) ← Queries',
+  practical:'<b>Practical use:</b> e-commerce order writes go through strict validation; the "orders this month" dashboard reads from a pre-joined, denormalized read replica — fast, and never blocks writers.',
+  caption:'Cost: two models to maintain, and read data may briefly lag behind writes (eventual consistency).'
+}),
+
+/* ---------- 13: Event Sourcing (RGF) ---------- */
+rgf({
+  eyebrow:'ARCHITECTURE · 13 — Remembering how we got here',
+  title:'CQRS splits the model — but <em>how did the state get here?</em>',
+  recap:'CQRS keeps separate models for commands and queries.',
+  gap:'a normal database only stores the current row — "balance = 40." It can\'t tell you it was 100, then 60, then 40, or why. How do we get a full history, and the ability to replay or audit it?',
+  fillTitle:'Event sourcing',
+  fillBody:'Instead of storing current state, store the full sequence of events that produced it ("Deposited 100", "Withdrew 40", "Withdrew 20"). Current state is <b>derived</b> by replaying events from the start — giving a complete audit trail and the ability to reconstruct state as of any point in time.',
+  formula:'state = fold(events, initial_state)   — i.e. state is always a pure function of its history',
+  practical:'<b>Practical use:</b> bank ledgers, shopping-cart history, version-controlled documents — anywhere "what happened, in order" is itself valuable, not just the end result.',
+  caption:'Frequently paired with CQRS: events are the write model\'s source of truth; the read model is a projection built by replaying them.'
+}),
+
+/* ---------- 14: Bridge to API design ---------- */
+{type:'bridge', from:'Architecture answers: how is the SYSTEM shaped?', to:'API design answers: how do systems TALK to each other?'},
+
+/* ---------- 15: REST ---------- */
+concept({
+  eyebrow:'API DESIGN · 01 — The default choice',
+  title:'Nouns, not verbs: model the world as <em>resources</em>',
+  diagram: '<div class="stack">'
+    + rowHTML([{t:'CLIENT',c:'blue'},{t:'GET /users/42',c:'amber'},{t:'SERVER',c:'green'}])
+    + '<div style="height:22px;"></div>'
+    + '<div class="formula rv" data-d="6">GET /users/42        → 200 OK\nPOST /users          → 201 Created\nDELETE /users/42      → 204 No Content</div>'
+    + '</div>',
+  def:'<b>REST</b> models an API as <b>resources</b> (users, orders, products) addressed by URLs, manipulated with standard HTTP verbs, and reported on with standard status codes. No custom vocabulary needed per API — the verbs are already agreed on.',
+  practical:'<b>Practical use:</b> the default for public APIs (Stripe, GitHub, Twitter) — cacheable, human-readable, tool-friendly (curl, Postman, browsers all understand it natively).',
+  caption:'REST is a <em>style</em>, not a protocol — "RESTful" just means: resources + verbs + status codes + statelessness (coming up later).'
+}),
+
+/* ---------- 16: RPC / gRPC ---------- */
+concept({
+  eyebrow:'API DESIGN · 02 — Calling code, not resources',
+  title:'Sometimes you want to call a <em>function</em>, not fetch a noun',
+  diagram: '<div class="stack">'
+    + rowHTML([{t:'CLIENT STUB',s:'looks local',c:'blue'},{t:'gRPC',s:'HTTP/2 + Protobuf',c:'amber'},{t:'SERVER',s:'.CalculateTax()',c:'green'}])
+    + '<div style="height:18px;"></div>'
+    + '<div class="formula rv" data-d="6">rpc CalculateTax(Cart) returns (TaxResult);\n// binary, typed, ~5-10x smaller than JSON</div>'
+    + '</div>',
+  def:'<b>RPC</b> (Remote Procedure Call) lets a client call a function on a remote server as if it were local — action-oriented ("calculateTax"), not resource-oriented. <b>gRPC</b> is Google\'s modern RPC framework: Protocol Buffers for compact binary serialization, running over HTTP/2 for multiplexed, low-latency calls.',
+  practical:'<b>Practical use:</b> internal service-to-service calls inside a microservices system, where every millisecond and byte matters and both ends are code you control (so a public browser client isn\'t required).',
+  caption:'Trade-off: not human-readable in a browser URL bar, and both sides need the same `.proto` schema compiled in.'
+}),
+
+/* ---------- 17: GraphQL ---------- */
+concept({
+  eyebrow:'API DESIGN · 03 — Ask for exactly what you need',
+  title:'REST over-fetches. What if the <em>client</em> chose the shape?',
+  diagram: fanHTML('POST /graphql <span class="sub">one endpoint</span>', ['user{name}','posts{title}','comments{n}']),
+  def:'<b>GraphQL</b> is a query language where the client specifies exactly the fields it needs, in one request to a single endpoint — the server resolves each field, however many underlying calls that actually takes.',
+  formula:'REST: 3 round-trips (user → posts → comments)\nGraphQL: 1 round-trip, client-shaped response',
+  practical:'<b>Practical use:</b> mobile apps on slow networks (Facebook, where GraphQL began) — every saved round-trip matters more than on a fast desktop connection.',
+  caption:'Trade-off: caching is harder than REST\'s URL-based caching, and a single expensive nested query can overload the server if unguarded.'
+}),
+
+/* ---------- 18: Realtime styles grid ---------- */
+grid({
+  eyebrow:'API DESIGN · 04 — Beyond request/response',
+  title:'Three ways data can move <em>without the client asking again</em>',
+  cols:3,
+  cards:[
+    {h:'WebSockets', body:'A persistent, full-duplex connection — both sides can send anytime. The heaviest to set up, the most powerful once open.', tag:'e.g. live chat, multiplayer games', c:'blue'},
+    {h:'SSE (Server-Sent Events)', body:'A one-way stream, server → client, over plain HTTP. Simpler than WebSockets when the client never needs to talk back.', tag:'e.g. live notifications, stock tickers', c:'green'},
+    {h:'Webhooks', body:'Server-to-server callback: instead of you polling an API, it POSTs to a URL you registered the moment something happens.', tag:'e.g. Stripe payment succeeded → your server', c:'amber'},
+  ],
+  caption:'Choosing between them: need two-way + low latency → WebSockets. Only need updates → SSE. Talking server-to-server → Webhooks.'
+}),
+
+/* ---------- 19: Transport evolution (TOUR) ---------- */
+tour({
+  eyebrow:'API DESIGN · 05 — What the bytes ride on',
+  title:'HTTP/1.1 → HTTP/2 → HTTP/3 : <em>same job, faster ride</em>',
+  ringMode:false,
+  steps:[
+    {node:'TCP + HTTP/1.1', h:'HTTP/1.1 over TCP', p:'Reliable, ordered delivery — but classically one request waits for the previous one on a connection (head-of-line blocking) unless the client opens several parallel connections as a workaround.'},
+    {node:'HTTP/2', h:'HTTP/2 — multiplexing', p:'Many requests share <b>one</b> TCP connection at once, plus header compression. Fixes HTTP-level head-of-line blocking — but a single lost TCP packet still stalls every stream on that connection.'},
+    {node:'UDP + QUIC', h:'QUIC — a new transport', p:'Built on UDP instead of TCP. Each stream is independent, so one lost packet no longer blocks the others. Encryption (TLS) is built in from the first packet, not layered on after.'},
+    {node:'HTTP/3', h:'HTTP/3 over QUIC', p:'HTTP/3 simply runs over QUIC instead of TCP — inheriting faster connection setup and no more transport-level head-of-line blocking. This is what most modern browsers now negotiate by default.'},
+  ],
+  caption:'<b>Practical use:</b> CDNs and major sites (Google, Cloudflare, YouTube) prefer HTTP/3 today because it survives flaky mobile networks far better.'
+}),
+
+/* ---------- 20: Idempotency + Statelessness ---------- */
+grid({
+  eyebrow:'API CONCEPTS · 01 — Making retries safe',
+  title:'What happens when the network <em>fails mid-request</em>?',
+  cols:2,
+  cards:[
+    {h:'Idempotency', body:'Calling an operation once, or five times by accident (a client retry after a timeout), produces the exact same result. Safe to retry blindly.', tag:'f(f(x)) = f(x)   —  PUT, DELETE ✓   POST ✗ (usually)', c:'blue'},
+    {h:'Statelessness', body:'Every request carries everything the server needs to handle it — no session remembered in server memory between requests. Any server instance can handle any request.', tag:'enables horizontal scaling: add servers freely', c:'green'},
+  ],
+  caption:'<b>Practical use:</b> payment APIs require an "idempotency key" header precisely so a retried "charge $50" never charges twice.'
+}),
+
+/* ---------- 21: Versioning + Backward compatibility ---------- */
+grid({
+  eyebrow:'API CONCEPTS · 02 — Changing without breaking',
+  title:'Your API has 10,000 callers. You need to <em>change it</em>.',
+  cols:2,
+  cards:[
+    {h:'Versioning', body:'Ship changes under an explicit version marker (`/v2/users`, or an `Accept-Version` header) so existing clients keep hitting the behavior they were built against.', tag:'URL path, header, or query-param strategies', c:'blue'},
+    {h:'Backward Compatibility', body:'Prefer changes that can\'t break anyone: add new optional fields, never repurpose or remove existing ones without a version bump.', tag:'additive = safe · renaming/removing = breaking', c:'amber'},
+  ],
+  caption:'<b>Practical use:</b> Stripe pins each API key to the API version active the day the account was created — old integrations never silently break.'
+}),
+
+/* ---------- 22: Pagination + Filtering + Sorting ---------- */
+grid({
+  eyebrow:'API CONCEPTS · 03 — Shaping the result set',
+  title:'Never return a million rows when the client needs <em>twenty</em>',
+  cols:3,
+  cards:[
+    {h:'Pagination', body:'Return results in pages instead of all at once.', tag:'offset = (page − 1) × limit   ·  or cursor-based', c:'blue'},
+    {h:'Filtering', body:'Let the client narrow results server-side.', tag:'?status=active&price_lt=50', c:'green'},
+    {h:'Sorting', body:'Let the client control result order.', tag:'?sort=created_at&order=desc', c:'amber'},
+  ],
+  caption:'<b>Note:</b> cursor-based pagination (a pointer to "last seen item") stays correct even if rows are inserted mid-scroll — offset-based can skip or repeat rows.'
+}),
+
+/* ---------- 23: Rate limiting + Auth ---------- */
+grid({
+  eyebrow:'API CONCEPTS · 04 — Who can do what, how often',
+  title:'Protecting the API from <em>too many</em> or <em>the wrong</em> requests',
+  cols:3,
+  cards:[
+    {h:'Rate Limiting', body:'Cap requests per client per time window — a "token bucket" refills over time; each request spends a token.', tag:'tokens = min(capacity, tokens + rate×Δt)', c:'blue'},
+    {h:'Authentication', body:'Verifying WHO is calling — API keys, OAuth tokens, JWTs, sessions.', tag:'"prove you are user 42"', c:'green'},
+    {h:'Authorization', body:'Determining WHAT that verified caller is allowed to do — roles, scopes, permissions.', tag:'"user 42 may read, not delete"', c:'amber'},
+  ],
+  caption:'<b>Practical use:</b> a 429 Too Many Requests response is rate limiting; a 401 is failed authentication; a 403 is failed authorization.'
+}),
+
+/* ---------- 24: Caching + Content Negotiation + Validation ---------- */
+grid({
+  eyebrow:'API CONCEPTS · 05 — Efficiency and correctness',
+  title:'Don\'t redo work, don\'t guess the format, don\'t trust blindly',
+  cols:3,
+  cards:[
+    {h:'Caching', body:'Store responses to skip redundant work — client, CDN, or server-side, using `ETag` and `Cache-Control` headers with conditional requests.', tag:'If-None-Match → 304 Not Modified', c:'blue'},
+    {h:'Content Negotiation', body:'Client and server agree on the response format via headers.', tag:'Accept: application/json vs XML vs Protobuf', c:'green'},
+    {h:'Request Validation', body:'Check incoming data meets constraints before processing — required fields, types, formats.', tag:'invalid → 400 Bad Request, with a clear reason', c:'amber'},
+  ],
+  caption:'These three are the quiet ones — invisible when done right, and the first thing that breaks trust in an API when skipped.'
+}),
+
+/* ---------- 25: Closing map ---------- */
+{type:'closing'},
+
+];
+
+/* ============================= RENDER ENGINE ============================= */
+
+const stage = document.getElementById('stage');
+let current = 0;
+const tourState = {}; // idx -> {step}
+
+function gridCols(n){ return n===3 ? '1fr 1fr 1fr' : '1fr 1fr'; }
+
+function renderTitle(){
+  return '<div class="title-hero">'
+    + '<div class="eyebrow rv" data-d="0">A MANIM-STYLE WALKTHROUGH</div>'
+    + '<h1 class="rv" data-d="1">Modern Software <em>Architecture</em><br>&amp; <em>API</em> Design</h1>'
+    + '<p class="rv" data-d="2">From one giant codebase to distributed systems — and how those systems talk. Built the Feynman way: one idea per slide, a concrete case before the abstraction, no unexplained jargon.</p>'
+    + '<div class="chips rv" data-d="3">'
+    + ['Layered','Monolith → Microservices','Serverless','Event-Driven','Hexagonal/Clean/Onion','DDD','CQRS','Event Sourcing','REST','gRPC','GraphQL','WebSockets','HTTP/3 & QUIC','Idempotency','Rate Limiting','Caching'].map(c=>'<div class="chip">'+c+'</div>').join('')
+    + '</div>'
+    + '</div>'
+    + '<div class="caption rv" data-d="4">Press <b>next →</b> or the right arrow key to begin. Press <b>C</b> at any time to verify this slide has zero layout collisions.</div>';
+}
+
+function renderClosing(){
+  const cols = [
+    {h:'ARCHITECTURE SHAPE', items:['Layered / 3-tier / N-tier','Monolith → Modular Monolith','SOA → Microservices → Serverless','Event-Driven · Pipe-Filter','Plugin · Component-Based']},
+    {h:'STRUCTURE & DOMAIN', items:['Hexagonal / Clean / Onion / Ports & Adapters','Domain-Driven Design','CQRS','Event Sourcing']},
+    {h:'API STYLE', items:['REST · RPC · gRPC','GraphQL','WebSockets · SSE · Webhooks','TCP/UDP · HTTP/1.1 → HTTP/2 → HTTP/3 · QUIC']},
+    {h:'API CONCEPTS', items:['Idempotency · Statelessness','Versioning · Backward compatibility','Pagination · Filtering · Sorting','Rate limiting · AuthN/AuthZ','Caching · Content negotiation · Validation']},
+  ];
+  return '<div class="eyebrow rv" data-d="0">RECAP — THE FULL MAP</div>'
+    + '<div class="title rv" data-d="1">Here\'s what we have <em>so far</em> — all of it</div>'
+    + '<div class="wide-box" style="top:150px;height:440px;display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:22px;">'
+    + cols.map((c,i)=>'<div class="map-col rv" data-d="'+(2+i)+'"><div class="map-h">'+c.h+'</div>'+c.items.map(it=>'<div class="map-item">'+it+'</div>').join('')+'</div>').join('')
+    + '</div>'
+    + '<div class="caption">Every pattern here answers one question: <b>where should complexity live, and who should own it?</b> — the rest is vocabulary.</div>';
+}
+
+function renderBridge(s){
+  return '<div class="wide-box" style="top:0;height:720px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;">'
+    + '<div class="node accent-blue rv pop" data-d="0" style="width:520px;font-size:16px;padding:20px;">'+s.from+'</div>'
+    + '<div class="arrow-v rv" data-d="1" style="height:40px;"></div>'
+    + '<div class="node accent-amber rv pop" data-d="2" style="width:520px;font-size:16px;padding:20px;">'+s.to+'</div>'
+    + '</div>';
+}
+
+function renderConcept(s){
+  let html = '<div class="eyebrow rv" data-d="0">'+s.eyebrow+'</div>';
+  html += '<div class="title rv" data-d="1">'+s.title+'</div>';
+  html += '<div class="diagram-box rv" data-d="2">'+s.diagram+'</div>';
+  html += '<div class="text-box">';
+  html += '<div class="def rv" data-d="3">'+s.def+'</div>';
+  if(s.formula) html += '<div class="formula rv" data-d="4">'+s.formula.replace(/\n/g,'<br>')+'</div>';
+  if(s.practical) html += '<div class="practical rv" data-d="5">'+s.practical+'</div>';
+  html += '</div>';
+  html += '<div class="caption rv" data-d="7">'+s.caption+'</div>';
+  return html;
+}
+
+function renderGrid(s){
+  let html = '<div class="eyebrow rv" data-d="0">'+s.eyebrow+'</div>';
+  html += '<div class="title rv" data-d="1">'+s.title+'</div>';
+  html += '<div class="grid-box" style="grid-template-columns:'+gridCols(s.cols)+';">';
+  s.cards.forEach((c,i)=>{
+    html += '<div class="ccard rv pop" data-d="'+(2+i)+'">'
+      + '<h4>'+c.h+'</h4>'
+      + '<p>'+c.body+'</p>'
+      + '<div class="ctag">'+c.tag+'</div>'
+      + '</div>';
+  });
+  html += '</div>';
+  html += '<div class="caption rv" data-d="'+(2+s.cards.length)+'">'+s.caption+'</div>';
+  return html;
+}
+
+function renderRGF(s){
+  let html = '<div class="eyebrow rv" data-d="0">'+s.eyebrow+'</div>';
+  html += '<div class="title rv" data-d="1">'+s.title+'</div>';
+  html += '<div class="rgf-col">';
+  html += '<div class="rgf-band rgf-recap rv" data-d="2"><span class="lbl">Recap</span><span class="txt">'+s.recap+'</span></div>';
+  html += '<div class="rgf-band rgf-gap rv" data-d="3"><span class="lbl">but…</span><span class="txt">'+s.gap+'</span></div>';
+  html += '<div class="rgf-band rgf-fill rv" data-d="4">'
+    + '<span class="lbl">Fill</span>'
+    + '<div class="fill-title">'+s.fillTitle+'</div>'
+    + '<div class="txt">'+s.fillBody+'</div>'
+    + (s.formula ? '<div class="formula" style="margin-top:10px;">'+s.formula+'</div>' : '')
+    + (s.practical ? '<div class="practical" style="margin-top:10px;">'+s.practical+'</div>' : '')
+    + '</div>';
+  html += '</div>';
+  html += '<div class="caption rv" data-d="5">'+s.caption+'</div>';
+  return html;
+}
+
+function renderTour(s, idx){
+  let html = '<div class="eyebrow rv" data-d="0">'+s.eyebrow+'</div>';
+  html += '<div class="title rv" data-d="1">'+s.title+'</div>';
+
+  if(s.ringMode){
+    html += '<div class="wide-box" style="top:120px;height:470px;display:flex;align-items:center;justify-content:center;gap:70px;">';
+    html += '<div class="ring-wrap rv" data-d="2">'
+      + '<div class="ring r3" data-ring="r3"><span class="rlabel">FRAMEWORKS &amp; DRIVERS</span></div>'
+      + '<div class="ring r2" data-ring="r2"><span class="rlabel">ADAPTERS</span></div>'
+      + '<div class="ring r1" data-ring="r1"><span class="rlabel">USE CASES</span></div>'
+      + '<div class="ring r0" data-ring="r0"><span class="rlabel" style="font-size:10px;">CORE</span></div>'
+      + '</div>';
+    html += '<div style="width:420px;" class="rv" data-d="3">'
+      + '<div class="tour-detail" id="tourDetail"></div>'
+      + '<div class="tour-nav">'
+        + '<div class="tour-btn" id="tourPrev">◀ step back</div>'
+        + '<div class="tour-dots" id="tourDots"></div>'
+        + '<div class="tour-btn" id="tourNext">step forward ▶</div>'
+      + '</div>'
+      + '</div>';
+    html += '</div>';
+  } else {
+    html += '<div class="wide-box" style="top:130px;height:460px;display:flex;flex-direction:column;justify-content:center;">';
+    html += '<div class="tour-row rv" data-d="2" id="tourRow"></div>';
+    html += '<div class="tour-detail" id="tourDetail"></div>';
+    html += '<div class="tour-nav">'
+      + '<div class="tour-btn" id="tourPrev">◀ step back</div>'
+      + '<div class="tour-dots" id="tourDots"></div>'
+      + '<div class="tour-btn" id="tourNext">step forward ▶</div>'
+      + '</div>';
+    html += '</div>';
+  }
+  html += '<div class="caption rv" data-d="4">'+s.caption+'</div>';
+  return html;
+}
+
+function buildSlide(s, idx){
+  const div = document.createElement('div');
+  div.className = 'slide';
+  div.dataset.idx = idx;
+  if(s.type==='title') div.innerHTML = renderTitle();
+  else if(s.type==='closing') div.innerHTML = renderClosing();
+  else if(s.type==='bridge') div.innerHTML = renderBridge(s);
+  else if(s.type==='concept') div.innerHTML = renderConcept(s);
+  else if(s.type==='grid') div.innerHTML = renderGrid(s);
+  else if(s.type==='rgf') div.innerHTML = renderRGF(s);
+  else if(s.type==='tour') div.innerHTML = renderTour(s, idx);
+  stage.appendChild(div);
+  return div;
+}
+
+const slideEls = DECK.map((s,i)=>buildSlide(s,i));
+
+/* ---- tour controllers ---- */
+function initTour(idx){
+  const s = DECK[idx];
+  if(s.type!=='tour') return;
+  tourState[idx] = tourState[idx] || {step:0};
+  renderTourStep(idx);
+}
+function renderTourStep(idx){
+  const s = DECK[idx];
+  const st = tourState[idx];
+  const stepData = s.steps[st.step];
+  const el = slideEls[idx];
+  const detail = el.querySelector('#tourDetail');
+  detail.style.opacity = 0;
+  setTimeout(()=>{
+    detail.innerHTML = '<h4>'+stepData.h+'</h4><p>'+stepData.p+'</p>';
+    detail.style.transition = 'opacity .35s ease';
+    detail.style.opacity = 1;
+  }, 120);
+
+  if(s.ringMode){
+    el.querySelectorAll('.ring').forEach(r=>r.classList.remove('active'));
+    const active = el.querySelector('[data-ring="'+stepData.ring+'"]');
+    if(active) active.classList.add('active');
+  } else {
+    const row = el.querySelector('#tourRow');
+    if(row.children.length===0){
+      row.innerHTML = s.steps.map((st2,i)=>'<div class="tnode" data-i="'+i+'">'+st2.node+(i<s.steps.length-1?'<div style="display:inline-block;width:14px;"></div>':'')+'</div>').join('');
+    }
+    el.querySelectorAll('.tnode').forEach((n,i)=>{
+      n.classList.toggle('active', i===st.step);
+    });
+  }
+  const dots = el.querySelector('#tourDots');
+  dots.innerHTML = s.steps.map((_,i)=>'<div class="tour-dot'+(i===st.step?' on':'')+'"></div>').join('');
+
+  el.querySelector('#tourPrev').classList.toggle('disabled', st.step===0);
+  el.querySelector('#tourNext').classList.toggle('disabled', st.step===s.steps.length-1);
+}
+function tourCanForward(idx){
+  const s = DECK[idx];
+  if(s.type!=='tour') return true;
+  return tourState[idx].step >= s.steps.length-1;
+}
+function tourForward(idx){
+  const st = tourState[idx];
+  st.step++;
+  renderTourStep(idx);
+}
+function tourCanBack(idx){
+  const s = DECK[idx];
+  if(s.type!=='tour') return true;
+  return tourState[idx].step<=0;
+}
+function tourBack(idx){
+  const st = tourState[idx];
+  st.step--;
+  renderTourStep(idx);
+}
+
+/* wire click handlers on tour buttons once, using delegation */
+stage.addEventListener('click', (e)=>{
+  if(e.target.id==='tourNext'){ if(!tourCanForward(current)) tourForward(current); }
+  if(e.target.id==='tourPrev'){ if(!tourCanBack(current)) tourBack(current); }
+});
+
+/* ---- reveal system ---- */
+function revealIn(slideEl, stepMs){
+  stepMs = stepMs || 100;
+  const els = slideEl.querySelectorAll('.rv');
+  els.forEach(el=>{
+    const d = parseInt(el.dataset.d || 0, 10);
+    setTimeout(()=>el.classList.add('in'), d*stepMs);
+  });
+}
+function resetReveal(slideEl){
+  slideEl.querySelectorAll('.rv').forEach(el=>el.classList.remove('in'));
+}
+
+/* ---- nav ---- */
+const prevBtn = document.getElementById('prevBtn');
+const nextBtn = document.getElementById('nextBtn');
+const counter = document.getElementById('counter');
+const progress = document.getElementById('progress');
+
+function goTo(idx){
+  slideEls[current].classList.remove('active');
+  current = Math.max(0, Math.min(DECK.length-1, idx));
+  const el = slideEls[current];
+  el.classList.add('active');
+  resetReveal(el);
+  requestAnimationFrame(()=>revealIn(el, 90));
+  if(DECK[current].type==='tour') initTour(current);
+  counter.textContent = (current+1)+' / '+DECK.length;
+  progress.style.width = (((current+1)/DECK.length)*100)+'%';
+  prevBtn.classList.toggle('disabled', current===0);
+  nextBtn.classList.toggle('disabled', false);
+}
+
+function next(){
+  if(DECK[current].type==='tour' && !tourCanForward(current)){ tourForward(current); return; }
+  if(current < DECK.length-1) goTo(current+1);
+}
+function prev(){
+  if(DECK[current].type==='tour' && !tourCanBack(current)){ tourBack(current); return; }
+  if(current > 0) goTo(current-1);
+}
+
+nextBtn.addEventListener('click', next);
+prevBtn.addEventListener('click', prev);
+window.addEventListener('keydown', (e)=>{
+  if(e.key==='ArrowRight' || e.key===' ') { e.preventDefault(); next(); }
+  else if(e.key==='ArrowLeft'){ e.preventDefault(); prev(); }
+  else if(e.key==='c' || e.key==='C'){ mnCheckCollisions(); }
+});
+
+/* ---- stage fit ---- */
+function fitStage(){
+  const vw = window.innerWidth, vh = window.innerHeight - 92;
+  const scale = Math.min(vw/1280, vh/720) * 0.96;
+  stage.style.transform = 'scale('+scale+')';
+}
+window.addEventListener('resize', fitStage);
+
+/* ---- collision checker ---- */
+function mnCheckCollisions(opts){
+  opts = opts || {};
+  const el = slideEls[current];
+  const scaleMatch = stage.style.transform.match(/scale\(([\d.]+)\)/);
+  const scale = scaleMatch ? parseFloat(scaleMatch[1]) : 1;
+  const stageRect = stage.getBoundingClientRect();
+
+  const positioned = Array.from(el.querySelectorAll('[style*="left"]')).filter(n=>{
+    const cs = getComputedStyle(n);
+    return cs.position==='absolute';
+  });
+
+  const boxes = positioned.map(n=>{
+    const r = n.getBoundingClientRect();
+    return {
+      n,
+      x:(r.left - stageRect.left)/scale, y:(r.top-stageRect.top)/scale,
+      w:r.width/scale, h:r.height/scale
+    };
+  });
+
+  let collisions = [];
+  for(let i=0;i<boxes.length;i++){
+    for(let j=i+1;j<boxes.length;j++){
+      const a=boxes[i], b=boxes[j];
+      if(a.n.contains(b.n) || b.n.contains(a.n)) continue;
+      const overlap = !(a.x+a.w<=b.x || b.x+b.w<=a.x || a.y+a.h<=b.y || b.y+b.h<=a.y);
+      if(overlap) collisions.push([a,b]);
+    }
+  }
+
+  const badge = document.getElementById('collbadge');
+  badge.style.display = 'block';
+  if(collisions.length===0){
+    badge.style.background = 'rgba(127,174,148,.15)';
+    badge.style.border = '1px solid rgba(127,174,148,.5)';
+    badge.style.color = '#7fae94';
+    badge.textContent = 'no overlaps — slide '+(current+1);
+  } else {
+    badge.style.background = 'rgba(192,135,148,.15)';
+    badge.style.border = '1px solid rgba(192,135,148,.5)';
+    badge.style.color = '#c08794';
+    badge.textContent = collisions.length+' overlap(s) — slide '+(current+1);
+    console.log('Collisions on slide', current+1, collisions);
+    if(opts.highlight!==false){
+      collisions.forEach(([a,b])=>{
+        [a.n,b.n].forEach(n=>{ n.style.outline='2px dashed #c08794'; });
+      });
+    }
+  }
+  setTimeout(()=>{ badge.style.display='none'; }, 2400);
+  return collisions.length;
+}
+
+/* ---- init ---- */
+fitStage();
+goTo(0);
+</script>
+</body>
+</html>

@@ -1,0 +1,1116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Performance Engineering — A Feynman Walkthrough</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{
+  --bg:#07070a;
+  --bg2:#0d0d13;
+  --panel:#101018;
+  --grid:#1b1b24;
+  --text:#eaeaf0;
+  --muted:#8d8d9a;
+  --teal:#4fd1c5;
+  --teal-dim:#2f6b66;
+  --amber:#e0a458;
+  --amber-dim:#7a5a34;
+  --purple:#a48cf0;
+  --purple-dim:#5a4d8a;
+  --red:#d97878;
+  --green:#7ec98f;
+  --mono:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;background:#000;height:100%;overflow:hidden;font-family:var(--sans);}
+#viewport{position:fixed;top:0;left:0;width:100%;height:100%;background:#000;}
+#stage{
+  position:absolute;top:50%;left:50%;width:1280px;height:720px;
+  background:radial-gradient(ellipse at 50% 0%, #0c0c14 0%, var(--bg) 55%, #050507 100%);
+  transform-origin:center center;
+  overflow:hidden;
+  border-radius:4px;
+  box-shadow:0 0 0 1px #1a1a22, 0 40px 120px rgba(0,0,0,0.8);
+}
+.bg-grid{position:absolute;inset:0;
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:64px 64px;opacity:0.35;pointer-events:none;}
+.bg-vignette{position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(ellipse at 50% 50%, transparent 45%, rgba(0,0,0,0.55) 100%);}
+
+.slide{position:absolute;inset:0;display:none;flex-direction:column;padding:56px 72px;color:var(--text);}
+.slide.active{display:flex;}
+
+.eyebrow{font-family:var(--mono);font-size:14px;letter-spacing:3px;color:var(--teal);text-transform:uppercase;opacity:0.85;}
+.title{font-size:44px;font-weight:700;margin:6px 0 4px 0;letter-spacing:0.3px;}
+.subtitle{font-size:19px;color:var(--muted);font-weight:400;max-width:900px;line-height:1.5;}
+.section-num{font-family:var(--mono);font-size:120px;color:var(--panel);position:absolute;right:60px;top:24px;font-weight:700;-webkit-text-stroke:1px #23232e;color:transparent;}
+
+.reveal{opacity:0;transform:translateY(16px);transition:opacity .6s cubic-bezier(.2,.8,.2,1),transform .6s cubic-bezier(.2,.8,.2,1);}
+.reveal.show{opacity:1;transform:translateY(0);}
+.reveal.fade{transform:none;}
+.reveal.pop{transform:scale(0.92);}
+.reveal.pop.show{transform:scale(1);}
+
+.center-stage{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;position:relative;}
+.row{display:flex;align-items:center;justify-content:center;gap:28px;width:100%;}
+.chip{font-family:var(--mono);font-size:14px;padding:6px 14px;border-radius:20px;border:1px solid var(--grid);color:var(--muted);background:rgba(255,255,255,0.02);}
+.chip.teal{color:var(--teal);border-color:var(--teal-dim);}
+.chip.amber{color:var(--amber);border-color:var(--amber-dim);}
+.chip.purple{color:var(--purple);border-color:var(--purple-dim);}
+
+.formula-box{font-family:var(--mono);font-size:26px;background:var(--panel);border:1px solid var(--grid);border-radius:10px;padding:20px 32px;color:var(--text);display:inline-flex;gap:10px;align-items:center;box-shadow:0 0 40px rgba(79,209,197,0.05) inset;}
+.formula-box .v{color:var(--teal);}
+.formula-box .v2{color:var(--amber);}
+.formula-box .v3{color:var(--purple);}
+.formula-note{font-size:14px;color:var(--muted);margin-top:8px;text-align:center;max-width:700px;}
+
+.foot{display:flex;justify-content:space-between;align-items:center;margin-top:auto;padding-top:10px;}
+.foot .tag{font-family:var(--mono);font-size:12px;color:#4a4a56;letter-spacing:1px;}
+
+svg text{font-family:var(--sans);}
+.draw{transition:stroke-dashoffset 1.4s cubic-bezier(.2,.7,.1,1);}
+.grow{transition:height 0.9s cubic-bezier(.2,.8,.2,1), width 0.9s cubic-bezier(.2,.8,.2,1), transform 0.9s cubic-bezier(.2,.8,.2,1), opacity 0.6s ease;}
+.fadein{transition:opacity 0.7s ease, transform 0.7s cubic-bezier(.2,.8,.2,1);}
+
+/* bridge slide */
+.bridge{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;}
+.bridge .qmark{font-size:120px;font-weight:800;color:#1c1c26;font-family:var(--mono);line-height:1;}
+.bridge-block{max-width:840px;text-align:center;}
+.bridge-label{font-family:var(--mono);font-size:12px;letter-spacing:3px;text-transform:uppercase;margin-bottom:6px;}
+.bridge-recap .bridge-label{color:var(--muted);}
+.bridge-gap .bridge-label{color:var(--amber);}
+.bridge-fill .bridge-label{color:var(--teal);}
+.bridge-text{font-size:22px;line-height:1.5;}
+.bridge-gap .bridge-text{color:#f0d2ac;font-weight:500;}
+.bridge-fill .bridge-text{color:var(--teal);font-weight:700;font-size:28px;}
+.arrow-down{width:2px;height:34px;background:linear-gradient(var(--grid),var(--muted));}
+
+/* nav */
+#ui{position:fixed;left:0;right:0;bottom:14px;display:flex;justify-content:center;align-items:center;gap:14px;z-index:50;font-family:var(--mono);}
+#dots{display:flex;gap:5px;flex-wrap:wrap;max-width:60vw;justify-content:center;}
+.dot{width:6px;height:6px;border-radius:50%;background:#2a2a34;cursor:pointer;transition:background .2s, transform .2s;}
+.dot.active{background:var(--teal);transform:scale(1.6);}
+.navbtn{background:#101018;border:1px solid #22222c;color:#aaa;width:34px;height:34px;border-radius:50%;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;}
+.navbtn:hover{border-color:var(--teal);color:var(--teal);}
+#counter{color:#666;font-size:12px;min-width:52px;text-align:center;}
+.clickzone{position:absolute;top:0;bottom:0;width:50%;z-index:5;cursor:pointer;}
+#zoneL{left:0;}#zoneR{right:0;}
+.hint{position:fixed;bottom:56px;left:50%;transform:translateX(-50%);font-family:var(--mono);font-size:12px;color:#555;letter-spacing:1px;z-index:40;transition:opacity 1s;}
+
+/* two column */
+.twocol{display:flex;gap:50px;align-items:center;justify-content:center;width:100%;}
+.col{flex:1;max-width:520px;}
+.card{background:var(--panel);border:1px solid var(--grid);border-radius:12px;padding:20px 24px;}
+.card h4{margin:0 0 8px 0;font-size:16px;color:var(--teal);}
+.card p{margin:0;font-size:14px;color:var(--muted);line-height:1.5;}
+
+ul.plain{list-style:none;padding:0;margin:0;}
+ul.plain li{font-size:16px;color:#cfcfd8;margin:9px 0;padding-left:22px;position:relative;}
+ul.plain li:before{content:'▸';position:absolute;left:0;color:var(--teal);}
+
+.legend{display:flex;gap:18px;font-family:var(--mono);font-size:12px;color:var(--muted);}
+.legend .sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:middle;}
+</style>
+</head>
+<body>
+<div id="viewport">
+  <div id="stage">
+    <div class="bg-grid"></div>
+    <div id="deck"></div>
+    <div class="bg-vignette"></div>
+    <div id="zoneL" class="clickzone"></div>
+    <div id="zoneR" class="clickzone"></div>
+  </div>
+</div>
+<div class="hint" id="hint">← → or click sides to navigate · space = next</div>
+<div id="ui">
+  <button class="navbtn" id="prevBtn">‹</button>
+  <div id="dots"></div>
+  <button class="navbtn" id="nextBtn">›</button>
+  <div id="counter"></div>
+</div>
+
+<script>
+/* ============================= UTILITIES ============================= */
+const NS='http://www.w3.org/2000/svg';
+function svg(w,h,extra=''){return `<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" style="overflow:visible;${extra}">`;}
+function esc(s){return s;}
+function reveal(root,selector,startDelay=80,step=110){
+  const items=root.querySelectorAll(selector);
+  items.forEach((it,i)=>{ setTimeout(()=>it.classList.add('show'), startDelay+i*step); });
+}
+function drawPaths(root,selector,startDelay=200,step=140,dur=1200){
+  const items=root.querySelectorAll(selector);
+  items.forEach((p,i)=>{
+    const len=p.getTotalLength();
+    p.style.strokeDasharray=len;
+    p.style.strokeDashoffset=len;
+    p.style.transition='none';
+    setTimeout(()=>{
+      p.style.transition=`stroke-dashoffset ${dur}ms cubic-bezier(.2,.7,.1,1)`;
+      p.style.strokeDashoffset=0;
+    },startDelay+i*step);
+  });
+}
+function growBars(root,selector,startDelay=200,step=90){
+  const items=root.querySelectorAll(selector);
+  items.forEach((el,i)=>{
+    const target = el.getAttribute('data-h') || el.getAttribute('data-w');
+    setTimeout(()=>{ el.classList.add('grown'); },startDelay+i*step);
+  });
+}
+function countUp(el,to,dur=1000,decimals=0,suffix=''){
+  const start=performance.now();
+  function step(t){
+    const p=Math.min(1,(t-start)/dur);
+    const eased=1-Math.pow(1-p,3);
+    el.textContent = (to*eased).toFixed(decimals)+suffix;
+    if(p<1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+function bridge(recap,gap,fill,num){
+  return `
+  <div class="section-num">${num}</div>
+  <div class="bridge">
+    <div class="bridge-block bridge-recap reveal">
+      <div class="bridge-label">Recap</div>
+      <div class="bridge-text">${recap}</div>
+    </div>
+    <div class="arrow-down reveal"></div>
+    <div class="bridge-block bridge-gap reveal">
+      <div class="bridge-label">Still Missing</div>
+      <div class="bridge-text">${gap}</div>
+    </div>
+    <div class="arrow-down reveal"></div>
+    <div class="bridge-block bridge-fill reveal pop">
+      <div class="bridge-label">Up Next</div>
+      <div class="bridge-text">${fill}</div>
+    </div>
+  </div>`;
+}
+function sectionHeader(kicker,title,sub,num){
+  return `
+  <div class="section-num">${num}</div>
+  <div class="center-stage">
+    <div class="eyebrow reveal">${kicker}</div>
+    <div class="title reveal" style="font-size:56px;text-align:center;">${title}</div>
+    <div class="subtitle reveal" style="text-align:center;">${sub}</div>
+  </div>`;
+}
+function head(eyebrow,title,sub){
+  return `<div class="eyebrow reveal">${eyebrow}</div>
+  <div class="title reveal">${title}</div>
+  ${sub? `<div class="subtitle reveal">${sub}</div>`:''}`;
+}
+
+/* ============================= SLIDE DATA ============================= */
+const slides=[];
+
+/* 0 — TITLE */
+slides.push({html:`
+  <div class="center-stage">
+    <div class="eyebrow reveal">A Feynman-style Deep Dive</div>
+    <div class="reveal pop" style="font-size:58px;font-weight:800;text-align:center;letter-spacing:0.5px;">Performance<br>Engineering</div>
+    <div class="subtitle reveal" style="text-align:center;">Why systems get slow, how to measure them honestly,<br>and the math that predicts it before it happens.</div>
+    <div class="row reveal" style="margin-top:18px;">
+      <span class="chip teal">profiling</span><span class="chip amber">benchmarking</span><span class="chip purple">queueing theory</span><span class="chip">tail latency</span>
+    </div>
+  </div>`,
+  init(root){ reveal(root,'.reveal',200,220); }
+});
+
+/* 1 — HOOK */
+slides.push({html:`
+  ${head('The Problem','Your dashboard says 100ms. Your user says it hung.')}
+  <div class="center-stage">
+    <div style="width:900px;">
+      ${svg(900,260)}
+        <line x1="60" y1="220" x2="860" y2="220" stroke="#2a2a34" stroke-width="2"/>
+        <line x1="60" y1="220" x2="60" y2="30" stroke="#2a2a34" stroke-width="2"/>
+        <text x="30" y="30" fill="#666" font-size="12" font-family="monospace">req/s</text>
+        <text x="820" y="240" fill="#666" font-size="12" font-family="monospace">time</text>
+        <path id="avgline" d="M60,190 L860,190" fill="none" stroke="#4fd1c5" stroke-width="3"/>
+        <text x="700" y="180" fill="#4fd1c5" font-size="13" font-family="monospace">average = 100ms ✓</text>
+        <path id="realline" d="M60,195 C 150,190 220,192 300,150 C 360,120 400,60 430,40 C 460,60 480,150 520,190 C 600,196 650,193 720,60 C 750,30 770,150 860,192" fill="none" stroke="#d97878" stroke-width="3"/>
+        <text x="430" y="30" fill="#d97878" font-size="13" font-family="monospace" text-anchor="middle">real users, real spikes</text>
+      </svg>
+    </div>
+    <div class="subtitle reveal" style="text-align:center;max-width:820px;">
+      The average hides the story. One user in a hundred waits <b style="color:#e0a458">8 seconds</b> — and they're the one who tweets about it.
+      Performance engineering is the discipline of finding <i>that</i> user before they find you.
+    </div>
+  </div>`,
+  init(root){
+    drawPaths(root,'#avgline',200,0,900);
+    drawPaths(root,'#realline',400,0,1600);
+    reveal(root,'.eyebrow,.title,.subtitle',900,150);
+  }
+});
+
+/* 2 — ROADMAP */
+slides.push({html:`
+  ${head('The Map','Four moves, in order')}
+  <div class="center-stage">
+    <div class="row" style="align-items:stretch;gap:22px;">
+      <div class="card reveal" style="width:250px;"><h4>01 · Profile</h4><p>Find out where time and memory actually go — CPU, heap, flame graphs.</p></div>
+      <div class="card reveal" style="width:250px;"><h4>02 · Benchmark</h4><p>Prove a fix works, without fooling yourself with noise.</p></div>
+      <div class="card reveal" style="width:250px;"><h4>03 · Analyze</h4><p>Latency, throughput, bottlenecks — Amdahl, Little, Queueing theory.</p></div>
+      <div class="card reveal" style="width:250px;"><h4>04 · Guarantee</h4><p>Tail latency: p50 through p99.9 — what your worst user feels.</p></div>
+    </div>
+    <div class="subtitle reveal" style="text-align:center;margin-top:10px;">Each one answers a question the last one couldn't.</div>
+  </div>`,
+  init(root){ reveal(root,'.reveal',150,140); }
+});
+
+/* 3 — SECTION: PROFILING */
+slides.push({html:sectionHeader('Part One','Profiling','You cannot optimize what you have not measured. Profiling tells you where the program actually spends its life.','01'),
+  init(root){ reveal(root,'.reveal',150,180);} });
+
+/* 4 — CPU PROFILING CONCEPT */
+slides.push({html:`
+  ${head('CPU Profiling','Two ways to catch a program in the act')}
+  <div class="center-stage">
+    <div class="twocol">
+      <div class="col card reveal">
+        <h4>Sampling</h4>
+        <p>Every few milliseconds, interrupt the program and ask: "what's on the call stack <i>right now</i>?" Cheap, statistical, safe for production.</p>
+      </div>
+      <div class="col card reveal">
+        <h4>Instrumentation</h4>
+        <p>Insert a timer at the start and end of every function. Exact counts, but the timers themselves slow the program down — the "observer effect."</p>
+      </div>
+    </div>
+    <div style="width:760px;margin-top:6px;">
+      ${svg(760,120)}
+        <line x1="20" y1="60" x2="740" y2="60" stroke="#2a2a34" stroke-width="2"/>
+        <g id="ticks"></g>
+      </svg>
+    </div>
+    <div class="subtitle reveal" style="text-align:center;">Sampling profilers take a snapshot at each tick — enough snapshots, and a pattern (the flame graph) emerges.</div>
+  </div>`,
+  init(root){
+    reveal(root,'.reveal',150,150);
+    const g=root.querySelector('#ticks');
+    let x=60;
+    for(let i=0;i<12;i++){
+      const line=document.createElementNS(NS,'line');
+      line.setAttribute('x1',x);line.setAttribute('x2',x);
+      line.setAttribute('y1',50);line.setAttribute('y2',70);
+      line.setAttribute('stroke','#4fd1c5');line.setAttribute('stroke-width','2');
+      line.style.opacity=0; line.style.transition='opacity .3s';
+      g.appendChild(line);
+      setTimeout(()=>line.style.opacity=1, 900+i*140);
+      x+=58;
+    }
+  }
+});
+
+/* 5 — FLAME GRAPH BUILD */
+slides.push({html:`
+  ${head('Flame Graphs','Thousands of samples become one picture')}
+  <div class="center-stage">
+    <div id="fgwrap" style="width:1000px;">${svg(1000,300)}<g id="fg"></g></svg></div>
+    <div class="subtitle reveal" style="text-align:center;">Each sampled stack stacks a column. Merge identical stacks — width grows where the program spends the most samples.</div>
+  </div>`,
+  init(root){
+    reveal(root,'.subtitle,.eyebrow,.title',2400,150);
+    const g=root.querySelector('#fg');
+    // synthetic call stack samples
+    const data=[
+      {name:'main',x:0,w:1000,depth:0,color:'#3a3a46'},
+      {name:'handleRequest',x:0,w:1000,depth:1,color:'#4a4a58'},
+      {name:'parseJSON',x:0,w:120,depth:2,color:'#9d8df1'},
+      {name:'authCheck',x:120,w:80,depth:2,color:'#9d8df1'},
+      {name:'dbQuery',x:200,w:620,depth:2,color:'#e0a458'},
+      {name:'executeSQL',x:200,w:520,depth:3,color:'#e0a458'},
+      {name:'waitForLock',x:250,w:420,depth:4,color:'#d97878'},
+      {name:'serialize',x:820,w:180,depth:2,color:'#4fd1c5'},
+    ];
+    const H=42, baseY=300;
+    data.forEach((d,i)=>{
+      const r=document.createElementNS(NS,'rect');
+      const y=baseY-(d.depth+1)*H;
+      r.setAttribute('x',d.x); r.setAttribute('y',y);
+      r.setAttribute('width',0); r.setAttribute('height',H-3);
+      r.setAttribute('fill',d.color); r.setAttribute('rx','2');
+      r.style.transition='width .8s cubic-bezier(.2,.8,.2,1)';
+      g.appendChild(r);
+      const t=document.createElementNS(NS,'text');
+      t.setAttribute('x',d.x+8); t.setAttribute('y',y+H/2+4);
+      t.setAttribute('fill','#0a0a0d'); t.setAttribute('font-size','13'); t.setAttribute('font-family','monospace');
+      t.style.opacity=0; t.style.transition='opacity .4s';
+      t.textContent = d.w>90? d.name : '';
+      g.appendChild(t);
+      setTimeout(()=>{ r.setAttribute('width',d.w); t.style.opacity=1; }, 300+i*230);
+    });
+    setTimeout(()=>{
+      const cb=document.createElementNS(NS,'rect');
+      cb.setAttribute('x',250);cb.setAttribute('y',300-5*H);cb.setAttribute('width',420);cb.setAttribute('height',H-3);
+      cb.setAttribute('fill','none');cb.setAttribute('stroke','#d97878');cb.setAttribute('stroke-width','2');cb.setAttribute('rx','2');
+      cb.style.opacity=0; cb.style.transition='opacity .5s';
+      g.appendChild(cb);
+      const lbl=document.createElementNS(NS,'text');
+      lbl.setAttribute('x',460);lbl.setAttribute('y',300-6*H-8);lbl.setAttribute('fill','#d97878');lbl.setAttribute('font-size','13');lbl.setAttribute('font-family','monospace');lbl.setAttribute('text-anchor','middle');
+      lbl.textContent='42% of all samples — the hot path';
+      lbl.style.opacity=0; lbl.style.transition='opacity .5s';
+      g.appendChild(lbl);
+      setTimeout(()=>{cb.style.opacity=1; lbl.style.opacity=1;},50);
+    },300+data.length*230+200);
+  }
+});
+
+/* 6 — FLAME GRAPH ANATOMY */
+slides.push({html:`
+  ${head('Reading a Flame Graph','Three rules, nothing more')}
+  <div class="center-stage">
+    <div class="row" style="align-items:stretch;">
+      <div class="card reveal" style="width:230px;"><h4>Width = time</h4><p>Wider bar → more samples landed there → more total time spent.</p></div>
+      <div class="card reveal" style="width:230px;"><h4>Height = stack depth</h4><p>Each layer up is a function called by the layer below it.</p></div>
+      <div class="card reveal" style="width:230px;"><h4>Color = identity</h4><p>Not meaning — just tells adjacent functions apart. (Some tools color by module.)</p></div>
+    </div>
+    <div class="formula-box reveal" style="margin-top:10px;font-size:18px;">look for the <span class="v2">widest plateau</span> near the <span class="v">top</span> of the stack</div>
+    <div class="subtitle reveal" style="text-align:center;">That plateau is a leaf function burning real time — not just relaying work downward. Fix that one first.</div>
+  </div>`,
+  init(root){ reveal(root,'.reveal',150,160); }
+});
+
+/* 7 — MEMORY PROFILING */
+slides.push({html:`
+  ${head('Memory Profiling','CPU tells you what runs. Memory tells you what stays.')}
+  <div class="center-stage">
+    <div class="twocol">
+      <div class="col card reveal"><h4>Shallow size</h4><p>Memory held by the object itself — its own fields, nothing it points to.</p></div>
+      <div class="col card reveal"><h4>Retained size</h4><p>Memory freed <i>if this object were deleted</i> — itself plus everything only it keeps alive.</p></div>
+    </div>
+    <div class="subtitle reveal" style="text-align:center;max-width:760px;">A 40-byte cache object retaining a 2GB map is a 40-byte shallow size — and a 2GB problem. Always sort a heap snapshot by retained size, never shallow.</div>
+  </div>`,
+  init(root){ reveal(root,'.reveal',150,170); }
+});
+
+/* 8 — MEMORY LEAK PATTERN */
+slides.push({html:`
+  ${head('Spotting a Leak','Healthy memory breathes. A leak only inhales.')}
+  <div class="center-stage">
+    <div class="twocol">
+      <div class="col">
+        <div style="width:420px;">${svg(420,220)}
+          <line x1="30" y1="190" x2="400" y2="190" stroke="#2a2a34" stroke-width="2"/>
+          <path id="healthy" d="M30,150 C70,90 90,180 130,140 C170,90 190,180 230,140 C270,90 290,180 330,140 C360,100 380,175 400,150" fill="none" stroke="#7ec98f" stroke-width="3"/>
+        </svg></div>
+        <div class="chip" style="border-color:#3f6b4a;color:#7ec98f;display:block;text-align:center;margin-top:6px;">healthy: GC reclaims each cycle</div>
+      </div>
+      <div class="col">
+        <div style="width:420px;">${svg(420,220)}
+          <line x1="30" y1="190" x2="400" y2="190" stroke="#2a2a34" stroke-width="2"/>
+          <path id="leak" d="M30,180 L90,150 L90,180 L150,120 L150,175 L210,90 L210,168 L270,55 L270,160 L330,25 L330,150 L390,5" fill="none" stroke="#d97878" stroke-width="3"/>
+        </svg></div>
+        <div class="chip" style="border-color:#6b3f3f;color:#d97878;display:block;text-align:center;margin-top:6px;">leak: floor rises every cycle</div>
+      </div>
+    </div>
+    <div class="subtitle reveal" style="text-align:center;">Take two heap snapshots minutes apart and diff them. Whatever grew and never shrank is your leak.</div>
+  </div>`,
+  init(root){
+    reveal(root,'.eyebrow,.title,.subtitle,.chip',300,180);
+    drawPaths(root,'#healthy',300,0,1800);
+    drawPaths(root,'#leak',300,0,1800);
+  }
+});
+
+/* 9 — BRIDGE to Benchmarking */
+slides.push({html:bridge(
+  "You can now point at the exact line burning CPU, and the exact object hoarding memory.",
+  "But you change that line — how do you <i>prove</i> it actually got faster, and not just lucky timing?",
+  "Benchmarking →","01→02"),
+  init(root){ reveal(root,'.reveal',200,260); }
+});
+
+/* 10 — BENCHMARKING PITFALLS */
+slides.push({html:`
+  ${head('Benchmarking, Part 1','The measurement lies before the code does')}
+  <div class="center-stage">
+    <div style="width:820px;">${svg(820,220)}
+      <line x1="40" y1="190" x2="790" y2="190" stroke="#2a2a34" stroke-width="2"/>
+      <path id="warm" d="M40,60 C100,40 140,150 200,165 C260,175 320,178 400,180 C500,181 650,181 790,181" fill="none" stroke="#e0a458" stroke-width="3"/>
+      <text id="wlbl1" x="90" y="35" fill="#e0a458" font-size="13" font-family="monospace" opacity="0">JIT warm-up / cold cache</text>
+      <text id="wlbl2" x="600" y="165" fill="#e0a458" font-size="13" font-family="monospace" opacity="0">steady state — measure here</text>
+      <line id="cut" x1="380" y1="30" x2="380" y2="190" stroke="#4a4a56" stroke-width="1" stroke-dasharray="4 4" opacity="0"/>
+    </svg></div>
+    <ul class="plain reveal" style="columns:2;column-gap:60px;max-width:820px;">
+      <li>Discard the first N iterations (warm-up)</li>
+      <li>Pin CPU frequency / disable turbo boost drift</li>
+      <li>Run on an idle machine — no neighbor noise</li>
+      <li>Beware GC pauses skewing single runs</li>
+    </ul>
+  </div>`,
+  init(root){
+    drawPaths(root,'#warm',150,0,1600);
+    reveal(root,'.eyebrow,.title,.plain',1600,120);
+    setTimeout(()=>{root.querySelector('#wlbl1').style.transition='opacity .5s';root.querySelector('#wlbl1').setAttribute('opacity',1);},400);
+    setTimeout(()=>{root.querySelector('#wlbl2').style.transition='opacity .5s';root.querySelector('#wlbl2').setAttribute('opacity',1);
+      root.querySelector('#cut').style.transition='opacity .5s';root.querySelector('#cut').setAttribute('opacity',1);},1600);
+  }
+});
+
+/* 11 — BENCHMARKING METHODOLOGY */
+slides.push({html:`
+  ${head('Benchmarking, Part 2','One run is an anecdote. A distribution is data.')}
+  <div class="center-stage">
+    <div style="width:760px;">${svg(760,220)}
+      <line x1="40" y1="190" x2="720" y2="190" stroke="#2a2a34" stroke-width="2"/>
+      <g id="runs"></g>
+      <line id="mean" x1="40" y1="0" x2="720" y2="0" stroke="#4fd1c5" stroke-width="2" stroke-dasharray="3 4" opacity="0"/>
+    </svg></div>
+    <div class="subtitle reveal" style="text-align:center;max-width:760px;">Run it 20–30 times. Report the median <i>and</i> the spread (p90/p99) — a mean alone can hide a bimodal disaster.</div>
+    <div class="formula-box reveal">did it change? use a <span class="v">significance test</span>, not eyeballing two numbers</div>
+  </div>`,
+  init(root){
+    reveal(root,'.eyebrow,.title,.subtitle,.formula-box',150,150);
+    const g=root.querySelector('#runs');
+    const vals=[120,135,118,150,122,190,125,130,117,145,128,210,119,133,124,138,121,155,127,131];
+    const minV=Math.min(...vals),maxV=Math.max(...vals);
+    const mean=vals.reduce((a,b)=>a+b,0)/vals.length;
+    vals.forEach((v,i)=>{
+      const x=60+i*33;
+      const y=190-((v-minV)/(maxV-minV))*140-8;
+      const c=document.createElementNS(NS,'circle');
+      c.setAttribute('cx',x);c.setAttribute('cy',190);c.setAttribute('r',4);
+      c.setAttribute('fill', v>170? '#d97878':'#4fd1c5');
+      c.style.transition='cy .7s cubic-bezier(.2,.8,.2,1)';
+      g.appendChild(c);
+      setTimeout(()=>c.setAttribute('cy',y), 300+i*45);
+    });
+    const meanY=190-((mean-minV)/(maxV-minV))*140-8;
+    setTimeout(()=>{
+      const m=root.querySelector('#mean');
+      m.setAttribute('y1',meanY);m.setAttribute('y2',meanY);
+      m.style.transition='opacity .6s'; m.setAttribute('opacity',1);
+    },300+vals.length*45+200);
+  }
+});
+
+/* 12 — BRIDGE to Analysis */
+slides.push({html:bridge(
+  "You can prove a single change is faster, in isolation, with confidence.",
+  "But 'faster' compared to what — how do you talk about a whole system's speed, capacity, and where it chokes?",
+  "Latency, Throughput &amp; Bottlenecks →","02→03"),
+  init(root){ reveal(root,'.reveal',200,260); }
+});
+
+/* 13 — LATENCY VS THROUGHPUT */
+slides.push({html:`
+  ${head('Latency vs. Throughput','Not the same axis')}
+  <div class="center-stage">
+    <div class="twocol">
+      <div class="col">
+        <div style="width:420px;">${svg(420,150)}
+          <rect x="30" y="60" width="360" height="30" rx="6" fill="none" stroke="#4fd1c5" stroke-width="2"/>
+          <circle id="lat-dot" cx="40" cy="75" r="8" fill="#4fd1c5"/>
+        </svg></div>
+        <div class="card reveal" style="margin-top:8px;"><h4>Latency</h4><p>Time for <b>one</b> request to travel the pipe, start to finish.</p></div>
+      </div>
+      <div class="col">
+        <div style="width:420px;">${svg(420,150)}
+          <rect x="30" y="20" width="360" height="18" rx="4" fill="none" stroke="#e0a458" stroke-width="2"/>
+          <rect x="30" y="46" width="360" height="18" rx="4" fill="none" stroke="#e0a458" stroke-width="2"/>
+          <rect x="30" y="72" width="360" height="18" rx="4" fill="none" stroke="#e0a458" stroke-width="2"/>
+          <g id="tp-dots"></g>
+        </svg></div>
+        <div class="card reveal" style="margin-top:8px;"><h4>Throughput</h4><p>How <b>many</b> requests finish per second — width of the pipe, not its length.</p></div>
+      </div>
+    </div>
+    <div class="subtitle reveal" style="text-align:center;">You can raise throughput (add lanes) without lowering latency for any single request. They're independent knobs.</div>
+  </div>`,
+  init(root){
+    reveal(root,'.eyebrow,.title,.card,.subtitle',200,180);
+    const dot=root.querySelector('#lat-dot');
+    dot.style.transition='cx 1.6s linear';
+    setTimeout(()=>dot.setAttribute('cx',380),600);
+    const g=root.querySelector('#tp-dots');
+    const ys=[29,55,81];
+    for(let i=0;i<9;i++){
+      const c=document.createElementNS(NS,'circle');
+      c.setAttribute('cy',ys[i%3]); c.setAttribute('cx',35); c.setAttribute('r',5); c.setAttribute('fill','#e0a458');
+      c.style.transition='cx 1.1s linear';
+      g.appendChild(c);
+      setTimeout(()=>c.setAttribute('cx',380), 500+i*90);
+    }
+  }
+});
+
+/* 14 — BOTTLENECK ANALYSIS */
+slides.push({html:`
+  ${head('Bottleneck Analysis','A chain moves only as fast as its tightest link')}
+  <div class="center-stage">
+    <div style="width:900px;">${svg(900,180)}
+      <g id="pipe"></g>
+      <g id="queue"></g>
+    </svg></div>
+    <div class="subtitle reveal" style="text-align:center;max-width:820px;">Speed up any stage that <i>isn't</i> the bottleneck and total throughput barely moves — the queue just piles up earlier. Find the narrowest stage first.</div>
+  </div>`,
+  init(root){
+    reveal(root,'.eyebrow,.title,.subtitle',2200,150);
+    const g=root.querySelector('#pipe');
+    const stages=[{x:40,w:150,h:60,label:'Parse'},{x:220,w:150,h:60,label:'Auth'},{x:400,w:150,h:26,label:'DB (slow)'},{x:580,w:150,h:60,label:'Render'},{x:760,w:100,h:60,label:'Send'}];
+    stages.forEach((s,i)=>{
+      const y=90-s.h/2;
+      const r=document.createElementNS(NS,'rect');
+      r.setAttribute('x',s.x);r.setAttribute('y',y);r.setAttribute('width',s.w);r.setAttribute('height',s.h);
+      r.setAttribute('rx',6); r.setAttribute('fill', s.h<40? 'rgba(217,120,120,0.12)':'rgba(79,209,197,0.08)');
+      r.setAttribute('stroke', s.h<40? '#d97878':'#4fd1c5'); r.setAttribute('stroke-width','2');
+      r.style.opacity=0; r.style.transition='opacity .5s';
+      g.appendChild(r);
+      const t=document.createElementNS(NS,'text');
+      t.setAttribute('x',s.x+s.w/2); t.setAttribute('y',90+5); t.setAttribute('text-anchor','middle');
+      t.setAttribute('fill','#cfcfd8'); t.setAttribute('font-size','13'); t.setAttribute('font-family','monospace');
+      t.textContent=s.label; t.style.opacity=0; t.style.transition='opacity .5s';
+      g.appendChild(t);
+      setTimeout(()=>{r.style.opacity=1;t.style.opacity=1;},300+i*250);
+    });
+    // queue building before the narrow stage (DB)
+    setTimeout(()=>{
+      const qg=root.querySelector('#queue');
+      for(let i=0;i<6;i++){
+        const c=document.createElementNS(NS,'circle');
+        c.setAttribute('cx',370-i*16); c.setAttribute('cy',90); c.setAttribute('r',5); c.setAttribute('fill','#e0a458');
+        c.style.opacity=0; c.style.transition='opacity .4s';
+        qg.appendChild(c);
+        setTimeout(()=>c.style.opacity=1, 300+i*130);
+      }
+    },1900);
+  }
+});
+
+/* 15 — BRIDGE to Amdahl */
+slides.push({html:bridge(
+  "You know which stage is the narrowest — the one worth optimizing.",
+  "Say you make that stage parallel across many CPU cores — how much faster does the <i>whole</i> system actually get?",
+  "Amdahl's Law →","gap-a"),
+  init(root){ reveal(root,'.reveal',200,260); }
+});
+
+/* 16 — AMDAHL'S LAW */
+slides.push({html:`
+  ${head("Amdahl's Law",'The part you cannot parallelize sets the ceiling')}
+  <div class="center-stage">
+    <div class="formula-box reveal">Speedup(<span class="v">n</span>) = 1 / ( (1&minus;<span class="v2">p</span>) + <span class="v2">p</span>/<span class="v">n</span> )</div>
+    <div class="formula-note reveal"><span style="color:#e0a458">p</span> = fraction of work that's parallelizable · <span style="color:#4fd1c5">n</span> = number of processors</div>
+    <div style="width:820px;margin-top:6px;">${svg(820,240)}
+      <line x1="50" y1="210" x2="800" y2="210" stroke="#2a2a34" stroke-width="2"/>
+      <line x1="50" y1="210" x2="50" y2="20" stroke="#2a2a34" stroke-width="2"/>
+      <text x="10" y="24" fill="#666" font-size="11" font-family="monospace">speedup</text>
+      <text x="760" y="228" fill="#666" font-size="11" font-family="monospace">cores (n)</text>
+      <path id="p50" d="" fill="none" stroke="#8d8d9a" stroke-width="2"/>
+      <path id="p90" d="" fill="none" stroke="#e0a458" stroke-width="2.5"/>
+      <path id="p99" d="" fill="none" stroke="#4fd1c5" stroke-width="2.5"/>
+      <text x="500" y="195" fill="#8d8d9a" font-size="12" font-family="monospace">p=0.5</text>
+      <text x="500" y="120" fill="#e0a458" font-size="12" font-family="monospace">p=0.9</text>
+      <text x="500" y="55" fill="#4fd1c5" font-size="12" font-family="monospace">p=0.99</text>
+    </svg></div>
+  </div>`,
+  init(root){
+    reveal(root,'.eyebrow,.title,.formula-box,.formula-note',150,180);
+    function curve(p,maxN,H,W,x0,y0){
+      let d='';
+      for(let n=1;n<=maxN;n++){
+        const s=1/((1-p)+p/n);
+        const x=x0+(n/maxN)*W;
+        const y=y0-(s/ (1/(1-p)) )*H*0.98;
+        d+= (n===1? 'M':'L')+x.toFixed(1)+','+y.toFixed(1)+' ';
+      }
+      return d;
+    }
+    setTimeout(()=>{
+      root.querySelector('#p50').setAttribute('d',curve(0.5,64,180,750,50,210));
+      root.querySelector('#p90').setAttribute('d',curve(0.9,64,180,750,50,210));
+      root.querySelector('#p99').setAttribute('d',curve(0.99,64,180,750,50,210));
+      drawPaths(root,'#p50,#p90,#p99',50,250,1400);
+    },900);
+  }
+});
+
+/* 17 — AMDAHL PRACTICAL */
+slides.push({html:`
+  ${head('Amdahl, Made Practical','Where the ceiling actually bites')}
+  <div class="center-stage">
+    <div class="twocol">
+      <div class="col card reveal"><h4>The trap</h4><p>Your DB query is 20% of request time. Throw 100 cores at it — best case, total time only drops ~20%. The other 80% never moved.</p></div>
+      <div class="col card reveal"><h4>The lesson</h4><p>Before parallelizing, ask: what fraction of the <i>total</i> does this actually touch? Optimize the biggest serial slice first — often I/O wait, not CPU.</p></div>
+    </div>
+    <div class="formula-box reveal" style="font-size:20px;">max speedup as <span class="v">n → ∞</span> is just <span class="v2">1 / (1&minus;p)</span></div>
+    <div class="subtitle reveal">At p = 0.9, the hard ceiling is 10× — no matter how many cores you buy.</div>
+  </div>`,
+  init(root){ reveal(root,'.reveal',150,190); }
+});
+
+/* 18 — BRIDGE to Little's law */
+slides.push({html:bridge(
+  "Amdahl explains the ceiling on raw compute speed — the CPU side of the story.",
+  "But most real slowness isn't the CPU thinking too slowly — it's requests <i>waiting in line</i>. How do you reason about waiting?",
+  "Little's Law →","gap-b"),
+  init(root){ reveal(root,'.reveal',200,260); }
+});
+
+/* 19 — LITTLE'S LAW */
+slides.push({html:`
+  ${head("Little's Law",'The most useful equation in all of systems')}
+  <div class="center-stage">
+    <div class="formula-box reveal">L = <span class="v">λ</span> · <span class="v2">W</span></div>
+    <div class="formula-note reveal">L = avg. items in the system · λ = arrival rate · W = avg. time each item stays</div>
+    <div style="width:640px;">${svg(640,180)}
+      <rect x="240" y="30" width="160" height="110" rx="8" fill="rgba(79,209,197,0.06)" stroke="#4fd1c5" stroke-width="2"/>
+      <text x="320" y="20" text-anchor="middle" fill="#4fd1c5" font-size="12" font-family="monospace">the system</text>
+      <g id="dots-ll"></g>
+      <text id="Lcount" x="320" y="90" text-anchor="middle" fill="#eaeaf0" font-size="30" font-family="monospace" font-weight="700">0</text>
+      <text x="320" y="112" text-anchor="middle" fill="#8d8d9a" font-size="11" font-family="monospace">L (inside now)</text>
+    </svg></div>
+    <div class="subtitle reveal" style="text-align:center;max-width:700px;">Coffee shop: 2 people arrive/min (λ), each stays 5 min (W) → on average <b style="color:#4fd1c5">10 people</b> are inside (L). No matter how weird the arrivals look — this always holds at steady state.</div>
+  </div>`,
+  init(root){
+    reveal(root,'.eyebrow,.title,.formula-box,.formula-note,.subtitle',150,200);
+    const g=root.querySelector('#dots-ll');
+    const active=[];
+    function spawn(){
+      const c=document.createElementNS(NS,'circle');
+      const y=45+Math.random()*80;
+      c.setAttribute('cx',0);c.setAttribute('cy',y);c.setAttribute('r',5);c.setAttribute('fill','#e0a458');
+      c.style.transition='cx 2.6s linear, opacity .4s';
+      g.appendChild(c);
+      requestAnimationFrame(()=>c.setAttribute('cx',640));
+      active.push(c);
+      setTimeout(()=>{ c.remove(); const i=active.indexOf(c); if(i>=0)active.splice(i,1);},2600);
+    }
+    let count=0;
+    const iv=setInterval(()=>{ spawn(); count++; if(count>40) clearInterval(iv); },420);
+    setTimeout(()=>{ countUp(root.querySelector('#Lcount'),10,1800,0); },800);
+  }
+});
+
+/* 20 — LITTLE'S LAW APPLICATION */
+slides.push({html:`
+  ${head("Little's Law, Applied",'Sizing a thread / connection pool')}
+  <div class="center-stage">
+    <div class="formula-box reveal">pool size ≥ <span class="v">λ</span> · <span class="v2">W</span></div>
+    <div class="subtitle reveal" style="text-align:center;max-width:760px;">1,000 requests/sec, each holding a DB connection for 50ms (0.05s) → you need at least <b style="color:#4fd1c5">50 connections</b> in the pool just to keep up — fewer, and requests start queueing for a free connection.</div>
+    <div class="card reveal" style="max-width:640px;"><h4>Why it matters</h4><p>This is the same equation for sizing thread pools, queue depths, and open sockets. One formula, everywhere in system design.</p></div>
+  </div>`,
+  init(root){ reveal(root,'.reveal',150,200); }
+});
+
+/* 21 — BRIDGE to Queueing theory */
+slides.push({html:bridge(
+  "Little's Law tells you the average number waiting — always true, but silent on <i>how bad</i> waiting gets.",
+  "As traffic creeps toward full capacity, does wait time rise gently — or does something break?",
+  "Queueing Theory →","gap-c"),
+  init(root){ reveal(root,'.reveal',200,260); }
+});
+
+/* 22 — QUEUEING THEORY */
+slides.push({html:`
+  ${head('Queueing Theory','Utilization near 100% is a cliff, not a slope')}
+  <div class="center-stage">
+    <div class="formula-box reveal">W<sub>q</sub> = <span class="v">ρ</span> / ( μ · (1&minus;<span class="v">ρ</span>) ) &nbsp;&nbsp;&nbsp; <span style="color:#8d8d9a;font-size:16px">where ρ = λ/μ</span></div>
+    <div style="width:820px;">${svg(820,240)}
+      <line x1="50" y1="210" x2="800" y2="210" stroke="#2a2a34" stroke-width="2"/>
+      <line x1="50" y1="210" x2="50" y2="20" stroke="#2a2a34" stroke-width="2"/>
+      <text x="0" y="24" fill="#666" font-size="11" font-family="monospace">wait time</text>
+      <text x="740" y="228" fill="#666" font-size="11" font-family="monospace">utilization ρ</text>
+      <text x="45" y="225" fill="#666" font-size="10" font-family="monospace">0</text>
+      <text x="770" y="225" fill="#666" font-size="10" font-family="monospace">100%</text>
+      <line x1="770" y1="20" x2="770" y2="210" stroke="#4a2a2a" stroke-width="1" stroke-dasharray="3 3"/>
+      <path id="qcurve" d="" fill="none" stroke="#d97878" stroke-width="3"/>
+    </svg></div>
+    <div class="subtitle reveal" style="text-align:center;max-width:760px;">At 70% utilization, wait is modest. Push to 90%, then 95% — wait time <b style="color:#d97878">explodes</b>. That "comfortable" 80%-loaded server is closer to the cliff than it feels.</div>
+  </div>`,
+  init(root){
+    reveal(root,'.eyebrow,.title,.formula-box,.subtitle',150,190);
+    let d='';
+    const x0=50,x1=770,y0=210,H=185;
+    for(let i=0;i<=97;i++){
+      const rho=i/100;
+      const w=rho/(1-rho); // proportional to Wq (mu=1)
+      const capped=Math.min(w,6);
+      const x=x0+(i/97)*(x1-x0);
+      const y=y0-(capped/6)*H;
+      d+=(i===0?'M':'L')+x.toFixed(1)+','+y.toFixed(1)+' ';
+    }
+    setTimeout(()=>{ root.querySelector('#qcurve').setAttribute('d',d); drawPaths(root,'#qcurve',50,0,1800); },800);
+  }
+});
+
+/* 23 — QUEUEING VARIANCE */
+slides.push({html:`
+  ${head('Queueing Theory, Part 2','Same average load, different pain — variance is the hidden variable')}
+  <div class="center-stage">
+    <div class="twocol">
+      <div class="col">
+        <div style="width:400px;">${svg(400,150)}
+          <line x1="20" y1="120" x2="380" y2="120" stroke="#2a2a34" stroke-width="1"/>
+          <g id="steadyBars"></g>
+        </svg></div>
+        <div class="chip" style="border-color:#2f6b66;color:#4fd1c5;display:block;text-align:center;">low variance service time</div>
+      </div>
+      <div class="col">
+        <div style="width:400px;">${svg(400,150)}
+          <line x1="20" y1="120" x2="380" y2="120" stroke="#2a2a34" stroke-width="1"/>
+          <g id="burstyBars"></g>
+        </svg></div>
+        <div class="chip" style="border-color:#6b3f3f;color:#d97878;display:block;text-align:center;">high variance (bursty) service time</div>
+      </div>
+    </div>
+    <div class="formula-note reveal">Kingman's approximation: W<sub>q</sub> ∝ ρ/(1&minus;ρ) · (C<sub>a</sub>² + C<sub>s</sub>²)/2 — variance in arrivals <i>and</i> service both hurt tail wait.</div>
+    <div class="subtitle reveal">Same throughput, same average utilization — but the bursty system produces far worse waiting because idle capacity can't be "saved up" for the burst.</div>
+  </div>`,
+  init(root){
+    reveal(root,'.eyebrow,.title,.formula-note,.subtitle,.chip',150,170);
+    function bars(sel,values,color){
+      const g=root.querySelector(sel);
+      values.forEach((v,i)=>{
+        const r=document.createElementNS(NS,'rect');
+        r.setAttribute('x',30+i*32); r.setAttribute('width',20);
+        r.setAttribute('y',120); r.setAttribute('height',0);
+        r.setAttribute('fill',color); r.setAttribute('rx',2);
+        r.style.transition='y .7s cubic-bezier(.2,.8,.2,1), height .7s cubic-bezier(.2,.8,.2,1)';
+        g.appendChild(r);
+        setTimeout(()=>{ r.setAttribute('height',v); r.setAttribute('y',120-v); }, 600+i*90);
+      });
+    }
+    bars('#steadyBars',[40,45,42,48,41,44,46,43,45,42],'#4fd1c5');
+    bars('#burstyBars',[15,90,20,10,100,18,12,95,22,14],'#d97878');
+  }
+});
+
+/* 24 — BRIDGE to tail latency */
+slides.push({html:bridge(
+  "You now know utilization and variance both drive up waiting — the average wait, that is.",
+  "Even a perfectly reasonable <i>average</i> wait — does that average mean anything to the one user stuck at the back of the line?",
+  "Tail Latency →","gap-d"),
+  init(root){ reveal(root,'.reveal',200,260); }
+});
+
+/* 25 — TAIL LATENCY */
+slides.push({html:`
+  ${head('Tail Latency','The average is a lie almost everyone believes')}
+  <div class="center-stage">
+    <div style="width:900px;">${svg(900,240)}
+      <line x1="40" y1="200" x2="860" y2="200" stroke="#2a2a34" stroke-width="2"/>
+      <g id="hist"></g>
+      <g id="pmarks"></g>
+    </svg></div>
+    <div class="legend reveal">
+      <span><span class="sw" style="background:#4fd1c5"></span>p50 = 42ms</span>
+      <span><span class="sw" style="background:#7ec98f"></span>p90 = 95ms</span>
+      <span><span class="sw" style="background:#e0a458"></span>p95 = 160ms</span>
+      <span><span class="sw" style="background:#d97878"></span>p99 = 480ms</span>
+      <span><span class="sw" style="background:#a48cf0"></span>p99.9 = 1.9s</span>
+    </div>
+    <div class="subtitle reveal" style="text-align:center;">"Average response time: 68ms" can be true while 1 in 100 users waits half a second. p99 and p99.9 are the SLA that matters.</div>
+  </div>`,
+  init(root){
+    reveal(root,'.eyebrow,.title,.legend,.subtitle',2600,150);
+    const g=root.querySelector('#hist');
+    // right-skewed synthetic histogram heights
+    const heights=[30,70,110,150,175,160,120,85,58,38,24,15,9,5,3,2];
+    heights.forEach((h,i)=>{
+      const r=document.createElementNS(NS,'rect');
+      r.setAttribute('x',50+i*50); r.setAttribute('width',40);
+      r.setAttribute('y',200); r.setAttribute('height',0);
+      r.setAttribute('fill','#2f6b66'); r.setAttribute('rx',2);
+      r.style.transition='y .6s cubic-bezier(.2,.8,.2,1), height .6s cubic-bezier(.2,.8,.2,1)';
+      g.appendChild(r);
+      setTimeout(()=>{ r.setAttribute('height',h); r.setAttribute('y',200-h); }, 200+i*70);
+    });
+    const marks=[{x:170,c:'#4fd1c5',l:'p50'},{x:330,c:'#7ec98f',l:'p90'},{x:430,c:'#e0a458',l:'p95'},{x:620,c:'#d97878',l:'p99'},{x:790,c:'#a48cf0',l:'p99.9'}];
+    const pg=root.querySelector('#pmarks');
+    marks.forEach((m,i)=>{
+      const line=document.createElementNS(NS,'line');
+      line.setAttribute('x1',m.x);line.setAttribute('x2',m.x);line.setAttribute('y1',20);line.setAttribute('y2',200);
+      line.setAttribute('stroke',m.c);line.setAttribute('stroke-width','2');line.setAttribute('stroke-dasharray','4 4');
+      line.style.opacity=0; line.style.transition='opacity .5s';
+      pg.appendChild(line);
+      const t=document.createElementNS(NS,'text');
+      t.setAttribute('x',m.x);t.setAttribute('y', 14 + (i%2)*0 );
+      t.setAttribute('fill',m.c);t.setAttribute('font-size','12');t.setAttribute('font-family','monospace');t.setAttribute('text-anchor','middle');
+      t.textContent=m.l; t.style.opacity=0; t.style.transition='opacity .5s';
+      pg.appendChild(t);
+      setTimeout(()=>{line.style.opacity=1;t.style.opacity=1;},1400+i*220);
+    });
+  }
+});
+
+/* 26 — TAIL AT SCALE / FAN-OUT */
+slides.push({html:`
+  ${head('The Tail at Scale','Fan-out turns rare slowness into common slowness')}
+  <div class="center-stage">
+    <div class="formula-box reveal" style="font-size:20px;">P(max of N ≤ t) = P(one ≤ t) <span class="v">^N</span></div>
+    <div style="width:820px;">${svg(820,200)}
+      <g id="fanout"></g>
+    </svg></div>
+    <div class="subtitle reveal" style="text-align:center;max-width:820px;">If each backend has a 1% chance of a slow (p99) response, and your request fans out to <b style="color:#e0a458">100</b> of them in parallel, the chance <i>at least one</i> is slow is 1&minus;0.99<sup>100</sup> ≈ <b style="color:#d97878">63%</b>. The rare tail becomes the typical outcome.</div>
+  </div>`,
+  init(root){
+    reveal(root,'.eyebrow,.title,.formula-box,.subtitle',150,190);
+    const g=root.querySelector('#fanout');
+    const rows=[{n:1,y:30,p:0.01},{n:10,y:90,p:0.096},{n:100,y:150,p:0.63}];
+    rows.forEach((row,ri)=>{
+      const label=document.createElementNS(NS,'text');
+      label.setAttribute('x',10);label.setAttribute('y',row.y+5);label.setAttribute('fill','#8d8d9a');label.setAttribute('font-size','12');label.setAttribute('font-family','monospace');
+      label.textContent='N='+row.n;
+      g.appendChild(label);
+      const trackW=600;
+      const bg=document.createElementNS(NS,'rect');
+      bg.setAttribute('x',70);bg.setAttribute('y',row.y-10);bg.setAttribute('width',trackW);bg.setAttribute('height',20);bg.setAttribute('rx',10);
+      bg.setAttribute('fill','#15151d'); bg.setAttribute('stroke','#25252f');
+      g.appendChild(bg);
+      const fg=document.createElementNS(NS,'rect');
+      fg.setAttribute('x',70);fg.setAttribute('y',row.y-10);fg.setAttribute('width',0);fg.setAttribute('height',20);fg.setAttribute('rx',10);
+      fg.setAttribute('fill', row.p>0.3? '#d97878':(row.p>0.05?'#e0a458':'#4fd1c5'));
+      fg.style.transition='width 1.2s cubic-bezier(.2,.8,.2,1)';
+      g.appendChild(fg);
+      const pct=document.createElementNS(NS,'text');
+      pct.setAttribute('x',70+trackW+14);pct.setAttribute('y',row.y+5);pct.setAttribute('fill','#cfcfd8');pct.setAttribute('font-size','13');pct.setAttribute('font-family','monospace');
+      g.appendChild(pct);
+      setTimeout(()=>{
+        fg.setAttribute('width', trackW*row.p);
+        countUpText(pct, row.p*100);
+      }, 700+ri*450);
+    });
+    function countUpText(el,to){
+      const start=performance.now();
+      function step(t){
+        const p=Math.min(1,(t-start)/1000);
+        el.textContent=(to*p).toFixed(1)+'% slow';
+        if(p<1) requestAnimationFrame(step);
+      }
+      requestAnimationFrame(step);
+    }
+  }
+});
+
+/* 27 — SYNTHESIS WORKFLOW */
+slides.push({html:`
+  ${head('Putting It Together','The performance engineering loop')}
+  <div class="center-stage">
+    <div style="width:940px;">${svg(940,180)}
+      <g id="loop"></g>
+    </svg></div>
+    <div class="subtitle reveal" style="text-align:center;">Profile to find the hot path → benchmark the fix in isolation → re-check the system with Amdahl / Little / queueing math → verify against p99, not the average. Then repeat.</div>
+  </div>`,
+  init(root){
+    reveal(root,'.eyebrow,.title,.subtitle',2100,150);
+    const g=root.querySelector('#loop');
+    const steps=['Profile','Hypothesize\nfix','Benchmark','Analyze\n(Amdahl/Little/Queue)','Verify\np99'];
+    const n=steps.length, W=940, cx0=100, gap=(W-200)/(n-1);
+    steps.forEach((s,i)=>{
+      const x=cx0+i*gap;
+      const c=document.createElementNS(NS,'circle');
+      c.setAttribute('cx',x);c.setAttribute('cy',90);c.setAttribute('r',0);
+      c.setAttribute('fill','#101018');c.setAttribute('stroke','#4fd1c5');c.setAttribute('stroke-width','2');
+      c.style.transition='r .5s cubic-bezier(.3,1.5,.5,1)';
+      g.appendChild(c);
+      const lines=s.split('\n');
+      lines.forEach((ln,li)=>{
+        const t=document.createElementNS(NS,'text');
+        t.setAttribute('x',x);t.setAttribute('y',90+(li - (lines.length-1)/2)*13+4);
+        t.setAttribute('text-anchor','middle');t.setAttribute('fill','#cfcfd8');t.setAttribute('font-size','11');t.setAttribute('font-family','monospace');
+        t.textContent=ln; t.style.opacity=0; t.style.transition='opacity .4s';
+        g.appendChild(t);
+        setTimeout(()=>t.style.opacity=1, 400+i*380+300);
+      });
+      setTimeout(()=>c.setAttribute('r',42), 300+i*380);
+      if(i<n-1){
+        const line=document.createElementNS(NS,'line');
+        line.setAttribute('x1',x+44);line.setAttribute('x2',x+gap-44);line.setAttribute('y1',90);line.setAttribute('y2',90);
+        line.setAttribute('stroke','#3a3a46');line.setAttribute('stroke-width','2');line.setAttribute('marker-end','url(#arrow)');
+        g.appendChild(line);
+      }
+    });
+    const defs=document.createElementNS(NS,'defs');
+    defs.innerHTML='<marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="#3a3a46"/></marker>';
+    g.appendChild(defs);
+    // loop-back arrow
+    setTimeout(()=>{
+      const back=document.createElementNS(NS,'path');
+      const lastX=cx0+(n-1)*gap;
+      back.setAttribute('d',`M${lastX},132 C ${lastX},170 ${cx0},170 ${cx0},132`);
+      back.setAttribute('fill','none'); back.setAttribute('stroke','#5a4d8a'); back.setAttribute('stroke-width','2'); back.setAttribute('stroke-dasharray','4 4');
+      g.appendChild(back);
+      drawPaths(root,'path[stroke="#5a4d8a"]',50,0,900);
+    }, 300+n*380+200);
+  }
+});
+
+/* 28 — BRIDGE zoom out to building blocks */
+slides.push({html:bridge(
+  "You can now diagnose, prove, and mathematically predict the performance of any single component.",
+  "Zoom out — where do these components even <i>live</i>? What does a request pass through before it reaches your code?",
+  "System Design Building Blocks →","zoom"),
+  init(root){ reveal(root,'.reveal',200,260); }
+});
+
+/* 29 — BUILDING BLOCKS */
+slides.push({html:`
+  ${head('System Design Building Blocks','Second nature: know when each one earns its place')}
+  <div class="center-stage" style="gap:8px;">
+    <div style="width:1080px;">${svg(1080,300)}<g id="bb"></g></svg></div>
+  </div>`,
+  init(root){
+    const g=root.querySelector('#bb');
+    const row1=[['Client','entry point'],['DNS','name→IP'],['CDN','edge cache'],['Load Balancer','spread load'],['API Gateway','route/auth'],['App Servers','business logic']];
+    const row2=[['Cache','absorb reads'],['Database','durable state'],['Queue / Stream','decouple & buffer'],['Workers','async processing'],['Object Storage','blobs at scale']];
+    function layoutRow(items,y){
+      const n=items.length, w=1080, boxW=150, gap=(w-boxW)/(n-1);
+      return items.map((it,i)=>({x:i*gap, y, label:it[0], sub:it[1]}));
+    }
+    const nodes1=layoutRow(row1,40);
+    const nodes2=layoutRow(row2,200);
+    function drawNode(n,i,delay){
+      const box=document.createElementNS(NS,'rect');
+      box.setAttribute('x',n.x);box.setAttribute('y',n.y);box.setAttribute('width',150);box.setAttribute('height',64);box.setAttribute('rx',8);
+      box.setAttribute('fill','#101018');box.setAttribute('stroke','#2c2c38');box.setAttribute('stroke-width','1.5');
+      box.style.opacity=0; box.style.transition='opacity .5s, stroke .3s';
+      g.appendChild(box);
+      const t1=document.createElementNS(NS,'text');
+      t1.setAttribute('x',n.x+75);t1.setAttribute('y',n.y+30);t1.setAttribute('text-anchor','middle');
+      t1.setAttribute('fill','#eaeaf0');t1.setAttribute('font-size','14');t1.setAttribute('font-family','monospace');t1.setAttribute('font-weight','700');
+      t1.textContent=n.label; t1.style.opacity=0; t1.style.transition='opacity .5s';
+      g.appendChild(t1);
+      const t2=document.createElementNS(NS,'text');
+      t2.setAttribute('x',n.x+75);t2.setAttribute('y',n.y+48);t2.setAttribute('text-anchor','middle');
+      t2.setAttribute('fill','#6f6f7c');t2.setAttribute('font-size','10.5');t2.setAttribute('font-family','monospace');
+      t2.textContent='solves: '+n.sub; t2.style.opacity=0; t2.style.transition='opacity .5s';
+      g.appendChild(t2);
+      setTimeout(()=>{box.style.opacity=1; box.setAttribute('stroke','#4fd1c5'); t1.style.opacity=1; t2.style.opacity=1;
+        setTimeout(()=>box.setAttribute('stroke','#2c2c38'),500);
+      }, delay);
+    }
+    nodes1.forEach((n,i)=>{
+      drawNode(n,i,150+i*180);
+      if(i<nodes1.length-1){
+        const line=document.createElementNS(NS,'line');
+        line.setAttribute('x1',n.x+150);line.setAttribute('x2',n.x+150+ (1080-150)/(nodes1.length-1) -150 +0);
+        line.setAttribute('y1',72);line.setAttribute('y2',72);
+        const nextX = nodes1[i+1].x;
+        line.setAttribute('x2',nextX); line.setAttribute('y2',72);
+        line.setAttribute('stroke','#2c2c38');line.setAttribute('stroke-width','2');
+        line.style.opacity=0; line.style.transition='opacity .4s';
+        g.appendChild(line);
+        setTimeout(()=>line.style.opacity=1, 150+i*180+140);
+      }
+    });
+    // connector row1 -> row2
+    setTimeout(()=>{
+      const conn=document.createElementNS(NS,'path');
+      conn.setAttribute('d',`M75,104 C 75,150 ${nodes2[0].x+75-40},170 ${nodes2[0].x+75},200`);
+      conn.setAttribute('fill','none'); conn.setAttribute('stroke','#5a4d8a'); conn.setAttribute('stroke-width','2');
+      g.appendChild(conn);
+      drawPaths(root,'path[stroke="#5a4d8a"]',20,0,900);
+    }, 150+nodes1.length*180);
+    nodes2.forEach((n,i)=>{
+      drawNode(n,i,150+nodes1.length*180+600+i*180);
+      if(i<nodes2.length-1){
+        const line=document.createElementNS(NS,'line');
+        const nextX=nodes2[i+1].x;
+        line.setAttribute('x1',n.x+150);line.setAttribute('x2',nextX);line.setAttribute('y1',232);line.setAttribute('y2',232);
+        line.setAttribute('stroke','#2c2c38');line.setAttribute('stroke-width','2');
+        line.style.opacity=0; line.style.transition='opacity .4s';
+        g.appendChild(line);
+        setTimeout(()=>line.style.opacity=1, 150+nodes1.length*180+600+i*180+140);
+      }
+    });
+    reveal(root,'.eyebrow,.title',150,150);
+  }
+});
+
+/* 30 — CLASSIC PROBLEMS */
+slides.push({html:`
+  ${head('Classic System Design Problems','The building blocks, recombined')}
+  <div class="center-stage" style="gap:10px;">
+    <div id="probgrid" style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px;width:1080px;"></div>
+    <div class="subtitle reveal" style="text-align:center;margin-top:6px;">Same blocks, every time — CDN, cache, queue, DB — arranged around one core constraint per problem. Learn to spot the constraint.</div>
+  </div>`,
+  init(root){
+    reveal(root,'.eyebrow,.title',150,150);
+    const probs=['URL Shortener','Pastebin','Instagram','Twitter/X','Facebook','WhatsApp','Telegram','YouTube','Netflix','Spotify','Uber','DoorDash','Amazon','Google Drive','Dropbox','Google Docs','Search Engine','Web Crawler','Recommender','Notifications','Chat System','Payments','Booking System','E-commerce','Distributed Cache','Distributed FS','Rate Limiter','Job Scheduler','Task Queue','Logging System','Metrics System','Feature Flags','Location Service','Ride Matching','Ad Serving'];
+    const grid=root.querySelector('#probgrid');
+    probs.forEach((p,i)=>{
+      const d=document.createElement('div');
+      d.textContent=p;
+      d.style.cssText='font-family:monospace;font-size:11.5px;color:#9d9da8;background:#101018;border:1px solid #22222c;border-radius:6px;padding:8px 6px;text-align:center;opacity:0;transform:translateY(8px);transition:opacity .4s,transform .4s;';
+      grid.appendChild(d);
+      setTimeout(()=>{d.style.opacity=1; d.style.transform='translateY(0)';}, 100+i*35);
+    });
+  }
+});
+
+/* 31 — CLOSING */
+slides.push({html:`
+  <div class="center-stage">
+    <div class="eyebrow reveal">Where We Landed</div>
+    <div class="title reveal" style="text-align:center;">Slow isn't a feeling. It's measurable.</div>
+    <div class="row reveal" style="flex-wrap:wrap;max-width:900px;">
+      <span class="chip teal">flame graphs</span><span class="chip amber">rigorous benchmarks</span><span class="chip purple">Amdahl</span><span class="chip">Little's Law</span><span class="chip teal">queueing theory</span><span class="chip amber">p99.9</span>
+    </div>
+    <div class="subtitle reveal" style="text-align:center;max-width:760px;margin-top:6px;">Every one of these traces back to the same instinct: don't trust the average, don't guess the bottleneck — measure it, model it, then fix the narrowest link.</div>
+    <div class="bridge-block bridge-gap reveal" style="margin-top:18px;">
+      <div class="bridge-label">Next Episode</div>
+      <div class="bridge-text">Distributed Systems Fundamentals — what happens when "the system" is a hundred machines that don't share a clock?</div>
+    </div>
+  </div>`,
+  init(root){ reveal(root,'.reveal',200,220); }
+});
+
+/* ============================= RENDER / NAV ============================= */
+const deck=document.getElementById('deck');
+slides.forEach((s,i)=>{
+  const div=document.createElement('div');
+  div.className='slide';
+  div.dataset.index=i;
+  div.innerHTML=s.html;
+  deck.appendChild(div);
+});
+const dotsWrap=document.getElementById('dots');
+slides.forEach((s,i)=>{
+  const d=document.createElement('div');
+  d.className='dot';
+  d.addEventListener('click',()=>goTo(i));
+  dotsWrap.appendChild(d);
+});
+let current=0;
+function goTo(i){
+  if(i<0||i>=slides.length) return;
+  document.querySelectorAll('.slide').forEach(el=>el.classList.remove('active'));
+  const el=deck.children[i];
+  el.classList.add('active');
+  current=i;
+  document.querySelectorAll('.dot').forEach((d,idx)=>d.classList.toggle('active',idx===i));
+  document.getElementById('counter').textContent=(i+1)+' / '+slides.length;
+  const hint=document.getElementById('hint');
+  if(i>0){ hint.style.opacity=0; }
+  if(slides[i].init){ try{ slides[i].init(el); }catch(e){ console.error(e); } }
+}
+document.getElementById('nextBtn').addEventListener('click',()=>goTo(current+1));
+document.getElementById('prevBtn').addEventListener('click',()=>goTo(current-1));
+document.getElementById('zoneR').addEventListener('click',()=>goTo(current+1));
+document.getElementById('zoneL').addEventListener('click',()=>goTo(current-1));
+window.addEventListener('keydown',(e)=>{
+  if(['ArrowRight','ArrowDown','PageDown',' '].includes(e.key)){ e.preventDefault(); goTo(current+1);}
+  if(['ArrowLeft','ArrowUp','PageUp'].includes(e.key)){ e.preventDefault(); goTo(current-1);}
+  if(e.key==='Home') goTo(0);
+  if(e.key==='End') goTo(slides.length-1);
+});
+function fitStage(){
+  const stage=document.getElementById('stage');
+  const scale=Math.min(window.innerWidth/1280, window.innerHeight/720)*0.94;
+  stage.style.transform=`translate(-50%,-50%) scale(${scale})`;
+}
+window.addEventListener('resize',fitStage);
+fitStage();
+goTo(0);
+setTimeout(()=>{ document.getElementById('hint').style.opacity=1; },400);
+</script>
+</body>
+</html>

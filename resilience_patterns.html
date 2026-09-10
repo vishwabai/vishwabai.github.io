@@ -1,0 +1,1723 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Resilience Patterns — A Deep Dive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,600;1,400&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --black:#050607;
+    --panel:#0b0d0f;
+    --ink:#e9e6e0;
+    --ink-dim:#a39d92;
+    --ink-faint:#5c574f;
+    --teal:#3fb6a3;
+    --amber:#d9a544;
+    --rose:#c96860;
+    --violet:#8b7fc9;
+    --line:#232322;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%; background:#000; overflow:hidden;}
+  body{
+    font-family:'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+  }
+  .deck{
+    position:fixed; inset:0; background:#000;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .stage-frame{
+    position:relative;
+    width:min(100vw, 177.78vh);
+    height:min(100vh, 56.25vw);
+    background:radial-gradient(ellipse at 50% 30%, #0a0c0d 0%, #050607 60%, #020303 100%);
+    overflow:hidden;
+    box-shadow:0 0 0 1px #111 inset;
+  }
+  .progress{
+    position:absolute; top:0; left:0; right:0; height:3px; background:#141414; z-index:50;
+  }
+  .progress-fill{
+    height:100%; width:0%; background:linear-gradient(90deg, var(--teal), var(--amber));
+    transition:width 500ms ease;
+  }
+  .slides{ position:relative; width:100%; height:100%; }
+  .slide{
+    position:absolute; inset:0;
+    display:flex; flex-direction:column;
+    padding:44px 86px 40px 86px;
+    opacity:0; visibility:hidden;
+    transition:opacity 420ms ease;
+    pointer-events:none;
+  }
+  .slide.active{ opacity:1; visibility:visible; pointer-events:auto; }
+  .slide-top{ display:flex; align-items:baseline; justify-content:space-between; }
+  .slide-eyebrow{
+    font-size:12px; letter-spacing:3px; text-transform:uppercase;
+    color:var(--amber); font-weight:600;
+  }
+  .eyebrow-num{ color:var(--ink-faint); letter-spacing:1px; margin-left:10px; font-weight:500;}
+  .slide-title{
+    font-family:'Newsreader', serif;
+    font-size:38px; font-weight:600; line-height:1.15;
+    margin-top:14px; max-width:920px;
+    color:var(--ink);
+  }
+  .slide-sub{
+    font-size:15.5px; color:var(--ink-dim); margin-top:12px; max-width:760px; line-height:1.55;
+  }
+  .stage{ flex:1; min-height:0; margin-top:14px; position:relative; }
+  .stage svg{ width:100%; height:100%; display:block; overflow:visible; }
+  .caption{
+    font-size:14px; color:var(--ink-dim); margin-top:10px; max-width:900px; line-height:1.6;
+    border-top:1px solid var(--line); padding-top:12px;
+  }
+  .caption b{ color:var(--ink); font-weight:600; }
+  .caption i{ color:var(--amber); font-style:normal; font-weight:500; }
+  .r-up{ opacity:0; transform:translateY(0); animation:none; }
+  .slide.active .r-up{ animation:riseUp 700ms ease forwards; }
+  .slide.active .d1{ animation-delay:60ms; }
+  .slide.active .d2{ animation-delay:180ms; }
+  .slide.active .d3{ animation-delay:340ms; }
+  @keyframes riseUp{
+    from{ opacity:0; transform:translateY(10px); }
+    to{ opacity:1; transform:translateY(0); }
+  }
+  .nav-dots{
+    position:absolute; bottom:16px; left:50%; transform:translateX(-50%);
+    display:flex; gap:6px; z-index:50; max-width:70%; flex-wrap:wrap; justify-content:center;
+  }
+  .dot{
+    width:6px; height:6px; border-radius:50%; background:#2a2a29; cursor:pointer;
+    transition:all 250ms ease;
+  }
+  .dot.active{ background:var(--amber); width:18px; border-radius:4px; }
+  .nav-btn{
+    position:absolute; top:50%; transform:translateY(-50%);
+    width:38px; height:38px; border-radius:50%; border:1px solid var(--line);
+    background:rgba(255,255,255,0.02); color:var(--ink-dim); font-size:18px;
+    cursor:pointer; z-index:50; display:flex; align-items:center; justify-content:center;
+    transition:all 200ms ease;
+  }
+  .nav-btn:hover{ background:rgba(255,255,255,0.07); color:var(--ink); border-color:#3a3a38; }
+  .nav-btn.prev{ left:16px; } .nav-btn.next{ right:16px; }
+  .hint{
+    position:absolute; top:14px; right:20px; font-size:10px; color:var(--ink-faint);
+    letter-spacing:1px; text-transform:uppercase; z-index:50;
+  }
+  svg text{ font-family:'Inter', sans-serif; user-select:none; }
+  .mono{ font-family:'Newsreader', serif; font-style:italic; }
+</style>
+</head>
+<body>
+<div class="deck">
+  <div class="stage-frame">
+    <div class="progress"><div class="progress-fill" id="progressFill"></div></div>
+    <div class="slides" id="slides">
+      <section class="slide" id="s1" data-section="OPEN">
+        <div class="slide-top r-up d1">
+          <div class="slide-eyebrow">OPEN<span class="eyebrow-num"></span></div>
+        </div>
+        <h1 class="slide-title r-up d1">Every request can fail. What do you do about it?</h1>
+        <p class="slide-sub r-up d2">Not “if” — <i>when</i>. A network blips, a disk fills, a dependency slows down. Resilience engineering is the set of patterns for what happens in that moment.</p>
+        <div class="stage"><svg id="svg-s1" viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"></svg></div>
+        <p class="caption r-up d3">This deck builds every idea the same way: <b>teach</b> it, <b>recap</b> it in one line, then expose the gap it leaves — which the next pattern fills. By the end you'll have all 31 patterns wired into one mental map.</p>
+      </section>
+      <section class="slide" id="s2" data-section="OPEN">
+        <div class="slide-top r-up d1">
+          <div class="slide-eyebrow">OPEN<span class="eyebrow-num"></span></div>
+        </div>
+        <h1 class="slide-title r-up d1">One slow service can take down a system that has nothing wrong with it</h1>
+        <p class="slide-sub r-up d2">Watch Service C — nothing crashes, it just gets slow. No timeouts, no isolation, no limits anywhere else in the chain.</p>
+        <div class="stage"><svg id="svg-s2" viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"></svg></div>
+        <p class="caption r-up d3">So far: <b>an unhandled slow dependency cascades into a total outage</b>, even though every machine is technically “up.” But we're still missing something — <i>at what point do we just stop waiting?</i></p>
+      </section>
+      <section class="slide" id="s3" data-section="TIME &amp; RETRY">
+        <div class="slide-top r-up d1">
+          <div class="slide-eyebrow">TIME &amp; RETRY<span class="eyebrow-num"></span></div>
+        </div>
+        <h1 class="slide-title r-up d1">Timeout: stop waiting after a fixed budget</h1>
+        <p class="slide-sub r-up d2">A timeout is a promise you make to your own caller — “I will respond within T, even if that means responding with failure.”</p>
+        <div class="stage"><svg id="svg-s3" viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"></svg></div>
+        <p class="caption r-up d3">So far: <b>a timeout converts an unknown wait into a bounded one.</b> But it doesn't fix anything — it just fails faster and fails cleanly. <i>What do you do the instant a call is abandoned?</i></p>
+      </section>
+      <section class="slide" id="s4" data-section="TIME &amp; RETRY">
+        <div class="slide-top r-up d1">
+          <div class="slide-eyebrow">TIME &amp; RETRY<span class="eyebrow-num"></span></div>
+        </div>
+        <h1 class="slide-title r-up d1">Retry: try again, because most failures are temporary</h1>
+        <p class="slide-sub r-up d2">Packet loss, a momentary GC pause, a pod restarting — these resolve in milliseconds. Retrying converts a transient blip into a non-event.</p>
+        <div class="stage"><svg id="svg-s4" viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"></svg></div>
+        <p class="caption r-up d3">So far: <b>retrying trades a little latency for a lot of reliability</b>, when failures are independent. But if 10,000 clients all retry the instant they fail — <i>what happens to the service they're retrying against?</i></p>
+      </section>
+      <section class="slide" id="s5" data-section="TIME &amp; RETRY">
+        <div class="slide-top r-up d1">
+          <div class="slide-eyebrow">TIME &amp; RETRY<span class="eyebrow-num"></span></div>
+        </div>
+        <h1 class="slide-title r-up d1">Exponential backoff: space retries further apart each time</h1>
+        <p class="slide-sub r-up d2">Instead of retrying immediately, wait longer after each failure — giving the struggling service room to actually recover.</p>
+        <div class="stage"><svg id="svg-s5" viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"></svg></div>
+        <p class="caption r-up d3">So far: <b>backoff turns a retry storm into a retry taper.</b> But every client computes the same delay from the same formula — <i>so what happens when they all started failing at the exact same moment?</i></p>
+      </section>
+      <section class="slide" id="s6" data-section="TIME &amp; RETRY">
+        <div class="slide-top r-up d1">
+          <div class="slide-eyebrow">TIME &amp; RETRY<span class="eyebrow-num"></span></div>
+        </div>
+        <h1 class="slide-title r-up d1">Jitter: add randomness so clients don't retry in lock-step</h1>
+        <p class="slide-sub r-up d2">Same backoff formula, but each client picks a random point inside the window instead of the same fixed instant.</p>
+        <div class="stage"><svg id="svg-s6" viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"></svg></div>
+        <p class="caption r-up d3">So far: <b>jitter spreads synchronized clients across time</b>, turning one sharp spike into a gentle ramp. But backoff still assumes the service will recover — <i>what if it's already so overloaded that even spread-out retries keep it down?</i></p>
+      </section>
+      <section class="slide" id="s7" data-section="PROTECT &amp; ISOLATE">
+        <div class="slide-top r-up d1">
+          <div class="slide-eyebrow">PROTECT &amp; ISOLATE<span class="eyebrow-num"></span></div>
+        </div>
+        <h1 class="slide-title r-up d1">Circuit breaker: stop calling a service that's clearly down</h1>
+        <p class="slide-sub r-up d2">Three states — Closed (calling normally), Open (failing instantly, no calls sent), Half-Open (a few test calls to check recovery).</p>
+        <div class="stage"><svg id="svg-s7" viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"></svg></div>
+        <p class="caption r-up d3">So far: <b>a breaker protects the caller from wasting time on a doomed call</b>, and protects the callee from a pile-on while it recovers. But it only guards <i>one</i> dependency — <i>what if a slow dependency ties up resources shared by everything else?</i></p>
+      </section>
+      <section class="slide" id="s8" data-section="PROTECT &amp; ISOLATE">
+        <div class="slide-top r-up d1">
+          <div class="slide-eyebrow">PROTECT &amp; ISOLATE<span class="eyebrow-num"></span></div>
+        </div>
+        <h1 class="slide-title r-up d1">Bulkhead: give each dependency its own resource pool</h1>
+        <p class="slide-sub r-up d2">Named after ship compartments — flooding in one doesn't sink the vessel. Here it's thread pools, connection pools, or queues, kept separate per dependency.</p>
+        <div class="stage"><svg id="svg-s8" viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"></svg></div>
+        <p class="caption r-up d3">So far: <b>isolating resource pools contains a failure to the dependency that caused it.</b> But a breaker and bulkhead only react to traffic that's already inside the system — <i>what controls how much traffic gets in, in the first place?</i></p>
+      </section>
+      <section class="slide" id="s9" data-section="PROTECT &amp; ISOLATE">
+        <div class="slide-top r-up d1">
+          <div class="slide-eyebrow">PROTECT &amp; ISOLATE<span class="eyebrow-num"></span></div>
+        </div>
+        <h1 class="slide-title r-up d1">Rate limiter: cap how much traffic gets through at all</h1>
+        <p class="slide-sub r-up d2">Every consumer (or API key, or IP) gets a maximum request rate. Traffic above that is rejected before it ever reaches business logic.</p>
+        <div class="stage"><svg id="svg-s9" viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"></svg></div>
+        <p class="caption r-up d3">So far: <b>a rate limit protects capacity by refusing excess demand up front.</b> But a limiter enforces a policy — it doesn't help when the whole system is already past capacity <i>despite</i> the policy. <i>What do you do with the traffic you already let in?</i></p>
+      </section>
+      <section class="slide" id="s10" data-section="PROTECT &amp; ISOLATE">
+        <div class="slide-top r-up d1">
+          <div class="slide-eyebrow">PROTECT &amp; ISOLATE<span class="eyebrow-num"></span></div>
+        </div>
+        <h1 class="slide-title r-up d1">Load shedding: when overloaded, drop the least important work first</h1>
+        <p class="slide-sub r-up d2">Not every request matters equally. Under pressure, reject low-priority traffic (background jobs, analytics pings) so high-priority traffic (checkout) still gets served.</p>
+        <div class="stage"><svg id="svg-s10" viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"></svg></div>
+        <p class="caption r-up d3">So far: <b>shedding trades total throughput for guaranteed service to what matters most.</b> But shedding is the server unilaterally dropping work — <i>what if producers could be told to slow down before they even send it?</i></p>
+      </section>
+      <section class="slide" id="s11" data-section="PROTECT &amp; ISOLATE">
+        <div class="slide-top r-up d1">
+          <div class="slide-eyebrow">PROTECT &amp; ISOLATE<span class="eyebrow-num"></span></div>
+        </div>
+        <h1 class="slide-title r-up d1">Backpressure: let the consumer tell the producer to slow down</h1>
+        <p class="slide-sub r-up d2">Instead of silently dropping or endlessly queuing, the consumer signals its real capacity, and the producer throttles itself to match.</p>
+        <div class="stage"><svg id="svg-s11" viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"></svg></div>
+        <p class="caption r-up d3">So far: <b>backpressure turns overload into a two-way conversation</b> instead of one side silently failing. That covers a system staying <i>alive</i> under load — but <i>what happens when a whole node just dies?</i></p>
+      </section>
+      <section class="slide" id="s12" data-section="STAY UP">
+        <div class="slide-top r-up d1">
+          <div class="slide-eyebrow">STAY UP<span class="eyebrow-num"></span></div>
+        </div>
+        <h1 class="slide-title r-up d1">Failover: automatically switch to a healthy replica</h1>
+        <p class="slide-sub r-up d2">When the primary is detected as dead — not slow, dead — traffic is rerouted to a standby that's ready to take over.</p>
+        <div class="stage"><svg id="svg-s12" viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"></svg></div>
+        <p class="caption r-up d3">So far: <b>failover converts a dead node into a brief blip</b>, bounded by how fast you can detect death and reroute. But detection takes time — <i>what do you do in the instant you already know something is broken?</i></p>
+      </section>
+      <section class="slide" id="s13" data-section="STAY UP">
+        <div class="slide-top r-up d1">
+          <div class="slide-eyebrow">STAY UP<span class="eyebrow-num"></span></div>
+        </div>
+        <h1 class="slide-title r-up d1">Fail-fast: reject bad requests immediately, don't limp toward failure</h1>
+        <p class="slide-sub r-up d2">Check the cheap things first — auth, input shape, breaker state — and reject in milliseconds instead of discovering failure after 3 seconds of real work.</p>
+        <div class="stage"><svg id="svg-s13" viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"></svg></div>
+        <p class="caption r-up d3">So far: <b>fail-fast makes failure cheap by detecting it as early as possible.</b> But an immediate rejection still means the user gets nothing — <i>is there a version of “failure” the user barely notices?</i></p>
+      </section>
+      <section class="slide" id="s14" data-section="STAY UP">
+        <div class="slide-top r-up d1">
+          <div class="slide-eyebrow">STAY UP<span class="eyebrow-num"></span></div>
+        </div>
+        <h1 class="slide-title r-up d1">Graceful degradation: serve a smaller, still-useful response</h1>
+        <p class="slide-sub r-up d2">If recommendations are down, show a generic “popular items” shelf instead of nothing. The page still works — just less personalized.</p>
+        <div class="stage"><svg id="svg-s14" viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"></svg></div>
+        <p class="caption r-up d3">So far: <b>degrading gracefully preserves the core experience by sacrificing a non-essential feature.</b> That's about full failures — but most user pain comes from the slow tail, not total outages. <i>What do you do about the one unlucky slow reply out of a thousand?</i></p>
+      </section>
+      <section class="slide" id="s15" data-section="STAY UP">
+        <div class="slide-top r-up d1">
+          <div class="slide-eyebrow">STAY UP<span class="eyebrow-num"></span></div>
+        </div>
+        <h1 class="slide-title r-up d1">Hedged requests: fire a backup call before the first one is even late</h1>
+        <p class="slide-sub r-up d2">If the primary hasn't answered by, say, the 95th-percentile latency, send the same request to a second replica — and take whichever answers first.</p>
+        <div class="stage"><svg id="svg-s15" viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"></svg></div>
+        <p class="caption r-up d3">So far: <b>hedging trims the slow tail at the cost of a small amount of duplicate load.</b> That's the caller managing its own risk. Zooming out — <i>how does anything even know a node is unhealthy in the first place?</i></p>
+      </section>
+      <section class="slide" id="s16" data-section="SIGNS OF LIFE">
+        <div class="slide-top r-up d1">
+          <div class="slide-eyebrow">SIGNS OF LIFE<span class="eyebrow-num"></span></div>
+        </div>
+        <h1 class="slide-title r-up d1">Health checks: ask an instance “are you okay?” on a schedule</h1>
+        <p class="slide-sub r-up d2">A load balancer polls each instance — liveness (“restart me if this fails”) and readiness (“don't send me traffic yet”) are two different questions with two different answers.</p>
+        <div class="stage"><svg id="svg-s16" viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"></svg></div>
+        <p class="caption r-up d3">So far: <b>health checks let infrastructure pull status on a schedule</b> and route around what fails it. But polling has a detection delay built in — <i>what if a node needs to announce its own death the instant it happens?</i></p>
+      </section>
+      <section class="slide" id="s17" data-section="SIGNS OF LIFE">
+        <div class="slide-top r-up d1">
+          <div class="slide-eyebrow">SIGNS OF LIFE<span class="eyebrow-num"></span></div>
+        </div>
+        <h1 class="slide-title r-up d1">Heartbeats: nodes push “I'm alive” instead of waiting to be asked</h1>
+        <p class="slide-sub r-up d2">Each node emits a signal on a fixed interval. Miss enough of them in a row, and the cluster declares that node dead — without ever having to ask.</p>
+        <div class="stage"><svg id="svg-s17" viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"></svg></div>
+        <p class="caption r-up d3">So far: <b>heartbeats flip health checking from pull to push</b>, which is how clusters detect failure fast enough to trigger leader election or failover. That covers detecting a dead worker — <i>but what happens to the work that node was in the middle of?</i></p>
+      </section>
+      <section class="slide" id="s18" data-section="SIGNS OF LIFE">
+        <div class="slide-top r-up d1">
+          <div class="slide-eyebrow">SIGNS OF LIFE<span class="eyebrow-num"></span></div>
+        </div>
+        <h1 class="slide-title r-up d1">Dead-letter queue: quarantine the message that keeps failing</h1>
+        <p class="slide-sub r-up d2">A message that fails processing after N retries doesn't get lost, and doesn't get to jam the queue for everyone behind it — it's routed sideways for a human to inspect.</p>
+        <div class="stage"><svg id="svg-s18" viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"></svg></div>
+        <p class="caption r-up d3">So far: <b>a DLQ keeps one poison message from blocking the whole pipeline</b>, and keeps a record so nothing silently vanishes. But if that message eventually gets replayed — <i>what stops it from being processed twice?</i></p>
+      </section>
+      <section class="slide" id="s19" data-section="SIGNS OF LIFE">
+        <div class="slide-top r-up d1">
+          <div class="slide-eyebrow">SIGNS OF LIFE<span class="eyebrow-num"></span></div>
+        </div>
+        <h1 class="slide-title r-up d1">Idempotency: make repeating an action safe</h1>
+        <p class="slide-sub r-up d2">Attach a unique key to the request. If the server has already seen that key succeed, it returns the original result instead of doing the work again.</p>
+        <div class="stage"><svg id="svg-s19" viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"></svg></div>
+        <p class="caption r-up d3">So far: <b>idempotency is what makes every retry, hedge, and DLQ replay in this deck actually safe to perform</b> — without it, every one of those patterns risks charging a card twice.</p>
+      </section>
+      <section class="slide" id="s20" data-section="RECAP">
+        <div class="slide-top r-up d1">
+          <div class="slide-eyebrow">RECAP<span class="eyebrow-num"></span></div>
+        </div>
+        <h1 class="slide-title r-up d1">17 patterns, one request's journey</h1>
+        <p class="slide-sub r-up d2">Every pattern so far answers a question about a specific point in a request's life — before it's sent, while it's in flight, or after it fails.</p>
+        <div class="stage"><svg id="svg-s20" viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"></svg></div>
+        <p class="caption r-up d3">That's the full core toolkit for keeping a <i>system</i> up. Next: the precise algorithms behind just one of these boxes — the rate limiter — because “cap the rate” hides a surprisingly deep question.</p>
+      </section>
+      <section class="slide" id="s21" data-section="RATE LIMIT ALGORITHMS">
+        <div class="slide-top r-up d1">
+          <div class="slide-eyebrow">RATE LIMIT ALGORITHMS<span class="eyebrow-num"></span></div>
+        </div>
+        <h1 class="slide-title r-up d1">“Limit to 100 requests per minute” is harder to implement than it sounds</h1>
+        <p class="slide-sub r-up d2">The honest question underneath it: how do you cheaply and fairly count “requests in the last N seconds,” for millions of keys, without keeping a full history?</p>
+        <div class="stage"><svg id="svg-s21" viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"></svg></div>
+        <p class="caption r-up d3">So far: <b>every rate-limiting algorithm is a different trade-off between memory, precision, and burst tolerance</b> — none of them is free. <i>What's the simplest possible answer, and where does it break?</i></p>
+      </section>
+      <section class="slide" id="s22" data-section="RATE LIMIT ALGORITHMS">
+        <div class="slide-top r-up d1">
+          <div class="slide-eyebrow">RATE LIMIT ALGORITHMS<span class="eyebrow-num"></span></div>
+        </div>
+        <h1 class="slide-title r-up d1">Fixed window: count requests in the current clock-aligned bucket</h1>
+        <p class="slide-sub r-up d2">Limit = 100 req / 60s window. One counter, reset to zero the instant the clock crosses a minute boundary. Cheap: one integer per key.</p>
+        <div class="stage"><svg id="svg-s22" viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"></svg></div>
+        <p class="caption r-up d3">So far: <b>fixed window is a single counter — trivial to build, trivial to reason about.</b> But nothing stops 100 requests at 11:00:59 and another 100 at 11:01:00 — <i>200 requests in two real seconds, under a “100 per minute” limit. How do you fix the boundary?</i></p>
+      </section>
+      <section class="slide" id="s23" data-section="RATE LIMIT ALGORITHMS">
+        <div class="slide-top r-up d1">
+          <div class="slide-eyebrow">RATE LIMIT ALGORITHMS<span class="eyebrow-num"></span></div>
+        </div>
+        <h1 class="slide-title r-up d1">Sliding window counter: blend the current and previous window</h1>
+        <p class="slide-sub r-up d2">estimate = current_count + previous_count × overlap. Example: previous window had 100 requests, we're 25% into the new window → estimate = 30 + 100 × 0.75… weighted by how much of the old window still “overlaps” the lookback.</p>
+        <div class="stage"><svg id="svg-s23" viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"></svg></div>
+        <p class="caption r-up d3">So far: <b>weighting the previous window smooths the boundary burst</b> to roughly the true rate, using just two counters instead of a full log. It's an estimate, not exact — <i>what if you need the count to be exactly right?</i></p>
+      </section>
+      <section class="slide" id="s24" data-section="RATE LIMIT ALGORITHMS">
+        <div class="slide-top r-up d1">
+          <div class="slide-eyebrow">RATE LIMIT ALGORITHMS<span class="eyebrow-num"></span></div>
+        </div>
+        <h1 class="slide-title r-up d1">Sliding log: store every timestamp, count exactly what's in the window</h1>
+        <p class="slide-sub r-up d2">On each request: drop timestamps older than (now − window), then count what's left. Perfectly precise — because it isn't estimating anything.</p>
+        <div class="stage"><svg id="svg-s24" viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"></svg></div>
+        <p class="caption r-up d3">So far: <b>a sliding log is exact, at the cost of storing one entry per request</b> — 1,000 req/s over a 60s window is 60,000 stored timestamps, per key. That's the accuracy end of the spectrum. <i>Is there a version that's cheap <u>and</u> handles bursts on purpose?</i></p>
+      </section>
+      <section class="slide" id="s25" data-section="RATE LIMIT ALGORITHMS">
+        <div class="slide-top r-up d1">
+          <div class="slide-eyebrow">RATE LIMIT ALGORITHMS<span class="eyebrow-num"></span></div>
+        </div>
+        <h1 class="slide-title r-up d1">Token bucket: refill steadily, spend freely, allow bursts up to a cap</h1>
+        <p class="slide-sub r-up d2">tokens = min(capacity, tokens + rate × elapsed). Each request costs 1 token (or more, for expensive calls); reject if not enough remain. Example: rate = 10 tokens/s, capacity = 20 → an idle client can burst 20 requests instantly, then settle to 10/s.</p>
+        <div class="stage"><svg id="svg-s25" viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"></svg></div>
+        <p class="caption r-up d3">So far: <b>token bucket is the industry default</b> — cheap (two numbers per key), and it deliberately allows short bursts instead of fighting them. But sometimes a burst downstream is exactly what you can't afford — <i>what if you need output smoothed to a constant rate, no exceptions?</i></p>
+      </section>
+      <section class="slide" id="s26" data-section="RATE LIMIT ALGORITHMS">
+        <div class="slide-top r-up d1">
+          <div class="slide-eyebrow">RATE LIMIT ALGORITHMS<span class="eyebrow-num"></span></div>
+        </div>
+        <h1 class="slide-title r-up d1">Leaky bucket: requests queue up, and drain at one fixed rate</h1>
+        <p class="slide-sub r-up d2">Incoming requests fill a queue; the queue drains at a constant rate r, no matter how bursty the input was. Queue full → new requests are rejected outright.</p>
+        <div class="stage"><svg id="svg-s26" viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"></svg></div>
+        <p class="caption r-up d3">So far: <b>leaky bucket guarantees a smooth, constant output rate</b> — the mirror image of token bucket, which guarantees flexible bursts. Both algorithms so far assume one server holding the counter — <i>what happens the moment you have five?</i></p>
+      </section>
+      <section class="slide" id="s27" data-section="RATE LIMIT ALGORITHMS">
+        <div class="slide-top r-up d1">
+          <div class="slide-eyebrow">RATE LIMIT ALGORITHMS<span class="eyebrow-num"></span></div>
+        </div>
+        <h1 class="slide-title r-up d1">Distributed rate limiting: five servers must share one limit, not enforce five</h1>
+        <p class="slide-sub r-up d2">If each of 5 app servers enforces “100/min” independently, the real ceiling is 500/min. The fix: a shared store (Redis INCR + EXPIRE, or a Lua-scripted token bucket) that every server checks against.</p>
+        <div class="stage"><svg id="svg-s27" viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"></svg></div>
+        <p class="caption r-up d3">So far: <b>distributed limiting needs one source of truth, reachable by every node</b> — usually costing a network round-trip per check, which is the price of correctness at scale.</p>
+      </section>
+      <section class="slide" id="s28" data-section="RECAP">
+        <div class="slide-top r-up d1">
+          <div class="slide-eyebrow">RECAP<span class="eyebrow-num"></span></div>
+        </div>
+        <h1 class="slide-title r-up d1">Six algorithms, one spectrum</h1>
+        <p class="slide-sub r-up d2">From “cheap and approximate” to “exact and expensive,” and from “smooth output” to “bursty but efficient.” Pick based on which trade-off you can afford.</p>
+        <div class="stage"><svg id="svg-s28" viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"></svg></div>
+        <p class="caption r-up d3">Rate limiting protects one box in the request's journey. Now: what protects the <i>infrastructure itself</i> — whole nodes, zones, and regions — when they're the thing that fails?</p>
+      </section>
+      <section class="slide" id="s29" data-section="TOPOLOGY &amp; AVAILABILITY">
+        <div class="slide-top r-up d1">
+          <div class="slide-eyebrow">TOPOLOGY &amp; AVAILABILITY<span class="eyebrow-num"></span></div>
+        </div>
+        <h1 class="slide-title r-up d1">Active-active vs. active-passive: two ways to keep a spare copy</h1>
+        <p class="slide-sub r-up d2">Both are <b>redundancy</b> — more than one copy that could serve traffic. Active-active: both serve live traffic right now, splitting load. Active-passive: the standby sits idle until failover, simpler but slower to kick in.</p>
+        <div class="stage"><svg id="svg-s29" viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"></svg></div>
+        <p class="caption r-up d3">So far: <b>active-active gives faster failover and better hardware use; active-passive gives simpler consistency</b>, since only one side is ever writing. Either way, something has to decide who leads writes — <i>how do multiple copies of the same data stay in sync?</i></p>
+      </section>
+      <section class="slide" id="s30" data-section="TOPOLOGY &amp; AVAILABILITY">
+        <div class="slide-top r-up d1">
+          <div class="slide-eyebrow">TOPOLOGY &amp; AVAILABILITY<span class="eyebrow-num"></span></div>
+        </div>
+        <h1 class="slide-title r-up d1">Leader-follower: one node writes, the rest replicate and can serve reads</h1>
+        <p class="slide-sub r-up d2">All writes go to the leader; it streams changes to followers. Followers can serve reads — but there's a replication lag, so a follower might briefly answer with stale data.</p>
+        <div class="stage"><svg id="svg-s30" viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"></svg></div>
+        <p class="caption r-up d3">So far: <b>leader-follower scales reads and gives you standbys for free</b>, at the cost of replication lag on followers. That's about a handful of machines — <i>what protects you when the whole rack, or the whole data center, loses power?</i></p>
+      </section>
+      <section class="slide" id="s31" data-section="TOPOLOGY &amp; AVAILABILITY">
+        <div class="slide-top r-up d1">
+          <div class="slide-eyebrow">TOPOLOGY &amp; AVAILABILITY<span class="eyebrow-num"></span></div>
+        </div>
+        <h1 class="slide-title r-up d1">Multi-zone deployment: spread instances across independent failure domains</h1>
+        <p class="slide-sub r-up d2">A region is made of multiple Availability Zones — separate power, network, and physical buildings. Deploy N instances split across 3 zones; lose one zone, lose roughly a third of capacity, not all of it.</p>
+        <div class="stage"><svg id="svg-s31" viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"></svg></div>
+        <p class="caption r-up d3">So far: <b>multi-zone deployment contains a zone-level outage to a fraction of capacity</b> instead of a total loss. But a zone outage is still local to one metro area — <i>what protects you from an event that takes out an entire region?</i></p>
+      </section>
+      <section class="slide" id="s32" data-section="TOPOLOGY &amp; AVAILABILITY">
+        <div class="slide-top r-up d1">
+          <div class="slide-eyebrow">TOPOLOGY &amp; AVAILABILITY<span class="eyebrow-num"></span></div>
+        </div>
+        <h1 class="slide-title r-up d1">Multi-region deployment: full copies across geography</h1>
+        <p class="slide-sub r-up d2">Deploy in, say, us-east and eu-west. Survives a whole-region outage — but replicating data between them now costs real time: a round trip across the Atlantic is roughly 70–100ms, not zero.</p>
+        <div class="stage"><svg id="svg-s32" viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"></svg></div>
+        <p class="caption r-up d3">So far: <b>multi-region buys survival against a disaster that multi-zone can't</b>, in exchange for real cross-region latency and harder consistency. All of this protects <i>hardware</i> failure — <i>what protects you from a mistake a human makes on purpose?</i></p>
+      </section>
+      <section class="slide" id="s33" data-section="TOPOLOGY &amp; AVAILABILITY">
+        <div class="slide-top r-up d1">
+          <div class="slide-eyebrow">TOPOLOGY &amp; AVAILABILITY<span class="eyebrow-num"></span></div>
+        </div>
+        <h1 class="slide-title r-up d1">Disaster recovery: replication protects hardware, backup protects mistakes</h1>
+        <p class="slide-sub r-up d2">Run <code>DELETE FROM orders</code> without a WHERE clause, and replication faithfully copies that deletion to every follower in milliseconds. A separate, offline <b>backup</b> — a point-in-time copy — is the only thing that still has the data.</p>
+        <div class="stage"><svg id="svg-s33" viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"></svg></div>
+        <p class="caption r-up d3">So far: <b>replication and backup solve two different failure classes</b> — replication for “a machine died,” backup for “someone broke the data itself.” A backup by itself only gives you fixed snapshots — <i>what if the mistake happened at 2:17pm and your last backup was at midnight?</i></p>
+      </section>
+      <section class="slide" id="s34" data-section="TOPOLOGY &amp; AVAILABILITY">
+        <div class="slide-top r-up d1">
+          <div class="slide-eyebrow">TOPOLOGY &amp; AVAILABILITY<span class="eyebrow-num"></span></div>
+        </div>
+        <h1 class="slide-title r-up d1">Point-in-time recovery: restore to the exact second before the mistake</h1>
+        <p class="slide-sub r-up d2">A periodic base backup, plus a continuous transaction log (a WAL), lets you replay every change up to any timestamp. Restore point = latest base backup + replay log up to 14:32:07 — one minute before the bad deploy.</p>
+        <div class="stage"><svg id="svg-s34" viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"></svg></div>
+        <p class="caption r-up d3">So far: <b>PITR turns “we lost everything since midnight” into “we lost one minute.”</b> That's how much data you can lose — which is exactly what one of the next metrics measures on purpose.</p>
+      </section>
+      <section class="slide" id="s35" data-section="METRICS">
+        <div class="slide-top r-up d1">
+          <div class="slide-eyebrow">METRICS<span class="eyebrow-num"></span></div>
+        </div>
+        <h1 class="slide-title r-up d1">SLI → SLO → SLA: measurement, target, and promise</h1>
+        <p class="slide-sub r-up d2">SLI: what you actually measure — “99.94% of requests succeeded, last 30 days.” SLO: your internal goal — “99.9%.” SLA: the external, often contractual promise — “99.5%,” usually looser, with a financial penalty if missed.</p>
+        <div class="stage"><svg id="svg-s35" viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"></svg></div>
+        <p class="caption r-up d3">So far: <b>the SLA is deliberately looser than the SLO</b>, so you breach your own internal target long before you breach a customer contract. But “99.9%” means nothing until you convert it into actual minutes — <i>how much downtime does that number actually buy you?</i></p>
+      </section>
+      <section class="slide" id="s36" data-section="METRICS">
+        <div class="slide-top r-up d1">
+          <div class="slide-eyebrow">METRICS<span class="eyebrow-num"></span></div>
+        </div>
+        <h1 class="slide-title r-up d1">Error budget: your SLO, converted into minutes you're allowed to fail</h1>
+        <p class="slide-sub r-up d2">budget = (1 − SLO) × total time. Example: SLO = 99.9% over a 30-day month (43,200 minutes) → you're allowed 43.2 minutes of downtime, total, all month.</p>
+        <div class="stage"><svg id="svg-s36" viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"></svg></div>
+        <p class="caption r-up d3">So far: <b>the error budget turns an abstract percentage into a spendable resource</b> — once it's gone, teams slow down and stabilize instead of shipping. That's a policy for the <i>whole month</i> — <i>what does the failure pattern look like for one single machine, one incident at a time?</i></p>
+      </section>
+      <section class="slide" id="s37" data-section="METRICS">
+        <div class="slide-top r-up d1">
+          <div class="slide-eyebrow">METRICS<span class="eyebrow-num"></span></div>
+        </div>
+        <h1 class="slide-title r-up d1">MTBF & MTTR: how often it breaks, and how fast you fix it</h1>
+        <p class="slide-sub r-up d2">MTBF (Mean Time Between Failures) is the average healthy stretch. MTTR (Mean Time To Recovery) is the average repair time. Availability = MTBF / (MTBF + MTTR). Example: MTBF = 720h, MTTR = 2h → availability = 720 / 722 ≈ 99.72%.</p>
+        <div class="stage"><svg id="svg-s37" viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"></svg></div>
+        <p class="caption r-up d3">So far: <b>you can hit the same availability by failing rarely or by fixing fast</b> — the formula doesn't care which lever you pull. Both of those measure the machine. Two more metrics measure something else entirely — <i>your data, during that repair window.</i></p>
+      </section>
+      <section class="slide" id="s38" data-section="METRICS">
+        <div class="slide-top r-up d1">
+          <div class="slide-eyebrow">METRICS<span class="eyebrow-num"></span></div>
+        </div>
+        <h1 class="slide-title r-up d1">RPO & RTO: how much data you can lose, and how long you can be down</h1>
+        <p class="slide-sub r-up d2">RPO (Recovery Point Objective): the maximum data loss, measured backward in time from the incident — set by your backup frequency. RTO (Recovery Time Objective): the maximum downtime, measured forward — set by how fast your recovery process actually runs.</p>
+        <div class="stage"><svg id="svg-s38" viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"></svg></div>
+        <p class="caption r-up d3">So far: <b>RPO is a promise about the past, RTO is a promise about the future</b>, and every pattern in this deck exists to make one or both of those numbers smaller.</p>
+      </section>
+      <section class="slide" id="s39" data-section="THE FULL PICTURE">
+        <div class="slide-top r-up d1">
+          <div class="slide-eyebrow">THE FULL PICTURE<span class="eyebrow-num"></span></div>
+        </div>
+        <h1 class="slide-title r-up d1">Every pattern, mapped to where it sits in a request's life</h1>
+        <p class="slide-sub r-up d2">Nothing here was arbitrary — each pattern answered one specific, narrow question about one specific point on this line.</p>
+        <div class="stage"><svg id="svg-s39" viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"></svg></div>
+        <p class="caption r-up d3">Resilience isn't a single technique. It's this whole map, applied consistently, at every point something can go wrong.</p>
+      </section>
+      <section class="slide" id="s40" data-section="CLOSE">
+        <div class="slide-top r-up d1">
+          <div class="slide-eyebrow">CLOSE<span class="eyebrow-num"></span></div>
+        </div>
+        <h1 class="slide-title r-up d1">Resilience isn't preventing failure — it's controlling what happens next</h1>
+        <p class="slide-sub r-up d2">Feynman's test for whether you understand something: can you explain it from first principles, out loud, to someone who's never heard of it? Try it on “why a retry without backoff makes an outage worse.” If you can, you've actually learned this.</p>
+        <div class="stage"><svg id="svg-s40" viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"></svg></div>
+        <p class="caption r-up d3">Thanks for going through it in depth. Use the dots below to jump back to any pattern.</p>
+      </section>
+    </div>
+    <button class="nav-btn prev" id="prevBtn" aria-label="Previous">&#8249;</button>
+    <button class="nav-btn next" id="nextBtn" aria-label="Next">&#8250;</button>
+    <div class="nav-dots" id="navDots"></div>
+    <div class="hint">&#8593;&#8595; / space / swipe</div>
+  </div>
+</div>
+<script>
+(function(){
+"use strict";
+const SVGNS = "http://www.w3.org/2000/svg";
+const COL = { teal:"#3fb6a3", amber:"#d9a544", rose:"#c96860", violet:"#8b7fc9", ink:"#e9e6e0", dim:"#a39d92", faint:"#5c574f", line:"#2a2a28" };
+
+// ---------- SVG helpers ----------
+function E(tag, attrs, parent){
+  const e = document.createElementNS(SVGNS, tag);
+  attrs = attrs || {};
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function T(x, y, str, attrs, parent){
+  attrs = attrs || {};
+  const base = { x:x, y:y, fill:COL.ink, "font-size":13 };
+  const t = E("text", Object.assign(base, attrs), parent);
+  t.textContent = str;
+  return t;
+}
+function fadeIn(e, delay, dur, to){
+  delay = delay||0; dur = dur||500; to = (to===undefined)?1:to;
+  e.style.opacity = 0;
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    e.style.transition = "opacity " + dur + "ms ease";
+    setTimeout(()=>{ e.style.opacity = to; }, delay);
+  }));
+}
+function growMulti(e, fromAttrs, toAttrs, delay, dur, ease){
+  delay = delay||0; dur = dur||650; ease = ease||"cubic-bezier(.4,0,.2,1)";
+  for (const k in fromAttrs) e.setAttribute(k, fromAttrs[k]);
+  const props = Object.keys(toAttrs).join(", ");
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    e.style.transition = props.split(", ").map(p=>p+" "+dur+"ms "+ease).join(", ");
+    setTimeout(()=>{ for (const k in toAttrs) e.setAttribute(k, toAttrs[k]); }, delay);
+  }));
+}
+function drawLine(e, delay, dur){
+  delay = delay||0; dur = dur||700;
+  let len = 10;
+  try { len = e.getTotalLength(); } catch(err){ len = 100; }
+  e.style.strokeDasharray = len;
+  e.style.strokeDashoffset = len;
+  e.style.opacity = 1;
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    e.style.transition = "stroke-dashoffset " + dur + "ms ease";
+    setTimeout(()=>{ e.style.strokeDashoffset = 0; }, delay);
+  }));
+}
+function popBox(svg, cx, cy, w, h, label, color, delay, sub, opts){
+  opts = opts || {};
+  const g = E("g", {}, svg);
+  const rect = E("rect", { x:cx, y:cy, width:0, height:0, rx: opts.rx||8, fill: opts.fill||"none", stroke:color, "stroke-width": opts.sw||1.6, opacity:0.95 }, g);
+  growMulti(rect, { x:cx, y:cy, width:0, height:0 }, { x:cx-w/2, y:cy-h/2, width:w, height:h }, delay, 600);
+  const txt = T(cx, cy + (sub?-3:5), label, { "text-anchor":"middle", "font-size": opts.fs||14, "font-weight":600, fill: opts.textColor||COL.ink }, g);
+  fadeIn(txt, delay+280, 400);
+  if (sub){
+    const s = T(cx, cy+15, sub, { "text-anchor":"middle", "font-size":10.5, fill:COL.dim }, g);
+    fadeIn(s, delay+380, 400);
+  }
+  return { g:g, rect:rect, txt:txt };
+}
+function arrow(svg, x1, y1, x2, y2, color, delay, dur, label, dashed){
+  const g = E("g", {}, svg);
+  const line = E("line", { x1:x1, y1:y1, x2:x2, y2:y2, stroke:color, "stroke-width":1.6, "marker-end":"url(#arrowhead)" }, g);
+  if (dashed) line.setAttribute("stroke-dasharray", "4,4");
+  drawLine(line, delay, dur||600);
+  if (label){
+    const mx = (x1+x2)/2, my=(y1+y2)/2 - 9;
+    const t = T(mx, my, label, {"text-anchor":"middle","font-size":10.5, fill:COL.dim}, g);
+    fadeIn(t, delay + (dur||600), 350);
+  }
+  return g;
+}
+function flowDot(svg, x1, y1, x2, y2, color, delay, dur, r){
+  r = r||4.5; dur = dur||1100;
+  const dot = E("circle", { cx:x1, cy:y1, r:r, fill:color, opacity:0 }, svg);
+  const start = performance.now() + delay;
+  function step(now){
+    let t = (now - start) / dur;
+    if (t < 0){ requestAnimationFrame(step); return; }
+    dot.style.opacity = 1;
+    if (t > 1) t = 1;
+    const ease = t<0.5 ? 2*t*t : -1+(4-2*t)*t;
+    dot.setAttribute("cx", x1 + (x2-x1)*ease);
+    dot.setAttribute("cy", y1 + (y2-y1)*ease);
+    if (t < 1) requestAnimationFrame(step);
+    else dot.style.opacity = 0.9;
+  }
+  requestAnimationFrame(step);
+  return dot;
+}
+function barV(svg, x, yBase, width, toHeight, color, delay, label, valueLabel){
+  const g = E("g", {}, svg);
+  const rect = E("rect", { x:x, y:yBase, width:width, height:0, fill:color, opacity:0.85, rx:2 }, g);
+  growMulti(rect, { y:yBase, height:0 }, { y:yBase-toHeight, height:toHeight }, delay, 700);
+  if (label){ const t = T(x+width/2, yBase+18, label, {"text-anchor":"middle","font-size":10.5, fill:COL.dim}, g); fadeIn(t, delay+300, 400); }
+  if (valueLabel){ const v = T(x+width/2, yBase-toHeight-8, valueLabel, {"text-anchor":"middle","font-size":11, fill:COL.ink,"font-weight":600}, g); fadeIn(v, delay+500, 400); }
+  return g;
+}
+function barH(svg, x, y, height, toWidth, color, delay, label){
+  const g = E("g", {}, svg);
+  const rect = E("rect", { x:x, y:y, width:0, height:height, fill:color, opacity:0.85, rx:2 }, g);
+  growMulti(rect, { x:x, width:0 }, { x:x, width:toWidth }, delay, 700);
+  if (label){ const t = T(x+toWidth+8, y+height/2+4, label, {"font-size":11, fill:COL.ink}, g); fadeIn(t, delay+500, 400); }
+  return g;
+}
+function ring(svg, cx, cy, color, delay){
+  const c = E("circle", { cx:cx, cy:cy, r:4, fill:"none", stroke:color, "stroke-width":2, opacity:0.9 }, svg);
+  growMulti(c, { r:4, opacity:0.9 }, { r:26, opacity:0 }, delay, 1000, "ease-out");
+  return c;
+}
+function dashline(svg, x1, y1, x2, y2, color, opts){
+  opts = opts || {};
+  return E("line", { x1:x1, y1:y1, x2:x2, y2:y2, stroke: color||COL.line, "stroke-width": opts.sw||1, "stroke-dasharray": opts.dash||"3,4", opacity: opts.opacity||0.6 }, svg);
+}
+function clearSvg(svg){ while (svg.firstChild) svg.removeChild(svg.firstChild); ensureDefs(svg); }
+function ensureDefs(svg){
+  const defs = E("defs", {}, svg);
+  const marker = E("marker", { id:"arrowhead", viewBox:"0 0 10 10", refX:8, refY:5, markerWidth:6, markerHeight:6, orient:"auto-start-reverse" }, defs);
+  E("path", { d:"M0,0 L10,5 L0,10 z", fill: "currentColor", style:"fill:#8a8478" }, marker);
+}
+const slideScripts = {};
+
+// ---------- S1: cold open ----------
+slideScripts.s1 = function(svg){
+  const axisY = 190, x1 = 70, x2 = 930;
+  const axis = E("line", {x1:x1,y1:axisY,x2:x2,y2:axisY, stroke:COL.line, "stroke-width":2}, svg);
+  drawLine(axis, 200, 700);
+  const hazards = [
+    {f:0.18, above:true,  label:"a network packet drops"},
+    {f:0.40, above:false, label:"a disk fills up"},
+    {f:0.62, above:true,  label:"a dependency slows down"},
+    {f:0.84, above:false, label:"a process pauses for GC"}
+  ];
+  hazards.forEach((h,i)=>{
+    const hx = x1 + (x2-x1)*h.f;
+    const hy = h.above ? axisY-60 : axisY+60;
+    const tick = E("line", {x1:hx,y1:axisY-6,x2:hx,y2:axisY+6, stroke:COL.rose, "stroke-width":2, opacity:0}, svg);
+    fadeIn(tick, 1000 + i*550, 300);
+    const dia = E("rect", {x:hx-5,y:hy-5,width:10,height:10, transform:"rotate(45 "+hx+" "+hy+")", fill:"none", stroke:COL.rose, "stroke-width":1.6, opacity:0}, svg);
+    fadeIn(dia, 1000 + i*550, 350);
+    const connector = E("line", {x1:hx,y1: h.above? axisY-8: axisY+8, x2:hx, y2: h.above? hy+8: hy-8, stroke:COL.rose, "stroke-width":1, opacity:0}, svg);
+    fadeIn(connector, 1000+i*550, 300);
+    const t = T(hx, h.above? hy-14 : hy+22, h.label, {"text-anchor":"middle","font-size":11.5, fill:COL.dim}, svg);
+    fadeIn(t, 1050+i*550, 400);
+  });
+  flowDot(svg, x1, axisY, x2, axisY, COL.amber, 950, 2600, 5.5);
+  const g = popBox(svg, x2-2, axisY, 120, 46, "handled?", COL.teal, 3650, null, {fs:13});
+  g.g.setAttribute("transform","translate(-58,0)");
+};
+
+// ---------- S2: cascading failure ----------
+slideScripts.s2 = function(svg){
+  const y = 90, w=140, h=64;
+  const A = popBox(svg, 150, y, w, h, "Service A", COL.teal, 100);
+  const B = popBox(svg, 480, y, w, h, "Service B", COL.teal, 250);
+  const C = popBox(svg, 810, y, w, h, "Service C", COL.teal, 400);
+  arrow(svg, 220, y, 410, y, "#6b6a63", 700, 500);
+  arrow(svg, 550, y, 740, y, "#6b6a63", 850, 500);
+  // queues
+  const qAx=150, qBx=480, qBase=330, qw=60;
+  E("rect", {x:qAx-qw/2,y:200,width:qw,height:130, fill:"none", stroke:COL.line,"stroke-width":1.4,rx:4}, svg);
+  E("rect", {x:qBx-qw/2,y:200,width:qw,height:130, fill:"none", stroke:COL.line,"stroke-width":1.4,rx:4}, svg);
+  T(qAx, 190, "A's queue", {"text-anchor":"middle","font-size":10.5, fill:COL.dim}, svg);
+  T(qBx, 190, "B's queue", {"text-anchor":"middle","font-size":10.5, fill:COL.dim}, svg);
+  setTimeout(()=>{
+    C.rect.style.transition = "stroke 500ms ease";
+    C.rect.setAttribute("stroke", COL.rose);
+    const lbl = T(810, y+56, "gets slow\u2026", {"text-anchor":"middle","font-size":11, fill:COL.rose,"font-weight":600, opacity:0}, svg);
+    fadeIn(lbl, 200, 350);
+    ring(svg, 810, y, COL.rose, 300); ring(svg, 810, y, COL.rose, 900);
+  }, 1600);
+  setTimeout(()=>{ barV(svg, qBx-qw/2+5, qBase, qw-10, 118, COL.rose, 0, null, null); }, 2500);
+  setTimeout(()=>{ barV(svg, qAx-qw/2+5, qBase, qw-10, 118, COL.rose, 0, null, null); }, 3400);
+  setTimeout(()=>{
+    const t = T(500, 355, "SYSTEM DOWN \u2014 nothing crashed, everything just waited", {"text-anchor":"middle","font-size":14,"font-weight":700, fill:COL.rose, opacity:0});
+    svg.appendChild(t); fadeIn(t, 0, 500);
+  }, 4300);
+};
+
+// ---------- S3: timeout ----------
+slideScripts.s3 = function(svg){
+  const x1=90, scale=1.68; // px per ms
+  const toX = x1 + 200*scale;
+  const axisY = 330;
+  E("line", {x1:x1,y1:axisY,x2:x1+500*scale,y2:axisY, stroke:COL.line,"stroke-width":1.4}, svg);
+  [0,100,200,300,400,500].forEach(ms=>{
+    const tx = x1+ms*scale;
+    E("line", {x1:tx,y1:axisY-4,x2:tx,y2:axisY+4, stroke:COL.faint,"stroke-width":1}, svg);
+    T(tx, axisY+20, ms+"ms", {"text-anchor":"middle","font-size":10, fill:COL.faint}, svg);
+  });
+  const tl = E("line", {x1:toX,y1:100,x2:toX,y2:axisY+4, stroke:COL.amber,"stroke-width":1.4, "stroke-dasharray":"5,4"}, svg);
+  drawLine(tl, 300, 500);
+  T(toX+8, 96, "timeout = 200ms", {"font-size":11.5, fill:COL.amber,"font-weight":600}, svg);
+
+  T(x1, 145, "Fast dependency \u2014 60ms", {"font-size":12.5, fill:COL.dim}, svg);
+  const fastW = 60*scale;
+  const fastBar = E("rect", {x:x1,y:158,width:0,height:16, fill:COL.teal, rx:2}, svg);
+  growMulti(fastBar, {width:0}, {width:fastW}, 800, 500);
+  setTimeout(()=>{
+    const c = T(x1+fastW+10, 170, "200 OK", {"font-size":11.5, fill:COL.teal,"font-weight":600, opacity:0}, svg);
+    fadeIn(c,0,350);
+  }, 1350);
+
+  T(x1, 255, "Slow dependency \u2014 unbounded wait", {"font-size":12.5, fill:COL.dim}, svg);
+  const slowW = toX-x1;
+  const slowBar = E("rect", {x:x1,y:268,width:0,height:16, fill:COL.teal, rx:2}, svg);
+  growMulti(slowBar, {width:0}, {width:slowW}, 1000, 1500);
+  setTimeout(()=>{
+    slowBar.style.transition = "fill 300ms ease";
+    slowBar.setAttribute("fill", COL.rose);
+    const c = T(toX+8, 280, "aborted \u2014 timed out", {"font-size":11.5, fill:COL.rose,"font-weight":600, opacity:0}, svg);
+    fadeIn(c,0,350);
+  }, 2550);
+};
+
+// ---------- S4: retry ----------
+slideScripts.s4 = function(svg){
+  const y=110, r=36;
+  const xs=[230,500,770];
+  const results=["X","X","\u2713"];
+  const colors=[COL.rose,COL.rose,COL.teal];
+  xs.forEach((cx,i)=>{
+    const c = E("circle", {cx:cx,cy:y,r:0, fill:"none", stroke:colors[i], "stroke-width":2}, svg);
+    growMulti(c, {r:0}, {r:r}, 300+i*650, 500);
+    setTimeout(()=>{
+      const t = T(cx,y+6,results[i], {"text-anchor":"middle","font-size":22,"font-weight":700, fill:colors[i], opacity:0}, svg);
+      fadeIn(t,0,350);
+    }, 850+i*650);
+    const lbl = T(cx, y+r+22, "Attempt "+(i+1), {"text-anchor":"middle","font-size":11.5, fill:COL.dim}, svg);
+    fadeIn(lbl, 300+i*650, 400);
+    if (i<xs.length-1) arrow(svg, cx+r+8, y, xs[i+1]-r-8, y, "#6b6a63", 950+i*650, 300);
+  });
+  const formY=250;
+  const f = T(500, formY, "P(all fail) = p\u207F", {"text-anchor":"middle","font-size":15, fill:COL.ink, "font-weight":600, opacity:0}, svg);
+  fadeIn(f, 2400, 400);
+  const f2 = T(500, formY+22, "p = 0.3 per attempt", {"text-anchor":"middle","font-size":11.5, fill:COL.dim, opacity:0}, svg);
+  fadeIn(f2, 2700, 400);
+  barV(svg, 330, 355, 70, 90, COL.amber, 3000, "1 attempt", "30% fail");
+  barV(svg, 600, 355, 70, 8.1, COL.teal, 3300, "3 attempts", "2.7% fail");
+};
+
+// ---------- S5: backoff ----------
+slideScripts.s5 = function(svg){
+  const f = T(500, 55, "delay = base \u00d7 2^attempt   (base = 100ms)", {"text-anchor":"middle","font-size":14.5,"font-weight":600, fill:COL.ink, opacity:0}, svg);
+  fadeIn(f, 100, 450);
+  const delays=[100,200,400,800];
+  const xs=[190,390,590,790];
+  const scale=0.21;
+  const yBase=340;
+  delays.forEach((d,i)=>{
+    barV(svg, xs[i]-45, yBase, 90, d*scale, i<2?COL.amber:COL.teal, 700+i*500, "retry "+(i+1), d+"ms wait");
+    if (i<delays.length-1){
+      const ax1=xs[i]+50, ax2=xs[i+1]-50;
+      arrow(svg, ax1, yBase-8, ax2, yBase-8, "#6b6a63", 1150+i*500, 350);
+    }
+  });
+  const note = T(500, 100, "each failure doubles the wait \u2014 giving the service breathing room", {"text-anchor":"middle","font-size":12, fill:COL.dim, opacity:0}, svg);
+  fadeIn(note, 2700, 450);
+};
+
+// ---------- S6: jitter ----------
+slideScripts.s6 = function(svg){
+  T(70, 70, "No jitter \u2014 every client retries at the same instant", {"font-size":13, fill:COL.dim,"font-weight":600}, svg);
+  const axisY1 = 150;
+  E("line", {x1:70,y1:axisY1,x2:930,y2:axisY1, stroke:COL.line,"stroke-width":1.2}, svg);
+  const clusterXs = [493,496,499,502,505,497,500,503];
+  clusterXs.forEach((cx,i)=>{
+    const c = E("circle", {cx:cx, cy:axisY1, r:0, fill:COL.rose, opacity:0.85}, svg);
+    growMulti(c, {r:0}, {r:5}, 600+i*40, 250);
+  });
+  setTimeout(()=>{
+    barV(svg, 493, axisY1, 14, 60, COL.rose, 0, null, null);
+    const t = T(560, axisY1-70, "8\u00d7 load, same instant \u2192 spike", {"font-size":11.5, fill:COL.rose,"font-weight":600, opacity:0}, svg);
+    fadeIn(t,150,400);
+  }, 1200);
+
+  T(70, 245, "With jitter \u2014 retries land at random points in the window", {"font-size":13, fill:COL.dim,"font-weight":600}, svg);
+  const axisY2 = 320;
+  E("line", {x1:70,y1:axisY2,x2:930,y2:axisY2, stroke:COL.line,"stroke-width":1.2}, svg);
+  const spreadXs = [360,410,470,540,600,660,720,780];
+  spreadXs.forEach((cx,i)=>{
+    const hh = 18+ (i%3)*10;
+    setTimeout(()=>{ barV(svg, cx-6, axisY2, 12, hh, COL.teal, 0, null, null); }, 1900+i*130);
+  });
+  setTimeout(()=>{
+    const t = T(560, axisY2-70, "same 8 retries, spread across 420ms \u2014 no spike", {"text-anchor":"middle","font-size":11.5, fill:COL.teal,"font-weight":600, opacity:0}, svg);
+    fadeIn(t,0,400);
+  }, 3100);
+};
+// ---------- S7: circuit breaker ----------
+slideScripts.s7 = function(svg){
+  const cx1=200, cx2=500, cx3=800, cy=140, r=64;
+  const closed = popBox(svg, cx1, cy, 128,128, "CLOSED", COL.teal, 100, "calling normally");
+  closed.rect.setAttribute("rx", 64);
+  const open = popBox(svg, cx2, cy, 128,128, "OPEN", COL.rose, 100, "failing instantly");
+  open.rect.setAttribute("rx", 64);
+  const half = popBox(svg, cx3, cy, 128,128, "HALF-OPEN", COL.amber, 100, "a few test calls");
+  half.rect.setAttribute("rx", 64);
+  arrow(svg, cx1+66, cy-20, cx2-66, cy-20, COL.rose, 900, 500, "error rate > 50%");
+  arrow(svg, cx2+66, cy-20, cx3-66, cy-20, COL.dim, 1500, 500, "after 30s cooldown");
+  const back1 = arrow(svg, cx3-40, cy+70, cx1+40, cy+70, COL.teal, 2100, 600, "test calls succeed");
+  const back2y=cy+90;
+  const backLine = E("path", {d:"M "+(cx3-50)+" "+(cy+66)+" C "+(cx3-50)+" "+back2y+", "+(cx1+50)+" "+back2y+", "+(cx1+50)+" "+(cy+66), fill:"none", stroke:COL.teal,"stroke-width":1.4,"marker-end":"url(#arrowhead)"}, svg);
+  drawLine(backLine, 2100, 650);
+  const backLbl = T(500, back2y+16, "recovered \u2192 back to normal", {"text-anchor":"middle","font-size":11, fill:COL.teal, opacity:0}, svg);
+  fadeIn(backLbl, 2700, 400);
+  const gaugeLbl = T(500, 330, "threshold: open when \u226550% of the last 20 calls fail, in a rolling window", {"text-anchor":"middle","font-size":12, fill:COL.dim, opacity:0}, svg);
+  fadeIn(gaugeLbl, 3200, 450);
+};
+
+// ---------- S8: bulkhead ----------
+slideScripts.s8 = function(svg){
+  const capW=280;
+  popBox(svg, 210, 70, 200, 50, "App Server", COL.ink, 100, null, {fs:13});
+  popBox(svg, 730, 70, 200, 50, "App Server", COL.ink, 200, null, {fs:13});
+  // pools
+  const poolAx=90, poolBx=610, poolY=150, poolW=260, poolH=170;
+  E("rect", {x:poolAx,y:poolY,width:poolW,height:poolH, fill:"none", stroke:COL.teal,"stroke-width":1.6, rx:8, opacity:0}, svg);
+  const p1 = svg.lastChild; fadeIn(p1, 500, 400);
+  T(poolAx+poolW/2, poolY-10, "Payments pool \u2014 10 threads", {"text-anchor":"middle","font-size":12, fill:COL.teal,"font-weight":600, opacity:0}, svg);
+  fadeIn(svg.lastChild, 600, 400);
+  E("rect", {x:poolBx,y:poolY,width:poolW,height:poolH, fill:"none", stroke:COL.rose,"stroke-width":1.6, rx:8, opacity:0}, svg);
+  const p2 = svg.lastChild; fadeIn(p2, 500, 400);
+  T(poolBx+poolW/2, poolY-10, "Recommendations pool \u2014 10 threads", {"text-anchor":"middle","font-size":12, fill:COL.rose,"font-weight":600, opacity:0}, svg);
+  fadeIn(svg.lastChild, 600, 400);
+  arrow(svg, 210, 95, 220, poolY-2, "#6b6a63", 300, 350);
+  arrow(svg, 730, 95, 740, poolY-2, "#6b6a63", 300, 350);
+  // thread cells
+  for (let i=0;i<10;i++){
+    const gx = poolAx+18+(i%5)*48, gy = poolY+30+Math.floor(i/5)*70;
+    const cell = E("rect", {x:gx,y:gy,width:36,height:50, fill:"none", stroke:COL.teal,"stroke-width":1.2, rx:3, opacity:0}, svg);
+    fadeIn(cell, 1000+i*40, 300, 0.8);
+  }
+  for (let i=0;i<10;i++){
+    const gx = poolBx+18+(i%5)*48, gy = poolY+30+Math.floor(i/5)*70;
+    const cell = E("rect", {x:gx,y:gy,width:36,height:50, fill:"none", stroke:COL.rose,"stroke-width":1.2, rx:3, opacity:0}, svg);
+    fadeIn(cell, 1000+i*40, 300, 0.8);
+    setTimeout(()=>{
+      cell.style.transition = "fill 400ms ease, opacity 400ms ease";
+      cell.setAttribute("fill", COL.rose); cell.style.opacity = 0.55;
+    }, 1900+i*90);
+  }
+  setTimeout(()=>{
+    const t = T(poolBx+poolW/2, poolY+poolH+26, "recommendations hangs \u2014 its pool fills up and stalls", {"text-anchor":"middle","font-size":11.5, fill:COL.rose, opacity:0}, svg);
+    fadeIn(t, 0, 400);
+    const t2 = T(poolAx+poolW/2, poolY+poolH+26, "payments keeps working, untouched", {"text-anchor":"middle","font-size":11.5, fill:COL.teal, opacity:0}, svg);
+    fadeIn(t2, 200, 400);
+  }, 2900);
+};
+
+// ---------- S9: rate limiter ----------
+slideScripts.s9 = function(svg){
+  const gateX=500, gateY=190;
+  const incoming = [0,1,2,3,4,5,6,7];
+  incoming.forEach((i)=>{
+    const sy = 40 + i*40;
+    setTimeout(()=>{
+      const d = E("circle", {cx:130, cy:sy, r:6, fill: i<5?COL.teal:COL.rose, opacity:0}, svg);
+      fadeIn(d, 0, 250);
+      if (i<5){
+        flowDot(svg, 130, sy, gateX-70, gateY, i<5?COL.teal:COL.rose, 200, 900, 5.5);
+      } else {
+        flowDot(svg, 130, sy, gateX-90, gateY-10-((i-5)*30), COL.rose, 200, 700, 5.5);
+      }
+    }, 300+i*130);
+  });
+  popBox(svg, gateX, gateY, 150, 220, "", COL.amber, 1600, null, {fs:1});
+  T(gateX, gateY-40, "100 req/s", {"text-anchor":"middle","font-size":16,"font-weight":700, fill:COL.amber, opacity:0}, svg);
+  fadeIn(svg.lastChild, 2200, 400);
+  T(gateX, gateY-16, "per API key", {"text-anchor":"middle","font-size":11, fill:COL.dim, opacity:0}, svg);
+  fadeIn(svg.lastChild, 2300, 400);
+  setTimeout(()=>{
+    const t = T(gateX, gateY+40, "5 admitted", {"text-anchor":"middle","font-size":12.5, fill:COL.teal,"font-weight":600, opacity:0}, svg);
+    fadeIn(t,0,350);
+  }, 2700);
+  T(870, 100, "429\nToo Many\nRequests", {"text-anchor":"middle","font-size":11.5, fill:COL.rose}, svg);
+  const rejT = T(870, 100, "429 \u2014 rejected", {"text-anchor":"middle","font-size":12, fill:COL.rose,"font-weight":600, opacity:0}, svg);
+  fadeIn(rejT, 1400, 400);
+};
+
+// ---------- S10: load shedding ----------
+slideScripts.s10 = function(svg){
+  const items = [
+    {y:60, label:"checkout", keep:true},
+    {y:110, label:"checkout", keep:true},
+    {y:160, label:"search", keep:true},
+    {y:210, label:"analytics ping", keep:false},
+    {y:260, label:"analytics ping", keep:false},
+    {y:310, label:"background sync", keep:false}
+  ];
+  T(150, 30, "incoming, mixed priority", {"text-anchor":"middle","font-size":11.5, fill:COL.dim}, svg);
+  T(850, 30, "checkout still gets through", {"text-anchor":"middle","font-size":11.5, fill:COL.dim}, svg);
+  items.forEach((it,i)=>{
+    const c = E("rect", {x:100,y:it.y-10,width:100,height:22, rx:4, fill:"none", stroke: it.keep?COL.teal:COL.dim, "stroke-width":1.4, opacity:0}, svg);
+    fadeIn(c, 300+i*180, 350);
+    T(150, it.y+5, it.label, {"text-anchor":"middle","font-size":10.5, fill: it.keep?COL.teal:COL.dim, opacity:0}, svg).style.opacity=0;
+    fadeIn(svg.lastChild, 300+i*180, 350);
+    setTimeout(()=>{
+      if (it.keep){
+        flowDot(svg, 200, it.y, 800, 90, COL.teal, 0, 900, 5);
+      } else {
+        const dot = E("circle", {cx:200, cy:it.y, r:5, fill:COL.rose, opacity:0}, svg);
+        fadeIn(dot, 0, 300);
+        setTimeout(()=>{
+          dot.style.transition = "cx 500ms ease, cy 500ms ease, opacity 500ms ease";
+          dot.setAttribute("cx", 400); dot.setAttribute("cy", 240); dot.style.opacity = 0;
+        }, 200);
+      }
+    }, 1200+i*180);
+  });
+  E("rect", {x:340,y:190,width:120,height:100, fill:"none", stroke:COL.rose,"stroke-width":1.4,"stroke-dasharray":"4,4", rx:6, opacity:0}, svg);
+  fadeIn(svg.lastChild, 1200, 400);
+  T(400, 310, "shed under pressure", {"text-anchor":"middle","font-size":11, fill:COL.rose, opacity:0}, svg);
+  fadeIn(svg.lastChild, 1400, 400);
+  popBox(svg, 850, 90, 170, 60, "checkout", COL.teal, 2600, "served, on time");
+};
+
+// ---------- S11: backpressure ----------
+slideScripts.s11 = function(svg){
+  popBox(svg, 170, 150, 180, 70, "Producer", COL.violet, 100);
+  const qx=430, qw=260, qy=100, qh=160;
+  E("rect", {x:qx,y:qy,width:qw,height:qh, fill:"none", stroke:COL.line,"stroke-width":1.4, rx:6, opacity:0}, svg);
+  fadeIn(svg.lastChild, 400, 400);
+  T(qx+qw/2, qy-14, "queue", {"text-anchor":"middle","font-size":11.5, fill:COL.dim, opacity:0}, svg);
+  fadeIn(svg.lastChild, 500, 400);
+  popBox(svg, 830, 150, 170, 70, "Consumer", COL.teal, 300);
+  arrow(svg, 260, 150, qx-8, 150, COL.violet, 700, 400);
+  arrow(svg, qx+qw+8, 150, 745, 150, COL.teal, 700, 400);
+  const fill = E("rect", {x:qx+6,y:qy+qh-10,width:qw-12,height:0, fill:COL.violet, opacity:0.5}, svg);
+  growMulti(fill, {height:0, y:qy+qh-10}, {height:qh-16, y:qy+8}, 1200, 1400);
+  setTimeout(()=>{
+    const sig = arrow(svg, 745, 200, 260, 200, COL.amber, 0, 550, "request(n) \u2014 slow down", true);
+    const lbl = T(500, 260, "consumer only asks for as much as it can handle", {"text-anchor":"middle","font-size":12, fill:COL.amber, opacity:0}, svg);
+    fadeIn(lbl, 500, 450);
+  }, 2700);
+  setTimeout(()=>{
+    fill.style.transition = "height 900ms ease, y 900ms ease";
+    fill.setAttribute("height", (qh-16)*0.35); fill.setAttribute("y", qy+8+(qh-16)*0.65);
+  }, 3400);
+};
+// ---------- S12: failover ----------
+slideScripts.s12 = function(svg){
+  const p = popBox(svg, 260, 130, 190, 90, "Primary", COL.teal, 100, "serving traffic");
+  const s = popBox(svg, 740, 130, 190, 90, "Standby", COL.dim, 300, "idle, replicated");
+  arrow(svg, 50, 130, 165, 130, COL.teal, 700, 400, "clients");
+  setTimeout(()=>{
+    p.rect.style.transition = "stroke 400ms ease";
+    p.rect.setAttribute("stroke", COL.rose);
+    const x1 = T(260,130,"\u2717", {"text-anchor":"middle","font-size":30,"font-weight":700, fill:COL.rose, opacity:0}, svg);
+    fadeIn(x1,0,300);
+    const l = T(260,200,"heartbeat missed \u2014 declared dead", {"text-anchor":"middle","font-size":11.5, fill:COL.rose, opacity:0}, svg);
+    fadeIn(l,150,350);
+  }, 1300);
+  setTimeout(()=>{
+    const re = E("path", {d:"M 165 130 C 400 40, 550 40, 645 110", fill:"none", stroke:COL.amber,"stroke-width":1.8,"marker-end":"url(#arrowhead)"}, svg);
+    drawLine(re, 0, 700);
+    const l = T(400, 70, "traffic rerouted", {"text-anchor":"middle","font-size":11.5, fill:COL.amber, opacity:0}, svg);
+    fadeIn(l, 400, 350);
+  }, 2200);
+  setTimeout(()=>{
+    s.rect.style.transition = "stroke 400ms ease";
+    s.rect.setAttribute("stroke", COL.teal);
+    const c = T(740,130,"now primary", {"text-anchor":"middle","font-size":11.5,"font-weight":600, fill:COL.teal, opacity:0}, svg);
+    fadeIn(c,50,350);
+  }, 3000);
+  const timing = T(500, 330, "detection (5s) + reroute (2s) = ~7s of impact, bounded and known", {"text-anchor":"middle","font-size":12, fill:COL.dim, opacity:0}, svg);
+  fadeIn(timing, 3500, 450);
+};
+
+// ---------- S13: fail fast ----------
+slideScripts.s13 = function(svg){
+  T(70,50,"Without fail-fast", {"font-size":13,"font-weight":600, fill:COL.dim}, svg);
+  const y1=100;
+  const steps1=[["auth check",60],["build request",70],["call downstream",560],["finally fails",70]];
+  let x=90;
+  steps1.forEach((st,i)=>{
+    const w = 40+st[1]*0.5;
+    barH(svg, x, y1, 26, w, i===2?COL.rose:COL.ink, 300+i*250);
+    T(x+8, y1+17, st[0], {"font-size":10.5, fill:"#050607","font-weight":600, opacity:0}, svg);
+    x += w+6;
+  });
+  setTimeout(()=>{ const t=T(920,y1+13,"~3000ms wasted", {"text-anchor":"end","font-size":12, fill:COL.rose,"font-weight":600, opacity:0}, svg); fadeIn(t,0,400); }, 1900);
+
+  T(70,220,"With fail-fast", {"font-size":13,"font-weight":600, fill:COL.dim}, svg);
+  const y2=270;
+  setTimeout(()=>{
+    barH(svg, 90, y2, 26, 90, COL.amber, 0);
+    T(98, y2+17, "check breaker state", {"font-size":10, fill:"#050607","font-weight":600, opacity:0}, svg);
+    setTimeout(()=>{
+      const t=T(220,y2+13,"already open \u2014 reject in 1ms", {"font-size":12, fill:COL.teal,"font-weight":600, opacity:0}, svg);
+      fadeIn(t,0,400);
+    }, 700);
+  }, 2300);
+};
+
+// ---------- S14: graceful degradation ----------
+slideScripts.s14 = function(svg){
+  const cols = [
+    {x:150, title:"Full page", rows:["header","personalized picks","personalized picks","footer"], color:COL.teal},
+    {x:500, title:"Degraded page", rows:["header","popular items (generic)","popular items (generic)","footer"], color:COL.amber},
+    {x:850, title:"No handling", rows:["header","500 error","",""], color:COL.rose}
+  ];
+  cols.forEach((c,ci)=>{
+    T(c.x, 40, c.title, {"text-anchor":"middle","font-size":13,"font-weight":600, fill:c.color, opacity:0}, svg);
+    fadeIn(svg.lastChild, 200+ci*300, 400);
+    const bx=c.x-100, by=60, bw=200, bh=270;
+    E("rect", {x:bx,y:by,width:bw,height:bh, fill:"none", stroke:COL.line,"stroke-width":1.4, rx:6, opacity:0}, svg);
+    fadeIn(svg.lastChild, 300+ci*300, 400);
+    c.rows.forEach((r,ri)=>{
+      const ry = by+16+ri*62;
+      const isBroken = r==="500 error";
+      const rect = E("rect", {x:bx+10,y:ry,width:bw-20,height: ri===0?24:48, fill:"none", stroke: isBroken?COL.rose:c.color, "stroke-width":1.2, rx:3, opacity:0}, svg);
+      fadeIn(rect, 700+ci*300+ri*150, 350, isBroken?1:0.85);
+      if (r){
+        const t = T(bx+bw/2, ry+(ri===0?16:28), r, {"text-anchor":"middle","font-size":9.5, fill: isBroken?COL.rose:COL.dim, opacity:0}, svg);
+        fadeIn(t, 850+ci*300+ri*150, 350);
+      }
+    });
+  });
+};
+
+// ---------- S15: hedged requests ----------
+slideScripts.s15 = function(svg){
+  const x1=90, scale=6;
+  const axisY1=110, axisY2=230;
+  T(70,70,"Without hedging", {"font-size":13,"font-weight":600, fill:COL.dim}, svg);
+  T(70,190,"With hedging", {"font-size":13,"font-weight":600, fill:COL.dim}, svg);
+  [axisY1,axisY2].forEach(ay=> E("line", {x1:x1,y1:ay,x2:x1+130*scale,y2:ay, stroke:COL.line,"stroke-width":1.2}, svg));
+  // no hedge: single slow call to replica A, 130ms
+  const bar1 = E("rect", {x:x1,y:axisY1-10,width:0,height:20, fill:COL.rose, rx:3}, svg);
+  growMulti(bar1, {width:0}, {width:130*scale}, 500, 1200);
+  T(x1+130*scale+8, axisY1+5, "replica A \u2014 130ms (slow)", {"font-size":11, fill:COL.rose, opacity:0}, svg);
+  fadeIn(svg.lastChild, 1800, 400);
+
+  // hedge: A starts, at p95(=45ms) fire B, B answers at 40ms -> total 85ms
+  const barA = E("rect", {x:x1,y:axisY2-22,width:0,height:16, fill:COL.violet, rx:3, opacity:0.6}, svg);
+  growMulti(barA, {width:0}, {width:130*scale}, 500, 1200);
+  T(x1, axisY2-30, "replica A (still working)", {"font-size":10, fill:COL.violet, opacity:0}, svg);
+  fadeIn(svg.lastChild, 500, 350);
+  const hedgeX = x1+45*scale;
+  const tl = E("line", {x1:hedgeX,y1:axisY2-30,x2:hedgeX,y2:axisY2+26, stroke:COL.amber,"stroke-width":1.2,"stroke-dasharray":"3,3"}, svg);
+  drawLine(tl, 1000, 300);
+  T(hedgeX+6, axisY2-32, "p95 threshold \u2014 fire hedge", {"font-size":10, fill:COL.amber, opacity:0}, svg);
+  fadeIn(svg.lastChild, 1300, 350);
+  const barB = E("rect", {x:hedgeX,y:axisY2+8,width:0,height:16, fill:COL.teal, rx:3}, svg);
+  growMulti(barB, {width:0}, {width:40*scale}, 1500, 700);
+  setTimeout(()=>{
+    const t = T(hedgeX+40*scale+8, axisY2+20, "replica B answers first \u2014 85ms total", {"font-size":11, fill:COL.teal,"font-weight":600, opacity:0}, svg);
+    fadeIn(t,0,400);
+  }, 2250);
+};
+
+// ---------- S16: health checks ----------
+slideScripts.s16 = function(svg){
+  const lbX=500, lbY=60;
+  popBox(svg, lbX, lbY, 180, 56, "Load Balancer", COL.ink, 100);
+  const nodes=[{x:170,healthy:true},{x:400,healthy:true},{x:630,healthy:false},{x:860,healthy:true}];
+  nodes.forEach((n,i)=>{
+    const b = popBox(svg, n.x, 230, 140, 70, "Instance "+(i+1), n.healthy?COL.teal:COL.rose, 400+i*150);
+    arrow(svg, lbX + (n.x<lbX? -60:60)*(n.x<lbX?1:1), lbY+30, n.x, 195, "#5a5a56", 900+i*150, 500, i===0?"poll /health":null, true);
+  });
+  setTimeout(()=>{
+    const t=T(630, 250, "3 misses \u2192 unhealthy", {"text-anchor":"middle","font-size":11, fill:COL.rose,"font-weight":600, opacity:0}, svg);
+    fadeIn(t,0,400);
+    ring(svg, 630,230,COL.rose,150); ring(svg,630,230,COL.rose,650);
+  }, 2100);
+  setTimeout(()=>{
+    const x1=E("line",{x1:lbX-80,y1:lbY+20,x2:660,y2:210, stroke:COL.rose,"stroke-width":2, opacity:0},svg);
+    fadeIn(x1,0,300);
+    const t=T(500, 330, "removed from rotation \u2014 no traffic sent until it recovers", {"text-anchor":"middle","font-size":12, fill:COL.dim, opacity:0}, svg);
+    fadeIn(t,250,450);
+  }, 2600);
+};
+
+// ---------- S17: heartbeats ----------
+slideScripts.s17 = function(svg){
+  const coordX=500, coordY=80;
+  popBox(svg, coordX, coordY, 200, 56, "Coordinator", COL.ink, 100);
+  const nodes=[{x:180,y:230},{x:500,y:260},{x:820,y:230}];
+  nodes.forEach((n,i)=>{
+    popBox(svg, n.x, n.y, 130, 64, "Node "+(i+1), i===1?COL.rose:COL.teal, 300+i*150);
+  });
+  // pulses from healthy nodes
+  [0,2].forEach(i=>{
+    for (let k=0;k<3;k++){
+      setTimeout(()=>{
+        ring(svg, nodes[i].x, nodes[i].y-30, COL.teal, 0);
+        arrow(svg, nodes[i].x, nodes[i].y-30, coordX, coordY+28, COL.teal, 100, 500);
+      }, 900+i*100+k*650);
+    }
+  });
+  setTimeout(()=>{
+    const t = T(nodes[1].x, nodes[1].y+50, "3 heartbeats missed (3s) \u2014 declared dead", {"text-anchor":"middle","font-size":11, fill:COL.rose,"font-weight":600, opacity:0}, svg);
+    fadeIn(t,0,400);
+  }, 2800);
+  const note = T(500, 350, "push, not pull \u2014 failure is detected the moment silence crosses the threshold", {"text-anchor":"middle","font-size":12, fill:COL.dim, opacity:0}, svg);
+  fadeIn(note, 3200, 450);
+};
+
+// ---------- S18: DLQ ----------
+slideScripts.s18 = function(svg){
+  const qx=90, qy=120, cellW=90, cellH=60;
+  const labels=["msg 1","msg 2","poison","msg 4"];
+  labels.forEach((l,i)=>{
+    popBox(svg, qx+i*(cellW+14)+cellW/2, qy, cellW, cellH, l, l==="poison"?COL.rose:COL.ink, 100+i*150);
+  });
+  const poisonX = qx+2*(cellW+14)+cellW/2;
+  [1,2,3].forEach(n=>{
+    setTimeout(()=>{
+      ring(svg, poisonX, qy, COL.rose, 0);
+      const t = T(poisonX, qy+50+ (n*0), "retry "+n+" failed", {"text-anchor":"middle","font-size":10, fill:COL.rose, opacity:0}, svg);
+      fadeIn(t,150,300);
+      setTimeout(()=>{ t.remove(); }, 600);
+    }, 900+n*550);
+  });
+  setTimeout(()=>{
+    const arr = E("path", {d:"M "+poisonX+" "+(qy+35)+" C "+poisonX+" "+(qy+120)+", "+(700)+" "+(qy+170)+", 780 "+(qy+180), fill:"none", stroke:COL.amber,"stroke-width":1.8,"marker-end":"url(#arrowhead)"}, svg);
+    drawLine(arr, 0, 700);
+  }, 2650);
+  setTimeout(()=>{
+    popBox(svg, 830, qy+220, 190, 70, "Dead-letter queue", COL.amber, 0, "held for inspection");
+  }, 3300);
+  const note = T(400, qy+250, "everything else keeps flowing \u2014 nothing blocks behind it", {"text-anchor":"middle","font-size":12, fill:COL.dim, opacity:0}, svg);
+  fadeIn(note, 3700, 450);
+};
+
+// ---------- S19: idempotency ----------
+slideScripts.s19 = function(svg){
+  const key = "Idempotency-Key: abc123";
+  T(500, 40, key, {"text-anchor":"middle","font-size":13, fill:COL.amber,"font-weight":600, "font-family":"monospace", opacity:0}, svg);
+  fadeIn(svg.lastChild, 100, 400);
+  popBox(svg, 180, 150, 190, 64, "POST /charge (1st)", COL.violet, 400);
+  popBox(svg, 180, 280, 190, 64, "POST /charge (retry)", COL.violet, 600);
+  popBox(svg, 620, 210, 200, 90, "Server", COL.ink, 300);
+  arrow(svg, 275, 150, 520, 190, COL.violet, 900, 500);
+  arrow(svg, 275, 280, 520, 230, COL.violet, 1100, 500);
+  setTimeout(()=>{
+    const t1 = T(500, 165, "runs the charge, stores key \u2192 result", {"text-anchor":"middle","font-size":10.5, fill:COL.teal, opacity:0}, svg);
+    fadeIn(t1,0,400);
+  }, 1500);
+  setTimeout(()=>{
+    const t2 = T(500, 315, "key seen before \u2014 returns the original result, charges nothing new", {"text-anchor":"middle","font-size":11, fill:COL.amber,"font-weight":600, opacity:0}, svg);
+    fadeIn(t2,0,450);
+  }, 2100);
+  popBox(svg, 850, 190, 170, 56, "charged once", COL.teal, 2600);
+};
+// ---------- S20: recap grid ----------
+slideScripts.s20 = function(svg){
+  const zones = [
+    {label:"BEFORE SENDING", items:["Rate limiter","Bulkhead","Circuit breaker"], color:COL.amber, x:130},
+    {label:"WHILE WAITING", items:["Timeout","Retry","Backoff","Jitter","Hedged requests"], color:COL.teal, x:390},
+    {label:"UNDER LOAD", items:["Load shedding","Backpressure","Fail-fast"], color:COL.violet, x:650},
+    {label:"STAYING UP", items:["Failover","Graceful degradation","Health checks","Heartbeats"], color:COL.rose, x:870}
+  ];
+  const extra = ["Dead-letter queue","Idempotency"];
+  zones.forEach((z,zi)=>{
+    T(z.x, 30, z.label, {"text-anchor":"middle","font-size":10.5,"font-weight":700, fill:z.color, "letter-spacing":"1px", opacity:0}, svg);
+    fadeIn(svg.lastChild, 100+zi*150, 400);
+    z.items.forEach((it,ii)=>{
+      const y = 65+ii*38;
+      const r = E("rect", {x:z.x-95,y:y,width:190,height:28, fill:"none", stroke:z.color,"stroke-width":1.2, rx:5, opacity:0}, svg);
+      fadeIn(r, 300+zi*150+ii*90, 350, 0.85);
+      const t = T(z.x, y+18, it, {"text-anchor":"middle","font-size":11, fill:COL.ink, opacity:0}, svg);
+      fadeIn(t, 350+zi*150+ii*90, 350);
+    });
+  });
+  T(500, 300, "plus the two that make all of it safe:", {"text-anchor":"middle","font-size":11.5, fill:COL.dim, opacity:0}, svg);
+  fadeIn(svg.lastChild, 2200, 400);
+  extra.forEach((it,i)=>{
+    const x = 400+i*220;
+    const r = E("rect", {x:x-95,y:320,width:190,height:30, fill:"none", stroke:COL.ink,"stroke-width":1.4, rx:5, opacity:0}, svg);
+    fadeIn(r, 2500+i*200, 400, 0.9);
+    const t = T(x, 340, it, {"text-anchor":"middle","font-size":11.5,"font-weight":600, fill:COL.ink, opacity:0}, svg);
+    fadeIn(t, 2550+i*200, 400);
+  });
+};
+
+// ---------- S21: rate limit intro ----------
+slideScripts.s21 = function(svg){
+  T(500, 60, "\u201c100 requests per minute\u201d", {"text-anchor":"middle","font-size":20,"font-weight":700, fill:COL.ink, "font-family":"Newsreader, serif", opacity:0}, svg);
+  fadeIn(svg.lastChild, 200, 500);
+  const axes = [
+    {label:"Memory", x:230},
+    {label:"Precision", x:500},
+    {label:"Burst tolerance", x:770}
+  ];
+  axes.forEach((a,i)=>{
+    E("line", {x1:a.x,y1:130,x2:a.x,y2:300, stroke:COL.line,"stroke-width":1.4}, svg);
+    T(a.x, 118, a.label, {"text-anchor":"middle","font-size":13,"font-weight":600, fill:COL.ink, opacity:0}, svg);
+    fadeIn(svg.lastChild, 600+i*250, 400);
+    const dot = E("circle", {cx:a.x, cy:300, r:6, fill:COL.amber, opacity:0}, svg);
+    growMulti(dot, {cy:300}, {cy:130+ (i===1?40: i===0?200:90)}, 1200+i*300, 900);
+    fadeIn(dot, 1200+i*300, 300);
+  });
+  const note = T(500, 340, "no single algorithm wins all three \u2014 that's the whole design space", {"text-anchor":"middle","font-size":12.5, fill:COL.dim, opacity:0}, svg);
+  fadeIn(note, 2800, 450);
+};
+
+// ---------- S22: fixed window ----------
+slideScripts.s22 = function(svg){
+  const x1=90, x2=910, axisY=250;
+  E("line", {x1:x1,y1:axisY,x2:x2,y2:axisY, stroke:COL.line,"stroke-width":1.4}, svg);
+  const winX = (x1+x2)/2;
+  [x1, winX, x2].forEach((x,i)=>{
+    E("line", {x1:x,y1:axisY-70,x2:x,y2:axisY+6, stroke:COL.faint,"stroke-width":1.3, "stroke-dasharray": i===1?"4,4":"0"}, svg);
+  });
+  T((x1+winX)/2, axisY+22, "window: 11:00:00 \u2013 11:01:00", {"text-anchor":"middle","font-size":11, fill:COL.dim}, svg);
+  T((winX+x2)/2, axisY+22, "window: 11:01:00 \u2013 11:02:00", {"text-anchor":"middle","font-size":11, fill:COL.dim}, svg);
+  // burst near boundary: bars just before and after winX
+  const before = winX-70, after = winX+70;
+  barV(svg, before-30, axisY, 60, 130, COL.teal, 500, null, "100 reqs\nat 11:00:59");
+  T(before, axisY-150, "100 reqs @ 11:00:59", {"text-anchor":"middle","font-size":10.5, fill:COL.teal, opacity:0}, svg);
+  fadeIn(svg.lastChild, 900, 400);
+  setTimeout(()=>{
+    barV(svg, after-30, axisY, 60, 130, COL.rose, 0, null, null);
+    const t = T(after, axisY-150, "100 more @ 11:01:00", {"text-anchor":"middle","font-size":10.5, fill:COL.rose, opacity:0}, svg);
+    fadeIn(t, 300, 400);
+  }, 1800);
+  setTimeout(()=>{
+    const t = T(winX, 60, "200 requests in ~2 real seconds \u2014 under a \u2018100/min\u2019 limit", {"text-anchor":"middle","font-size":13,"font-weight":700, fill:COL.rose, opacity:0}, svg);
+    fadeIn(t, 0, 450);
+  }, 2600);
+};
+
+// ---------- S23: sliding window counter ----------
+slideScripts.s23 = function(svg){
+  const f = T(500, 45, "estimate = current_count + previous_count \u00d7 overlap", {"text-anchor":"middle","font-size":14.5,"font-weight":600, fill:COL.ink, opacity:0}, svg);
+  fadeIn(f, 150, 450);
+  barV(svg, 250, 320, 90, 160, COL.dim, 500, "previous window", "100 total");
+  barV(svg, 500, 320, 90, 40, COL.teal, 900, "current window (25% in)", "30 so far");
+  setTimeout(()=>{
+    const t = T(500,120,"75% of the previous window still overlaps the lookback", {"text-anchor":"middle","font-size":11.5, fill:COL.dim, opacity:0}, svg);
+    fadeIn(t,0,400);
+  }, 1600);
+  setTimeout(()=>{
+    barV(svg, 750, 320, 90, 160*0.75+40, COL.amber, 0, "weighted estimate", "30 + 100\u00d70.75 = 105");
+  }, 2200);
+  const note = T(500, 350, "two counters per key \u2014 smooths the boundary burst to roughly the true rate", {"text-anchor":"middle","font-size":12, fill:COL.dim, opacity:0}, svg);
+  fadeIn(note, 3000, 450);
+};
+
+// ---------- S24: sliding log ----------
+slideScripts.s24 = function(svg){
+  const axisY=280, x1=90, x2=910;
+  E("line", {x1:x1,y1:axisY,x2:x2,y2:axisY, stroke:COL.line,"stroke-width":1.4}, svg);
+  T(x1,axisY+24,"now \u2212 60s", {"font-size":11, fill:COL.dim}, svg);
+  T(x2,axisY+24,"now", {"text-anchor":"end","font-size":11, fill:COL.dim}, svg);
+  const positions=[]; for(let i=0;i<26;i++){ positions.push(x1+40+Math.random()*(x2-x1-80)); }
+  positions.sort((a,b)=>a-b);
+  positions.forEach((x,i)=>{
+    const tick = E("line", {x1:x,y1:axisY-16,x2:x,y2:axisY, stroke:COL.teal,"stroke-width":1.6, opacity:0}, svg);
+    fadeIn(tick, 500+i*35, 250);
+  });
+  const dropX = x1+70;
+  setTimeout(()=>{
+    const dl = E("line", {x1:dropX,y1:axisY-40,x2:dropX,y2:axisY+8, stroke:COL.rose,"stroke-width":1.4,"stroke-dasharray":"3,3"}, svg);
+    drawLine(dl, 0, 400);
+    const t = T(dropX, axisY-48, "evicted \u2014 older than the window", {"font-size":10.5, fill:COL.rose, opacity:0}, svg);
+    fadeIn(t,300,350);
+  }, 1600);
+  const count = T(500, 100, "count = exactly what's left after eviction", {"text-anchor":"middle","font-size":13,"font-weight":600, fill:COL.ink, opacity:0}, svg);
+  fadeIn(count, 2200, 450);
+  const cost = T(500, 340, "cost: 1,000 req/s \u00d7 60s window = 60,000 stored timestamps, per key", {"text-anchor":"middle","font-size":12, fill:COL.amber, opacity:0}, svg);
+  fadeIn(cost, 2700, 450);
+};
+
+// ---------- S25: token bucket ----------
+slideScripts.s25 = function(svg){
+  const f = T(500, 40, "tokens = min(capacity, tokens + rate \u00d7 elapsed)", {"text-anchor":"middle","font-size":14.5,"font-weight":600, fill:COL.ink, "font-family":"monospace", opacity:0}, svg);
+  fadeIn(f, 100, 450);
+  const bx=380, by=90, bw=240, bh=140;
+  E("rect", {x:bx,y:by,width:bw,height:bh, fill:"none", stroke:COL.amber,"stroke-width":1.8, rx:10, opacity:0}, svg);
+  fadeIn(svg.lastChild, 400, 400);
+  T(500, 78, "bucket \u2014 capacity 20", {"text-anchor":"middle","font-size":11.5, fill:COL.amber, opacity:0}, svg);
+  fadeIn(svg.lastChild, 500, 400);
+  const fill = E("rect", {x:bx+6,y:by+bh-6,width:bw-12,height:0, fill:COL.amber, opacity:0.55}, svg);
+  growMulti(fill, {height:0,y:by+bh-6}, {height:bh-12,y:by+6}, 800, 900);
+  setTimeout(()=>{
+    const t = T(500, 260, "burst: 20 requests drain the bucket instantly", {"text-anchor":"middle","font-size":12, fill:COL.teal,"font-weight":600, opacity:0}, svg);
+    fadeIn(t,0,400);
+    fill.style.transition = "height 700ms ease, y 700ms ease";
+    fill.setAttribute("height", 4); fill.setAttribute("y", by+bh-10);
+  }, 2000);
+  setTimeout(()=>{
+    const t = T(500, 300, "then refills steadily at 10 tokens/sec", {"text-anchor":"middle","font-size":12, fill:COL.dim, opacity:0}, svg);
+    fadeIn(t,0,400);
+    growMulti(fill, {height:4, y:by+bh-10}, {height:(bh-12)*0.5, y:by+bh-6-(bh-12)*0.5}, 400, 1400);
+  }, 2600);
+};
+
+// ---------- S26: leaky bucket ----------
+slideScripts.s26 = function(svg){
+  T(70,60,"bursty input", {"font-size":12.5,"font-weight":600, fill:COL.dim}, svg);
+  const inXs=[100,130,150,200,215,230,400,410];
+  inXs.forEach((x,i)=>{
+    const c = E("circle", {cx:x, cy:100, r:5, fill:COL.violet, opacity:0}, svg);
+    fadeIn(c,300+i*100,250);
+  });
+  const qx=430, qy=80, qw=180, qh=140;
+  E("rect", {x:qx,y:qy,width:qw,height:qh, fill:"none", stroke:COL.line,"stroke-width":1.4, rx:6, opacity:0}, svg);
+  fadeIn(svg.lastChild, 1200, 400);
+  T(qx+qw/2, qy-10, "queue", {"text-anchor":"middle","font-size":11, fill:COL.dim, opacity:0}, svg);
+  fadeIn(svg.lastChild, 1300, 400);
+  const fill = E("rect", {x:qx+6,y:qy+qh-6,width:qw-12,height:0, fill:COL.violet, opacity:0.5}, svg);
+  growMulti(fill, {height:0,y:qy+qh-6}, {height:qh*0.6,y:qy+qh-6-qh*0.6}, 1500, 900);
+  const outAxisY=270, outX1=qx+qw+40, outX2=930;
+  T(outX1-10, 250, "constant output", {"font-size":12.5,"font-weight":600, fill:COL.teal}, svg);
+  E("line",{x1:outX1,y1:outAxisY,x2:outX2,y2:outAxisY, stroke:COL.line,"stroke-width":1.2}, svg);
+  for(let i=0;i<6;i++){
+    setTimeout(()=>{
+      const c = E("circle", {cx:outX1, cy:outAxisY, r:5, fill:COL.teal, opacity:0}, svg);
+      fadeIn(c,0,200);
+      flowDot(svg, outX1, outAxisY, outX2, outAxisY, COL.teal, 0, 900, 5);
+    }, 2600+i*350);
+  }
+  const note = T(500, 350, "same rate out, no matter how bursty the input \u2014 overflow is rejected", {"text-anchor":"middle","font-size":12, fill:COL.dim, opacity:0}, svg);
+  fadeIn(note, 4500, 450);
+};
+
+// ---------- S27: distributed rate limiting ----------
+slideScripts.s27 = function(svg){
+  const servers=[190,390,590,790];
+  servers.forEach((x,i)=>{
+    popBox(svg, x, 90, 130, 56, "Server "+(i+1), COL.ink, 100+i*150);
+  });
+  const storeX=490, storeY=250;
+  popBox(svg, storeX, storeY, 220, 76, "Shared store", COL.amber, 900, "INCR key, EXPIRE 60s");
+  servers.forEach((x,i)=>{
+    arrow(svg, x, 118, storeX + (x<storeX? -60:60), storeY-38, "#6b6a63", 1400+i*150, 500);
+  });
+  setTimeout(()=>{
+    const t = T(500, 40, "naive: 5 servers \u00d7 \u2018100/min\u2019 each = 500/min real ceiling", {"text-anchor":"middle","font-size":13, fill:COL.rose, opacity:0}, svg);
+    fadeIn(t,0,450);
+  }, 2400);
+  setTimeout(()=>{
+    const t = T(500, 350, "shared store = one source of truth \u2014 one true 100/min, at the cost of a network round-trip", {"text-anchor":"middle","font-size":12, fill:COL.teal,"font-weight":600, opacity:0}, svg);
+    fadeIn(t,0,450);
+  }, 2900);
+};
+
+// ---------- S28: rate limit recap table ----------
+slideScripts.s28 = function(svg){
+  const rows = [
+    ["Fixed window","lowest","approximate","boundary bursts"],
+    ["Sliding counter","low","close estimate","smoothed"],
+    ["Sliding log","highest","exact","none (rejects over)"],
+    ["Token bucket","low","exact","allows, capped"],
+    ["Leaky bucket","low","exact","none, by design"],
+    ["Distributed","+ network hop","exact","depends on algo used"]
+  ];
+  const headers=["Algorithm","Memory","Precision","Bursts"];
+  const colXs=[60,330,540,760];
+  headers.forEach((h,i)=>{
+    T(colXs[i], 40, h, {"font-size":11.5,"font-weight":700, fill:COL.amber, "letter-spacing":"0.5px", opacity:0}, svg);
+    fadeIn(svg.lastChild, 100, 400);
+  });
+  E("line", {x1:50,y1:52,x2:950,y2:52, stroke:COL.line,"stroke-width":1.2}, svg);
+  rows.forEach((r,ri)=>{
+    const y=90+ri*46;
+    r.forEach((cell,ci)=>{
+      const t = T(colXs[ci], y, cell, {"font-size":12, fill: ci===0?COL.ink:COL.dim, "font-weight": ci===0?600:400, opacity:0}, svg);
+      fadeIn(t, 300+ri*180+ci*40, 350);
+    });
+    if (ri<rows.length-1) E("line", {x1:50,y1:y+16,x2:950,y2:y+16, stroke:"#1c1c1a","stroke-width":1}, svg);
+  });
+};
+// ---------- S29: active-active vs active-passive ----------
+slideScripts.s29 = function(svg){
+  T(230,40,"Active-Active", {"text-anchor":"middle","font-size":14,"font-weight":700, fill:COL.teal, opacity:0}, svg);
+  fadeIn(svg.lastChild,100,400);
+  T(770,40,"Active-Passive", {"text-anchor":"middle","font-size":14,"font-weight":700, fill:COL.amber, opacity:0}, svg);
+  fadeIn(svg.lastChild,100,400);
+  popBox(svg, 230, 100, 100, 50, "Client", COL.ink, 200);
+  popBox(svg, 120, 220, 120, 60, "Node A", COL.teal, 400, "50% traffic");
+  popBox(svg, 340, 220, 120, 60, "Node B", COL.teal, 500, "50% traffic");
+  arrow(svg, 210, 115, 140, 195, COL.teal, 700, 400);
+  arrow(svg, 250, 115, 320, 195, COL.teal, 800, 400);
+
+  popBox(svg, 770, 100, 100, 50, "Client", COL.ink, 200);
+  popBox(svg, 660, 220, 120, 60, "Primary", COL.teal, 400, "100% traffic");
+  const standby = popBox(svg, 880, 220, 120, 60, "Standby", COL.faint, 500, "idle");
+  arrow(svg, 760, 115, 690, 195, COL.teal, 700, 400);
+  const dash = E("line", {x1:820,y1:220,x2:840,y2:220, stroke:COL.faint,"stroke-width":1.2,"stroke-dasharray":"3,3", opacity:0}, svg);
+  fadeIn(dash, 900, 400);
+  setTimeout(()=>{
+    const t1 = T(230, 320, "faster failover, full hardware use", {"text-anchor":"middle","font-size":11.5, fill:COL.teal, opacity:0}, svg);
+    fadeIn(t1,0,400);
+    const t2 = T(770, 320, "simpler consistency \u2014 only one writer, ever", {"text-anchor":"middle","font-size":11.5, fill:COL.amber, opacity:0}, svg);
+    fadeIn(t2,100,400);
+  }, 1600);
+  const both = T(500, 355, "both are \u201cRedundancy\u201d \u2014 more than one copy that could serve traffic", {"text-anchor":"middle","font-size":12, fill:COL.dim, opacity:0}, svg);
+  fadeIn(both, 2100, 450);
+};
+
+// ---------- S30: leader-follower ----------
+slideScripts.s30 = function(svg){
+  popBox(svg, 500, 90, 180, 64, "Leader", COL.amber, 100, "accepts writes");
+  const f1 = popBox(svg, 230, 240, 160, 64, "Follower A", COL.teal, 400, "serves reads");
+  const f2 = popBox(svg, 770, 240, 160, 64, "Follower B", COL.teal, 500, "serves reads");
+  arrow(svg, 440, 120, 280, 210, COL.amber, 800, 500, "replicate");
+  arrow(svg, 560, 120, 730, 210, COL.amber, 950, 500, "replicate");
+  setTimeout(()=>{
+    const w = T(500, 40, "WRITE x=5", {"text-anchor":"middle","font-size":12.5,"font-weight":600, fill:COL.violet, opacity:0}, svg);
+    fadeIn(w,0,350);
+    flowDot(svg, 500, 50, 500, 88, COL.violet, 200, 500, 5);
+  }, 300);
+  setTimeout(()=>{
+    const t = T(230, 320, "x=5 (up to date)", {"text-anchor":"middle","font-size":11, fill:COL.teal, opacity:0}, svg);
+    fadeIn(t,0,350);
+    const t2 = T(770, 320, "x=4 (lag \u2014 not yet replicated)", {"text-anchor":"middle","font-size":11, fill:COL.rose, opacity:0}, svg);
+    fadeIn(t2,150,350);
+  }, 2100);
+  const note = T(500, 350, "reads scale out across followers \u2014 but a follower can briefly answer with stale data", {"text-anchor":"middle","font-size":12, fill:COL.dim, opacity:0}, svg);
+  fadeIn(note, 2700, 450);
+};
+
+// ---------- S31: multi-zone ----------
+slideScripts.s31 = function(svg){
+  const zones=[{x:190,label:"Zone A"},{x:500,label:"Zone B"},{x:810,label:"Zone C"}];
+  zones.forEach((z,zi)=>{
+    E("rect", {x:z.x-140,y:60,width:280,height:220, fill:"none", stroke:COL.line,"stroke-width":1.4, rx:8, opacity:0, class:"zone-outline"}, svg);
+    fadeIn(svg.lastChild, 100+zi*150, 400);
+    T(z.x, 45, z.label, {"text-anchor":"middle","font-size":13,"font-weight":600, fill:COL.ink, opacity:0}, svg);
+    fadeIn(svg.lastChild, 150+zi*150, 400);
+    for (let i=0;i<3;i++){
+      popBox(svg, z.x-80+i*80, 160, 60, 50, "", COL.teal, 500+zi*150+i*100, null, {fs:1});
+    }
+  });
+  setTimeout(()=>{
+    const zone = svg.querySelectorAll(".zone-outline")[1];
+    zone.style.transition = "stroke 400ms ease";
+    zone.setAttribute("stroke", COL.rose);
+    const t = T(500, 300, "power outage \u2014 Zone B goes dark", {"text-anchor":"middle","font-size":12.5,"font-weight":600, fill:COL.rose, opacity:0}, svg);
+    fadeIn(t,0,400);
+  }, 2000);
+  setTimeout(()=>{
+    const t = T(500, 340, "\u2248 33% of capacity lost, not 100% \u2014 A and C keep serving", {"text-anchor":"middle","font-size":12, fill:COL.teal, opacity:0}, svg);
+    fadeIn(t,0,450);
+  }, 2600);
+};
+
+// ---------- S32: multi-region ----------
+slideScripts.s32 = function(svg){
+  popBox(svg, 230, 150, 260, 120, "us-east", COL.teal, 200, "primary region");
+  popBox(svg, 770, 150, 260, 120, "eu-west", COL.violet, 400, "secondary region");
+  const link = arrow(svg, 360, 150, 640, 150, COL.amber, 800, 700, null, true);
+  setTimeout(()=>{
+    const t = T(500, 120, "cross-region replication", {"text-anchor":"middle","font-size":11.5, fill:COL.amber, opacity:0}, svg);
+    fadeIn(t,0,400);
+    const t2 = T(500, 200, "~70\u2013100ms round trip \u2014 not zero", {"text-anchor":"middle","font-size":12,"font-weight":600, fill:COL.amber, opacity:0}, svg);
+    fadeIn(t2,300,400);
+  }, 1500);
+  setTimeout(()=>{
+    const t = T(500, 300, "us-east goes down entirely \u2014 eu-west has a full, working copy", {"text-anchor":"middle","font-size":12.5, fill:COL.dim, opacity:0}, svg);
+    fadeIn(t,0,450);
+  }, 2200);
+  const note = T(500, 350, "the trade for surviving a whole-region disaster: real latency, harder consistency", {"text-anchor":"middle","font-size":12, fill:COL.dim, opacity:0}, svg);
+  fadeIn(note, 2700, 450);
+};
+
+// ---------- S33: backup vs replication ----------
+slideScripts.s33 = function(svg){
+  popBox(svg, 180, 90, 190, 60, "Primary DB", COL.ink, 100);
+  const f1 = popBox(svg, 500, 90, 170, 60, "Follower A", COL.teal, 300);
+  const f2 = popBox(svg, 800, 90, 170, 60, "Follower B", COL.teal, 400);
+  arrow(svg, 275, 90, 415, 90, COL.dim, 600, 400);
+  arrow(svg, 275, 90, 715, 90, COL.dim, 700, 400);
+  setTimeout(()=>{
+    const t = T(180, 55, "DELETE FROM orders", {"text-anchor":"middle","font-size":11.5,"font-weight":700, fill:COL.rose, "font-family":"monospace", opacity:0}, svg);
+    fadeIn(t,0,350);
+  }, 1200);
+  setTimeout(()=>{
+    f1.rect.style.transition="stroke 400ms"; f1.rect.setAttribute("stroke",COL.rose);
+    f2.rect.style.transition="stroke 400ms"; f2.rect.setAttribute("stroke",COL.rose);
+    const t = T(500, 170, "replicated instantly, everywhere \u2014 replication just copies, it doesn't judge", {"text-anchor":"middle","font-size":12, fill:COL.rose, opacity:0}, svg);
+    fadeIn(t,150,450);
+  }, 1900);
+  setTimeout(()=>{
+    popBox(svg, 500, 280, 220, 70, "Backup \u2014 midnight snapshot", COL.amber, 0, "offline, untouched");
+    const t = T(500, 350, "the only copy that still has the data", {"text-anchor":"middle","font-size":12.5,"font-weight":600, fill:COL.amber, opacity:0}, svg);
+    fadeIn(t,700,450);
+  }, 2700);
+};
+
+// ---------- S34: PITR ----------
+slideScripts.s34 = function(svg){
+  const x1=90,x2=910,axisY=210;
+  E("line",{x1:x1,y1:axisY,x2:x2,y2:axisY, stroke:COL.line,"stroke-width":1.4}, svg);
+  const marks=[{x:180,label:"backup\n00:00"},{x:420,label:"backup\n06:00"},{x:660,label:"backup\n12:00"}];
+  marks.forEach((m,i)=>{
+    const c = E("circle", {cx:m.x, cy:axisY, r:6, fill:COL.dim, opacity:0}, svg);
+    fadeIn(c, 300+i*250, 350);
+    T(m.x, axisY+26, m.label.split("\n")[0], {"text-anchor":"middle","font-size":10, fill:COL.dim, opacity:0}, svg);
+    fadeIn(svg.lastChild, 350+i*250, 350);
+    T(m.x, axisY+40, m.label.split("\n")[1], {"text-anchor":"middle","font-size":10, fill:COL.dim, opacity:0}, svg);
+    fadeIn(svg.lastChild, 350+i*250, 350);
+  });
+  const wal = E("line", {x1:180,y1:axisY,x2:660,y2:axisY, stroke:COL.teal,"stroke-width":2.4}, svg);
+  drawLine(wal, 1200, 1000);
+  setTimeout(()=>{
+    const t = T(420, axisY-24, "continuous WAL \u2014 every change, logged", {"text-anchor":"middle","font-size":11, fill:COL.teal, opacity:0}, svg);
+    fadeIn(t,0,400);
+  }, 2100);
+  const targetX=740;
+  setTimeout(()=>{
+    const tl = E("line", {x1:targetX,y1:axisY-40,x2:targetX,y2:axisY+6, stroke:COL.amber,"stroke-width":1.6,"stroke-dasharray":"4,3"}, svg);
+    drawLine(tl,0,400);
+    const t = T(targetX, axisY-48, "restore target: 14:32:07", {"text-anchor":"middle","font-size":11.5,"font-weight":600, fill:COL.amber, opacity:0}, svg);
+    fadeIn(t,200,400);
+  }, 2700);
+  const note = T(500, 320, "base backup + replay the log up to the target second = one minute of loss, not a day", {"text-anchor":"middle","font-size":12, fill:COL.dim, opacity:0}, svg);
+  fadeIn(note, 3300, 450);
+};
+
+// ---------- S35: SLI/SLO/SLA funnel ----------
+slideScripts.s35 = function(svg){
+  const items=[
+    {y:70, w:640, label:"SLI \u2014 99.94% (measured, last 30 days)", color:COL.teal},
+    {y:170, w:440, label:"SLO \u2014 99.9% (internal target)", color:COL.amber},
+    {y:270, w:260, label:"SLA \u2014 99.5% (contractual promise)", color:COL.rose}
+  ];
+  items.forEach((it,i)=>{
+    const x = 500-it.w/2;
+    const r = E("rect", {x:500,y:it.y,width:0,height:56, fill:"none", stroke:it.color,"stroke-width":1.8, rx:8}, svg);
+    growMulti(r, {x:500,width:0}, {x:x,width:it.w}, 300+i*500, 600);
+    const t = T(500, it.y+34, it.label, {"text-anchor":"middle","font-size":12.5,"font-weight":600, fill:it.color, opacity:0}, svg);
+    fadeIn(t, 700+i*500, 400);
+  });
+  const note = T(500, 355, "the SLA is deliberately looser \u2014 you breach your own SLO long before you breach a contract", {"text-anchor":"middle","font-size":12, fill:COL.dim, opacity:0}, svg);
+  fadeIn(note, 2400, 450);
+};
+
+// ---------- S36: error budget ----------
+slideScripts.s36 = function(svg){
+  const f = T(500,45,"budget = (1 \u2212 SLO) \u00d7 total time", {"text-anchor":"middle","font-size":15,"font-weight":600, fill:COL.ink, "font-family":"monospace", opacity:0}, svg);
+  fadeIn(f, 150, 450);
+  T(500,72,"SLO = 99.9% over 30 days (43,200 minutes) \u2192 budget = 43.2 minutes", {"text-anchor":"middle","font-size":12, fill:COL.dim, opacity:0}, svg);
+  fadeIn(svg.lastChild, 500, 450);
+  const bx=250, by=140, bw=500, bh=44;
+  E("rect", {x:bx,y:by,width:bw,height:bh, fill:"none", stroke:COL.line,"stroke-width":1.4, rx:6, opacity:0}, svg);
+  fadeIn(svg.lastChild, 900, 400);
+  const fill = E("rect", {x:bx+3,y:by+3,width:bw-6,height:bh-6, fill:COL.teal, opacity:0.7}, svg);
+  fadeIn(fill, 1100, 400);
+  setTimeout(()=>{
+    fill.style.transition = "width 900ms ease";
+    fill.setAttribute("width", (bw-6)*(1-18/43.2));
+    fill.setAttribute("fill", COL.amber);
+    const t = T(500, by+bh+26, "incident burns 18 minutes \u2014 25.2 minutes remain this month", {"text-anchor":"middle","font-size":12.5,"font-weight":600, fill:COL.amber, opacity:0}, svg);
+    fadeIn(t,300,450);
+  }, 1700);
+  const note = T(500, 320, "once the budget is spent: freeze risky launches, focus on stability", {"text-anchor":"middle","font-size":12, fill:COL.dim, opacity:0}, svg);
+  fadeIn(note, 2900, 450);
+};
+
+// ---------- S37: MTBF & MTTR ----------
+slideScripts.s37 = function(svg){
+  const axisY=170, x1=80, x2=920;
+  E("line", {x1:x1,y1:axisY,x2:x2,y2:axisY, stroke:COL.line,"stroke-width":1.6}, svg);
+  const segs=[{w:340,color:COL.teal,label:"MTBF \u2014 healthy stretch"},{w:50,color:COL.rose,label:"MTTR"},{w:340,color:COL.teal,label:"MTBF"},{w:50,color:COL.rose,label:"MTTR"},{w:120,color:COL.teal,label:""}];
+  let x=x1;
+  segs.forEach((s,i)=>{
+    const bar = E("rect", {x:x,y:axisY-9,width:0,height:18, fill:s.color, opacity:0.85}, svg);
+    growMulti(bar, {width:0}, {width:s.w}, 300+i*350, 400);
+    if (s.label){
+      const t = T(x+s.w/2, axisY-20, s.label, {"text-anchor":"middle","font-size":10, fill:s.color, opacity:0}, svg);
+      fadeIn(t, 700+i*350, 300);
+    }
+    x += s.w;
+  });
+  const f = T(500, 260, "availability = MTBF / (MTBF + MTTR)", {"text-anchor":"middle","font-size":14.5,"font-weight":600, fill:COL.ink, "font-family":"monospace", opacity:0}, svg);
+  fadeIn(f, 2400, 450);
+  const ex = T(500, 290, "MTBF = 720h,  MTTR = 2h  \u2192  720 / 722 \u2248 99.72%", {"text-anchor":"middle","font-size":12.5, fill:COL.amber, opacity:0}, svg);
+  fadeIn(ex, 2800, 450);
+  const note = T(500, 335, "fail rarely, or fix fast \u2014 the formula doesn't care which lever you pull", {"text-anchor":"middle","font-size":12, fill:COL.dim, opacity:0}, svg);
+  fadeIn(note, 3300, 450);
+};
+
+// ---------- S38: RPO & RTO ----------
+slideScripts.s38 = function(svg){
+  const axisY=180, x1=90, incidentX=500, x2=910;
+  E("line", {x1:x1,y1:axisY,x2:x2,y2:axisY, stroke:COL.line,"stroke-width":1.4}, svg);
+  const inc = E("line", {x1:incidentX,y1:axisY-50,x2:incidentX,y2:axisY+50, stroke:COL.rose,"stroke-width":2}, svg);
+  drawLine(inc, 300, 400);
+  T(incidentX, axisY-58, "incident", {"text-anchor":"middle","font-size":12,"font-weight":700, fill:COL.rose, opacity:0}, svg);
+  fadeIn(svg.lastChild, 700, 400);
+  const rpoX = incidentX-150;
+  setTimeout(()=>{
+    const bar = E("rect", {x:rpoX,y:axisY-6,width:0,height:12, fill:COL.amber, opacity:0.8}, svg);
+    growMulti(bar, {x:incidentX,width:0}, {x:rpoX,width:150}, 0, 700);
+    const t1 = T(rpoX+75, axisY+24, "RPO \u2014 15 min of data lost", {"text-anchor":"middle","font-size":11.5,"font-weight":600, fill:COL.amber, opacity:0}, svg);
+    fadeIn(t1, 300, 400);
+    const t2 = T(rpoX, axisY-14, "last backup", {"text-anchor":"middle","font-size":10, fill:COL.dim, opacity:0}, svg);
+    fadeIn(t2, 100, 350);
+  }, 1300);
+  const rtoX = incidentX+230;
+  setTimeout(()=>{
+    const bar = E("rect", {x:incidentX,y:axisY-6,width:0,height:12, fill:COL.teal, opacity:0.8}, svg);
+    growMulti(bar, {x:incidentX,width:0}, {x:incidentX,width:230}, 0, 800);
+    const t1 = T(incidentX+115, axisY+24, "RTO \u2014 45 min to restore", {"text-anchor":"middle","font-size":11.5,"font-weight":600, fill:COL.teal, opacity:0}, svg);
+    fadeIn(t1, 400, 400);
+    const t2 = T(rtoX, axisY-14, "service restored", {"text-anchor":"middle","font-size":10, fill:COL.dim, opacity:0}, svg);
+    fadeIn(t2, 500, 350);
+  }, 2100);
+  const note = T(500, 340, "RPO is a promise about the past. RTO is a promise about the future.", {"text-anchor":"middle","font-size":13,"font-weight":600, fill:COL.ink, opacity:0}, svg);
+  fadeIn(note, 3100, 450);
+};
+
+// ---------- S39: full recap map ----------
+slideScripts.s39 = function(svg){
+  const stages=[
+    {x:130, label:"CLIENT", items:["Idempotency keys"]},
+    {x:320, label:"GATEWAY", items:["Rate limiter","Load shedding"]},
+    {x:530, label:"SERVICE CALL", items:["Timeout","Retry + Backoff + Jitter","Circuit breaker","Bulkhead","Hedged requests","Fail-fast"]},
+    {x:750, label:"TOPOLOGY", items:["Failover","Leader-follower","Multi-zone / region"]},
+    {x:900, label:"OPS", items:["Health checks","Heartbeats","DLQ","SLO / Error budget"]}
+  ];
+  const axisY=60;
+  E("line", {x1:60,y1:axisY,x2:960,y2:axisY, stroke:COL.line,"stroke-width":1.6}, svg);
+  stages.forEach((s,i)=>{
+    const dot = E("circle", {cx:s.x, cy:axisY, r:5, fill:COL.amber, opacity:0}, svg);
+    fadeIn(dot, 100+i*300, 350);
+    T(s.x, axisY-16, s.label, {"text-anchor":"middle","font-size":10.5,"font-weight":700, fill:COL.amber, "letter-spacing":"0.5px", opacity:0}, svg);
+    fadeIn(svg.lastChild, 150+i*300, 350);
+    s.items.forEach((it,ii)=>{
+      const y = axisY+50+ii*34;
+      const t = T(s.x, y, it, {"text-anchor":"middle","font-size":10.5, fill:COL.ink, opacity:0}, svg);
+      fadeIn(t, 400+i*300+ii*130, 350);
+      const tick = E("line", {x1:s.x,y1: y-24 - (ii===0?18:0),x2:s.x,y2:y-10, stroke:COL.faint,"stroke-width":1, opacity:0}, svg);
+      fadeIn(tick, 350+i*300+ii*130, 300);
+    });
+  });
+};
+
+// ---------- S40: closing ----------
+slideScripts.s40 = function(svg){
+  const t1 = T(500, 130, "Resilience isn't preventing failure.", {"text-anchor":"middle","font-size":24,"font-family":"Newsreader, serif","font-style":"italic", fill:COL.ink, opacity:0}, svg);
+  fadeIn(t1, 300, 700);
+  const t2 = T(500, 175, "It's controlling what happens next.", {"text-anchor":"middle","font-size":24,"font-family":"Newsreader, serif","font-style":"italic", fill:COL.amber, opacity:0}, svg);
+  fadeIn(t2, 1000, 700);
+  const line = E("line", {x1:380,y1:220,x2:620,y2:220, stroke:COL.line,"stroke-width":1}, svg);
+  drawLine(line, 1700, 500);
+  const t3 = T(500, 270, "the Feynman test: explain, out loud, from first principles \u2014", {"text-anchor":"middle","font-size":13, fill:COL.dim, opacity:0}, svg);
+  fadeIn(t3, 2200, 500);
+  const t4 = T(500, 296, "why a retry without backoff makes an outage worse.", {"text-anchor":"middle","font-size":13,"font-weight":600, fill:COL.dim, opacity:0}, svg);
+  fadeIn(t4, 2600, 500);
+  const t5 = T(500, 345, "if you can, you've actually learned this.", {"text-anchor":"middle","font-size":12.5, fill:COL.teal, opacity:0}, svg);
+  fadeIn(t5, 3200, 500);
+};
+
+// ---------- Navigation engine ----------
+const slideEls = Array.from(document.querySelectorAll(".slide"));
+const total = slideEls.length;
+let current = 0;
+let activeTimers = [];
+
+function clearTimers(){
+  activeTimers.forEach(id=>clearInterval(id));
+  activeTimers = [];
+}
+
+// group by section for eyebrow numbering
+const sectionCount = {};
+slideEls.forEach(el=>{
+  const sec = el.getAttribute("data-section");
+  sectionCount[sec] = (sectionCount[sec]||0)+1;
+});
+const sectionSeen = {};
+slideEls.forEach(el=>{
+  const sec = el.getAttribute("data-section");
+  sectionSeen[sec] = (sectionSeen[sec]||0)+1;
+  const numEl = el.querySelector(".eyebrow-num");
+  if (numEl) numEl.textContent = "  \u2014  " + sectionSeen[sec] + " / " + sectionCount[sec];
+});
+
+// dots
+const dotsWrap = document.getElementById("navDots");
+slideEls.forEach((el,i)=>{
+  const d = document.createElement("div");
+  d.className = "dot";
+  d.title = el.querySelector(".slide-title").textContent;
+  d.addEventListener("click", ()=> goTo(i));
+  dotsWrap.appendChild(d);
+});
+const dots = Array.from(dotsWrap.children);
+
+function goTo(i){
+  if (i<0 || i>=total || i===current && slideEls[i].classList.contains("active")) {
+    if (i<0 || i>=total) return;
+  }
+  slideEls[current].classList.remove("active");
+  dots[current].classList.remove("active");
+  current = i;
+  slideEls[current].classList.add("active");
+  dots[current].classList.add("active");
+  document.getElementById("progressFill").style.width = ((current+1)/total*100) + "%";
+  const svg = slideEls[current].querySelector("svg");
+  clearSvg(svg);
+  const fn = slideScripts[slideEls[current].id];
+  if (fn) { try { fn(svg); } catch(err){ console.error(err); } }
+}
+function next(){ if (current < total-1) goTo(current+1); }
+function prev(){ if (current > 0) goTo(current-1); }
+
+document.getElementById("nextBtn").addEventListener("click", next);
+document.getElementById("prevBtn").addEventListener("click", prev);
+
+document.addEventListener("keydown", (e)=>{
+  if (["ArrowRight","ArrowDown","PageDown"," ","Spacebar"].includes(e.key)){ e.preventDefault(); next(); }
+  else if (["ArrowLeft","ArrowUp","PageUp"].includes(e.key)){ e.preventDefault(); prev(); }
+  else if (e.key === "Home"){ goTo(0); }
+  else if (e.key === "End"){ goTo(total-1); }
+});
+
+let touchStartX = null, touchStartY = null;
+const stageFrame = document.querySelector(".stage-frame");
+stageFrame.addEventListener("touchstart", (e)=>{
+  touchStartX = e.touches[0].clientX; touchStartY = e.touches[0].clientY;
+}, {passive:true});
+stageFrame.addEventListener("touchend", (e)=>{
+  if (touchStartX===null) return;
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  const dy = e.changedTouches[0].clientY - touchStartY;
+  if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)){
+    if (dx < 0) next(); else prev();
+  }
+  touchStartX = null; touchStartY = null;
+}, {passive:true});
+
+goTo(0);
+})();
+</script>
+</body>
+</html>

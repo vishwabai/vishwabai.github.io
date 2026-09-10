@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Sliding Window · Prefix/Difference · Greedy — Visual Deck</title>
+<style>
+  :root{
+    --bg:#07090c; --panel:#0d1117; --text:#e8edf2; --dim:#6b7684;
+    --blue:#5b9bd5; --gold:#d9b35c; --green:#6fae7f; --red:#c96a4e; --line:#232b36;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;background:#000;overflow:hidden;font-family:'Segoe UI',system-ui,sans-serif;}
+  #viewport{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;}
+  #stage{width:1600px;height:900px;background:var(--bg);position:relative;transform-origin:center center;
+         box-shadow:0 0 90px rgba(0,0,0,.85);border-radius:8px;overflow:hidden;}
+  #header{height:90px;display:flex;align-items:center;justify-content:space-between;padding:0 50px;border-bottom:1px solid var(--line);}
+  #headerLeft{display:flex;align-items:center;gap:18px;}
+  #sectionTag{font-size:12px;letter-spacing:2px;text-transform:uppercase;padding:6px 14px;border-radius:20px;border:1px solid var(--dim);color:var(--dim);white-space:nowrap;}
+  #title{font-size:25px;color:var(--text);font-weight:600;}
+  #progress{display:flex;gap:6px;flex-wrap:wrap;max-width:420px;justify-content:flex-end;}
+  .dot{width:7px;height:7px;border-radius:50%;background:#232a35;flex:none;}
+  .dot.active{background:var(--text);}
+  #svgWrap{height:680px;width:1600px;}
+  svg{width:100%;height:100%;display:block;}
+  #footer{height:130px;border-top:1px solid var(--line);display:flex;align-items:center;padding:0 50px;gap:22px;}
+  #capTag{font-size:12px;letter-spacing:2px;padding:7px 16px;border-radius:6px;font-weight:700;white-space:nowrap;opacity:0;transition:opacity .4s;border:1px solid transparent;}
+  #capText{font-size:19px;color:var(--text);line-height:1.45;opacity:0;transition:opacity .4s;}
+  #controls{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);display:flex;gap:14px;align-items:center;z-index:10;}
+  button{background:#12161f;border:1px solid var(--line);color:var(--text);padding:10px 24px;border-radius:8px;font-size:15px;cursor:pointer;transition:all .2s;}
+  button:hover:not(:disabled){border-color:var(--blue);}
+  button:disabled{opacity:.3;cursor:default;}
+  #counter{color:var(--dim);font-size:14px;min-width:70px;text-align:center;}
+  #hint{position:fixed;bottom:24px;right:26px;color:#454f5c;font-size:12px;z-index:10;}
+  .anim{transition:transform .7s cubic-bezier(.4,0,.2,1), opacity .5s ease, fill .4s ease, stroke .4s ease, stroke-width .3s ease, width .5s ease;}
+</style>
+</head>
+<body>
+<div id="viewport">
+  <div id="stage">
+    <div id="header">
+      <div id="headerLeft">
+        <div id="sectionTag">—</div>
+        <div id="title">—</div>
+      </div>
+      <div id="progress"></div>
+    </div>
+    <div id="svgWrap"><svg id="svg" viewBox="0 0 1600 680"></svg></div>
+    <div id="footer">
+      <div id="capTag">RECAP</div>
+      <div id="capText">...</div>
+    </div>
+  </div>
+</div>
+<div id="controls">
+  <button id="prevBtn">◀ Prev</button>
+  <div id="counter">1 / 1</div>
+  <button id="nextBtn">Next ▶</button>
+</div>
+<div id="hint">→ / space: next &nbsp; ← : prev</div>
+
+<script>
+const SVGNS = "http://www.w3.org/2000/svg";
+const svg = document.getElementById('svg');
+
+function el(tag, attrs={}){
+  const e = document.createElementNS(SVGNS, tag);
+  for(const k in attrs) e.setAttribute(k, attrs[k]);
+  return e;
+}
+function node(parent, tag, attrs={}){
+  attrs.class = attrs.class ? attrs.class+' anim' : 'anim';
+  const e = el(tag, attrs);
+  parent.appendChild(e);
+  return e;
+}
+function appear(e){
+  e.setAttribute('opacity',0);
+  requestAnimationFrame(()=>requestAnimationFrame(()=>e.setAttribute('opacity',1)));
+}
+function label(parent, s, x, y, attrs={}){
+  const base = {x,y,'text-anchor':'middle',fill:'#e8edf2','font-size':20,'font-family':'Segoe UI, sans-serif'};
+  const t = node(parent,'text', Object.assign(base, attrs));
+  t.textContent = s;
+  return t;
+}
+function clearSvg(){ svg.innerHTML=''; }
+
+// ---- reusable array-of-boxes component ----
+function makeArray(parent, values, opts={}){
+  const size = opts.size || 60;
+  const gap  = opts.gap  || 10;
+  const y    = opts.y ?? 400;
+  const showIndex = opts.showIndex !== false;
+  const n = values.length;
+  const totalW = n*size + (n-1)*gap;
+  const x0 = opts.x ?? (1600-totalW)/2;
+  const boxes = values.map((v,i)=>{
+    const g = node(parent,'g',{transform:`translate(${x0+i*(size+gap)},${y})`});
+    appear(g);
+    const r = node(g,'rect',{width:size,height:size,rx:10,fill:'#11151d',stroke:'#3a4658','stroke-width':2});
+    const t = node(g,'text',{x:size/2,y:size/2+9,'text-anchor':'middle',fill:'#e8edf2','font-size':22,'font-family':'Menlo,Consolas,monospace'});
+    t.textContent = v;
+    if(showIndex){
+      const ix = node(g,'text',{x:size/2,y:-14,'text-anchor':'middle',fill:'#5a6674','font-size':14,'font-family':'Menlo,monospace'});
+      ix.textContent = i;
+    }
+    return {g,r,t,x:x0+i*(size+gap),val:v};
+  });
+  return {
+    boxes, x0, size, gap,
+    setFill(i,c){ boxes[i].r.setAttribute('fill',c); },
+    setStroke(i,c,w=3){ boxes[i].r.setAttribute('stroke',c); boxes[i].r.setAttribute('stroke-width',w); },
+    reset(i){ boxes[i].r.setAttribute('fill','#11151d'); boxes[i].r.setAttribute('stroke','#3a4658'); boxes[i].r.setAttribute('stroke-width',2); boxes[i].g.setAttribute('opacity',1); },
+    resetAll(){ boxes.forEach((_,i)=>this.reset(i)); },
+    fade(i,op){ boxes[i].g.setAttribute('opacity',op); }
+  };
+}
+
+// ---- reusable pointer marker (points down at anchor) ----
+function makePointer(parent, txt, color, x, y){
+  const g = node(parent,'g',{transform:`translate(${x},${y})`});
+  appear(g);
+  node(g,'path',{d:'M0,-36 L14,-56 L-14,-56 Z',fill:color});
+  const l = node(g,'text',{x:0,y:-64,'text-anchor':'middle',fill:color,'font-size':17,'font-family':'Menlo,monospace','font-weight':'700'});
+  l.textContent = txt;
+  return { g, moveTo(nx,ny){ g.setAttribute('transform',`translate(${nx},${ny})`); } };
+}
+
+// ---- reusable formula/code panel ----
+function panel(parent, color, lines, opts={}){
+  const w = opts.w || 1100;
+  const x = opts.x ?? 800;
+  const y = opts.y ?? 560;
+  const h = 34 + lines.length*32;
+  const g = node(parent,'g',{transform:`translate(${x-w/2},${y})`});
+  appear(g);
+  node(g,'rect',{width:w,height:h,rx:12,fill:'#0d1117','fill-opacity':0.75,stroke:color,'stroke-width':1.4});
+  lines.forEach((ln,i)=>{
+    const t = node(g,'text',{x:w/2,y:32+i*32,'text-anchor':'middle',fill:'#dce4ec','font-size':18,'font-family':'Menlo,Consolas,monospace'});
+    t.textContent = ln;
+  });
+  return g;
+}
+
+// ================= SLIDES =================
+const slides = [];
+function addSlide(section,color,title,build){ slides.push({section,color,title,build}); }
+
+/* ---------------------------------------------------------- OVERVIEW ---- */
+addSlide('OVERVIEW','#8a97a8','Three Patterns, One Goal: Stop Recomputing',(svg,ctx)=>{
+  ctx.cap('RECAP','Brute-force scans re-examine the same data again and again. Today: three patterns that reuse prior work instead of redoing it.','#232b3b');
+  label(svg,'Sliding Window  ·  Prefix / Difference  ·  Greedy',800,110,{'font-size':26,fill:'#e8edf2','font-weight':600});
+  const cards=[
+    {t:'Sliding Window',s:'shrink the re-scan to O(1) per step',c:'#5b9bd5',x:280},
+    {t:'Prefix / Difference',s:'answer range queries instantly',c:'#d9b35c',x:800},
+    {t:'Greedy',s:'commit to the locally-best choice',c:'#6fae7f',x:1320},
+  ];
+  const groups = cards.map(cd=>{
+    const g = node(svg,'g',{transform:`translate(${cd.x-180},250)`});
+    g.setAttribute('opacity',0);
+    node(g,'rect',{width:360,height:220,rx:16,fill:'#0d1117',stroke:cd.c,'stroke-width':1.6});
+    const tt=node(g,'text',{x:180,y:95,'text-anchor':'middle',fill:cd.c,'font-size':25,'font-family':'Segoe UI'}); tt.textContent=cd.t;
+    const ss=node(g,'text',{x:180,y:135,'text-anchor':'middle',fill:'#8b97a6','font-size':16}); ss.textContent=cd.s;
+    return g;
+  });
+  return {steps:[
+    ()=>{ appear(groups[0]); },
+    ()=>{ appear(groups[1]); },
+    ()=>{ appear(groups[2]);
+      ctx.cap('GAP','Which one do you reach for, and why does each exist? We build them from the ground up, starting with the most naive approach possible.','#332c18'); }
+  ]};
+});
+
+/* ------------------------------------------------------ SLIDING WINDOW - */
+addSlide('SLIDING WINDOW','#5b9bd5','The Brute-Force Starting Point',(svg,ctx)=>{
+  const vals=[4,2,1,7,8,1,2,8,1]; const k=3;
+  const A = makeArray(svg, vals, {y:400,size:64});
+  const info = label(svg,'',800,110,{'font-size':21,fill:'#e8edf2'});
+  ctx.cap('RECAP','Goal: find the maximum sum of any 3 consecutive elements.','#1c2636');
+  function paintWindow(start){ A.resetAll(); for(let i=start;i<start+k;i++) A.setFill(i,'#233450'); }
+  function sumOf(start){ let s=0; for(let i=start;i<start+k;i++) s+=vals[i]; return s; }
+  return {steps:[
+    ()=>{ paintWindow(0); info.textContent = `window [0..2]  sum = ${sumOf(0)}`; },
+    ()=>{ paintWindow(1); A.setFill(1,'#3a4a20'); A.setFill(2,'#3a4a20');
+      info.textContent = `window [1..3]  sum = ${sumOf(1)}   (indices 1,2 recomputed!)`;
+      ctx.cap('GAP','Every shift re-adds the same overlapping elements — O(n·k) total work. What if we reused the previous sum instead of recomputing it?','#332c18'); },
+    ()=>{ panel(svg,'#5b9bd5',['new_sum = old_sum - arr[start] + arr[start + k]','one subtraction, one addition per shift  ->  O(1)'],{y:520});
+      ctx.cap('FILL','Slide the window: drop the element that left, add the element that entered. That is the entire idea of a fixed-size window.','#16261c'); }
+  ]};
+});
+
+addSlide('SLIDING WINDOW','#5b9bd5','Fixed-Size Window: A Full Sweep',(svg,ctx)=>{
+  const vals=[4,2,1,7,8,1,2,8,1]; const k=3;
+  const A = makeArray(svg, vals, {y:400,size:64});
+  const L = makePointer(svg,'L','#5b9bd5', A.x0 + A.size/2, 400);
+  const R = makePointer(svg,'R','#d9b35c', A.x0 + 2*(A.size+A.gap) + A.size/2, 354);
+  const info = label(svg,'',800,110,{'font-size':21,fill:'#e8edf2'});
+  ctx.cap('RECAP','L marks the window start, R marks the window end. Both move forward together — the window never regrows.','#1c2636');
+  const best = {val:-Infinity, start:0};
+  function refresh(start){
+    A.resetAll();
+    for(let i=start;i<start+k;i++) A.setFill(i,'#1c2f47');
+    let s=0; for(let i=start;i<start+k;i++) s+=vals[i];
+    if(s>best.val){ best.val=s; best.start=start; }
+    info.textContent = `sum = ${s}   best so far = ${best.val}`;
+    L.moveTo(A.x0+start*(A.size+A.gap)+A.size/2, 400);
+    R.moveTo(A.x0+(start+k-1)*(A.size+A.gap)+A.size/2, 354);
+  }
+  refresh(0);
+  const steps=[];
+  for(let s=1; s<=vals.length-k; s++){
+    steps.push(()=>{
+      refresh(s);
+      if(s===vals.length-k) ctx.cap('FILL',`Every position visited exactly once — O(n), not O(n·k). Best window starts at index ${best.start} (sum ${best.val}).`,'#16261c');
+    });
+  }
+  return {steps};
+});
+
+addSlide('SLIDING WINDOW','#5b9bd5','Why It Works: The Invariant',(svg,ctx)=>{
+  ctx.cap('RECAP','We turned O(n·k) recomputation into O(n) with two moving pointers.','#1c2636');
+  label(svg,'Invariant: the window always holds exactly k elements',800,120,{'font-size':21,fill:'#cdd6df'});
+  panel(svg,'#5b9bd5',[
+    'for R in range(n):',
+    '    sum += arr[R]',
+    '    if R >= k - 1:',
+    '        answer = max(answer, sum)',
+    '        sum -= arr[R - k + 1]   # remove the leaving element'
+  ],{y:200,w:820});
+  const bars=[
+    {l:'Brute Force   O(n·k)', h:220, c:'#c96a4e', x:460},
+    {l:'Sliding Window   O(n)', h:60,  c:'#5b9bd5', x:1000},
+  ];
+  const groups = bars.map(b=>{
+    const g=node(svg,'g'); g.setAttribute('opacity',0);
+    node(g,'rect',{x:b.x,y:640-b.h,width:140,height:b.h,rx:6,fill:b.c});
+    const t=node(g,'text',{x:b.x+70,y:662,'text-anchor':'middle',fill:'#aeb8c2','font-size':15}); t.textContent=b.l;
+    return g;
+  });
+  return {steps:[
+    ()=>{ appear(groups[0]); },
+    ()=>{ appear(groups[1]);
+      ctx.cap('GAP','This works when the window size k is fixed. But most real problems ask for the longest or shortest window satisfying a condition — the size is unknown. How do we handle that?','#332c18'); }
+  ]};
+});
+
+addSlide('SLIDING WINDOW','#5b9bd5','Variable Window: Longest Substring Without Repeats',(svg,ctx)=>{
+  const s='abcabcbb'.split('');
+  const A = makeArray(svg, s, {y:400,size:60});
+  const L = makePointer(svg,'L','#5b9bd5', A.x0+A.size/2, 400);
+  const R = makePointer(svg,'R','#d9b35c', A.x0+A.size/2, 354);
+  const info = label(svg,'',800,110,{'font-size':20,fill:'#e8edf2'});
+  ctx.cap('RECAP','No fixed size this time. Grow R while things are valid; shrink L only when they are not.','#1c2636');
+
+  let l=0, best=0, bestRange=[0,0];
+  const seen=new Map();
+  const events=[];
+  for(let r=0;r<s.length;r++){
+    events.push({type:'expand', r});
+    if(seen.has(s[r]) && seen.get(s[r])>=l){
+      events.push({type:'shrink', to:seen.get(s[r])+1, dup:s[r]});
+      l = seen.get(s[r])+1;
+    }
+    seen.set(s[r], r);
+    if(r-l+1>best){ best=r-l+1; bestRange=[l,r]; }
+    events.push({type:'measure', l, r, best});
+  }
+  function paint(lo,hi){ A.resetAll(); for(let i=lo;i<=hi;i++) A.setFill(i,'#1c2f47'); }
+  let curR=0;
+  const steps = events.map(ev=>{
+    if(ev.type==='expand') return ()=>{ curR=ev.r; R.moveTo(A.x0+ev.r*(A.size+A.gap)+A.size/2,354); paint(l,curR); info.textContent = `expand R -> "${s.slice(l,ev.r+1).join('')}"`; };
+    if(ev.type==='shrink')  return ()=>{ l=ev.to; L.moveTo(A.x0+l*(A.size+A.gap)+A.size/2,400); paint(l,curR); info.textContent = `"${ev.dup}" repeats -> jump L to ${l}`; };
+    return ()=>{ info.textContent = `window "${s.slice(ev.l,ev.r+1).join('')}"  length = ${ev.r-ev.l+1}   best = ${ev.best}`; };
+  });
+  steps.push(()=>{ ctx.cap('FILL',`Longest substring without repeats = "${s.slice(bestRange[0],bestRange[1]+1).join('')}" (length ${best}). L only ever moves forward — total work stays O(n).`,'#16261c'); });
+  return {steps};
+});
+
+addSlide('SLIDING WINDOW','#5b9bd5','Frequency-Map Window: Minimum Window Substring',(svg,ctx)=>{
+  const S='ADOBECODEBANC'.split(''); const T='ABC';
+  const A = makeArray(svg, S, {y:400,size:56});
+  const L = makePointer(svg,'L','#5b9bd5', A.x0+A.size/2, 400);
+  const R = makePointer(svg,'R','#d9b35c', A.x0+A.size/2, 354);
+  const info = label(svg,'',800,110,{'font-size':19,fill:'#e8edf2'});
+  label(svg,'need: A:1  B:1  C:1',800,500,{'font-size':17,fill:'#8b97a6'});
+  ctx.cap('RECAP','Track how many of each required character the window currently holds, using a frequency map instead of raw values.','#1c2636');
+
+  const need={}; for(const c of T) need[c]=(need[c]||0)+1;
+  let l=0, have=0; const required=Object.keys(need).length;
+  const windowMap={};
+  let bestLen=Infinity, bestRange=[0,-1];
+  const events=[];
+  for(let r=0;r<S.length;r++){
+    const c=S[r];
+    windowMap[c]=(windowMap[c]||0)+1;
+    events.push({type:'expand', r, c});
+    if(need[c] && windowMap[c]===need[c]) have++;
+    while(have===required){
+      if(r-l+1<bestLen){ bestLen=r-l+1; bestRange=[l,r]; }
+      events.push({type:'measure', l, r, len:r-l+1});
+      const lc=S[l];
+      windowMap[lc]--;
+      if(need[lc] && windowMap[lc]<need[lc]) have--;
+      const newl=l+1;
+      events.push({type:'shrinkL', l:newl});
+      l=newl;
+    }
+  }
+  function paint(lo,hi){ A.resetAll(); for(let i=lo;i<=hi;i++) A.setFill(i,'#1c2f47'); }
+  let l2=0, curR=0;
+  const steps = events.map(ev=>{
+    if(ev.type==='expand') return ()=>{ curR=ev.r; R.moveTo(A.x0+ev.r*(A.size+A.gap)+A.size/2,354); paint(l2,curR); info.textContent=`R -> add "${ev.c}"`; };
+    if(ev.type==='measure') return ()=>{ info.textContent=`valid window "${S.slice(ev.l,ev.r+1).join('')}"  length = ${ev.len}`; A.setStroke(ev.l,'#6fae7f'); A.setStroke(ev.r,'#6fae7f'); };
+    return ()=>{ l2=ev.l; L.moveTo(A.x0+l2*(A.size+A.gap)+A.size/2,400); paint(l2,curR); info.textContent=`shrink L -> ${l2}`; };
+  });
+  steps.push(()=>{ paint(bestRange[0],bestRange[1]); info.textContent=`minimum window = "${S.slice(bestRange[0],bestRange[1]+1).join('')}"`;
+    ctx.cap('GAP','This finds a window that satisfies a condition. But some problems need the maximum in every window, not just membership — how do we track a running maximum without rescanning?','#332c18'); });
+  return {steps};
+});
+
+addSlide('SLIDING WINDOW','#5b9bd5','Monotonic Window: Max in Every Window of Size k',(svg,ctx)=>{
+  const vals=[1,3,-1,-3,5,3,6,7]; const k=3;
+  const A = makeArray(svg, vals, {y:340,size:60});
+  const info = label(svg,'',800,110,{'font-size':20,fill:'#e8edf2'});
+  label(svg,'deque of indices (values strictly decreasing):',800,470,{'font-size':15,fill:'#6b7684'});
+  const dqRow = node(svg,'g',{transform:'translate(560,495)'});
+  ctx.cap('RECAP','Keep a deque of indices whose values are strictly decreasing. The front is always the maximum of the current window.','#1c2636');
+
+  let dq=[]; const results=[];
+  const events=[];
+  for(let i=0;i<vals.length;i++){
+    while(dq.length && vals[dq[dq.length-1]]<vals[i]){ const popped=dq.pop(); events.push({type:'popBack', popped, i}); }
+    dq.push(i); events.push({type:'pushBack', i, dq:[...dq]});
+    if(dq[0]<=i-k){ const popped=dq.shift(); events.push({type:'popFront', popped, i, dq:[...dq]}); }
+    if(i>=k-1){ results.push(vals[dq[0]]); events.push({type:'result', i, max:vals[dq[0]], dq:[...dq]}); }
+  }
+  function renderDq(list){
+    dqRow.innerHTML='';
+    list.forEach((di,pos)=>{
+      const g=node(dqRow,'g',{transform:`translate(${pos*70},0)`});
+      node(g,'rect',{width:56,height:56,rx:8,fill:'#12161f',stroke:'#5b9bd5','stroke-width':2});
+      const t=node(g,'text',{x:28,y:34,'text-anchor':'middle',fill:'#e8edf2','font-size':20}); t.textContent=vals[di];
+    });
+  }
+  const steps = events.map(ev=>{
+    if(ev.type==='popBack') return ()=>{ info.textContent=`arr[${ev.i}]=${vals[ev.i]} beats arr[${ev.popped}]=${vals[ev.popped]} -> pop back (it can never be the max again)`; A.fade(ev.popped,0.3); };
+    if(ev.type==='pushBack') return ()=>{ A.setFill(ev.i,'#1c2f47'); renderDq(ev.dq); info.textContent=`push index ${ev.i}`; };
+    if(ev.type==='popFront') return ()=>{ A.fade(ev.popped,0.15); renderDq(ev.dq); info.textContent=`front index ${ev.popped} fell outside the window -> pop front`; };
+    return ()=>{ A.resetAll(); A.setFill(ev.dq[0],'#233450'); renderDq(ev.dq); info.textContent=`window ending at ${ev.i}: max = ${ev.max}`; };
+  });
+  steps.push(()=>{ ctx.cap('FILL',`Answers: [${results.join(', ')}]. Each index enters and leaves the deque once -> O(n) total, even though we need a max every step.`,'#16261c'); });
+  return {steps};
+});
+
+addSlide('SLIDING WINDOW','#5b9bd5','Problem Family + the At-Most-K Trick',(svg,ctx)=>{
+  ctx.cap('RECAP','Every sliding window problem is one of: fixed-size, variable-size (grow/shrink), frequency-map, or monotonic.','#1c2636');
+  const chips=['Longest Substring','Max Subarray / Window','Minimum Window','Character Frequency','At-Most-K Constraint'];
+  const items=[];
+  chips.forEach((c,i)=>{
+    const cx=260+(i%3)*430, cy=170+Math.floor(i/3)*90;
+    const g=node(svg,'g',{transform:`translate(${cx},${cy})`}); g.setAttribute('opacity',0);
+    node(g,'rect',{width:380,height:60,rx:10,fill:'#0d1117',stroke:'#3a4658'});
+    const t=node(g,'text',{x:190,y:37,'text-anchor':'middle',fill:'#cdd6df','font-size':18}); t.textContent=c;
+    items.push(g);
+  });
+  const explain = label(svg,'',800,420,{'font-size':19,fill:'#e8edf2'});
+  panel(svg,'#5b9bd5',['exactly(K) = atMost(K) - atMost(K - 1)'],{y:520,w:760});
+  return {steps:[
+    ()=>items.forEach(appear),
+    ()=>{ ctx.cap('GAP','How do you count subarrays with EXACTLY K distinct elements, when your window naturally answers AT MOST K? Why does subtraction fix that?','#332c18');
+      explain.textContent='atMost(K): count windows with at most K distinct values (standard variable window)'; },
+    ()=>{ ctx.cap('FILL','A window with exactly K distinct values is counted in atMost(K) but not in atMost(K-1). Subtracting removes everything with fewer, leaving exactly K.','#16261c');
+      explain.textContent='"exactly K" windows  =  "at most K" windows  -  "at most K-1" windows'; }
+  ]};
+});
+
+addSlide('SLIDING WINDOW','#5b9bd5','Recap and Where This Shows Up',(svg,ctx)=>{
+  ctx.cap('RECAP','Sliding window turns repeated re-scans of overlapping ranges into O(1) amortized updates per shift.','#1c2636');
+  const apps=[
+    ['Network / TCP buffers','congestion window sizing on a byte stream'],
+    ['Rate limiting','count requests in the last N seconds'],
+    ['DNA / text analysis','longest run satisfying a pattern constraint'],
+    ['Streaming analytics','moving average / moving max over a live feed'],
+  ];
+  const groups = apps.map((a,i)=>{
+    const x=200+(i%2)*700, y=170+Math.floor(i/2)*190;
+    const g=node(svg,'g',{transform:`translate(${x},${y})`}); g.setAttribute('opacity',0);
+    node(g,'rect',{width:600,height:150,rx:12,fill:'#0d1117',stroke:'#5b9bd5','stroke-width':1.2});
+    const t1=node(g,'text',{x:30,y:55,fill:'#5b9bd5','font-size':22,'font-weight':700}); t1.textContent=a[0];
+    const t2=node(g,'text',{x:30,y:96,fill:'#aeb8c2','font-size':17}); t2.textContent=a[1];
+    return g;
+  });
+  return {steps:[
+    ()=>{ appear(groups[0]); appear(groups[1]); },
+    ()=>{ appear(groups[2]); appear(groups[3]);
+      ctx.cap('GAP','Sliding window scans and adjusts a range. But what if you just need to ANSWER a range-sum query, instantly, thousands of times, without touching every element each time? Is there something O(1) per query?','#332c18'); }
+  ]};
+});
+
+/* --------------------------------------------------- PREFIX / DIFFERENCE */
+addSlide('PREFIX / DIFFERENCE','#d9b35c','Prefix Sums: Precompute Once, Query Forever',(svg,ctx)=>{
+  const vals=[3,1,4,1,5,9,2,6];
+  const A = makeArray(svg, vals, {y:230,size:56});
+  const P = makeArray(svg, [0,...vals.map(()=>'')], {y:420,size:56});
+  label(svg,'array',A.x0-70,264,{'font-size':15,fill:'#6b7684','text-anchor':'end'});
+  label(svg,'prefix',P.x0-70,454,{'font-size':15,fill:'#6b7684','text-anchor':'end'});
+  const info = label(svg,'',800,140,{'font-size':19,fill:'#e8edf2'});
+  ctx.cap('RECAP','prefix[i] = sum of the first i elements. Build it once, in O(n).','#241f0f');
+  let running=0;
+  const steps=[];
+  for(let i=0;i<vals.length;i++){
+    steps.push(()=>{
+      running += vals[i];
+      P.boxes[i+1].t.textContent = running;
+      A.setFill(i,'#3a3320'); P.setFill(i+1,'#3a3320');
+      info.textContent = `prefix[${i+1}] = prefix[${i}] + arr[${i}] = ${running}`;
+    });
+  }
+  steps.push(()=>{
+    A.resetAll(); P.resetAll();
+    for(let i=2;i<=5;i++) A.setFill(i,'#4a3d18');
+    P.setStroke(2,'#c96a4e'); P.setStroke(6,'#c96a4e');
+    info.textContent = 'sum(2..5) = prefix[6] - prefix[2]';
+    panel(svg,'#d9b35c',['sum(l..r) = prefix[r + 1] - prefix[l]','O(n) to build, O(1) per query — any range, forever'],{y:580});
+  });
+  return {steps};
+});
+
+addSlide('PREFIX / DIFFERENCE','#d9b35c','2D Prefix Sum: Instant Submatrix Sums',(svg,ctx)=>{
+  ctx.cap('RECAP','The 1D idea extends to a grid: P[i][j] holds the sum of everything above-left of (i,j).','#241f0f');
+  const n=5, cell=70, x0=560, y0=150;
+  for(let r=0;r<n;r++) for(let c=0;c<n;c++)
+    node(svg,'rect',{x:x0+c*cell,y:y0+r*cell,width:cell-4,height:cell-4,rx:6,fill:'#11151d',stroke:'#2c3646','stroke-width':1,id:`m${r}_${c}`});
+  const info = label(svg,'',800,600,{'font-size':18,fill:'#e8edf2'});
+  panel(svg,'#d9b35c',['region = P[r1][c1] - P[r0-1][c1] - P[r1][c0-1] + P[r0-1][c0-1]'],{y:70,w:1020});
+  function mark(r0,c0,r1,c1,color){ for(let r=r0;r<=r1;r++) for(let c=c0;c<=c1;c++){ const e=svg.querySelector(`#m${r}_${c}`); if(e) e.setAttribute('fill',color); } }
+  return {steps:[
+    ()=>{ mark(0,0,3,3,'#3a3320'); info.textContent='P[3][3]: the full sum from the corner to (3,3)'; },
+    ()=>{ mark(0,0,0,3,'#402418'); info.textContent='subtract the strip above row 1 (it was inside our target twice)'; },
+    ()=>{ mark(0,0,3,0,'#402418'); info.textContent='subtract the strip left of column 1 too'; },
+    ()=>{ mark(0,0,0,0,'#4a3d18'); info.textContent='add back the corner cell — it was subtracted twice by the two strips'; },
+    ()=>{ mark(1,1,3,3,'#c96a4e'); info.textContent='result: exactly the submatrix (1,1)-(3,3), computed in O(1) regardless of grid size'; }
+  ]};
+});
+
+addSlide('PREFIX / DIFFERENCE','#d9b35c','Difference Array: O(1) Range Updates',(svg,ctx)=>{
+  const n=8;
+  const A = makeArray(svg, Array(n).fill(0), {y:230,size:56});
+  const D = makeArray(svg, Array(n).fill(0), {y:420,size:56});
+  label(svg,'array',A.x0-70,264,{'font-size':15,fill:'#6b7684','text-anchor':'end'});
+  label(svg,'diff',D.x0-70,454,{'font-size':15,fill:'#6b7684','text-anchor':'end'});
+  const info = label(svg,'',800,140,{'font-size':19,fill:'#e8edf2'});
+  ctx.cap('RECAP','To add +5 across a whole range in O(1), do not touch every element — mark just the two endpoints.','#241f0f');
+  const diff = Array(n).fill(0);
+  function applyRange(l,r,val){ diff[l]+=val; if(r+1<n) diff[r+1]-=val; }
+  return {steps:[
+    ()=>{ applyRange(2,5,5); D.boxes[2].t.textContent='+5'; D.boxes[6].t.textContent='-5'; D.setFill(2,'#3a4a20'); D.setFill(6,'#4a2f22');
+      info.textContent='add +5 to range [2..5]:  diff[2] += 5,  diff[6] -= 5   (two writes, O(1))'; },
+    ()=>{ applyRange(4,6,3); D.boxes[4].t.textContent='+3'; D.boxes[7].t.textContent='-3'; D.setFill(4,'#3a4a20'); D.setFill(7,'#4a2f22');
+      info.textContent='add +3 to range [4..6]:  diff[4] += 3,  diff[7] -= 3'; },
+    ()=>{
+      let run=0;
+      for(let i=0;i<n;i++){ run+=diff[i]; A.boxes[i].t.textContent=run; A.setFill(i,'#233450'); }
+      info.textContent='take the prefix sum of diff[] -> the fully updated array, in one O(n) pass at the very end';
+      panel(svg,'#d9b35c',['diff[l] += v ;  diff[r+1] -= v      (per update, O(1))','array = prefix_sum(diff)              (once, O(n) total)'],{y:580});
+    }
+  ]};
+});
+
+addSlide('PREFIX / DIFFERENCE','#d9b35c','2D Difference: Range Updates on a Grid',(svg,ctx)=>{
+  ctx.cap('RECAP','Same trick, two dimensions: mark four corners instead of touching every cell in the rectangle.','#241f0f');
+  const cell=70, x0=600, y0=170, n=5;
+  for(let r=0;r<n;r++) for(let c=0;c<n;c++)
+    node(svg,'rect',{x:x0+c*cell,y:y0+r*cell,width:cell-4,height:cell-4,rx:6,fill:'#11151d',stroke:'#2c3646',id:`d${r}_${c}`});
+  const info = label(svg,'',800,600,{'font-size':18,fill:'#e8edf2'});
+  panel(svg,'#d9b35c',['D[r0][c0]+=v   D[r0][c1+1]-=v   D[r1+1][c0]-=v   D[r1+1][c1+1]+=v'],{y:80,w:1120});
+  function mark(r,c,color){ const e=svg.querySelector(`#d${r}_${c}`); if(e) e.setAttribute('fill',color); }
+  return {steps:[
+    ()=>{ mark(1,1,'#3a4a20'); info.textContent='D[1][1] += v   (top-left corner: start adding here)'; },
+    ()=>{ mark(1,4,'#4a2f22'); info.textContent='D[1][4] -= v   (cancel the add past the right edge)'; },
+    ()=>{ mark(4,1,'#4a2f22'); info.textContent='D[4][1] -= v   (cancel the add past the bottom edge)'; },
+    ()=>{ mark(4,4,'#3a4a20'); info.textContent='D[4][4] += v   (add back — it was cancelled twice)';
+      ctx.cap('FILL','Take a 2D prefix sum of D once, after all updates. Every rectangle update costs O(1); the final grid is recovered in O(n·m).','#16261c'); }
+  ]};
+});
+
+addSlide('PREFIX / DIFFERENCE','#d9b35c','Prefix XOR and Other Running Aggregates',(svg,ctx)=>{
+  ctx.cap('RECAP','The prefix trick works for any associative, invertible operation — not just addition.','#241f0f');
+  const vals=[5,2,7,1,9,4];
+  const A = makeArray(svg, vals, {y:230,size:56});
+  const X = makeArray(svg, vals.map(()=>0), {y:420,size:56});
+  label(svg,'array',A.x0-70,264,{'font-size':15,fill:'#6b7684','text-anchor':'end'});
+  label(svg,'prefix XOR',X.x0-140,454,{'font-size':15,fill:'#6b7684','text-anchor':'end'});
+  const info = label(svg,'',800,140,{'font-size':19,fill:'#e8edf2'});
+  let run=0;
+  const steps=[];
+  for(let i=0;i<vals.length;i++){
+    steps.push(()=>{
+      run ^= vals[i];
+      X.boxes[i].t.textContent = run;
+      A.setFill(i,'#3a3320'); X.setFill(i,'#3a3320');
+      info.textContent = `prefixXOR[${i}] = prefixXOR[${i-1}] ^ arr[${i}] = ${run}`;
+    });
+  }
+  steps.push(()=>{
+    panel(svg,'#d9b35c',[
+      'XOR(l..r) = prefixXOR[r] ^ prefixXOR[l-1]',
+      'same pattern: running sums, cumulative frequency counts, running products'
+    ],{y:580,w:1100});
+    ctx.cap('GAP','Prefix and difference techniques answer questions about a FIXED array instantly. But real decisions are about CHOOSING what to do next to optimize an outcome. What kind of technique handles that?','#332c18');
+  });
+  return {steps};
+});
+
+/* --------------------------------------------------------------- GREEDY */
+addSlide('GREEDY','#6fae7f','Greedy: Commit to the Best Local Choice',(svg,ctx)=>{
+  ctx.cap('RECAP','No lookahead, no backtracking: at every step, take the choice that looks best right now, and never revisit it.','#0f2418');
+  const info = label(svg,'',800,140,{'font-size':20,fill:'#e8edf2'});
+  panel(svg,'#6fae7f',[
+    'Greedy-choice property: a locally optimal choice extends to a globally optimal solution',
+    'Exchange argument: any optimal solution can be rearranged to start with the greedy choice, without getting worse',
+    'Matroid intuition: greedy provably works exactly when the choices form a matroid (independence + exchange property)'
+  ],{y:280,w:1300});
+  return {steps:[
+    ()=>{ info.textContent='Question every greedy algorithm must answer: WHY does the locally best choice never hurt us later?'; },
+    ()=>{ ctx.cap('GAP','That is a bold claim — no lookahead ever needed? It only holds when you can prove the exchange argument. Let us test it on a real scheduling problem.','#332010'); }
+  ]};
+});
+
+addSlide('GREEDY','#6fae7f','Activity Selection: Sort by Finish Time',(svg,ctx)=>{
+  const raw=[[5,9],[1,2],[3,4],[0,6],[5,7],[8,9]];
+  ctx.cap('RECAP','Claim: always pick the activity that FINISHES earliest among the remaining valid options.','#0f2418');
+  const scaleX = t => 200 + t*90;
+  const axisY = 600;
+  node(svg,'line',{x1:150,y1:axisY,x2:1050,y2:axisY,stroke:'#3a4658','stroke-width':2});
+  for(let t=0;t<=10;t++){
+    node(svg,'line',{x1:scaleX(t),y1:axisY-5,x2:scaleX(t),y2:axisY+5,stroke:'#3a4658'});
+    const tt=node(svg,'text',{x:scaleX(t),y:axisY+26,'text-anchor':'middle',fill:'#5a6674','font-size':13}); tt.textContent=t;
+  }
+  const rowH=62;
+  const bars = raw.map((iv,i)=>{
+    const g=node(svg,'g',{transform:`translate(0,${120+i*rowH})`}); g.setAttribute('opacity',0);
+    const r=node(g,'rect',{x:scaleX(iv[0]),y:0,width:scaleX(iv[1])-scaleX(iv[0]),height:36,rx:8,fill:'#12314a',stroke:'#5b9bd5','stroke-width':1.5});
+    const t=node(g,'text',{x:(scaleX(iv[0])+scaleX(iv[1]))/2,y:24,'text-anchor':'middle',fill:'#dbe4ee','font-size':15}); t.textContent=`[${iv[0]},${iv[1]}]`;
+    return {g,r,iv};
+  });
+  const info = label(svg,'',800,90,{'font-size':19,fill:'#e8edf2'});
+  const steps=[()=>{ bars.forEach(b=>appear(b.g)); info.textContent='six candidate activities on a shared timeline'; }];
+  const sorted = [...raw].sort((a,b)=>a[1]-b[1]);
+  steps.push(()=>{
+    sorted.forEach((iv,i)=>{ const bar=bars.find(b=>b.iv===iv); bar.g.setAttribute('transform',`translate(0,${120+i*rowH})`); });
+    info.textContent='sort all activities by finish time';
+  });
+  let lastEnd=-Infinity; const picked=[];
+  sorted.forEach(iv=>{
+    steps.push(()=>{
+      const bar = bars.find(b=>b.iv===iv);
+      if(iv[0]>=lastEnd){
+        bar.r.setAttribute('fill','#1c4a2e'); bar.r.setAttribute('stroke','#6fae7f');
+        lastEnd = iv[1]; picked.push(iv);
+        info.textContent = `[${iv[0]},${iv[1]}] starts after the last pick ends -> TAKE it`;
+      } else {
+        bar.r.setAttribute('fill','#402424'); bar.r.setAttribute('stroke','#c96a4e'); bar.g.setAttribute('opacity',0.45);
+        info.textContent = `[${iv[0]},${iv[1]}] overlaps the last pick -> SKIP it (greedy never reconsiders)`;
+      }
+    });
+  });
+  steps.push(()=>{ ctx.cap('FILL',`Picked ${picked.length} activities: ${picked.map(p=>`[${p[0]},${p[1]}]`).join(', ')}. The same rule runs meeting-room scheduling. Exchange argument: any optimal schedule can be rewritten to start with the earliest-finishing activity without losing count.`,'#0f2418'); });
+  return {steps};
+});
+
+addSlide('GREEDY','#6fae7f','Fractional Knapsack: Fill by Best Ratio First',(svg,ctx)=>{
+  const items=[{n:'A',w:10,v:60},{n:'B',w:20,v:100},{n:'C',w:30,v:120}];
+  const cap=50;
+  items.forEach(it=>it.r=it.v/it.w);
+  const sorted=[...items].sort((a,b)=>b.r-a.r);
+  ctx.cap('RECAP','Unlike 0/1 knapsack, we can take fractions. Sort by value/weight ratio, take greedily from the top.','#0f2418');
+  const info = label(svg,'',800,110,{'font-size':19,fill:'#e8edf2'});
+  const listG = node(svg,'g',{transform:'translate(140,180)'});
+  sorted.forEach((it,i)=>{
+    const g=node(listG,'g',{transform:`translate(0,${i*80})`}); g.setAttribute('opacity',0);
+    const rect = node(g,'rect',{width:520,height:64,rx:8,fill:'#0d1117',stroke:'#3a4658'});
+    const t=node(g,'text',{x:20,y:38,fill:'#dbe4ee','font-size':18}); t.textContent=`${it.n}:  weight ${it.w}   value ${it.v}   ratio ${it.r.toFixed(2)}`;
+    it.el=g; it.rect=rect;
+  });
+  const capW=680, capX=830, capY=200;
+  node(svg,'rect',{x:capX,y:capY,width:capW,height:56,rx:8,fill:'none',stroke:'#6fae7f','stroke-width':2});
+  label(svg,`knapsack capacity = ${cap}`,capX+capW/2,capY-16,{'font-size':16,fill:'#6fae7f'});
+  const fillG = node(svg,'g');
+  let filled=0, totalValue=0;
+  const steps=[()=>{ sorted.forEach(it=>appear(it.el)); info.textContent='items ranked by ratio (best value-per-weight first)'; }];
+  sorted.forEach(it=>{
+    steps.push(()=>{
+      const remaining = cap - filled;
+      const take = Math.min(it.w, remaining);
+      const frac = take / it.w;
+      const px = capX + (filled/cap)*capW;
+      const pw = (take/cap)*capW;
+      const bar = node(fillG,'rect',{x:px,y:capY,width:0,height:56,fill: frac<1?'#d9b35c':'#3a6b4a',opacity:0.9});
+      requestAnimationFrame(()=>bar.setAttribute('width',pw));
+      totalValue += it.v*frac;
+      filled += take;
+      it.rect.setAttribute('stroke', frac<1 ? '#d9b35c' : '#6fae7f');
+      info.textContent = frac<1
+        ? `capacity nearly full -> take only ${(frac*100).toFixed(0)}% of ${it.n}, value += ${(it.v*frac).toFixed(1)}`
+        : `take all of ${it.n} (weight ${it.w}), value += ${it.v}`;
+    });
+  });
+  steps.push(()=>{ ctx.cap('FILL',`Total value = ${totalValue.toFixed(1)} for weight ${filled}/${cap}. Taking a fraction of the best-ratio item beats taking a whole lower-ratio item — the greedy-choice proof in miniature.`,'#0f2418'); });
+  return {steps};
+});
+
+addSlide('GREEDY','#6fae7f','Huffman Coding: Always Merge the Two Smallest',(svg,ctx)=>{
+  ctx.cap('RECAP','Build an optimal prefix code by repeatedly combining the two least-frequent symbols into one.','#0f2418');
+  let nodes=[{n:'a',f:5},{n:'b',f:9},{n:'c',f:12},{n:'d',f:13},{n:'e',f:16},{n:'f',f:45}];
+  const info = label(svg,'',800,110,{'font-size':19,fill:'#e8edf2'});
+  const row = node(svg,'g',{transform:'translate(0,260)'});
+  function renderRow(list){
+    row.innerHTML='';
+    const total=list.length, gap=20, w=140;
+    const startX = 800 - (total*w+(total-1)*gap)/2;
+    list.forEach((nd,i)=>{
+      const g=node(row,'g',{transform:`translate(${startX+i*(w+gap)},0)`});
+      node(g,'rect',{width:w,height:70,rx:10,fill: nd.isNew?'#1c4a2e':'#12161f',stroke: nd.isNew?'#6fae7f':'#3a4658','stroke-width':2});
+      const t=node(g,'text',{x:w/2,y:30,'text-anchor':'middle',fill:'#dbe4ee','font-size':17}); t.textContent=nd.n;
+      const f=node(g,'text',{x:w/2,y:54,'text-anchor':'middle',fill:'#8b97a6','font-size':14}); f.textContent=nd.f;
+    });
+  }
+  const snapshots=[nodes.map(x=>({...x}))];
+  const events=[];
+  while(nodes.length>1){
+    nodes.sort((a,b)=>a.f-b.f);
+    const a=nodes.shift(), b=nodes.shift();
+    const merged={n:`(${a.n}${b.n})`, f:a.f+b.f, isNew:true};
+    nodes.push(merged);
+    events.push({a,b,merged});
+    snapshots.push(nodes.map(x=>({...x})));
+  }
+  renderRow(snapshots[0]);
+  const steps=[()=>{ info.textContent='six symbols, each a leaf with its frequency'; }];
+  events.forEach((ev,i)=>{
+    steps.push(()=>{ info.textContent=`merge the two smallest: ${ev.a.n}(${ev.a.f}) + ${ev.b.n}(${ev.b.f}) -> new node (${ev.merged.f})`; renderRow(snapshots[i+1]); });
+  });
+  steps.push(()=>{ ctx.cap('FILL','One node remains: the Huffman tree root. Frequent symbols end up near the root (short codes); rare symbols end up deep (long codes) — this minimizes total encoded length.','#0f2418'); });
+  return {steps};
+});
+
+addSlide('GREEDY','#6fae7f','Job Sequencing: Maximize Profit Under Deadlines',(svg,ctx)=>{
+  const jobs=[{n:'J1',d:2,p:100},{n:'J2',d:1,p:19},{n:'J3',d:2,p:27},{n:'J4',d:1,p:25},{n:'J5',d:3,p:15}];
+  ctx.cap('RECAP','Each job takes one slot and must finish by its deadline. Sort by profit, then place each job as LATE as possible before its deadline.','#0f2418');
+  const sorted=[...jobs].sort((a,b)=>b.p-a.p);
+  const maxD=Math.max(...jobs.map(j=>j.d));
+  const slotW=150, slotX0=800-(maxD*slotW)/2, slotY=440;
+  const slots=Array(maxD).fill(null);
+  for(let i=0;i<maxD;i++){
+    node(svg,'rect',{x:slotX0+i*slotW,y:slotY,width:slotW-16,height:80,rx:10,fill:'none',stroke:'#3a4658','stroke-width':2});
+    label(svg,`slot ${i+1}`,slotX0+i*slotW+(slotW-16)/2,slotY+104,{'font-size':13,fill:'#5a6674'});
+  }
+  const info = label(svg,'',800,90,{'font-size':19,fill:'#e8edf2'});
+  const listG = node(svg,'g',{transform:'translate(230,180)'});
+  sorted.forEach((j,i)=>{
+    const g=node(listG,'g',{transform:`translate(${i*150},0)`}); g.setAttribute('opacity',0);
+    node(g,'rect',{width:130,height:64,rx:8,fill:'#0d1117',stroke:'#d9b35c'});
+    const t=node(g,'text',{x:65,y:28,'text-anchor':'middle',fill:'#dbe4ee','font-size':16}); t.textContent=`${j.n}  p=${j.p}`;
+    const t2=node(g,'text',{x:65,y:48,'text-anchor':'middle',fill:'#8b97a6','font-size':13}); t2.textContent=`deadline ${j.d}`;
+    j.el=g;
+  });
+  const steps=[()=>{ sorted.forEach(j=>appear(j.el)); info.textContent='sort jobs by profit, descending'; }];
+  let total=0;
+  sorted.forEach(j=>{
+    steps.push(()=>{
+      let placed=-1;
+      for(let s=Math.min(j.d,maxD)-1; s>=0; s--){ if(!slots[s]){ placed=s; break; } }
+      if(placed>=0){
+        slots[placed]=j; total+=j.p;
+        const g=node(svg,'g',{transform:`translate(${slotX0+placed*slotW+8},${slotY+8})`}); g.setAttribute('opacity',0);
+        node(g,'rect',{width:slotW-32,height:64,rx:6,fill:'#1c4a2e',stroke:'#6fae7f'});
+        const t=node(g,'text',{x:(slotW-32)/2,y:38,'text-anchor':'middle',fill:'#dbe4ee','font-size':16}); t.textContent=j.n;
+        appear(g);
+        info.textContent = `${j.n} placed in slot ${placed+1} (latest free slot at or before its deadline) -> profit += ${j.p}`;
+      } else {
+        info.textContent = `${j.n}: no free slot at or before deadline ${j.d} -> skip it, even though it is profitable`;
+      }
+    });
+  });
+  steps.push(()=>{ ctx.cap('FILL',`Total profit = ${total}. Placing each job as late as possible preserves early slots for jobs with tighter deadlines — the exchange argument again.`,'#0f2418'); });
+  return {steps};
+});
+
+addSlide('GREEDY','#6fae7f','Minimum Platforms: Sweep Arrivals and Departures',(svg,ctx)=>{
+  const arr=[900,940,950,1100,1500,1800];
+  const dep=[910,1200,1120,1130,1900,2000];
+  ctx.cap('RECAP','Sort arrivals and departures. Sweep through time: every arrival needs a platform, every departure frees one.','#0f2418');
+  const events=[];
+  arr.forEach(a=>events.push({t:a,type:'arr'}));
+  dep.forEach(d=>events.push({t:d,type:'dep'}));
+  events.sort((a,b)=> a.t-b.t || (a.type==='dep'?-1:1));
+  const scaleX = t => 200 + ((t-900)/1100)*1150;
+  const axisY = 480;
+  node(svg,'line',{x1:150,y1:axisY,x2:1450,y2:axisY,stroke:'#3a4658','stroke-width':2});
+  const info = label(svg,'',800,120,{'font-size':19,fill:'#e8edf2'});
+  const plat = label(svg,'platforms needed: 0',800,200,{'font-size':28,fill:'#6fae7f','font-weight':700});
+  let cur=0, best=0;
+  const steps = events.map(ev=>()=>{
+    const x=scaleX(ev.t);
+    if(ev.type==='arr'){ cur++; node(svg,'circle',{cx:x,cy:axisY,r:8,fill:'#5b9bd5'}); info.textContent=`train arrives at ${ev.t} -> needs a platform`; }
+    else { cur--; node(svg,'circle',{cx:x,cy:axisY,r:8,fill:'#c96a4e'}); info.textContent=`train departs at ${ev.t} -> platform freed`; }
+    best=Math.max(best,cur);
+    plat.textContent = `platforms in use: ${cur}   (peak so far: ${best})`;
+  });
+  steps.push(()=>{ ctx.cap('FILL',`Minimum platforms required = ${best}. This equals the maximum number of intervals overlapping at any single instant.`,'#0f2418'); });
+  return {steps};
+});
+
+addSlide('GREEDY','#6fae7f','Gas Station: When the Tank Cannot Go Negative',(svg,ctx)=>{
+  const gas=[1,2,3,4,5], cost=[3,4,5,1,2]; const n=gas.length;
+  ctx.cap('RECAP','If the tank goes negative starting from station i, no station between i and the failure point can be a valid start either.','#0f2418');
+  const A = makeArray(svg, gas.map((g,i)=>`+${g}/-${cost[i]}`), {y:400,size:110,gap:16});
+  const info = label(svg,'',800,120,{'font-size':18,fill:'#e8edf2'});
+  const tankLbl = label(svg,'tank = 0',800,220,{'font-size':22,fill:'#6fae7f','font-weight':700});
+  let start=0, tank=0, total=0;
+  const steps=[];
+  for(let i=0;i<n;i++){
+    steps.push(()=>{
+      const net = gas[i]-cost[i];
+      tank += net; total += net;
+      A.setFill(i, tank<0 ? '#402424' : '#1c4a2e');
+      tankLbl.textContent = `tank = ${tank}   (start candidate: station ${start})`;
+      info.textContent = tank<0
+        ? `tank went negative at station ${i} -> station ${start} cannot work`
+        : `net at station ${i} = ${net>=0?'+':''}${net}, tank stays non-negative -> keep going`;
+    });
+    steps.push(()=>{
+      if(tank<0){ start=i+1; tank=0; A.resetAll(); tankLbl.textContent = `tank = 0   (start candidate: station ${start})`; info.textContent = `reset: new candidate start = station ${start}`; }
+    });
+  }
+  steps.push(()=>{ ctx.cap('FILL', total>=0
+    ? `Total gas minus total cost = ${total} >= 0, so a solution exists. Starting station = ${start}.`
+    : `Total gas minus total cost = ${total} < 0 -> no valid starting station exists at all.`, '#0f2418'); });
+  return {steps};
+});
+
+addSlide('GREEDY','#6fae7f','Jump Game: Track the Farthest Reachable Index',(svg,ctx)=>{
+  const nums=[2,3,1,1,4];
+  ctx.cap('RECAP','At every index you can jump up to nums[i] steps. Greedily track the farthest point reachable so far.','#0f2418');
+  const A = makeArray(svg, nums, {y:400,size:70});
+  const info = label(svg,'',800,120,{'font-size':19,fill:'#e8edf2'});
+  const farLbl = label(svg,'farthest reachable = 0',800,220,{'font-size':21,fill:'#6fae7f'});
+  let far=0; const n=nums.length; let ok=true;
+  const steps=[];
+  for(let i=0;i<n;i++){
+    steps.push(()=>{
+      if(i>far){ ok=false; A.setFill(i,'#402424'); info.textContent=`index ${i} is beyond every reachable point -> stuck`; farLbl.textContent=`farthest reachable = ${far}  (index ${i} unreachable)`; return; }
+      far = Math.max(far, i+nums[i]);
+      A.setFill(i,'#1c4a2e');
+      info.textContent = `from index ${i} (jump=${nums[i]}), farthest becomes ${far}`;
+      farLbl.textContent = `farthest reachable = ${far}`;
+    });
+  }
+  steps.push(()=>{ ctx.cap('FILL', ok
+    ? `Farthest reachable (${far}) >= last index (${n-1}) -> the end is reachable.`
+    : 'A gap made the end unreachable — the greedy farthest pointer proves it in one linear pass.', '#0f2418'); });
+  return {steps};
+});
+
+addSlide('WRAP-UP','#8a97a8','Picking the Right Tool',(svg,ctx)=>{
+  ctx.cap('RECAP','Three families, three signals for when to reach for each.','#1a1f28');
+  const rows=[
+    ['Sliding Window','Contiguous range, need to adjust size while scanning','#5b9bd5','longest substring, min window, max in window'],
+    ['Prefix / Difference','Answer many range queries or range updates on a fixed array fast','#d9b35c','range sum, submatrix sum, range-add updates'],
+    ['Greedy','Build a solution one irrevocable choice at a time, provably optimal locally','#6fae7f','scheduling, knapsack, Huffman, deadlines'],
+  ];
+  const groups = rows.map((r,i)=>{
+    const g=node(svg,'g',{transform:`translate(140,${130+i*160})`}); g.setAttribute('opacity',0);
+    node(g,'rect',{width:1320,height:135,rx:14,fill:'#0d1117',stroke:r[2],'stroke-width':1.6});
+    const t1=node(g,'text',{x:30,y:44,fill:r[2],'font-size':23,'font-weight':700}); t1.textContent=r[0];
+    const t2=node(g,'text',{x:30,y:76,fill:'#cdd6df','font-size':16}); t2.textContent=r[1];
+    const t3=node(g,'text',{x:30,y:106,fill:'#7a8694','font-size':14}); t3.textContent='e.g. '+r[3];
+    return g;
+  });
+  return {steps:[
+    ()=>appear(groups[0]),
+    ()=>appear(groups[1]),
+    ()=>{ appear(groups[2]);
+      ctx.cap('FILL','All three exist for the same reason: avoid redoing work you already know the answer to. Recognize what can be reused, and build the pattern around it.','#131a12'); }
+  ]};
+});
+
+// ================= ENGINE =================
+let idx=0, stepIdx=0, current=null;
+
+function renderSlide(i, toStep=0){
+  clearSvg();
+  idx=i;
+  const s = slides[i];
+  document.getElementById('sectionTag').textContent = s.section;
+  document.getElementById('sectionTag').style.color = s.color;
+  document.getElementById('sectionTag').style.borderColor = s.color;
+  document.getElementById('title').textContent = s.title;
+  const capTag=document.getElementById('capTag'), capText=document.getElementById('capText');
+  capTag.style.opacity=0; capText.style.opacity=0;
+  const ctx = {
+    cap(tag, text, bg){
+      capTag.textContent = tag;
+      capTag.style.background = bg || '#1a2230';
+      capTag.style.color = tag==='RECAP' ? '#8fb3d9' : tag==='GAP' ? '#e0a15c' : tag==='FILL' ? '#79c497' : '#cfd6de';
+      capTag.style.borderColor = 'currentColor';
+      capText.textContent = text;
+      capTag.style.opacity=1; capText.style.opacity=1;
+    }
+  };
+  current = s.build(svg, ctx) || {steps:[]};
+  const target = Math.min(toStep, current.steps.length);
+  for(let k=0;k<target;k++) current.steps[k]();
+  stepIdx = target;
+  updateChrome();
+}
+
+function updateChrome(){
+  document.getElementById('counter').textContent = `${idx+1} / ${slides.length}`;
+  document.getElementById('prevBtn').disabled = (idx===0 && stepIdx===0);
+  const prog = document.getElementById('progress');
+  prog.innerHTML='';
+  slides.forEach((_,i)=>{
+    const d=document.createElement('div');
+    d.className = 'dot' + (i===idx ? ' active' : '');
+    prog.appendChild(d);
+  });
+}
+
+document.getElementById('nextBtn').addEventListener('click', ()=>{
+  if(current && current.steps && stepIdx < current.steps.length){
+    current.steps[stepIdx](); stepIdx++; updateChrome();
+  } else if(idx < slides.length-1){
+    renderSlide(idx+1);
+  }
+});
+document.getElementById('prevBtn').addEventListener('click', ()=>{
+  if(stepIdx > 0){ renderSlide(idx, stepIdx-1); }
+  else if(idx > 0){ renderSlide(idx-1, 999); }
+});
+window.addEventListener('keydown', e=>{
+  if(e.key==='ArrowRight' || e.key===' '){ e.preventDefault(); document.getElementById('nextBtn').click(); }
+  if(e.key==='ArrowLeft'){ e.preventDefault(); document.getElementById('prevBtn').click(); }
+});
+
+function resize(){
+  const s = Math.min(window.innerWidth/1600, window.innerHeight/900) * 0.96;
+  document.getElementById('stage').style.transform = `scale(${s})`;
+}
+window.addEventListener('resize', resize);
+resize();
+
+renderSlide(0);
+</script>
+</body>
+</html>

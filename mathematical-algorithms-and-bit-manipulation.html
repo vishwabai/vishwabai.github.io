@@ -1,0 +1,1968 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mathematical Algorithms &amp; Bit Manipulation — Deep Dive</title>
+<style>
+  :root{
+    --bg:#000000;
+    --panel:#0a0a0c;
+    --line:#1e1e22;
+    --teal:#4fb8ad;
+    --teal-dim:#2c5f59;
+    --amber:#d9a556;
+    --amber-dim:#7a5c2e;
+    --rose:#c17272;
+    --violet:#8f85b8;
+    --ink:#ececeb;
+    --ink-dim:#9a9a9a;
+    --ink-faint:#5c5c5c;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; height:100%; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+    overflow:hidden; -webkit-font-smoothing:antialiased;
+  }
+  body{display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px;}
+  .wrap{display:flex; flex-direction:column; align-items:center; gap:12px; width:100%; height:100%; justify-content:center;}
+  .frame{
+    position:relative; width:min(94vw, 165.9vh); aspect-ratio:16/9;
+    background:radial-gradient(ellipse at 50% 0%, #0d0d10 0%, #000000 70%);
+    border:1px solid var(--line); border-radius:8px; overflow:hidden;
+    box-shadow:0 0 40px rgba(0,0,0,0.6);
+  }
+  .slide{
+    position:absolute; inset:0; display:flex; flex-direction:column;
+    padding:3.6% 5.4% 3% 5.4%; opacity:0; visibility:hidden; pointer-events:none;
+  }
+  .slide.active{ opacity:1; visibility:visible; pointer-events:auto; }
+  .slide-head{ flex:0 0 auto; }
+  .slide-eyebrow{
+    font-size:0.95vw; letter-spacing:0.18em; text-transform:uppercase;
+    color:var(--teal); font-weight:600; display:flex; gap:10px; align-items:center;
+    opacity:0;
+  }
+  .slide.active .slide-eyebrow{ opacity:1; transition:opacity .5s ease .05s; }
+  .slide-eyebrow .eyebrow-num{ color:var(--ink-faint); font-weight:400; }
+  .slide-title{
+    font-family:Georgia,'Times New Roman',serif; font-size:2.05vw; line-height:1.22;
+    margin:0.35em 0 0.25em 0; color:var(--ink); font-weight:600; max-width:96%;
+    opacity:0; transform:translateY(10px);
+  }
+  .slide.active .slide-title{ opacity:1; transform:translateY(0); transition:opacity .55s ease .12s, transform .55s ease .12s; }
+  .slide-sub{
+    font-size:1.02vw; line-height:1.5; color:var(--ink-dim); max-width:88%;
+    opacity:0; transform:translateY(8px); margin:0;
+  }
+  .slide.active .slide-sub{ opacity:1; transform:translateY(0); transition:opacity .5s ease .22s, transform .5s ease .22s; }
+  .slide-sub b{ color:var(--ink); font-weight:600; }
+  .slide-sub .gap{ color:var(--amber); font-style:italic; }
+  .stage{ flex:1 1 auto; min-height:0; width:100%; display:flex; align-items:center; justify-content:center; margin:0.6vh 0; }
+  .stage svg{ width:100%; height:100%; display:block; overflow:visible; }
+  .caption{
+    flex:0 0 auto; font-size:0.92vw; color:var(--ink-dim); line-height:1.45; max-width:96%;
+    border-top:1px solid var(--line); padding-top:0.7vh; opacity:0;
+  }
+  .slide.active .caption{ opacity:1; transition:opacity .5s ease .4s; }
+  .caption b{ color:var(--amber); font-weight:600; }
+  .caption .rose{ color:var(--rose); }
+  .caption .teal{ color:var(--teal); }
+
+  .replay-btn{
+    position:absolute; top:3.2%; right:5.4%; width:2vw; height:2vw; border-radius:50%;
+    border:1px solid var(--line); background:#0d0d0f; color:var(--ink-faint);
+    display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:1vw;
+    opacity:0; transition:opacity .3s ease, color .2s ease, border-color .2s ease; z-index:5;
+  }
+  .slide.active .replay-btn{ opacity:0.55; }
+  .replay-btn:hover{ opacity:1 !important; color:var(--amber); border-color:var(--amber-dim); }
+
+  .counter{
+    position:absolute; bottom:3%; right:5.4%; font-size:0.85vw; color:var(--ink-faint);
+    letter-spacing:0.05em; z-index:5;
+  }
+
+  .navbar{ display:flex; align-items:center; gap:16px; }
+  .navbtn{
+    width:2.6vw; height:2.6vw; min-width:34px; min-height:34px; border-radius:50%; border:1px solid var(--line);
+    background:#0a0a0c; color:var(--ink-dim); font-size:1.1vw; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; transition:all .2s ease;
+  }
+  .navbtn:hover{ color:var(--amber); border-color:var(--amber-dim); }
+  .dots{ display:flex; gap:7px; flex-wrap:wrap; max-width:50vw; justify-content:center; }
+  .dot{
+    width:7px; height:7px; border-radius:50%; background:var(--line); cursor:pointer;
+    transition:background .25s ease, transform .25s ease; border:none; padding:0;
+  }
+  .dot.active{ background:var(--amber); transform:scale(1.4); }
+  .dot.section-start{ width:9px; height:9px; }
+  .progress-track{ width:min(94vw,165.9vh); height:2px; background:var(--line); border-radius:2px; overflow:hidden; }
+  .progress-fill{ height:100%; background:var(--amber); width:0%; transition:width .35s ease; }
+  .hint{ font-size:0.75vw; color:var(--ink-faint); }
+
+  /* shared SVG text helpers */
+  text{ font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif; user-select:none; }
+  .mono{ font-family:'SF Mono','Menlo','Consolas',monospace; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="frame" id="frame">
+
+    <section class="slide" id="slide-m-title">
+      <div class="slide-head">
+        <div class="slide-eyebrow">PART ONE <span class="eyebrow-num"></span></div>
+        <h1 class="slide-title">Mathematical Algorithms</h1>
+        <p class="slide-sub">A first-principles tour in two parts &mdash; Part One: the number theory every competitive programmer eventually needs. Part Two: the bit-level tricks built on top of it. Built the way you'd derive it on a whiteboard, not memorize it from a textbook.</p>
+      </div>
+      <div class="stage">
+        <svg viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
+
+    <text x="500" y="205" text-anchor="middle" font-size="30" fill="var(--ink-faint)" id="t-kicker">FOUNDATIONS &#8594; PRIMES &#8594; MODULAR ARITHMETIC &#8594; COUNTING</text>
+    <text x="500" y="290" text-anchor="middle" font-size="46" fill="var(--amber)" font-weight="700" id="t-eq" class="mono">gcd &#183; mod &#183; &#931; &#183; C(n,r)</text>
+    <g id="t-icons"></g>
+    
+        </svg>
+      </div>
+      <p class="caption"><b>How to use this deck:</b> each idea ends with a question it can't yet answer &mdash; the next slide is the answer. Press &#8594; or click to begin.</p>
+      <button class="replay-btn" onclick="replayCurrent()" title="replay">&#8635;</button>
+    </section>
+    <section class="slide" id="slide-m-gcd">
+      <div class="slide-head">
+        <div class="slide-eyebrow">FOUNDATIONS &middot; 01 <span class="eyebrow-num"></span></div>
+        <h1 class="slide-title">GCD: shrink two numbers to their shared root</h1>
+        <p class="slide-sub">Two numbers can share many divisors. <span class='gap'>Which single number captures all of them at once &mdash; and can we find it without checking every candidate?</span></p>
+      </div>
+      <div class="stage">
+        <svg viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
+
+    <text x="230" y="80" text-anchor="middle" font-size="26" fill="var(--teal)" class="mono" font-weight="700" id="g-a">a = 48</text>
+    <text x="770" y="80" text-anchor="middle" font-size="26" fill="var(--violet)" class="mono" font-weight="700" id="g-b">b = 18</text>
+    <g id="g-steps"></g>
+    
+        </svg>
+      </div>
+      <p class="caption">Euclid's insight (&asymp;300 BC): <b>gcd(a,b) = gcd(b, a mod b)</b>. Repeat until the remainder hits 0 &mdash; the last nonzero remainder is the answer.</p>
+      <button class="replay-btn" onclick="replayCurrent()" title="replay">&#8635;</button>
+    </section>
+    <section class="slide" id="slide-m-gcd-uses">
+      <div class="slide-head">
+        <div class="slide-eyebrow">FOUNDATIONS &middot; 02 <span class="eyebrow-num"></span></div>
+        <h1 class="slide-title">That loop shrinks faster than you'd expect</h1>
+        <p class="slide-sub"><b>Recap</b> &mdash; gcd(a,b)=gcd(b,a mod b) trims the pair every step. <span class='gap'>How many steps could that possibly take for huge numbers?</span></p>
+      </div>
+      <div class="stage">
+        <svg viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
+
+    <g id="cb-bars"></g>
+    <text x="500" y="70" text-anchor="middle" font-size="20" fill="var(--ink-dim)">steps needed for a 15-digit number</text>
+    
+        </svg>
+      </div>
+      <p class="caption">Practical uses: reducing fractions to lowest terms, testing coprimality for hash design, and key generation in RSA &mdash; all lean on this loop finishing in a handful of steps.</p>
+      <button class="replay-btn" onclick="replayCurrent()" title="replay">&#8635;</button>
+    </section>
+    <section class="slide" id="slide-m-ext-euclid">
+      <div class="slide-head">
+        <div class="slide-eyebrow">FOUNDATIONS &middot; 03 <span class="eyebrow-num"></span></div>
+        <h1 class="slide-title">Extended Euclid: recover the coefficients, not just the number</h1>
+        <p class="slide-sub"><b>Recap</b> &mdash; Euclid's loop finds gcd(a,b) fast. <span class='gap'>But it throws away the quotients on the way down. What if we need x, y such that ax + by = gcd(a,b)?</span></p>
+      </div>
+      <div class="stage">
+        <svg viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
+
+    <text x="500" y="60" text-anchor="middle" font-size="19" fill="var(--ink-dim)">walking back up from gcd(48,18)=6</text>
+    <g id="ee-steps"></g>
+    
+        </svg>
+      </div>
+      <p class="caption">This is <b>B&eacute;zout's identity</b>: for any a, b there exist integers x, y with ax + by = gcd(a,b). Extended Euclid recovers them by walking back up the same steps.</p>
+      <button class="replay-btn" onclick="replayCurrent()" title="replay">&#8635;</button>
+    </section>
+    <section class="slide" id="slide-m-ext-euclid-uses">
+      <div class="slide-head">
+        <div class="slide-eyebrow">FOUNDATIONS &middot; 04 <span class="eyebrow-num"></span></div>
+        <h1 class="slide-title">B&eacute;zout's coefficients unlock division under a modulus</h1>
+        <p class="slide-sub"><b>Recap</b> &mdash; extended Euclid gives x,y with ax+by=gcd(a,b). <span class='gap'>If gcd(a,m)=1, that equation says ax &equiv; 1 (mod m). What does that x actually let us do?</span></p>
+      </div>
+      <div class="stage">
+        <svg viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
+
+    <g id="ee2-diagram"></g>
+    
+        </svg>
+      </div>
+      <p class="caption">That x is <b>a<sup>&minus;1</sup> mod m</b> &mdash; a modular inverse. It's how Diophantine equations get solved, and it's one of two standard ways to "divide" inside modular arithmetic (the other: Fermat's little theorem, coming up).</p>
+      <button class="replay-btn" onclick="replayCurrent()" title="replay">&#8635;</button>
+    </section>
+    <section class="slide" id="slide-m-lcm">
+      <div class="slide-head">
+        <div class="slide-eyebrow">FOUNDATIONS &middot; 05 <span class="eyebrow-num"></span></div>
+        <h1 class="slide-title">LCM rides on the back of GCD</h1>
+        <p class="slide-sub"><b>Recap</b> &mdash; gcd and B&eacute;zout coefficients are solved. <span class='gap'>Two events repeat every 12 and 18 days &mdash; on what day do they next coincide?</span></p>
+      </div>
+      <div class="stage">
+        <svg viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
+
+    <g id="lcm-diagram"></g>
+    
+        </svg>
+      </div>
+      <p class="caption">Compute <b>gcd first, then divide before multiplying</b> (a/gcd)&times;b &mdash; multiplying a&times;b first can overflow even when the final LCM easily fits in a 64-bit integer.</p>
+      <button class="replay-btn" onclick="replayCurrent()" title="replay">&#8635;</button>
+    </section>
+    <section class="slide" id="slide-m-prime-check">
+      <div class="slide-head">
+        <div class="slide-eyebrow">PRIMES &amp; SIEVES &middot; 06 <span class="eyebrow-num"></span></div>
+        <h1 class="slide-title">Testing one number for primality</h1>
+        <p class="slide-sub"><b>Recap</b> &mdash; we can now combine, divide, and synchronize numbers exactly. <span class='gap'>But is 97 prime? Do we really need to try all 96 possible divisors?</span></p>
+      </div>
+      <div class="stage">
+        <svg viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
+
+    <g id="pc-grid"></g>
+    
+        </svg>
+      </div>
+      <p class="caption">If n has a factor larger than &radic;n, it must pair with one smaller than &radic;n &mdash; so trial division only needs to run up to &radic;n. Practical use: quick primality checks inside larger algorithms (crypto key candidates, hashing moduli).</p>
+      <button class="replay-btn" onclick="replayCurrent()" title="replay">&#8635;</button>
+    </section>
+    <section class="slide" id="slide-m-prime-uses">
+      <div class="slide-head">
+        <div class="slide-eyebrow">PRIMES &amp; SIEVES &middot; 07 <span class="eyebrow-num"></span></div>
+        <h1 class="slide-title">Trial division doesn't scale &mdash; and doesn't need to</h1>
+        <p class="slide-sub"><b>Recap</b> &mdash; O(&radic;n) trial division tests one number. <span class='gap'>A crypto system needs a 300-digit prime candidate. Even &radic;n is astronomically large &mdash; now what?</span></p>
+      </div>
+      <div class="stage">
+        <svg viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
+
+    <g id="pu-diagram"></g>
+    
+        </svg>
+      </div>
+      <p class="caption">Real systems use <b>probabilistic tests</b> (Fermat, Miller&ndash;Rabin): pick random witnesses and check a modular identity. Wrong-answer probability shrinks below 4<sup>&minus;k</sup> after k rounds &mdash; fast enough for RSA key generation.</p>
+      <button class="replay-btn" onclick="replayCurrent()" title="replay">&#8635;</button>
+    </section>
+    <section class="slide" id="slide-m-sieve">
+      <div class="slide-head">
+        <div class="slide-eyebrow">PRIMES &amp; SIEVES &middot; 08 <span class="eyebrow-num"></span></div>
+        <h1 class="slide-title">Sieve of Eratosthenes: test all numbers at once</h1>
+        <p class="slide-sub"><b>Recap</b> &mdash; testing one number takes O(&radic;n). <span class='gap'>What if we need every prime up to 10,000,000 &mdash; testing each one individually would take forever. Can we do better in bulk?</span></p>
+      </div>
+      <div class="stage">
+        <svg viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
+
+    <g id="sv-grid"></g>
+    
+        </svg>
+      </div>
+      <p class="caption">Cross out multiples of each prime starting from 2. Every composite gets crossed out by its smallest prime factor. Total cost: <b>O(n log log n)</b> &mdash; essentially linear.</p>
+      <button class="replay-btn" onclick="replayCurrent()" title="replay">&#8635;</button>
+    </section>
+    <section class="slide" id="slide-m-sieve-uses">
+      <div class="slide-head">
+        <div class="slide-eyebrow">PRIMES &amp; SIEVES &middot; 09 <span class="eyebrow-num"></span></div>
+        <h1 class="slide-title">The sieve's byproducts are as useful as the primes</h1>
+        <p class="slide-sub"><b>Recap</b> &mdash; one sweep marks every composite in O(n log log n). <span class='gap'>While we're marking multiples anyway, can we get more than a yes/no prime flag?</span></p>
+      </div>
+      <div class="stage">
+        <svg viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
+
+    <g id="spf-diagram"></g>
+    
+        </svg>
+      </div>
+      <p class="caption">Store the <b>smallest prime factor (SPF)</b> at each crossing instead of just marking it. Then factorizing any number &le; n becomes a fast repeated lookup &mdash; no re-division needed.</p>
+      <button class="replay-btn" onclick="replayCurrent()" title="replay">&#8635;</button>
+    </section>
+    <section class="slide" id="slide-m-seg-sieve">
+      <div class="slide-head">
+        <div class="slide-eyebrow">PRIMES &amp; SIEVES &middot; 10 <span class="eyebrow-num"></span></div>
+        <h1 class="slide-title">Segmented sieve: the range is huge, memory isn't</h1>
+        <p class="slide-sub"><b>Recap</b> &mdash; the plain sieve needs an array of size n. <span class='gap'>Now find every prime between 10<sup>9</sup> and 10<sup>9</sup>+10<sup>6</sup>. Allocating a billion-sized array just isn't possible &mdash; what do we do differently?</span></p>
+      </div>
+      <div class="stage">
+        <svg viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
+
+    <g id="seg-diagram"></g>
+    
+        </svg>
+      </div>
+      <p class="caption">First sieve small primes up to &radic;(high) normally (cheap). Then sweep only the <b>target window</b>, crossing out multiples of those small primes inside it. Memory drops from O(high) to O(&radic;high + window size).</p>
+      <button class="replay-btn" onclick="replayCurrent()" title="replay">&#8635;</button>
+    </section>
+    <section class="slide" id="slide-m-seg-sieve-uses">
+      <div class="slide-head">
+        <div class="slide-eyebrow">PRIMES &amp; SIEVES &middot; 11 <span class="eyebrow-num"></span></div>
+        <h1 class="slide-title">Bridging bulk sieves and huge ranges</h1>
+        <p class="slide-sub"><b>Recap</b> &mdash; segmented sieve answers "which primes lie in [L,R]" without O(R) memory. <span class='gap'>We can now find, factor, and test primes at any scale &mdash; but every one of these algorithms so far risks a silent bug: overflow. How do real systems avoid it?</span></p>
+      </div>
+      <div class="stage">
+        <svg viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
+
+    <g id="ss-recap"></g>
+    
+        </svg>
+      </div>
+      <p class="caption">Practical use: range prime-counting queries, prime-gap studies, and precomputation for number-theoretic contest problems where R can reach 10<sup>12</sup> or beyond.</p>
+      <button class="replay-btn" onclick="replayCurrent()" title="replay">&#8635;</button>
+    </section>
+    <section class="slide" id="slide-m-mod-arith">
+      <div class="slide-head">
+        <div class="slide-eyebrow">MODULAR ARITHMETIC &middot; 12 <span class="eyebrow-num"></span></div>
+        <h1 class="slide-title">A clock face where numbers wrap around</h1>
+        <p class="slide-sub">Contest answers are often asked <span class='gap'>"mod 10<sup>9</sup>+7" &mdash; not because the number is arbitrary, but because the true answer is too large to store. What rules survive the wraparound?</span></p>
+      </div>
+      <div class="stage">
+        <svg viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
+
+    <g id="clock"></g>
+    
+        </svg>
+      </div>
+      <p class="caption">Addition, subtraction, and multiplication all pass through the mod safely: (a+b) mod m = ((a mod m)+(b mod m)) mod m, and likewise for &times;. Division does <b>not</b> pass through directly &mdash; that's the next gap.</p>
+      <button class="replay-btn" onclick="replayCurrent()" title="replay">&#8635;</button>
+    </section>
+    <section class="slide" id="slide-m-fast-pow">
+      <div class="slide-head">
+        <div class="slide-eyebrow">MODULAR ARITHMETIC &middot; 13 <span class="eyebrow-num"></span></div>
+        <h1 class="slide-title">Binary exponentiation: skip most of the multiplications</h1>
+        <p class="slide-sub"><b>Recap</b> &mdash; multiplication survives the mod. <span class='gap'>But a^b with b around 10<sup>9</sup> would need a billion multiplications one at a time. Is there a shortcut hiding in binary?</span></p>
+      </div>
+      <div class="stage">
+        <svg viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
+
+    <g id="fp-diagram"></g>
+    
+        </svg>
+      </div>
+      <p class="caption">Write the exponent in binary. Square the base at every bit; multiply the running answer in only where a bit is 1. This turns O(b) multiplications into <b>O(log b)</b>.</p>
+      <button class="replay-btn" onclick="replayCurrent()" title="replay">&#8635;</button>
+    </section>
+    <section class="slide" id="slide-m-fast-pow-uses">
+      <div class="slide-head">
+        <div class="slide-eyebrow">MODULAR ARITHMETIC &middot; 14 <span class="eyebrow-num"></span></div>
+        <h1 class="slide-title">Every big-exponent formula routes through this trick</h1>
+        <p class="slide-sub"><b>Recap</b> &mdash; O(log b) modular power via binary exponentiation. <span class='gap'>We can now exponentiate mod p instantly &mdash; but can we compute mod-p division: a &divide; b (mod p)?</span></p>
+      </div>
+      <div class="stage">
+        <svg viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
+
+    <g id="fpu-diagram"></g>
+    
+        </svg>
+      </div>
+      <p class="caption">Practical uses: RSA's <b>modpow(message, exponent, n)</b> encryption step, and computing large factorials or nCr mod a prime, both of which lean on fast exponentiation internally.</p>
+      <button class="replay-btn" onclick="replayCurrent()" title="replay">&#8635;</button>
+    </section>
+    <section class="slide" id="slide-m-mod-inverse-fermat">
+      <div class="slide-head">
+        <div class="slide-eyebrow">MODULAR ARITHMETIC &middot; 15 <span class="eyebrow-num"></span></div>
+        <h1 class="slide-title">Division mod p, route 1: Fermat's little theorem</h1>
+        <p class="slide-sub"><b>Recap</b> &mdash; the gap left open earlier: how do you divide under a modulus? <span class='gap'>If p is prime, is there a formula for a<sup>&minus;1</sup> mod p that reuses fast exponentiation?</span></p>
+      </div>
+      <div class="stage">
+        <svg viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
+
+    <g id="mif-diagram"></g>
+    
+        </svg>
+      </div>
+      <p class="caption">Fermat's little theorem: if p is prime and gcd(a,p)=1, then a<sup>p&minus;1</sup> &equiv; 1 (mod p). Rearranging gives <b>a<sup>&minus;1</sup> &equiv; a<sup>p&minus;2</sup> (mod p)</b> &mdash; one call to fast exponentiation.</p>
+      <button class="replay-btn" onclick="replayCurrent()" title="replay">&#8635;</button>
+    </section>
+    <section class="slide" id="slide-m-mod-inverse-euclid">
+      <div class="slide-head">
+        <div class="slide-eyebrow">MODULAR ARITHMETIC &middot; 16 <span class="eyebrow-num"></span></div>
+        <h1 class="slide-title">Division mod p, route 2: when p isn't prime</h1>
+        <p class="slide-sub"><b>Recap</b> &mdash; Fermat's route needs p prime. <span class='gap'>What if the modulus isn't prime &mdash; does modular inverse still exist, and how do we compute it?</span></p>
+      </div>
+      <div class="stage">
+        <svg viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
+
+    <g id="mie-diagram"></g>
+    
+        </svg>
+      </div>
+      <p class="caption">As long as gcd(a,m)=1, extended Euclid's x from earlier <b>is</b> the inverse: ax &equiv; 1 (mod m). Practical use: precomputing factorial inverses 1..n in O(n) for repeated nCr mod p queries, instead of O(log p) per query.</p>
+      <button class="replay-btn" onclick="replayCurrent()" title="replay">&#8635;</button>
+    </section>
+    <section class="slide" id="slide-m-crt">
+      <div class="slide-head">
+        <div class="slide-eyebrow">MODULAR ARITHMETIC &middot; 17 <span class="eyebrow-num"></span></div>
+        <h1 class="slide-title">Chinese Remainder Theorem: rebuild a number from its shadows</h1>
+        <p class="slide-sub"><b>Recap</b> &mdash; a single modulus is fully solved: add, multiply, exponentiate, divide. <span class='gap'>Now suppose you're told x&equiv;2(mod 3) and x&equiv;3(mod 5). What single number below 15 satisfies both?</span></p>
+      </div>
+      <div class="stage">
+        <svg viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
+
+    <g id="crt-diagram"></g>
+    
+        </svg>
+      </div>
+      <p class="caption">If the moduli are pairwise coprime, exactly one solution exists mod (m<sub>1</sub>&times;m<sub>2</sub>). Practical use: reconstructing a large value from several small-modulus computations, and RSA-CRT, which speeds up decryption ~4&times; by working mod p and mod q separately.</p>
+      <button class="replay-btn" onclick="replayCurrent()" title="replay">&#8635;</button>
+    </section>
+    <section class="slide" id="slide-m-crt-uses">
+      <div class="slide-head">
+        <div class="slide-eyebrow">MODULAR ARITHMETIC &middot; 18 <span class="eyebrow-num"></span></div>
+        <h1 class="slide-title">CRT turns "one hard problem" into "two easy ones"</h1>
+        <p class="slide-sub"><b>Recap</b> &mdash; CRT rebuilds a unique x from coprime-modulus remainders. <span class='gap'>We can now compute, divide, and reconstruct numbers under any modulus &mdash; what's left before we can start counting arrangements and possibilities?</span></p>
+      </div>
+      <div class="stage">
+        <svg viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
+
+    <g id="crtu-diagram"></g>
+    
+        </svg>
+      </div>
+      <p class="caption">RSA-CRT: decrypt mod p and mod q separately (smaller exponents, smaller moduli), then combine with CRT &mdash; roughly 4&times; faster than one full-size modular exponentiation.</p>
+      <button class="replay-btn" onclick="replayCurrent()" title="replay">&#8635;</button>
+    </section>
+    <section class="slide" id="slide-m-combinatorics">
+      <div class="slide-head">
+        <div class="slide-eyebrow">COUNTING &middot; 19 <span class="eyebrow-num"></span></div>
+        <h1 class="slide-title">Counting without listing</h1>
+        <p class="slide-sub"><b>Recap</b> &mdash; arithmetic under any modulus is fully in hand. <span class='gap'>How many ways can 3 of 5 friends be chosen for a team &mdash; without writing out every group?</span></p>
+      </div>
+      <div class="stage">
+        <svg viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
+
+    <g id="comb-diagram"></g>
+    
+        </svg>
+      </div>
+      <p class="caption">Order matters &rarr; permutations: <b>nPr = n!/(n&minus;r)!</b>. Order doesn't matter &rarr; combinations: <b>nCr = n!/(r!(n&minus;r)!)</b>. Practical use: probability calculations, counting valid paths/arrangements in DP.</p>
+      <button class="replay-btn" onclick="replayCurrent()" title="replay">&#8635;</button>
+    </section>
+    <section class="slide" id="slide-m-binomial">
+      <div class="slide-head">
+        <div class="slide-eyebrow">COUNTING &middot; 20 <span class="eyebrow-num"></span></div>
+        <h1 class="slide-title">Pascal's triangle: build nCr without factorials</h1>
+        <p class="slide-sub"><b>Recap</b> &mdash; nCr counts unordered choices via factorials. <span class='gap'>Factorials of large n overflow fast even under a modulus if computed naively each time &mdash; is there a cheaper recurrence?</span></p>
+      </div>
+      <div class="stage">
+        <svg viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
+
+    <g id="pascal"></g>
+    
+        </svg>
+      </div>
+      <p class="caption"><b>C(n,r) = C(n&minus;1,r&minus;1) + C(n&minus;1,r)</b> &mdash; each entry is the sum of the two above it. Practical use: precomputing all C(n,r) for small n in O(n<sup>2</sup>), or precomputing factorials + modular inverses once for O(1) queries at large n.</p>
+      <button class="replay-btn" onclick="replayCurrent()" title="replay">&#8635;</button>
+    </section>
+    <section class="slide" id="slide-m-matrix-exp">
+      <div class="slide-head">
+        <div class="slide-eyebrow">COUNTING &middot; 21 <span class="eyebrow-num"></span></div>
+        <h1 class="slide-title">Matrix exponentiation: fast-forward a recurrence</h1>
+        <p class="slide-sub"><b>Recap</b> &mdash; we can count combinations quickly. <span class='gap'>Fibonacci(10<sup>18</sup>) can't be reached by looping one step at a time &mdash; not even close. Can binary exponentiation's trick apply to more than plain numbers?</span></p>
+      </div>
+      <div class="stage">
+        <svg viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
+
+    <g id="mexp-diagram"></g>
+    
+        </svg>
+      </div>
+      <p class="caption">Write the recurrence as a matrix: [F(n+1), F(n)] = M &times; [F(n), F(n&minus;1)], with M = [[1,1],[1,0]]. Then F(n) needs only <b>M<sup>n</sup></b>, computed with the same binary-exponentiation trick &mdash; O(log n) matrix multiplications.</p>
+      <button class="replay-btn" onclick="replayCurrent()" title="replay">&#8635;</button>
+    </section>
+    <section class="slide" id="slide-m-probability-algos">
+      <div class="slide-head">
+        <div class="slide-eyebrow">COUNTING &middot; 22 <span class="eyebrow-num"></span></div>
+        <h1 class="slide-title">When exact isn't required: probability algorithms</h1>
+        <p class="slide-sub"><b>Recap</b> &mdash; deterministic exact algorithms cover gcd, primes, mod arithmetic, and counting. <span class='gap'>Some problems are too slow to solve exactly at scale &mdash; when is trading certainty for speed the right call?</span></p>
+      </div>
+      <div class="stage">
+        <svg viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
+
+    <g id="prob-diagram"></g>
+    
+        </svg>
+      </div>
+      <p class="caption">Randomized primality tests, reservoir sampling, and Monte Carlo estimation all trade a tiny, controllable error probability for large speedups. Practical use: quick pre-filtering before an exact check, or estimating answers where exact computation is infeasible.</p>
+      <button class="replay-btn" onclick="replayCurrent()" title="replay">&#8635;</button>
+    </section>
+    <section class="slide" id="slide-m-recap-a">
+      <div class="slide-head">
+        <div class="slide-eyebrow">SUMMARY &middot; 23 <span class="eyebrow-num"></span></div>
+        <h1 class="slide-title">The full map, traced back to one idea</h1>
+        <p class="slide-sub">Every technique in this deck answers a question the previous one couldn't &mdash; and nearly all of them lean on the same two primitives underneath.</p>
+      </div>
+      <div class="stage">
+        <svg viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
+
+    <g id="recap-list"></g>
+    
+        </svg>
+      </div>
+      <p class="caption">Everything above reduces to: <b>Euclid's shrinking loop</b> and <b>binary exponentiation's halving trick</b> &mdash; applied to numbers, to matrices, and to remainders alike.</p>
+      <button class="replay-btn" onclick="replayCurrent()" title="replay">&#8635;</button>
+    </section>
+    <section class="slide" id="slide-divider" data-section="start">
+      <div class="slide-head">
+        <div class="slide-eyebrow">PART TWO <span class="eyebrow-num"></span></div>
+        <h1 class="slide-title">From numbers to the switches underneath them</h1>
+        <p class="slide-sub"><b>Recap</b> &mdash; Part One built an entire toolkit on top of ordinary integers: gcd, primes, modular arithmetic, counting. <span class="gap">But every one of those integers is, underneath, just a row of on/off switches. What can we do once we operate on the switches directly?</span></p>
+      </div>
+      <div class="stage">
+        <svg viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
+          <g id="div-diagram"></g>
+        </svg>
+      </div>
+      <p class="caption">Part Two: <b>Bit Manipulation</b> &mdash; AND / OR / XOR / NOT, shifts, masks, and the tricks built from them.</p>
+      <button class="replay-btn" onclick="replayCurrent()" title="replay">&#8635;</button>
+    </section>
+    <section class="slide" id="slide-b-title">
+      <div class="slide-head">
+        <div class="slide-eyebrow">BIT MANIPULATION <span class="eyebrow-num"></span></div>
+        <h1 class="slide-title">Bit Manipulation</h1>
+        <p class="slide-sub">Every trick in this deck comes from one fact: a computer only ever sees rows of on/off switches. Everything else is built from four operators and two shifts.</p>
+      </div>
+      <div class="stage">
+        <svg viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
+
+    <text x="500" y="210" text-anchor="middle" font-size="28" fill="var(--ink-faint)" id="bt-kicker">AND &middot; OR &middot; XOR &middot; NOT &middot; &lt;&lt; &middot; &gt;&gt;</text>
+    <g id="bt-row"></g>
+    
+        </svg>
+      </div>
+      <p class="caption"><b>How to use this deck:</b> each idea ends with a question the current toolkit can't answer &mdash; the next slide answers it. Press &#8594; or click to begin.</p>
+      <button class="replay-btn" onclick="replayCurrent()" title="replay">&#8635;</button>
+    </section>
+    <section class="slide" id="slide-b-binary-basics">
+      <div class="slide-head">
+        <div class="slide-eyebrow">FOUNDATIONS &middot; 01 <span class="eyebrow-num"></span></div>
+        <h1 class="slide-title">A number is just a row of switches</h1>
+        <p class="slide-sub">We're used to place values in base 10 (hundreds, tens, ones). <span class='gap'>What are the "place values" when there are only two digits, 0 and 1?</span></p>
+      </div>
+      <div class="stage">
+        <svg viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
+
+    <g id="bb-diagram"></g>
+    
+        </svg>
+      </div>
+      <p class="caption">Each position is a power of 2. 13 = 8+4+1 = 2<sup>3</sup>+2<sup>2</sup>+2<sup>0</sup> &mdash; binary <b>00001101</b>. This one representation is what every bit trick in this deck operates on directly.</p>
+      <button class="replay-btn" onclick="replayCurrent()" title="replay">&#8635;</button>
+    </section>
+    <section class="slide" id="slide-b-and">
+      <div class="slide-head">
+        <div class="slide-eyebrow">CORE OPERATORS &middot; 02 <span class="eyebrow-num"></span></div>
+        <h1 class="slide-title">AND keeps only what both switches agree on</h1>
+        <p class="slide-sub"><b>Recap</b> &mdash; a number is a row of on/off switches. <span class='gap'>How do we check whether a specific switch is on, without disturbing any of the others?</span></p>
+      </div>
+      <div class="stage">
+        <svg viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
+
+    <g id="and-diagram"></g>
+    
+        </svg>
+      </div>
+      <p class="caption"><b>a &amp; b</b> is 1 only where both bits are 1. Practical use: masking &mdash; <b>n &amp; 1</b> tests if n is odd; <b>n &amp; mask</b> isolates chosen bits (permission checks, extracting fields from packed data).</p>
+      <button class="replay-btn" onclick="replayCurrent()" title="replay">&#8635;</button>
+    </section>
+    <section class="slide" id="slide-b-or">
+      <div class="slide-head">
+        <div class="slide-eyebrow">CORE OPERATORS &middot; 03 <span class="eyebrow-num"></span></div>
+        <h1 class="slide-title">OR turns a switch on if either side wants it on</h1>
+        <p class="slide-sub"><b>Recap</b> &mdash; AND isolates agreement. <span class='gap'>How do we turn a specific switch ON without touching the others, when we don't know their current state?</span></p>
+      </div>
+      <div class="stage">
+        <svg viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
+
+    <g id="or-diagram"></g>
+    
+        </svg>
+      </div>
+      <p class="caption"><b>a | b</b> is 1 if either bit is 1. Practical use: setting flags &mdash; combine permissions with <b>READ | WRITE | EXEC</b>, or turn on a single feature bit with <b>n | (1&lt;&lt;k)</b>.</p>
+      <button class="replay-btn" onclick="replayCurrent()" title="replay">&#8635;</button>
+    </section>
+    <section class="slide" id="slide-b-xor">
+      <div class="slide-head">
+        <div class="slide-eyebrow">CORE OPERATORS &middot; 04 <span class="eyebrow-num"></span></div>
+        <h1 class="slide-title">XOR lights up exactly where two rows disagree</h1>
+        <p class="slide-sub"><b>Recap</b> &mdash; AND finds agreement, OR finds any support. <span class='gap'>Is there an operator that detects the DIFFERENCE between two states &mdash; and quietly cancels itself out?</span></p>
+      </div>
+      <div class="stage">
+        <svg viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
+
+    <g id="xor-diagram"></g>
+    
+        </svg>
+      </div>
+      <p class="caption"><b>a ^ b</b> is 1 only where the bits differ. Two useful facts fall out immediately: <b>a ^ a = 0</b> and <b>a ^ 0 = a</b> &mdash; the engine behind every XOR trick later in this deck.</p>
+      <button class="replay-btn" onclick="replayCurrent()" title="replay">&#8635;</button>
+    </section>
+    <section class="slide" id="slide-b-not">
+      <div class="slide-head">
+        <div class="slide-eyebrow">CORE OPERATORS &middot; 05 <span class="eyebrow-num"></span></div>
+        <h1 class="slide-title">NOT flips every switch at once</h1>
+        <p class="slide-sub"><b>Recap</b> &mdash; AND / OR / XOR combine two rows. <span class='gap'>What if we only have one row, and we want to build the exact opposite pattern &mdash; e.g. "every bit except these"?</span></p>
+      </div>
+      <div class="stage">
+        <svg viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
+
+    <g id="not-diagram"></g>
+    
+        </svg>
+      </div>
+      <p class="caption"><b>~n</b> flips every bit. On signed integers this gives <b>~n = &minus;n &minus; 1</b> (two's complement). Practical use: <b>~mask</b> clears exactly the bits mask would set &mdash; used constantly for "clear bit" (coming up next).</p>
+      <button class="replay-btn" onclick="replayCurrent()" title="replay">&#8635;</button>
+    </section>
+    <section class="slide" id="slide-b-lshift">
+      <div class="slide-head">
+        <div class="slide-eyebrow">SHIFTS &middot; 06 <span class="eyebrow-num"></span></div>
+        <h1 class="slide-title">Shifting left multiplies by a power of two</h1>
+        <p class="slide-sub"><b>Recap</b> &mdash; NOT flips a whole row. <span class='gap'>Multiplying by 2 in binary should be simple &mdash; what does that operation actually look like on the switches?</span></p>
+      </div>
+      <div class="stage">
+        <svg viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
+
+    <g id="lsh-diagram"></g>
+    
+        </svg>
+      </div>
+      <p class="caption"><b>n &lt;&lt; k</b> slides every bit left by k, filling with zeros &mdash; equivalent to n &times; 2<sup>k</sup>. Watch the sign/overflow: shifting past the integer's bit width silently loses the top bits.</p>
+      <button class="replay-btn" onclick="replayCurrent()" title="replay">&#8635;</button>
+    </section>
+    <section class="slide" id="slide-b-rshift">
+      <div class="slide-head">
+        <div class="slide-eyebrow">SHIFTS &middot; 07 <span class="eyebrow-num"></span></div>
+        <h1 class="slide-title">Shifting right divides &mdash; and remembers the sign</h1>
+        <p class="slide-sub"><b>Recap</b> &mdash; left shift multiplies by 2<sup>k</sup>. <span class='gap'>Does right shift just divide by 2<sup>k</sup> the same clean way &mdash; even for negative numbers?</span></p>
+      </div>
+      <div class="stage">
+        <svg viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
+
+    <g id="rsh-diagram"></g>
+    
+        </svg>
+      </div>
+      <p class="caption"><b>n &gt;&gt; k</b> is floor(n / 2<sup>k</sup>) for non-negative n. For signed negatives, an <i>arithmetic</i> shift refills with the sign bit (1s) instead of 0s, so the sign is preserved &mdash; a <i>logical</i> shift would corrupt it.</p>
+      <button class="replay-btn" onclick="replayCurrent()" title="replay">&#8635;</button>
+    </section>
+    <section class="slide" id="slide-b-masks">
+      <div class="slide-head">
+        <div class="slide-eyebrow">BIT MASKS &middot; 08 <span class="eyebrow-num"></span></div>
+        <h1 class="slide-title">Shifts build the exact mask you need</h1>
+        <p class="slide-sub"><b>Recap</b> &mdash; shifts move bits, division/multiplication for free. <span class='gap'>To touch ONE bit out of 32 without disturbing the rest, we need a stencil with exactly that bit lit. How do we build one on demand?</span></p>
+      </div>
+      <div class="stage">
+        <svg viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
+
+    <g id="mask-diagram"></g>
+    
+        </svg>
+      </div>
+      <p class="caption"><b>1 &lt;&lt; k</b> makes a mask with only bit k set. <b>(1 &lt;&lt; k) &minus; 1</b> makes a mask of the bottom k bits all set. Practical use: permission flags &mdash; READ=1&lt;&lt;0, WRITE=1&lt;&lt;1, EXEC=1&lt;&lt;2, combined with OR.</p>
+      <button class="replay-btn" onclick="replayCurrent()" title="replay">&#8635;</button>
+    </section>
+    <section class="slide" id="slide-b-set-clear-toggle">
+      <div class="slide-head">
+        <div class="slide-eyebrow">BIT MASKS &middot; 09 <span class="eyebrow-num"></span></div>
+        <h1 class="slide-title">Set, clear, and toggle &mdash; one bit, surgically</h1>
+        <p class="slide-sub"><b>Recap</b> &mdash; 1&lt;&lt;k builds a single-bit stencil. <span class='gap'>With that stencil in hand, how exactly do we turn bit k ON, OFF, or FLIP it &mdash; using only AND / OR / XOR?</span></p>
+      </div>
+      <div class="stage">
+        <svg viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
+
+    <g id="sct-diagram"></g>
+    
+        </svg>
+      </div>
+      <p class="caption"><b>Set:</b> n | (1&lt;&lt;k) &nbsp;&middot;&nbsp; <b>Clear:</b> n &amp; ~(1&lt;&lt;k) &nbsp;&middot;&nbsp; <b>Toggle:</b> n ^ (1&lt;&lt;k). Practical use: dirty-bit tracking, visited markers, and flipping individual configuration flags.</p>
+      <button class="replay-btn" onclick="replayCurrent()" title="replay">&#8635;</button>
+    </section>
+    <section class="slide" id="slide-b-popcount">
+      <div class="slide-head">
+        <div class="slide-eyebrow">BIT TRICKS &middot; 10 <span class="eyebrow-num"></span></div>
+        <h1 class="slide-title">Counting the 1-bits without checking every position</h1>
+        <p class="slide-sub"><b>Recap</b> &mdash; we can set, clear, toggle single bits. <span class='gap'>To count how many bits are ON, must we test all 32 or 64 positions one by one?</span></p>
+      </div>
+      <div class="stage">
+        <svg viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
+
+    <g id="pc2-diagram"></g>
+    
+        </svg>
+      </div>
+      <p class="caption">Brian Kernighan's trick: <b>n &amp; (n&minus;1)</b> deletes the lowest set bit. Repeat until n is 0; the number of iterations is the popcount. Cost drops from O(bit-width) to <b>O(number of set bits)</b>. Used for Hamming-weight/error-detection codes and counting subset sizes.</p>
+      <button class="replay-btn" onclick="replayCurrent()" title="replay">&#8635;</button>
+    </section>
+    <section class="slide" id="slide-b-pow2">
+      <div class="slide-head">
+        <div class="slide-eyebrow">BIT TRICKS &middot; 11 <span class="eyebrow-num"></span></div>
+        <h1 class="slide-title">Spotting a power of two in one operation</h1>
+        <p class="slide-sub"><b>Recap</b> &mdash; n &amp; (n&minus;1) strips the lowest set bit. <span class='gap'>A power of two has exactly ONE bit set &mdash; so what happens when we strip that single bit away?</span></p>
+      </div>
+      <div class="stage">
+        <svg viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
+
+    <g id="pow2-diagram"></g>
+    
+        </svg>
+      </div>
+      <p class="caption"><b>n &gt; 0 &amp;&amp; (n &amp; (n&minus;1)) == 0</b>. A power of two loses its only bit and becomes exactly 0; any other number still has a bit left over. Practical use: checking table sizes, memory alignment, and buffer capacities that must stay powers of two.</p>
+      <button class="replay-btn" onclick="replayCurrent()" title="replay">&#8635;</button>
+    </section>
+    <section class="slide" id="slide-b-xor-swap">
+      <div class="slide-head">
+        <div class="slide-eyebrow">XOR TRICKS &middot; 12 <span class="eyebrow-num"></span></div>
+        <h1 class="slide-title">XOR can swap two values with no third variable</h1>
+        <p class="slide-sub"><b>Recap</b> &mdash; a^a=0 and a^0=a. <span class='gap'>Those two facts alone &mdash; can they be chained to swap a and b without ever storing either in a temporary slot?</span></p>
+      </div>
+      <div class="stage">
+        <svg viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
+
+    <g id="swap-diagram"></g>
+    
+        </svg>
+      </div>
+      <p class="caption">a^=b; b^=a; a^=b; performs a full swap. Honest caveat: on modern hardware a plain temp-variable swap is just as fast and far more readable &mdash; this trick's real value is the self-cancelling identity it demonstrates, reused in the next two slides for genuinely useful problems.</p>
+      <button class="replay-btn" onclick="replayCurrent()" title="replay">&#8635;</button>
+    </section>
+    <section class="slide" id="slide-b-xor-single">
+      <div class="slide-head">
+        <div class="slide-eyebrow">XOR TRICKS &middot; 13 <span class="eyebrow-num"></span></div>
+        <h1 class="slide-title">Finding the one element that isn't paired</h1>
+        <p class="slide-sub"><b>Recap</b> &mdash; XOR cancels equal values to 0 and passes lone values through. <span class='gap'>A list has every number appearing exactly twice, except one. Can we find that one number in a single pass, using no extra memory?</span></p>
+      </div>
+      <div class="stage">
+        <svg viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
+
+    <g id="xs-diagram"></g>
+    
+        </svg>
+      </div>
+      <p class="caption">XOR every element together. Every pair cancels to 0, leaving only the unpaired value &mdash; O(n) time, O(1) space. This is a classic technical-interview problem and a real building block in some parity/checksum schemes.</p>
+      <button class="replay-btn" onclick="replayCurrent()" title="replay">&#8635;</button>
+    </section>
+    <section class="slide" id="slide-b-subsets">
+      <div class="slide-head">
+        <div class="slide-eyebrow">BITMASK SUBSETS &middot; 14 <span class="eyebrow-num"></span></div>
+        <h1 class="slide-title">A number can represent an entire set</h1>
+        <p class="slide-sub"><b>Recap</b> &mdash; XOR tricks work element by element. <span class='gap'>For a set of just 3 items, there are 8 possible subsets. Could a single integer 0..7 stand for each ENTIRE subset at once?</span></p>
+      </div>
+      <div class="stage">
+        <svg viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
+
+    <g id="ss-diagram"></g>
+    
+        </svg>
+      </div>
+      <p class="caption">Bit i of a mask means "item i is included." Counting from 0 to 2<sup>n</sup>&minus;1 enumerates every subset of an n-item set. Practical use: brute-force search over small sets (n &lesssim; 20) &mdash; e.g. trying every combination of items for a knapsack.</p>
+      <button class="replay-btn" onclick="replayCurrent()" title="replay">&#8635;</button>
+    </section>
+    <section class="slide" id="slide-b-submask">
+      <div class="slide-head">
+        <div class="slide-eyebrow">BITMASK SUBSETS &middot; 15 <span class="eyebrow-num"></span></div>
+        <h1 class="slide-title">Walking only the submasks of a mask</h1>
+        <p class="slide-sub"><b>Recap</b> &mdash; a mask represents a subset. <span class='gap'>Sometimes we only need the subsets OF one particular subset (e.g. mask 1011) &mdash; not all 2<sup>n</sup> of them. Can we skip straight to just those?</span></p>
+      </div>
+      <div class="stage">
+        <svg viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
+
+    <g id="sub-diagram"></g>
+    
+        </svg>
+      </div>
+      <p class="caption">for(sub=mask; sub; sub=(sub&minus;1)&amp;mask) visits every submask of mask exactly once, largest to smallest, ending at 0. Practical use: sum-over-subsets DP and profile/broken-profile dynamic programming, where total work across all masks is <b>3<sup>n</sup></b>, not 4<sup>n</sup>.</p>
+      <button class="replay-btn" onclick="replayCurrent()" title="replay">&#8635;</button>
+    </section>
+    <section class="slide" id="slide-b-bitmask-dp">
+      <div class="slide-head">
+        <div class="slide-eyebrow">BITWISE DP &middot; 16 <span class="eyebrow-num"></span></div>
+        <h1 class="slide-title">The DP state IS a bitmask</h1>
+        <p class="slide-sub"><b>Recap</b> &mdash; a mask names a subset in O(1) space. <span class='gap'>Some DP problems need to track exactly "which items have been used so far" &mdash; how do we fold a whole subset into a single, indexable DP dimension?</span></p>
+      </div>
+      <div class="stage">
+        <svg viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
+
+    <g id="dp-diagram"></g>
+    
+        </svg>
+      </div>
+      <p class="caption">dp[mask][last] = best cost having visited exactly the cities in mask, ending at city last. Transition: from dp[mask][last], move to any unvisited city j via dp[mask | (1&lt;&lt;j)][j]. This is the classic <b>Held&ndash;Karp</b> formulation for the Traveling Salesman Problem.</p>
+      <button class="replay-btn" onclick="replayCurrent()" title="replay">&#8635;</button>
+    </section>
+    <section class="slide" id="slide-b-bitmask-dp-uses">
+      <div class="slide-head">
+        <div class="slide-eyebrow">BITWISE DP &middot; 17 <span class="eyebrow-num"></span></div>
+        <h1 class="slide-title">Why 2&#8319; beats n! for exact TSP</h1>
+        <p class="slide-sub"><b>Recap</b> &mdash; bitmask DP tracks visited-set + current city as one state. <span class='gap'>Brute force tries every permutation of n cities &mdash; n! routes. Does the DP formulation actually beat that in practice?</span></p>
+      </div>
+      <div class="stage">
+        <svg viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
+
+    <g id="dpc-diagram"></g>
+    
+        </svg>
+      </div>
+      <p class="caption">Held&ndash;Karp runs in <b>O(2<sup>n</sup> &middot; n<sup>2</sup>)</b> versus brute force's O(n!). Practical use: exact optimal solutions for TSP-like assignment problems up to roughly n=20 &mdash; far beyond what permutation brute force could ever reach.</p>
+      <button class="replay-btn" onclick="replayCurrent()" title="replay">&#8635;</button>
+    </section>
+    <section class="slide" id="slide-b-recap-bits">
+      <div class="slide-head">
+        <div class="slide-eyebrow">SUMMARY &middot; 18 <span class="eyebrow-num"></span></div>
+        <h1 class="slide-title">The full toolkit, traced back to one idea</h1>
+        <p class="slide-sub">Every trick in this deck is AND / OR / XOR / NOT / shift, combined and pointed at a specific goal.</p>
+      </div>
+      <div class="stage">
+        <svg viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
+
+    <g id="recap-bits-list"></g>
+    
+        </svg>
+      </div>
+      <p class="caption">Reach for bit tricks when: state fits in a small fixed set (subset DP), you're touching flags/permissions, or you're in a performance-critical loop where a shift beats a multiply. Otherwise, prefer whatever reads clearest &mdash; these tools earn their complexity only when the problem asks for it.</p>
+      <button class="replay-btn" onclick="replayCurrent()" title="replay">&#8635;</button>
+    </section>
+
+
+    <div class="counter" id="counter">1 / 1</div>
+  </div>
+
+  <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+  <div class="navbar">
+    <button class="navbtn" id="prevBtn">&#8249;</button>
+    <div class="dots" id="dots"></div>
+    <button class="navbtn" id="nextBtn">&#8250;</button>
+  </div>
+  <div class="hint">use &#8592; &#8594; arrow keys, swipe, or click the frame &nbsp;&middot;&nbsp; click &#8635; to replay a slide's animation</div>
+</div>
+
+<script>
+/* ============ SHARED ANIMATION HELPERS (safe: no transform-attr collisions) ============ */
+function popIn(el, delay=0, dur=520){
+  el.style.opacity=0; el.style.transform='scale(0.35)'; el.style.transformOrigin='center';
+  el.style.transformBox='fill-box';
+  el.style.transition=`opacity ${dur}ms ease, transform ${dur}ms cubic-bezier(.34,1.56,.64,1)`;
+  setTimeout(()=>{ el.style.opacity=1; el.style.transform='scale(1)'; }, delay);
+}
+function fadeIn(el, delay=0, dur=480){
+  el.style.opacity=0; el.style.transition=`opacity ${dur}ms ease`;
+  setTimeout(()=>{ el.style.opacity=1; }, delay);
+}
+function slideUpFade(el, delay=0, dur=520, dist=14){
+  el.style.opacity=0; el.style.transform=`translateY(${dist}px)`; el.style.transformBox='fill-box';
+  el.style.transition=`opacity ${dur}ms ease, transform ${dur}ms cubic-bezier(.2,.7,.3,1)`;
+  setTimeout(()=>{ el.style.opacity=1; el.style.transform='translateY(0)'; }, delay);
+}
+function growAttr(el, attr, from, to, delay=0, dur=650, ease=t=>1-Math.pow(1-t,3)){
+  el.setAttribute(attr, from);
+  setTimeout(()=>{
+    const start=performance.now();
+    function step(t){
+      let p=Math.min(1,(t-start)/dur); const e=ease(p);
+      el.setAttribute(attr, from+(to-from)*e);
+      if(p<1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }, delay);
+}
+function countUp(el, from, to, delay=0, dur=750, suffix=''){
+  setTimeout(()=>{
+    const start=performance.now();
+    function step(t){
+      let p=Math.min(1,(t-start)/dur);
+      const val=Math.round(from+(to-from)*p);
+      el.textContent=val+suffix;
+      if(p<1) requestAnimationFrame(step); else el.textContent=to+suffix;
+    }
+    requestAnimationFrame(step);
+  }, delay);
+}
+function moveAlong(el, path, delay=0, dur=1100){
+  setTimeout(()=>{
+    const len=path.getTotalLength(); const start=performance.now();
+    el.setAttribute('opacity',1);
+    function step(t){
+      let p=Math.min(1,(t-start)/dur); const pt=path.getPointAtLength(p*len);
+      el.setAttribute('cx',pt.x); el.setAttribute('cy',pt.y);
+      if(p<1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }, delay);
+}
+function drawLine(el, delay=0, dur=650){
+  const len=el.getTotalLength();
+  el.style.strokeDasharray=len; el.style.strokeDashoffset=len;
+  el.style.transition=`stroke-dashoffset ${dur}ms ease`;
+  setTimeout(()=>{ el.style.strokeDashoffset=0; }, delay);
+}
+/* draw a row of bit cells (MSB..LSB). bits: array of 0/1. returns array of {rect,text} */
+function bitsRow(svg, opts={}){
+  const {bits, x0=500, y=200, cell=58, gap=6, fontSize=24,
+         colorFn=(b,i)=> b? 'var(--amber)':'var(--ink-faint)',
+         fillFn=(b,i)=> b? '#3a3020':'#0d0d10',
+         delayBase=150, delayStep=140, label=null, labelColor='var(--ink-dim)'} = opts;
+  const n=bits.length;
+  const totalW = n*cell + (n-1)*gap;
+  const startX = x0 - totalW/2;
+  const cells=[];
+  if(label){
+    const lt=el('text',{x:x0,y:y-cell/2-16,'text-anchor':'middle','font-size':14,fill:labelColor},label);
+    svg.appendChild(lt); fadeIn(lt, delayBase, 350);
+  }
+  bits.forEach((b,i)=>{
+    const cx = startX + i*(cell+gap) + cell/2;
+    const rect = el('rect',{x:cx-cell/2, y:y-cell/2, width:cell, height:cell, rx:8, fill:fillFn(b,i), stroke:colorFn(b,i), 'stroke-width':2});
+    const txt = el('text',{x:cx, y:y+fontSize*0.32, 'text-anchor':'middle','font-size':fontSize, fill:colorFn(b,i), 'font-weight':700, class:'mono'}, b);
+    svg.appendChild(rect); svg.appendChild(txt);
+    popIn(rect, delayBase+i*delayStep, 340);
+    popIn(txt, delayBase+i*delayStep, 340);
+    cells.push({rect,txt,cx,cy:y});
+  });
+  return cells;
+}
+
+const NS='http://www.w3.org/2000/svg';
+/* SVGElement has no native getElementById (only Document/DocumentFragment do) */
+if(typeof SVGElement!=='undefined' && !SVGElement.prototype.getElementById){
+  SVGElement.prototype.getElementById = function(id){ return this.querySelector('[id="'+id+'"]'); };
+}
+function el(tag, attrs={}, text=null){
+  const e=document.createElementNS(NS, tag);
+  for(const k in attrs) e.setAttribute(k, attrs[k]);
+  if(text!==null) e.textContent=text;
+  return e;
+}
+/* build a vertically stacked list of lines, each popping in; last item can be emphasized */
+function stepList(svg, items, opts={}){
+  const {x=500,startY=140,gapY=56,fontSize=25,delayStep=420,baseDelay=150}=opts;
+  items.forEach((it,i)=>{
+    const y=startY+i*gapY;
+    const t=el('text',{x,y,'text-anchor':'middle',class:'mono',
+      'font-size':it.big?fontSize*1.25:fontSize,
+      fill:it.color||'var(--ink)','font-weight':it.big?700:400});
+    t.textContent=it.text;
+    svg.appendChild(t);
+    slideUpFade(t, baseDelay+i*delayStep, 480);
+  });
+}
+/* horizontal comparison bars */
+function compareBars(svg, bars, opts={}){
+  const {barX=270,barH=30,maxW=560,y0=170,gapY=90,labelFS=17,valueFS=17}=opts;
+  bars.forEach((b,i)=>{
+    const y=y0+i*gapY;
+    const lbl=el('text',{x:barX-16,y:y+barH*0.72,'text-anchor':'end','font-size':labelFS,fill:'var(--ink-dim)'},b.label);
+    svg.appendChild(lbl); fadeIn(lbl, 100+i*250,400);
+    const track=el('rect',{x:barX,y,width:maxW,height:barH,rx:5,fill:'#111114',stroke:'var(--line)'});
+    svg.appendChild(track);
+    const w=maxW*(b.value/b.maxValue);
+    const rect=el('rect',{x:barX,y,width:0,height:barH,rx:5,fill:b.color||'var(--amber)'});
+    svg.appendChild(rect);
+    growAttr(rect,'width',0,w,300+i*250,700);
+    const val=el('text',{x:barX+w+14,y:y+barH*0.72,'font-size':valueFS,fill:b.color||'var(--amber)','font-weight':700,class:'mono'});
+    svg.appendChild(val);
+    setTimeout(()=>{ val.setAttribute('x', barX+ (maxW*(b.value/b.maxValue)) +14); },300+i*250+700);
+    countUp(val,0,b.value,300+i*250+50,700,b.suffix||'');
+  });
+}
+</script>
+
+<script>
+/* ============ SLIDE ENGINE / NAVIGATION ============ */
+const slideScripts = {};
+let current = 0;
+let slides = [];
+let svgOriginals = new Map();
+
+function initDeck(){
+  slides = Array.from(document.querySelectorAll('.slide'));
+  slides.forEach(s=>{
+    const svg = s.querySelector('svg');
+    if(svg) svgOriginals.set(s.id, svg.innerHTML);
+  });
+  buildDots();
+  goTo(0, true);
+}
+function buildDots(){
+  const dotsEl = document.getElementById('dots');
+  dotsEl.innerHTML='';
+  slides.forEach((s,i)=>{
+    const d=document.createElement('button');
+    d.className='dot'+(s.dataset.section==='start'?' section-start':'');
+    d.addEventListener('click',()=>goTo(i));
+    dotsEl.appendChild(d);
+  });
+}
+function updateChrome(){
+  document.querySelectorAll('.dot').forEach((d,i)=>d.classList.toggle('active', i===current));
+  document.getElementById('progressFill').style.width = ((current)/(slides.length-1)*100)+'%';
+  document.getElementById('counter').textContent = (current+1)+' / '+slides.length;
+  document.querySelectorAll('.eyebrow-num').forEach((e,i)=>{ e.textContent = String(i+1).padStart(2,'0'); });
+}
+function runSlideScript(s){
+  const svg = s.querySelector('svg');
+  if(svg && svgOriginals.has(s.id)) svg.innerHTML = svgOriginals.get(s.id);
+  if(typeof slideScripts[s.id]==='function'){
+    requestAnimationFrame(()=>requestAnimationFrame(()=>slideScripts[s.id](svg)));
+  }
+}
+function goTo(idx, first=false){
+  if(idx<0||idx>=slides.length) return;
+  if(!first) slides[current].classList.remove('active');
+  current = idx;
+  const s = slides[current];
+  void s.offsetWidth;
+  s.classList.add('active');
+  updateChrome();
+  runSlideScript(s);
+}
+function next(){ goTo(current+1); }
+function prev(){ goTo(current-1); }
+function replayCurrent(){ runSlideScript(slides[current]); }
+
+document.addEventListener('keydown', e=>{
+  if(['ArrowRight','ArrowDown',' ','PageDown'].includes(e.key)){ e.preventDefault(); next(); }
+  if(['ArrowLeft','ArrowUp','PageUp'].includes(e.key)){ e.preventDefault(); prev(); }
+  if(e.key==='r'||e.key==='R') replayCurrent();
+});
+document.getElementById('nextBtn').addEventListener('click', next);
+document.getElementById('prevBtn').addEventListener('click', prev);
+
+let touchStartX=0;
+const frameEl = document.getElementById('frame');
+frameEl.addEventListener('touchstart', e=>{ touchStartX=e.touches[0].clientX; }, {passive:true});
+frameEl.addEventListener('touchend', e=>{
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  if(dx<-40) next(); else if(dx>40) prev();
+}, {passive:true});
+frameEl.addEventListener('click', e=>{
+  if(e.target.closest('.replay-btn') || e.target.closest('.navbtn')) return;
+  const rect = frameEl.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  if(x < rect.width*0.5) { if(x < rect.width*0.18) prev(); else next(); } else { next(); }
+});
+
+window.addEventListener('DOMContentLoaded', initDeck);
+</script>
+<script>
+slideScripts['slide-m-title'] = function(svg){
+
+    slideUpFade(svg.getElementById('t-kicker'), 200, 600);
+    popIn(svg.getElementById('t-eq'), 550, 700);
+    const labels=["48,18","a^b mod p","x&#8801;r (mod m)","n choose r"];
+    const g=svg.getElementById('t-icons');
+    labels.forEach((L,i)=>{
+      const x=150+i*233;
+      const box=el('rect',{x:x-70,y:360,width:140,height:56,rx:8,fill:'#0d0d10',stroke:'var(--line)'});
+      const t=el('text',{x:x,y:394,'text-anchor':'middle','font-size':17,fill:'var(--ink-dim)',class:'mono'},L);
+      g.appendChild(box); g.appendChild(t);
+      popIn(box, 1200+i*180,450); popIn(t,1200+i*180,450);
+    });
+    
+};
+slideScripts['slide-m-gcd'] = function(svg){
+
+    popIn(svg.getElementById('g-a'), 100); popIn(svg.getElementById('g-b'), 250);
+    stepList(svg, [
+      {text:"48 = 2 \u00D7 18 + 12"},
+      {text:"18 = 1 \u00D7 12 + 6"},
+      {text:"12 = 2 \u00D7 6 + 0"},
+      {text:"gcd(48, 18) = 6", color:'var(--amber)', big:true},
+    ], {startY:150, gapY:62, baseDelay:700, delayStep:480});
+    
+};
+slideScripts['slide-m-gcd-uses'] = function(svg){
+
+    compareBars(svg, [
+      {label:'Check every possible divisor', value:999999999, maxValue:999999999, color:'var(--rose)', suffix:''},
+      {label:"Euclid's algorithm", value:71, maxValue:999999999, color:'var(--teal)', suffix:' steps'},
+    ], {y0:150, gapY:110, maxW:480, barX:420, labelFS:16});
+    setTimeout(()=>{
+      const t=el('text',{x:500,y:430,'text-anchor':'middle','font-size':22,fill:'var(--amber)','font-weight':700});
+      t.textContent="O(log(min(a,b))) \u2014 worst case is consecutive Fibonacci numbers";
+      svg.appendChild(t); slideUpFade(t,100,500);
+    }, 1700);
+    
+};
+slideScripts['slide-m-ext-euclid'] = function(svg){
+
+    stepList(svg, [
+      {text:"6 = 18 \u2212 1\u00D712"},
+      {text:"6 = 18 \u2212 1\u00D7(48 \u2212 2\u00D718) = 3\u00D718 \u2212 1\u00D748"},
+      {text:"6 = 48\u00D7(\u22121) + 18\u00D7(3)", color:'var(--amber)', big:true},
+    ], {startY:150, gapY:80, baseDelay:250, delayStep:600});
+    setTimeout(()=>{
+      const t=el('text',{x:500,y:420,'text-anchor':'middle','font-size':20,fill:'var(--ink-dim)'});
+      t.textContent="check: 48\u00D7(\u22121) + 18\u00D73 = \u221248 + 54 = 6 \u2713";
+      svg.appendChild(t); slideUpFade(t,100,500);
+    }, 2100);
+    
+};
+slideScripts['slide-m-ext-euclid-uses'] = function(svg){
+
+    const g=svg.getElementById('ee2-diagram');
+    const eq1=el('text',{x:500,y:170,'text-anchor':'middle','font-size':27,fill:'var(--ink)',class:'mono'},'a\u00B7x + m\u00B7y = 1');
+    g.appendChild(eq1); slideUpFade(eq1,150,500);
+    const arrow=el('text',{x:500,y:230,'text-anchor':'middle','font-size':22,fill:'var(--ink-faint)'},'\u2193  (take mod m of both sides)');
+    g.appendChild(arrow); fadeIn(arrow,700,450);
+    const eq2=el('text',{x:500,y:300,'text-anchor':'middle','font-size':30,fill:'var(--amber)','font-weight':700,class:'mono'},'a\u00B7x \u2261 1 (mod m)');
+    g.appendChild(eq2); popIn(eq2,1250,550);
+    const label=el('text',{x:500,y:360,'text-anchor':'middle','font-size':19,fill:'var(--teal)'},'x is the modular inverse of a, written a\u207B\u00B9');
+    g.appendChild(label); slideUpFade(label,1900,500);
+    
+};
+slideScripts['slide-m-lcm'] = function(svg){
+
+    const g=svg.getElementById('lcm-diagram');
+    const f=el('text',{x:500,y:150,'text-anchor':'middle','font-size':30,fill:'var(--ink)',class:'mono'},'lcm(a,b) = (a \u00D7 b) / gcd(a,b)');
+    g.appendChild(f); slideUpFade(f,150,550);
+    const ex=el('text',{x:500,y:210,'text-anchor':'middle','font-size':22,fill:'var(--ink-dim)',class:'mono'},'lcm(12,18) = (12\u00D718)/6 = 36');
+    g.appendChild(ex); fadeIn(ex,800,450);
+    // number line with ticks for 12 and 18 meeting at 36
+    const lineY=340, x0=100, x1=900;
+    const line=el('line',{x1:x0,y1:lineY,x2:x1,y2:lineY,stroke:'var(--line)','stroke-width':2});
+    g.appendChild(line); drawLine(line,1300,600);
+    const scale=(x1-x0)/36;
+    function tick(day,color,rowOffset,label){
+      const x=x0+day*scale;
+      const c=el('circle',{cx:x,cy:lineY+rowOffset,r:7,fill:color,opacity:0});
+      g.appendChild(c);
+      const t=el('text',{x:x,y:lineY+rowOffset-14,'text-anchor':'middle','font-size':13,fill:color},label);
+      g.appendChild(t);
+      return c;
+    }
+    let delay=1400;
+    for(let d=12; d<=36; d+=12){ const c=tick(d,'var(--teal)',-18,d+'d'); popIn(c,delay,350); fadeIn(g.lastChild,delay,350); delay+=180; }
+    delay=1400;
+    for(let d=18; d<=36; d+=18){ const c=tick(d,'var(--violet)',18,d+'d'); popIn(c,delay+90,350); fadeIn(g.lastChild,delay+90,350); delay+=180; }
+    setTimeout(()=>{
+      const star=el('text',{x:500,y:440,'text-anchor':'middle','font-size':20,fill:'var(--amber)','font-weight':700},'\u2605 day 36: both coincide');
+      g.appendChild(star); popIn(star,0,500);
+    }, 2400);
+    
+};
+slideScripts['slide-m-prime-check'] = function(svg){
+
+    const g=svg.getElementById('pc-grid');
+    const n=97, sq=Math.floor(Math.sqrt(n));
+    const title=el('text',{x:500,y:60,'text-anchor':'middle','font-size':22,fill:'var(--ink-dim)'},'is 97 prime?   \u221A97 \u2248 9.8   \u2192 only test divisors 2..9');
+    g.appendChild(title); slideUpFade(title,100,500);
+    const divisors=[2,3,4,5,6,7,8,9];
+    const startX=160, gap=90, y=220;
+    divisors.forEach((d,i)=>{
+      const x=startX+i*gap;
+      const box=el('rect',{x:x-32,y:y-30,width:64,height:60,rx:8,fill:'#0d0d10',stroke:'var(--line)'});
+      const t=el('text',{x,y:y+8,'text-anchor':'middle','font-size':24,fill:'var(--ink)',class:'mono'},'97/'+d);
+      g.appendChild(box); g.appendChild(t);
+      popIn(box,500+i*220,400); popIn(t,500+i*220,400);
+      setTimeout(()=>{
+        box.setAttribute('stroke','var(--rose)');
+        const x2=el('text',{x,y:y+55,'text-anchor':'middle','font-size':13,fill:'var(--rose)'},'not exact');
+        g.appendChild(x2); fadeIn(x2,0,300);
+      }, 500+i*220+420);
+    });
+    setTimeout(()=>{
+      const res=el('text',{x:500,y:390,'text-anchor':'middle','font-size':26,fill:'var(--amber)','font-weight':700},'no divisor found by 9 \u2192 97 is prime');
+      g.appendChild(res); popIn(res,0,550);
+    }, 500+divisors.length*220+500);
+    
+};
+slideScripts['slide-m-prime-uses'] = function(svg){
+
+    const g=svg.getElementById('pu-diagram');
+    const rows=[
+      "pick random witness a",
+      "check a^(n-1) mod n == 1 ?",
+      "repeat k times independently",
+    ];
+    stepList(svg, rows.map(r=>({text:r})), {startY:140, gapY:70, fontSize:22, baseDelay:150, delayStep:450});
+    setTimeout(()=>{
+      const t=el('text',{x:500,y:380,'text-anchor':'middle','font-size':21,fill:'var(--amber)','font-weight':700});
+      t.textContent='error probability < 4\u207B\u1D4F  \u2014  k=20 rounds is essentially certain';
+      svg.appendChild(t); popIn(t,100,550);
+    }, 1900);
+    
+};
+slideScripts['slide-m-sieve'] = function(svg){
+
+    const g=svg.getElementById('sv-grid');
+    const N=30, cols=10, cell=72, x0=500-cols*cell/2+cell/2, y0=110;
+    const cellsByNum={};
+    for(let n=2;n<=N;n++){
+      const idx=n-2; const cx=x0+(idx%cols)*cell; const cy=y0+Math.floor(idx/cols)*cell;
+      const r=el('rect',{x:cx-30,y:cy-26,width:60,height:52,rx:6,fill:'#0d0d10',stroke:'var(--line)'});
+      const t=el('text',{x:cx,y:cy+8,'text-anchor':'middle','font-size':22,fill:'var(--ink)',class:'mono'},n);
+      g.appendChild(r); g.appendChild(t);
+      cellsByNum[n]={rect:r,text:t,cx,cy};
+      popIn(r,60+idx*22,300); popIn(t,60+idx*22,300);
+    }
+    const primes=[2,3,5];
+    let delay=900;
+    primes.forEach((p,pi)=>{
+      const label=el('text',{x:x0+5*cell,y:y0-70+pi*0,'text-anchor':'middle','font-size':0,opacity:0});
+      for(let m=p*p; m<=N; m+=p){
+        const c=cellsByNum[m];
+        setTimeout(()=>{
+          c.rect.setAttribute('fill', p===2?'#3a2226':(p===3?'#2c2333':'#1f2a33'));
+          c.rect.setAttribute('stroke', p===2?'var(--rose)':(p===3?'var(--violet)':'var(--teal)'));
+          c.text.setAttribute('fill', 'var(--ink-faint)');
+          c.text.style.textDecoration='line-through';
+        }, delay);
+        delay += 140;
+      }
+      delay += 250;
+    });
+    setTimeout(()=>{
+      for(let n=2;n<=N;n++){
+        const c=cellsByNum[n];
+        if(c.rect.getAttribute('stroke')==='var(--line)'){
+          c.rect.setAttribute('stroke','var(--amber)'); c.text.setAttribute('fill','var(--amber)'); c.text.setAttribute('font-weight','700');
+        }
+      }
+      const res=el('text',{x:500,y:420,'text-anchor':'middle','font-size':20,fill:'var(--amber)'},'remaining, unmarked numbers = primes');
+      g.appendChild(res); slideUpFade(res,0,450);
+    }, delay+300);
+    
+};
+slideScripts['slide-m-sieve-uses'] = function(svg){
+
+    const g=svg.getElementById('spf-diagram');
+    const t=el('text',{x:500,y:80,'text-anchor':'middle','font-size':20,fill:'var(--ink-dim)'},'factorizing 84 using precomputed SPF[]');
+    g.appendChild(t); slideUpFade(t,100,450);
+    const chain=[["84","SPF=2"],["42","SPF=2"],["21","SPF=3"],["7","SPF=7"],["1","done"]];
+    const y=220, gap=170, x0=140;
+    chain.forEach((c,i)=>{
+      const x=x0+i*gap;
+      const box=el('rect',{x:x-55,y:y-35,width:110,height:70,rx:8,fill:'#0d0d10',stroke:i===chain.length-1?'var(--amber)':'var(--line)'});
+      const n=el('text',{x,y:y-4,'text-anchor':'middle','font-size':24,fill:'var(--ink)',class:'mono'},c[0]);
+      const s=el('text',{x,y:y+22,'text-anchor':'middle','font-size':14,fill:'var(--teal)'},c[1]);
+      g.appendChild(box); g.appendChild(n); g.appendChild(s);
+      popIn(box,400+i*500,400); popIn(n,400+i*500,400); fadeIn(s,700+i*500,350);
+      if(i<chain.length-1){
+        const arrow=el('text',{x:x+85,y:y+6,'text-anchor':'middle','font-size':22,fill:'var(--ink-faint)'},'\u2192');
+        g.appendChild(arrow); fadeIn(arrow,900+i*500,300);
+      }
+    });
+    setTimeout(()=>{
+      const res=el('text',{x:500,y:400,'text-anchor':'middle','font-size':21,fill:'var(--amber)','font-weight':700},'84 = 2 \u00D7 2 \u00D7 3 \u00D7 7');
+      g.appendChild(res); popIn(res,0,500);
+    }, 400+chain.length*500);
+    
+};
+slideScripts['slide-m-seg-sieve'] = function(svg){
+
+    const g=svg.getElementById('seg-diagram');
+    const t1=el('text',{x:500,y:70,'text-anchor':'middle','font-size':19,fill:'var(--ink-dim)'},'step 1: sieve primes up to \u221Ahigh (small, cheap array)');
+    g.appendChild(t1); slideUpFade(t1,100,450);
+    const smallBox=el('rect',{x:250,y:100,width:500,height:44,rx:6,fill:'#122a28',stroke:'var(--teal)'});
+    const smallT=el('text',{x:500,y:128,'text-anchor':'middle','font-size':16,fill:'var(--teal)',class:'mono'},'2, 3, 5, 7, 11 ... up to \u221Ahigh');
+    g.appendChild(smallBox); g.appendChild(smallT); popIn(smallBox,500,400); popIn(smallT,500,400);
+    const t2=el('text',{x:500,y:210,'text-anchor':'middle','font-size':19,fill:'var(--ink-dim)'},'step 2: sweep only the target window using those primes');
+    g.appendChild(t2); slideUpFade(t2,1000,450);
+    const winBox=el('rect',{x:130,y:250,width:740,height:70,rx:6,fill:'#0d0d10',stroke:'var(--line)'});
+    const winLabel=el('text',{x:500,y:238,'text-anchor':'middle','font-size':15,fill:'var(--ink-faint)'},'window: [ 10\u2079, 10\u2079+10\u2076 ]');
+    g.appendChild(winBox); g.appendChild(winLabel);
+    popIn(winBox,1400,450); fadeIn(winLabel,1400,400);
+    const marks=[0.08,0.22,0.31,0.5,0.63,0.71,0.85];
+    marks.forEach((f,i)=>{
+      const x=130+f*740;
+      setTimeout(()=>{
+        const c=el('circle',{cx:x,cy:285,r:5,fill:'var(--rose)',opacity:0});
+        g.appendChild(c); popIn(c,0,300);
+      }, 1900+i*150);
+    });
+    setTimeout(()=>{
+      const res=el('text',{x:500,y:390,'text-anchor':'middle','font-size':19,fill:'var(--amber)','font-weight':700},'unmarked cells in the window = primes in that range');
+      g.appendChild(res); slideUpFade(res,0,450);
+    }, 1900+marks.length*150+300);
+    
+};
+slideScripts['slide-m-seg-sieve-uses'] = function(svg){
+
+    const g=svg.getElementById('ss-recap');
+    const items=["gcd + extended Euclid","LCM","prime checking","sieve of Eratosthenes","segmented sieve"];
+    items.forEach((it,i)=>{
+      const y=130+i*58;
+      const dot=el('circle',{cx:270,cy:y-6,r:5,fill:'var(--teal)'});
+      const t=el('text',{x:290,y,'font-size':21,fill:'var(--ink)'},it);
+      g.appendChild(dot); g.appendChild(t);
+      slideUpFade(dot,150+i*220,400); slideUpFade(t,150+i*220,400);
+    });
+    setTimeout(()=>{
+      const q=el('text',{x:500,y:440,'text-anchor':'middle','font-size':22,fill:'var(--amber)','font-weight':700});
+      q.textContent="next: keeping every number in safe, fixed-size range";
+      g.appendChild(q); popIn(q,0,550);
+    }, 150+items.length*220+300);
+    
+};
+slideScripts['slide-m-mod-arith'] = function(svg){
+
+    const g=svg.getElementById('clock');
+    const cx=270, cy=250, r=150, m=12;
+    const circle=el('circle',{cx,cy,r,fill:'none',stroke:'var(--line)','stroke-width':2});
+    g.appendChild(circle); drawLine(circle,100,700);
+    for(let i=0;i<m;i++){
+      const ang=(i/m)*2*Math.PI - Math.PI/2;
+      const tx=cx+Math.cos(ang)*(r-26), ty=cy+Math.sin(ang)*(r-26);
+      const t=el('text',{x:tx,y:ty+6,'text-anchor':'middle','font-size':16,fill:'var(--ink-dim)'},i);
+      g.appendChild(t); fadeIn(t,300+i*40,300);
+    }
+    // show 15 mod 12 = 3: needle sweeps from 0 past 12 landing at 3
+    const needle=el('line',{x1:cx,y1:cy,x2:cx,y2:cy-r+26,stroke:'var(--amber)','stroke-width':3});
+    g.appendChild(needle);
+    setTimeout(()=>{
+      const start=performance.now(), dur=1400, totalAng = (15/m)*2*Math.PI;
+      function step(t){
+        let p=Math.min(1,(t-start)/dur);
+        const ang = -Math.PI/2 + totalAng*p;
+        needle.setAttribute('x2', cx+Math.cos(ang)*(r-26));
+        needle.setAttribute('y2', cy+Math.sin(ang)*(r-26));
+        if(p<1) requestAnimationFrame(step);
+      }
+      requestAnimationFrame(step);
+    }, 1600);
+    const label=el('text',{x:cx,y:cy+r+50,'text-anchor':'middle','font-size':20,fill:'var(--amber)','font-weight':700},'15 mod 12 = 3');
+    g.appendChild(label);
+    setTimeout(()=>popIn(label,0,500), 3100);
+    const rules=[
+      "(a + b) mod m = ((a mod m)+(b mod m)) mod m",
+      "(a \u00D7 b) mod m = ((a mod m)\u00D7(b mod m)) mod m",
+    ];
+    rules.forEach((r2,i)=>{
+      const t=el('text',{x:680,y:200+i*60,'text-anchor':'middle','font-size':16,fill:'var(--ink)',class:'mono'},r2);
+      g.appendChild(t); slideUpFade(t,900+i*400,450);
+    });
+    
+};
+slideScripts['slide-m-fast-pow'] = function(svg){
+
+    const g=svg.getElementById('fp-diagram');
+    const t=el('text',{x:500,y:55,'text-anchor':'middle','font-size':18,fill:'var(--ink-dim)'},'computing 3^13 mod 1000   (13 = 1101 in binary)');
+    g.appendChild(t); slideUpFade(t,100,450);
+    const bits=[1,1,0,1];
+    const bx0=310, bgap=110, by=110;
+    bits.forEach((b,i)=>{
+      const x=bx0+i*bgap;
+      const box=el('rect',{x:x-30,y:by-28,width:60,height:56,rx:8,fill: b? '#3a3020':'#0d0d10', stroke: b?'var(--amber)':'var(--line)'});
+      const bt=el('text',{x,y:by+9,'text-anchor':'middle','font-size':24,fill:b?'var(--amber)':'var(--ink-faint)',class:'mono'},b);
+      g.appendChild(box); g.appendChild(bt);
+      popIn(box,400+i*260,350); popIn(bt,400+i*260,350);
+    });
+    const rows=[
+      {t:"bit 1: result=3,  base=3\u00B2=9", c:'var(--ink)'},
+      {t:"bit 1: result=3\u00D79=27, base=9\u00B2=81", c:'var(--ink)'},
+      {t:"bit 0: result=27 (skip), base=81\u00B2=6561", c:'var(--ink-faint)'},
+      {t:"bit 1: result=27\u00D76561 mod 1000 = 947", c:'var(--amber)'},
+    ];
+    rows.forEach((r2,i)=>{
+      const y=220+i*54;
+      const tt=el('text',{x:500,y,'text-anchor':'middle','font-size':17,fill:r2.c,class:'mono'},r2.t);
+      g.appendChild(tt); slideUpFade(tt,1400+i*420,450);
+    });
+    
+};
+slideScripts['slide-m-fast-pow-uses'] = function(svg){
+
+    const g=svg.getElementById('fpu-diagram');
+    const rows=[
+      {label:'RSA encryption', formula:'c = m^e mod n', color:'var(--teal)'},
+      {label:'nCr mod p (via factorials)', formula:'n! \u00D7 (r!)\u207B\u00B9 \u00D7 ((n-r)!)\u207B\u00B9', color:'var(--violet)'},
+    ];
+    rows.forEach((r2,i)=>{
+      const y=160+i*140;
+      const box=el('rect',{x:120,y:y-45,width:760,height:100,rx:10,fill:'#0d0d10',stroke:r2.color});
+      g.appendChild(box); popIn(box,200+i*500,450);
+      const lbl=el('text',{x:150,y:y-10,'font-size':16,fill:r2.color,'font-weight':700},r2.label);
+      g.appendChild(lbl); fadeIn(lbl,600+i*500,350);
+      const f=el('text',{x:150,y:y+30,'font-size':22,fill:'var(--ink)',class:'mono'},r2.formula);
+      g.appendChild(f); fadeIn(f,800+i*500,400);
+    });
+    
+};
+slideScripts['slide-m-mod-inverse-fermat'] = function(svg){
+
+    const g=svg.getElementById('mif-diagram');
+    stepList(svg, [
+      {text:"a\u1D56\u207B\u00B9 \u2261 1 (mod p)     (Fermat, p prime)"},
+      {text:"multiply both sides by a\u207B\u00B9"},
+      {text:"a\u1D56\u207B\u00B2 \u2261 a\u207B\u00B9 (mod p)", color:'var(--amber)', big:true},
+    ], {startY:150, gapY:80, baseDelay:200, delayStep:600, fontSize:24});
+    setTimeout(()=>{
+      const t=el('text',{x:500,y:420,'text-anchor':'middle','font-size':18,fill:'var(--ink-dim)'},'compute with fast exponentiation \u2014 O(log p), same trick as before');
+      g.appendChild(t); slideUpFade(t,0,450);
+    }, 2000);
+    
+};
+slideScripts['slide-m-mod-inverse-euclid'] = function(svg){
+
+    const g=svg.getElementById('mie-diagram');
+    const t=el('text',{x:500,y:80,'text-anchor':'middle','font-size':20,fill:'var(--ink)',class:'mono'},'ax + my = gcd(a,m) = 1  \u21D2  ax \u2261 1 (mod m)');
+    g.appendChild(t); slideUpFade(t,150,500);
+    const cmp=el('text',{x:500,y:150,'text-anchor':'middle','font-size':18,fill:'var(--ink-dim)'},'works for ANY modulus (prime or not), as long as gcd(a,m)=1');
+    g.appendChild(cmp); fadeIn(cmp,700,450);
+    compareBars(svg,[
+      {label:"Fermat (per query)", value:30, maxValue:30, color:'var(--teal)', suffix:' \u00D7 log p'},
+      {label:"Precomputed inverses (n queries)", value:1, maxValue:30, color:'var(--amber)', suffix:' \u00D7 O(n) total'},
+    ], {y0:230, gapY:90, maxW:420, barX:330});
+    
+};
+slideScripts['slide-m-crt'] = function(svg){
+
+    const g=svg.getElementById('crt-diagram');
+    const t=el('text',{x:500,y:55,'text-anchor':'middle','font-size':18,fill:'var(--ink-dim)'},'x \u2261 2 (mod 3)   and   x \u2261 3 (mod 5)');
+    g.appendChild(t); slideUpFade(t,100,450);
+    // two rows of candidates, converging visually at 8
+    const rowA=[2,5,8,11,14], rowB=[3,8,13];
+    function row(nums,y,color,delayBase){
+      nums.forEach((n,i)=>{
+        const x=140+i*180;
+        const c=el('circle',{cx:x,cy:y,r:22,fill:'#0d0d10',stroke:color,'stroke-width':2});
+        const tt=el('text',{x,y:y+7,'text-anchor':'middle','font-size':20,fill:color,class:'mono'},n);
+        g.appendChild(c); g.appendChild(tt);
+        popIn(c,delayBase+i*260,350); popIn(tt,delayBase+i*260,350);
+        if(n===8){
+          setTimeout(()=>{ c.setAttribute('stroke','var(--amber)'); c.setAttribute('stroke-width',4); tt.setAttribute('fill','var(--amber)'); tt.setAttribute('font-weight',700); }, delayBase+i*260+400);
+        }
+      });
+    }
+    row(rowA, 170, 'var(--teal)', 500);
+    row(rowB, 280, 'var(--violet)', 1800);
+    setTimeout(()=>{
+      const res=el('text',{x:500,y:400,'text-anchor':'middle','font-size':24,fill:'var(--amber)','font-weight':700},'x = 8  (unique mod 15)');
+      g.appendChild(res); popIn(res,0,550);
+    }, 3200);
+    
+};
+slideScripts['slide-m-crt-uses'] = function(svg){
+
+    const g=svg.getElementById('crtu-diagram');
+    const left=el('rect',{x:120,y:140,width:330,height:220,rx:10,fill:'#0d0d10',stroke:'var(--teal)'});
+    const right=el('rect',{x:550,y:140,width:330,height:220,rx:10,fill:'#0d0d10',stroke:'var(--violet)'});
+    g.appendChild(left); g.appendChild(right);
+    popIn(left,200,450); popIn(right,500,450);
+    const lt=el('text',{x:285,y:190,'text-anchor':'middle','font-size':17,fill:'var(--teal)'},'compute mod p (small)');
+    const rt=el('text',{x:715,y:190,'text-anchor':'middle','font-size':17,fill:'var(--violet)'},'compute mod q (small)');
+    g.appendChild(lt); g.appendChild(rt); fadeIn(lt,700,350); fadeIn(rt,1000,350);
+    const la=el('text',{x:285,y:250,'text-anchor':'middle','font-size':30,fill:'var(--ink)',class:'mono'},'m\u1D48\u1D56');
+    const ra=el('text',{x:715,y:250,'text-anchor':'middle','font-size':30,fill:'var(--ink)',class:'mono'},'m\u1D48\u1D56\u2071');
+    g.appendChild(la); g.appendChild(ra); popIn(la,1100,400); popIn(ra,1300,400);
+    setTimeout(()=>{
+      const arrow=el('text',{x:500,y:410,'text-anchor':'middle','font-size':26,fill:'var(--ink-faint)'},'\u2198   CRT combine   \u2199');
+      g.appendChild(arrow); fadeIn(arrow,0,400);
+    }, 1900);
+    setTimeout(()=>{
+      const res=el('text',{x:500,y:450,'text-anchor':'middle','font-size':20,fill:'var(--amber)','font-weight':700},'full decrypted message, ~4\u00D7 faster');
+      g.appendChild(res); popIn(res,0,500);
+    }, 2400);
+    
+};
+slideScripts['slide-m-combinatorics'] = function(svg){
+
+    const g=svg.getElementById('comb-diagram');
+    const names=["A","B","C","D","E"];
+    const x0=200, gap=150, y=120;
+    names.forEach((n,i)=>{
+      const x=x0+i*gap;
+      const c=el('circle',{cx:x,cy:y,r:28,fill:'#0d0d10',stroke:'var(--line)'});
+      const t=el('text',{x,y:y+7,'text-anchor':'middle','font-size':22,fill:'var(--ink)'},n);
+      g.appendChild(c); g.appendChild(t);
+      popIn(c,80+i*140,350); popIn(t,80+i*140,350);
+    });
+    setTimeout(()=>{
+      [0,2,4].forEach((i,k)=>{
+        const x=x0+i*gap;
+        const cEls = g.querySelectorAll('circle');
+        cEls[i].setAttribute('stroke','var(--amber)'); cEls[i].setAttribute('stroke-width',4);
+        const tEls = g.querySelectorAll('text');
+      });
+      const f=el('text',{x:500,y:230,'text-anchor':'middle','font-size':22,fill:'var(--amber)',class:'mono'},"choose {A,C,E} \u2014 one of C(5,3)=10 teams");
+      g.appendChild(f); slideUpFade(f,0,500);
+    }, 900);
+    compareBars(svg,[
+      {label:'nPr (order matters)', value:60, maxValue:60, color:'var(--violet)', suffix:' = 5!/(2!)'},
+      {label:'nCr (order ignored)', value:10, maxValue:60, color:'var(--amber)', suffix:' = 5!/(3!2!)'},
+    ], {y0:310, gapY:80, maxW:400, barX:330});
+    
+};
+slideScripts['slide-m-binomial'] = function(svg){
+
+    const g=svg.getElementById('pascal');
+    const rows=[[1],[1,1],[1,2,1],[1,3,3,1],[1,4,6,4,1]];
+    const cy0=90, rowGap=72, cell=56;
+    let delay=100;
+    rows.forEach((row,ri)=>{
+      const rowWidth=(row.length-1)*cell;
+      row.forEach((val,ci)=>{
+        const x=500-rowWidth/2+ci*cell;
+        const y=cy0+ri*rowGap;
+        const isTarget=(ri===4 && ci===2);
+        const c=el('circle',{cx:x,cy:y,r:24,fill: isTarget? '#3a3020':'#0d0d10', stroke:isTarget?'var(--amber)':'var(--line)'});
+        const t=el('text',{x,y:y+7,'text-anchor':'middle','font-size':19,fill:isTarget?'var(--amber)':'var(--ink)','font-weight':isTarget?700:400},val);
+        g.appendChild(c); g.appendChild(t);
+        popIn(c,delay,320); popIn(t,delay,320);
+        delay+=110;
+      });
+    });
+    setTimeout(()=>{
+      const f=el('text',{x:500,y:cy0+4*rowGap+58,'text-anchor':'middle','font-size':17,fill:'var(--ink-dim)'},'C(4,2)=6 came from C(3,1)+C(3,2) = 3+3');
+      g.appendChild(f); slideUpFade(f,0,500);
+    }, delay+200);
+    
+};
+slideScripts['slide-m-matrix-exp'] = function(svg){
+
+    const g=svg.getElementById('mexp-diagram');
+    const m=el('text',{x:250,y:150,'text-anchor':'middle','font-size':26,fill:'var(--ink)',class:'mono'},'M = [1 1; 1 0]');
+    g.appendChild(m); slideUpFade(m,150,500);
+    const arrow=el('text',{x:500,y:150,'text-anchor':'middle','font-size':24,fill:'var(--ink-faint)'},'\u2192 fast-pow \u2192');
+    g.appendChild(arrow); fadeIn(arrow,700,400);
+    const m2=el('text',{x:770,y:150,'text-anchor':'middle','font-size':26,fill:'var(--amber)',class:'mono','font-weight':700},'M\u207F');
+    g.appendChild(m2); popIn(m2,1150,450);
+    compareBars(svg,[
+      {label:'Loop F(1)..F(n)', value:1000000000000000000, maxValue:1000000000000000000, color:'var(--rose)', suffix:' steps'},
+      {label:'Matrix fast-pow', value:60, maxValue:1000000000000000000, color:'var(--amber)', suffix:' \u2248 60 steps'},
+    ], {y0:250, gapY:100, maxW:520, barX:280});
+    setTimeout(()=>{
+      const f=el('text',{x:500,y:430,'text-anchor':'middle','font-size':18,fill:'var(--ink-dim)'},'same idea generalizes to any linear recurrence, e.g. DP speedups');
+      g.appendChild(f); slideUpFade(f,0,450);
+    }, 2200);
+    
+};
+slideScripts['slide-m-probability-algos'] = function(svg){
+
+    const g=svg.getElementById('prob-diagram');
+    const items=[
+      {t:'Randomized primality (Miller\u2013Rabin)', c:'var(--teal)'},
+      {t:'Reservoir sampling from a stream', c:'var(--violet)'},
+      {t:'Monte Carlo estimation', c:'var(--amber)'},
+    ];
+    items.forEach((it,i)=>{
+      const y=140+i*100;
+      const box=el('rect',{x:150,y:y-32,width:700,height:64,rx:10,fill:'#0d0d10',stroke:it.c});
+      const t=el('text',{x:500,y:y+8,'text-anchor':'middle','font-size':20,fill:it.c},it.t);
+      g.appendChild(box); g.appendChild(t);
+      popIn(box,150+i*400,450); popIn(t,150+i*400,450);
+    });
+    
+};
+slideScripts['slide-m-recap-a'] = function(svg){
+
+    const g=svg.getElementById('recap-list');
+    const items=[
+      ["GCD / Ext. Euclid / LCM","the shrinking loop", 'var(--teal)'],
+      ["Primality / Sieves","testing & bulk-marking numbers", 'var(--violet)'],
+      ["Modular arithmetic + fast pow","safe arithmetic at scale", 'var(--amber)'],
+      ["Modular inverse + CRT","division & reconstruction mod m", 'var(--teal)'],
+      ["Combinatorics + Pascal + Matrix exp","counting & fast recurrences", 'var(--violet)'],
+    ];
+    items.forEach((it,i)=>{
+      const y=110+i*72;
+      const dot=el('circle',{cx:180,cy:y-6,r:6,fill:it[2]});
+      const t1=el('text',{x:205,y,'font-size':21,fill:'var(--ink)','font-weight':600},it[0]);
+      const t2=el('text',{x:205,y:y+24,'font-size':15,fill:'var(--ink-faint)'},it[1]);
+      g.appendChild(dot); g.appendChild(t1); g.appendChild(t2);
+      slideUpFade(dot,150+i*260,400); slideUpFade(t1,150+i*260,400); slideUpFade(t2,220+i*260,400);
+    });
+    
+};
+
+slideScripts['slide-divider'] = function(svg){
+  const g = svg.getElementById('div-diagram');
+  const t1 = el('text',{x:500,y:150,'text-anchor':'middle','font-size':30,fill:'var(--amber)',class:'mono','font-weight':700},'13');
+  g.appendChild(t1); popIn(t1,150,550);
+  const arrow = el('text',{x:500,y:220,'text-anchor':'middle','font-size':22,fill:'var(--ink-faint)'},'\u2193  is really  \u2193');
+  g.appendChild(arrow); fadeIn(arrow,800,400);
+  bitsRow(svg, {bits:[0,0,0,0,1,1,0,1], x0:500, y:320, cell:56, delayBase:1300, delayStep:110,
+    colorFn:(v)=> v? 'var(--amber)':'var(--ink-faint)'});
+  setTimeout(()=>{
+    const p = el('text',{x:500,y:410,'text-anchor':'middle','font-size':17,fill:'var(--ink-dim)'},'same value, two views \u2014 Part Two lives entirely in the bottom row');
+    g.appendChild(p); slideUpFade(p,0,450);
+  }, 1300+8*110+300);
+};
+
+slideScripts['slide-b-title'] = function(svg){
+
+    slideUpFade(svg.getElementById('bt-kicker'), 200, 600);
+    bitsRow(svg, {bits:[1,0,1,1,0,0,1,0], x0:500, y:320, cell:62, delayBase:900, delayStep:110});
+    setTimeout(()=>{
+      const t=el('text',{x:500,y:410,'text-anchor':'middle','font-size':16,fill:'var(--ink-dim)'},'one byte \u2014 8 switches, 256 possible states');
+      svg.appendChild(t); slideUpFade(t,0,450);
+    }, 900+8*110+300);
+    
+};
+slideScripts['slide-b-binary-basics'] = function(svg){
+
+    const g=svg.getElementById('bb-diagram');
+    const bits=[0,0,0,0,1,1,0,1];
+    const places=[128,64,32,16,8,4,2,1];
+    const cells=bitsRow(svg, {bits, x0:500, y:150, cell:62, delayBase:150, delayStep:120});
+    cells.forEach((c,i)=>{
+      const p=el('text',{x:c.cx,y:c.cy-52,'text-anchor':'middle','font-size':13,fill: bits[i]? 'var(--amber)':'var(--ink-faint)'}, places[i]);
+      g.appendChild(p); fadeIn(p, 150+i*120+200, 350);
+    });
+    setTimeout(()=>{
+      const eq=el('text',{x:500,y:270,'text-anchor':'middle','font-size':22,fill:'var(--ink)',class:'mono'},'8 + 4 + 1 = 13');
+      g.appendChild(eq); popIn(eq,0,500);
+    }, 150+8*120+350);
+    setTimeout(()=>{
+      const eq2=el('text',{x:500,y:330,'text-anchor':'middle','font-size':20,fill:'var(--amber)','font-weight':700},'decimal 13  =  binary 00001101');
+      g.appendChild(eq2); slideUpFade(eq2,0,500);
+    }, 150+8*120+900);
+    
+};
+slideScripts['slide-b-and'] = function(svg){
+
+    const g=svg.getElementById('and-diagram');
+    const a=[0,1,1,0,1,0,1,1], b=[1,1,0,0,1,1,0,1];
+    const res=a.map((v,i)=>v & b[i]);
+    bitsRow(svg,{bits:a,x0:500,y:110,cell:58,delayBase:100,delayStep:90,
+      colorFn:(v)=>v?'var(--teal)':'var(--ink-faint)', fillFn:(v)=>v?'#122a28':'#0d0d10', label:'a'});
+    const opY=170;
+    const opT=el('text',{x:180,y:opY,'text-anchor':'middle','font-size':26,fill:'var(--ink-dim)'},'&amp;'.replace('&amp;','&'));
+    g.appendChild(opT); fadeIn(opT,900,350);
+    bitsRow(svg,{bits:b,x0:500,y:210,cell:58,delayBase:1000,delayStep:90,
+      colorFn:(v)=>v?'var(--violet)':'var(--ink-faint)', fillFn:(v)=>v?'#241f33':'#0d0d10', label:'b'});
+    const line=el('line',{x1:230,y1:250,x2:770,y2:250,stroke:'var(--line)','stroke-width':2});
+    g.appendChild(line); drawLine(line,1900,400);
+    bitsRow(svg,{bits:res,x0:500,y:320,cell:58,delayBase:2400,delayStep:110,
+      colorFn:(v)=>v?'var(--amber)':'var(--ink-faint)', fillFn:(v)=>v?'#3a3020':'#0d0d10', label:'a & b'});
+    setTimeout(()=>{
+      const t=el('text',{x:500,y:400,'text-anchor':'middle','font-size':16,fill:'var(--ink-dim)'},'only positions where BOTH rows show a lit cell stay lit');
+      g.appendChild(t); slideUpFade(t,0,450);
+    }, 2400+8*110+300);
+    
+};
+slideScripts['slide-b-or'] = function(svg){
+
+    const g=svg.getElementById('or-diagram');
+    const a=[0,1,0,0,1,0,0,1], b=[1,0,0,1,0,0,1,1];
+    const res=a.map((v,i)=>v | b[i]);
+    bitsRow(svg,{bits:a,x0:500,y:110,cell:58,delayBase:100,delayStep:90,
+      colorFn:(v)=>v?'var(--teal)':'var(--ink-faint)', fillFn:(v)=>v?'#122a28':'#0d0d10', label:'a'});
+    bitsRow(svg,{bits:b,x0:500,y:210,cell:58,delayBase:1000,delayStep:90,
+      colorFn:(v)=>v?'var(--violet)':'var(--ink-faint)', fillFn:(v)=>v?'#241f33':'#0d0d10', label:'b'});
+    const line=el('line',{x1:230,y1:250,x2:770,y2:250,stroke:'var(--line)','stroke-width':2});
+    g.appendChild(line); drawLine(line,1900,400);
+    bitsRow(svg,{bits:res,x0:500,y:320,cell:58,delayBase:2400,delayStep:110,
+      colorFn:(v)=>v?'var(--amber)':'var(--ink-faint)', fillFn:(v)=>v?'#3a3020':'#0d0d10', label:'a | b'});
+    setTimeout(()=>{
+      const t=el('text',{x:500,y:400,'text-anchor':'middle','font-size':16,fill:'var(--ink-dim)'},'a lit cell in EITHER row is enough to light the result');
+      g.appendChild(t); slideUpFade(t,0,450);
+    }, 2400+8*110+300);
+    
+};
+slideScripts['slide-b-xor'] = function(svg){
+
+    const g=svg.getElementById('xor-diagram');
+    const a=[0,1,1,0,1,0,1,1], b=[1,1,0,0,0,0,1,1];
+    const res=a.map((v,i)=>v ^ b[i]);
+    bitsRow(svg,{bits:a,x0:500,y:110,cell:58,delayBase:100,delayStep:90,
+      colorFn:(v)=>v?'var(--teal)':'var(--ink-faint)', fillFn:(v)=>v?'#122a28':'#0d0d10', label:'a'});
+    bitsRow(svg,{bits:b,x0:500,y:210,cell:58,delayBase:1000,delayStep:90,
+      colorFn:(v)=>v?'var(--violet)':'var(--ink-faint)', fillFn:(v)=>v?'#241f33':'#0d0d10', label:'b'});
+    const line=el('line',{x1:230,y1:250,x2:770,y2:250,stroke:'var(--line)','stroke-width':2});
+    g.appendChild(line); drawLine(line,1900,400);
+    bitsRow(svg,{bits:res,x0:500,y:320,cell:58,delayBase:2400,delayStep:110,
+      colorFn:(v)=>v?'var(--amber)':'var(--ink-faint)', fillFn:(v)=>v?'#3a3020':'#0d0d10', label:'a ^ b'});
+    setTimeout(()=>{
+      const t=el('text',{x:500,y:400,'text-anchor':'middle','font-size':16,fill:'var(--amber)','font-weight':700},'a ^ a = 0     a ^ 0 = a');
+      g.appendChild(t); popIn(t,0,500);
+    }, 2400+8*110+300);
+    
+};
+slideScripts['slide-b-not'] = function(svg){
+
+    const g=svg.getElementById('not-diagram');
+    const a=[0,1,0,1,1,0,0,1];
+    const res=a.map(v=>1-v);
+    bitsRow(svg,{bits:a,x0:500,y:140,cell:60,delayBase:150,delayStep:100,
+      colorFn:(v)=>v?'var(--teal)':'var(--ink-faint)', fillFn:(v)=>v?'#122a28':'#0d0d10', label:'n'});
+    const arrow=el('text',{x:500,y:220,'text-anchor':'middle','font-size':22,fill:'var(--ink-faint)'},'~  (flip every bit)');
+    g.appendChild(arrow); fadeIn(arrow,1100,400);
+    bitsRow(svg,{bits:res,x0:500,y:300,cell:60,delayBase:1600,delayStep:100,
+      colorFn:(v)=>v?'var(--amber)':'var(--ink-faint)', fillFn:(v)=>v?'#3a3020':'#0d0d10', label:'~n'});
+    setTimeout(()=>{
+      const t=el('text',{x:500,y:400,'text-anchor':'middle','font-size':17,fill:'var(--ink-dim)',class:'mono'},'two\u2019s complement identity:  ~n = \u2212n \u2212 1');
+      g.appendChild(t); slideUpFade(t,0,450);
+    }, 1600+8*100+300);
+    
+};
+slideScripts['slide-b-lshift'] = function(svg){
+
+    const g=svg.getElementById('lsh-diagram');
+    const before=[0,0,0,0,1,0,1,1];
+    bitsRow(svg,{bits:before,x0:500,y:120,cell:58,delayBase:100,delayStep:90,label:'n = 00001011 (11)'});
+    setTimeout(()=>{
+      const t=el('text',{x:500,y:190,'text-anchor':'middle','font-size':18,fill:'var(--ink-dim)'},'n \u226A 2   \u2014   slide left, fill with 0s, top bits fall off');
+      g.appendChild(t); slideUpFade(t,0,450);
+    }, 1100);
+    const after=[0,0,1,0,1,1,0,0];
+    setTimeout(()=>{
+      bitsRow(svg,{bits:after,x0:500,y:290,cell:58,delayBase:0,delayStep:90,
+        colorFn:(v)=>v?'var(--amber)':'var(--ink-faint)', fillFn:(v)=>v?'#3a3020':'#0d0d10', label:'n << 2 = 00101100 (44)'});
+    }, 1700);
+    setTimeout(()=>{
+      const w=el('text',{x:500,y:400,'text-anchor':'middle','font-size':16,fill:'var(--rose)'},'shift too far past the bit width and high bits vanish \u2014 silent overflow');
+      g.appendChild(w); slideUpFade(w,0,450);
+    }, 1700+8*90+400);
+    
+};
+slideScripts['slide-b-rshift'] = function(svg){
+
+    const g=svg.getElementById('rsh-diagram');
+    const before=[0,0,1,0,1,1,0,0];
+    bitsRow(svg,{bits:before,x0:500,y:110,cell:58,delayBase:100,delayStep:90,label:'n = 00101100 (44)'});
+    setTimeout(()=>{
+      const t=el('text',{x:500,y:175,'text-anchor':'middle','font-size':18,fill:'var(--ink-dim)'},'n >> 2   \u2014   slide right, fill from the left');
+      g.appendChild(t); slideUpFade(t,0,450);
+    },1100);
+    const after=[0,0,0,0,1,0,1,1];
+    setTimeout(()=>{
+      bitsRow(svg,{bits:after,x0:290,y:270,cell:42,gap:4,delayBase:0,delayStep:80,
+        colorFn:(v)=>v?'var(--teal)':'var(--ink-faint)', fillFn:(v)=>v?'#122a28':'#0d0d10', label:'logical: fill 0s \u2192 11 (correct, unsigned)'});
+    }, 1600);
+    setTimeout(()=>{
+      const negBefore=[1,1,0,1,0,0,0,0];
+      bitsRow(svg,{bits:negBefore,x0:710,y:270,cell:42,gap:4,delayBase:0,delayStep:80,
+        colorFn:(v)=>v?'var(--rose)':'var(--ink-faint)', fillFn:(v)=>v?'#3a2226':'#0d0d10', label:'arithmetic: fill 1s \u2192 keeps sign'});
+    }, 2200);
+    setTimeout(()=>{
+      const p=el('text',{x:500,y:390,'text-anchor':'middle','font-size':16,fill:'var(--ink-dim)'},'practical use: n >> 1 as a fast, exact replacement for n / 2');
+      g.appendChild(p); slideUpFade(p,0,450);
+    }, 2900);
+    
+};
+slideScripts['slide-b-masks'] = function(svg){
+
+    const g=svg.getElementById('mask-diagram');
+    const m1=[0,0,0,1,0,0,0,0];
+    bitsRow(svg,{bits:m1,x0:280,y:130,cell:42,gap:4,delayBase:100,delayStep:90,
+      colorFn:(v)=>v?'var(--amber)':'var(--ink-faint)', fillFn:(v)=>v?'#3a3020':'#0d0d10', label:'1 << 4  \u2192  bit 4 only'});
+    const m2=[0,0,0,0,1,1,1,1];
+    bitsRow(svg,{bits:m2,x0:720,y:130,cell:42,gap:4,delayBase:900,delayStep:90,
+      colorFn:(v)=>v?'var(--violet)':'var(--ink-faint)', fillFn:(v)=>v?'#241f33':'#0d0d10', label:'(1 << 4) \u2212 1  \u2192  bottom 4 bits'});
+    const perms=[["READ","1 << 0","0001"],["WRITE","1 << 1","0010"],["EXEC","1 << 2","0100"]];
+    perms.forEach((p,i)=>{
+      const x=220+i*280, y=300;
+      const box=el('rect',{x:x-95,y:y-32,width:190,height:64,rx:8,fill:'#0d0d10',stroke:'var(--line)'});
+      const t1=el('text',{x,y:y-6,'text-anchor':'middle','font-size':16,fill:'var(--teal)','font-weight':700},p[0]+'  =  '+p[1]);
+      const t2=el('text',{x,y:y+18,'text-anchor':'middle','font-size':14,fill:'var(--ink-faint)',class:'mono'},p[2]);
+      g.appendChild(box); g.appendChild(t1); g.appendChild(t2);
+      popIn(box,1700+i*300,400); fadeIn(t1,1900+i*300,350); fadeIn(t2,2000+i*300,350);
+    });
+    setTimeout(()=>{
+      const r=el('text',{x:500,y:410,'text-anchor':'middle','font-size':17,fill:'var(--amber)','font-weight':700},'perms = READ | WRITE  \u2192  0011');
+      g.appendChild(r); popIn(r,0,500);
+    }, 1700+3*300+500);
+    
+};
+slideScripts['slide-b-set-clear-toggle'] = function(svg){
+
+    const g=svg.getElementById('sct-diagram');
+    const rows=[
+      {t:'set bit 2:     n | (1 << 2)', c:'var(--teal)'},
+      {t:'clear bit 2:   n & ~(1 << 2)', c:'var(--rose)'},
+      {t:'toggle bit 2:  n ^ (1 << 2)', c:'var(--amber)'},
+    ];
+    rows.forEach((r,i)=>{
+      const y=110+i*70;
+      const t=el('text',{x:500,y,'text-anchor':'middle','font-size':22,fill:r.c,class:'mono','font-weight':700},r.t);
+      g.appendChild(t); slideUpFade(t,150+i*380,450);
+    });
+    const n0=[0,1,0,1,0,0,0,0];
+    const toggled=[...n0]; toggled[5]=1-toggled[5];
+    setTimeout(()=>{
+      bitsRow(svg,{bits:n0,x0:290,y:360,cell:42,gap:4,delayBase:0,delayStep:80,
+        colorFn:(v,i)=> i===5? 'var(--violet)': (v?'var(--teal)':'var(--ink-faint)'), label:'n, bit 2 highlighted'});
+      bitsRow(svg,{bits:toggled,x0:710,y:360,cell:42,gap:4,delayBase:400,delayStep:80,
+        colorFn:(v,i)=> i===5? 'var(--amber)': (v?'var(--teal)':'var(--ink-faint)'), label:'after toggle bit 2'});
+    }, 1500);
+    
+};
+slideScripts['slide-b-popcount'] = function(svg){
+
+    const g=svg.getElementById('pc2-diagram');
+    let n=0b10110100;
+    function bitsOf(x){ const a=[]; for(let i=7;i>=0;i--) a.push((x>>i)&1); return a; }
+    let delay=200;
+    let count=0;
+    const stepY=[110,220,330];
+    let steps=[];
+    while(n!==0 && steps.length<3){ steps.push(n); n = n & (n-1); count++; }
+    steps.forEach((val,i)=>{
+      bitsRow(svg,{bits:bitsOf(val),x0:340,y:stepY[i],cell:46,delayBase:delay,delayStep:70,
+        colorFn:(v)=>v?'var(--amber)':'var(--ink-faint)', label: i===0? 'n' : 'n & (n\u22121)'});
+      const lbl=el('text',{x:800,y:stepY[i]+6,'text-anchor':'middle','font-size':18,fill:'var(--teal)',class:'mono'},'count = '+(i+1));
+      g.appendChild(lbl); fadeIn(lbl, delay+500, 350);
+      delay += 900;
+    });
+    setTimeout(()=>{
+      const r=el('text',{x:500,y:420,'text-anchor':'middle','font-size':19,fill:'var(--amber)','font-weight':700},'10110100 has 4 set bits \u2014 loop ran exactly 4 times, not 8');
+      g.appendChild(r); popIn(r,0,500);
+    }, delay+200);
+    
+};
+slideScripts['slide-b-pow2'] = function(svg){
+
+    const g=svg.getElementById('pow2-diagram');
+    function bitsOf(x){ const a=[]; for(let i=7;i>=0;i--) a.push((x>>i)&1); return a; }
+    const t1=el('text',{x:270,y:70,'text-anchor':'middle','font-size':16,fill:'var(--teal)'},'16 (power of two)');
+    const t2=el('text',{x:730,y:70,'text-anchor':'middle','font-size':16,fill:'var(--violet)'},'12 (not a power of two)');
+    g.appendChild(t1); g.appendChild(t2); fadeIn(t1,100,350); fadeIn(t2,100,350);
+    bitsRow(svg,{bits:bitsOf(16),x0:270,y:130,cell:44,delayBase:300,delayStep:60,label:'n'});
+    bitsRow(svg,{bits:bitsOf(15),x0:270,y:210,cell:44,delayBase:700,delayStep:60,
+      colorFn:(v)=>v?'var(--violet)':'var(--ink-faint)', label:'n\u22121'});
+    bitsRow(svg,{bits:bitsOf(16&15),x0:270,y:300,cell:44,delayBase:1300,delayStep:60,
+      colorFn:()=>'var(--ink-faint)', label:'n & (n\u22121)  =  00000000'});
+    bitsRow(svg,{bits:bitsOf(12),x0:730,y:130,cell:44,delayBase:400,delayStep:60,label:'n'});
+    bitsRow(svg,{bits:bitsOf(11),x0:730,y:210,cell:44,delayBase:800,delayStep:60,
+      colorFn:(v)=>v?'var(--violet)':'var(--ink-faint)', label:'n\u22121'});
+    bitsRow(svg,{bits:bitsOf(12&11),x0:730,y:300,cell:44,delayBase:1400,delayStep:60,
+      colorFn:(v)=>v?'var(--rose)':'var(--ink-faint)', label:'n & (n\u22121)  \u2260  0'});
+    setTimeout(()=>{
+      const r=el('text',{x:500,y:410,'text-anchor':'middle','font-size':17,fill:'var(--amber)','font-weight':700},'zero result \u21D2 exactly one bit was ever set');
+      g.appendChild(r); popIn(r,0,500);
+    }, 2200);
+    
+};
+slideScripts['slide-b-xor-swap'] = function(svg){
+
+    const g=svg.getElementById('swap-diagram');
+    const rows=[
+      ["a=5, b=9", 'var(--ink-dim)'],
+      ["a = a^b = 12", 'var(--teal)'],
+      ["b = b^a = 5", 'var(--violet)'],
+      ["a = a^b = 9", 'var(--amber)'],
+    ];
+    stepList(svg, rows.map(r=>({text:r[0], color:r[1]})), {startY:130, gapY:70, fontSize:23, baseDelay:150, delayStep:550});
+    setTimeout(()=>{
+      const r=el('text',{x:500,y:430,'text-anchor':'middle','font-size':18,fill:'var(--amber)','font-weight':700},'result: a=9, b=5 \u2014 swapped, no temp variable');
+      g.appendChild(r); popIn(r,0,500);
+    }, 150+4*550+300);
+    
+};
+slideScripts['slide-b-xor-single'] = function(svg){
+
+    const g=svg.getElementById('xs-diagram');
+    const nums=[4,1,2,1,2];
+    const x0=180, gap=160, y=140;
+    let acc=0;
+    nums.forEach((n,i)=>{
+      const x=x0+i*gap;
+      const box=el('rect',{x:x-42,y:y-32,width:84,height:64,rx:8,fill:'#0d0d10',stroke:'var(--line)'});
+      const t=el('text',{x,y:y+8,'text-anchor':'middle','font-size':24,fill:'var(--ink)',class:'mono'},n);
+      g.appendChild(box); g.appendChild(t);
+      popIn(box,150+i*350,350); popIn(t,150+i*350,350);
+    });
+    let runningY=280;
+    let delay=150+nums.length*350+300;
+    let running=0;
+    nums.forEach((n,i)=>{
+      running ^= n;
+      setTimeout(()=>{
+        const t=el('text',{x:500,y:runningY,'text-anchor':'middle','font-size':18,fill: i===nums.length-1? 'var(--amber)':'var(--ink-dim)', class:'mono','font-weight': i===nums.length-1?700:400},
+          'running xor after '+n+' = '+running);
+        g.appendChild(t); slideUpFade(t,0,400);
+      }, delay);
+      delay += 380;
+      runningY += 34;
+    });
+    
+};
+slideScripts['slide-b-subsets'] = function(svg){
+
+    const g=svg.getElementById('ss-diagram');
+    const items=["X","Y","Z"];
+    const t=el('text',{x:500,y:55,'text-anchor':'middle','font-size':16,fill:'var(--ink-dim)'},'set = {X, Y, Z}   \u2192   mask bit i = 1 means item i is in the subset');
+    g.appendChild(t); slideUpFade(t,100,450);
+    for(let m=0;m<8;m++){
+      const col=m%4, row=Math.floor(m/4);
+      const x=190+col*210, y=140+row*160;
+      const bits=[(m>>2)&1,(m>>1)&1,m&1];
+      bitsRow(svg,{bits, x0:x, y, cell:34, gap:4, fontSize:16, delayBase:400+m*160, delayStep:60, label:'mask='+m});
+      const contents = items.filter((_,i)=>(m>>(2-i))&1);
+      const ct=el('text',{x,y:y+38,'text-anchor':'middle','font-size':13,fill:'var(--amber)'}, contents.length? '{'+contents.join(',')+'}':'{ }');
+      g.appendChild(ct); fadeIn(ct, 400+m*160+250, 350);
+    }
+    
+};
+slideScripts['slide-b-submask'] = function(svg){
+
+    const g=svg.getElementById('sub-diagram');
+    function bitsOf(x){ const a=[]; for(let i=3;i>=0;i--) a.push((x>>i)&1); return a; }
+    let mask=0b1011;
+    let subs=[]; let s=mask; subs.push(s); while(s>0){ s=(s-1)&mask; subs.push(s); }
+    const t=el('text',{x:500,y:60,'text-anchor':'middle','font-size':17,fill:'var(--ink-dim)'},'mask = 1011  \u2192  submasks visited, largest to smallest');
+    g.appendChild(t); slideUpFade(t,100,450);
+    subs.forEach((val,i)=>{
+      const x=160+i*170;
+      bitsRow(svg,{bits:bitsOf(val),x0:x,y:180,cell:36,gap:4,fontSize:16,delayBase:500+i*400,delayStep:70,
+        colorFn:(v)=>v?'var(--amber)':'var(--ink-faint)'});
+      const lbl=el('text',{x,y:230,'text-anchor':'middle','font-size':13,fill:'var(--ink-faint)'}, val);
+      g.appendChild(lbl); fadeIn(lbl, 500+i*400+250, 300);
+      if(i<subs.length-1){
+        const arrow=el('text',{x:x+85,y:190,'text-anchor':'middle','font-size':18,fill:'var(--ink-faint)'},'\u2192');
+        g.appendChild(arrow); fadeIn(arrow, 500+i*400+350, 300);
+      }
+    });
+    setTimeout(()=>{
+      const r=el('text',{x:500,y:340,'text-anchor':'middle','font-size':17,fill:'var(--amber)','font-weight':700},'5 submasks visited for mask 1011 \u2014 never touches masks outside it');
+      g.appendChild(r); popIn(r,0,500);
+    }, 500+subs.length*400+300);
+    
+};
+slideScripts['slide-b-bitmask-dp'] = function(svg){
+
+    const g=svg.getElementById('dp-diagram');
+    function bitsOf(x){ const a=[]; for(let i=3;i>=0;i--) a.push((x>>i)&1); return a; }
+    const t=el('text',{x:500,y:55,'text-anchor':'middle','font-size':16,fill:'var(--ink-dim)'},'dp[mask][last]  \u2014  mask = which cities are already visited');
+    g.appendChild(t); slideUpFade(t,100,450);
+    bitsRow(svg,{bits:bitsOf(0b0101), x0:280, y:150, cell:44, delayBase:500, delayStep:80, label:'mask = 0101, last = city 2'});
+    const arrow=el('text',{x:500,y:150,'text-anchor':'middle','font-size':22,fill:'var(--ink-faint)'},'+ visit city 3 \u2192');
+    g.appendChild(arrow); fadeIn(arrow,1200,400);
+    bitsRow(svg,{bits:bitsOf(0b1101), x0:730, y:150, cell:44, delayBase:1700, delayStep:80,
+      colorFn:(v,i)=> i===0? 'var(--amber)' : (v? 'var(--teal)':'var(--ink-faint)'), label:'mask = 1101, last = city 3'});
+    setTimeout(()=>{
+      const f=el('text',{x:500,y:260,'text-anchor':'middle','font-size':18,fill:'var(--ink)',class:'mono'},'dp[1101][3] = min( dp[0101][2] + dist(2,3) )');
+      g.appendChild(f); slideUpFade(f,0,450);
+    }, 2400);
+    setTimeout(()=>{
+      const p=el('text',{x:500,y:340,'text-anchor':'middle','font-size':16,fill:'var(--ink-dim)'},'2\u207F masks \u00D7 n endpoints = 2\u207F\u00D7n DP states');
+      g.appendChild(p); slideUpFade(p,0,450);
+    }, 2900);
+    
+};
+slideScripts['slide-b-bitmask-dp-uses'] = function(svg){
+
+    compareBars(svg, [
+      {label:"Brute force (n=15, n!)", value:1307674368000, maxValue:1307674368000, color:'var(--rose)', suffix:''},
+      {label:"Bitmask DP (2\u207F\u00D7n\u00B2)", value:7372800, maxValue:1307674368000, color:'var(--amber)', suffix:' ops'},
+    ], {y0:170, gapY:110, maxW:460, barX:420, labelFS:16});
+    setTimeout(()=>{
+      const t=el('text',{x:500,y:420,'text-anchor':'middle','font-size':17,fill:'var(--ink-dim)'},'roughly 177,000\u00D7 fewer operations at n=15, and it only gets more dramatic as n grows');
+      svg.appendChild(t); slideUpFade(t,0,450);
+    }, 2000);
+    
+};
+slideScripts['slide-b-recap-bits'] = function(svg){
+
+    const g=svg.getElementById('recap-bits-list');
+    const items=[
+      ["AND / OR / XOR / NOT","the four switches everything else is built from", 'var(--teal)'],
+      ["Left / right shift","fast multiply & divide by powers of two", 'var(--violet)'],
+      ["Masks + set/clear/toggle","surgical control of a single bit", 'var(--amber)'],
+      ["Popcount + power-of-two check","n & (n\u22121) strips the lowest set bit", 'var(--teal)'],
+      ["XOR tricks","self-cancelling pairs find the odd one out", 'var(--violet)'],
+      ["Bitmask subsets + DP","a whole subset compressed into one integer", 'var(--amber)'],
+    ];
+    items.forEach((it,i)=>{
+      const y=90+i*62;
+      const dot=el('circle',{cx:165,cy:y-6,r:6,fill:it[2]});
+      const t1=el('text',{x:190,y,'font-size':19,fill:'var(--ink)','font-weight':600},it[0]);
+      const t2=el('text',{x:190,y:y+21,'font-size':13,fill:'var(--ink-faint)'},it[1]);
+      g.appendChild(dot); g.appendChild(t1); g.appendChild(t2);
+      slideUpFade(dot,120+i*220,380); slideUpFade(t1,120+i*220,380); slideUpFade(t2,180+i*220,380);
+    });
+    
+};
+
+</script>
+</body>
+</html>

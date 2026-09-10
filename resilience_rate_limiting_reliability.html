@@ -1,0 +1,1704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Resilience, Rate Limiting & Reliability — A Field Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#07080a; --dot:rgba(255,255,255,.055);
+  --ink:#e9ebf1; --ink-dim:#98a1b0; --ink-faint:#5b6270;
+  --line:rgba(233,235,241,.14); --line2:rgba(233,235,241,.26);
+  --panel:rgba(255,255,255,.035); --panel2:rgba(255,255,255,.06);
+  --teal:#63b7a4; --tealBg:rgba(99,183,164,.12);
+  --amber:#cf9f5c; --amberBg:rgba(207,159,92,.13);
+  --coral:#c9776f; --coralBg:rgba(201,119,111,.13);
+  --blue:#6f93c9; --blueBg:rgba(111,147,201,.13);
+  --violet:#a08fce; --violetBg:rgba(160,143,206,.13);
+}
+*{box-sizing:border-box;}
+html,body{margin:0;height:100%;background:var(--bg);}
+body{
+  background-image:radial-gradient(circle, var(--dot) 1.3px, transparent 1.3px);
+  background-size:26px 26px;
+  font-family:'Inter',sans-serif; color:var(--ink); overflow:hidden;
+}
+#viewport{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding-bottom:92px;box-sizing:border-box;}
+#stage{width:1280px;height:720px;position:relative;transform-origin:center center;flex-shrink:0;}
+
+.slide{position:absolute;inset:0;opacity:0;pointer-events:none;transform:translateY(16px) scale(.985);transition:opacity .45s ease, transform .5s ease;}
+.slide.active{opacity:1;pointer-events:auto;transform:translateY(0) scale(1);}
+.slide.leaving{transform:translateY(-16px) scale(.985);}
+
+.eyebrow{position:absolute;left:64px;top:38px;font-family:'JetBrains Mono',monospace;font-size:12.5px;letter-spacing:.16em;color:var(--ink-dim);text-transform:uppercase;}
+.title{position:absolute;left:64px;top:60px;margin:0;font-family:'Space Grotesk',sans-serif;font-size:38px;font-weight:600;color:var(--ink);width:1000px;line-height:1.15;}
+.fillstrip{position:absolute;left:64px;top:112px;width:1152px;font-size:13.5px;color:var(--teal);font-family:'JetBrains Mono',monospace;border-left:2px solid var(--teal);padding-left:10px;line-height:1.4;}
+
+.visual-box{position:absolute;left:64px;top:156px;width:620px;height:390px;border:1px solid var(--line);border-radius:14px;background:var(--panel);box-shadow:0 1px 3px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.3);overflow:hidden;}
+.info-panel{position:absolute;left:712px;top:156px;width:504px;height:390px;display:flex;flex-direction:column;gap:12px;overflow:hidden;}
+.bar{position:absolute;left:64px;top:562px;width:1152px;min-height:44px;border-top:1px solid var(--line);padding-top:10px;font-size:14px;color:var(--ink-dim);line-height:1.5;}
+.bar b{color:var(--ink);}
+.bar .gap{color:var(--amber);}
+.wide-visual{position:absolute;left:64px;top:156px;width:1152px;height:390px;border:1px solid var(--line);border-radius:14px;background:var(--panel);overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.3);}
+
+.rv{opacity:0;transform:translateY(10px);transition:opacity .5s ease, transform .5s ease;}
+.rv.in{opacity:1;transform:translateY(0);}
+.rv.pop{transform:translateY(6px) scale(.9);}
+.rv.pop.in{transform:translateY(0) scale(1);}
+
+.def{font-size:15px;line-height:1.55;color:var(--ink);}
+.formula{font-family:'JetBrains Mono',monospace;font-size:13.5px;color:var(--amber);background:var(--amberBg);border:1px solid rgba(207,159,92,.35);border-radius:8px;padding:9px 11px;white-space:pre-wrap;}
+.uses{font-size:13.5px;color:var(--ink-dim);}
+.uses .h{color:var(--ink);font-weight:600;font-size:12.5px;letter-spacing:.05em;text-transform:uppercase;margin-bottom:4px;}
+.uses ul{margin:4px 0 0;padding-left:16px;}
+.uses li{margin-bottom:5px;padding-bottom:5px;border-bottom:1px dashed var(--line);}
+.uses li:last-child{border-bottom:none;margin-bottom:0;}
+
+.pill{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:11.5px;padding:2px 8px;border-radius:20px;border:1px solid var(--line2);color:var(--ink-dim);}
+
+/* flow nodes */
+.fnode{position:absolute;border:1.4px solid var(--line2);border-radius:10px;background:var(--panel2);display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--ink);text-align:center;transition:border-color .35s ease, background-color .35s ease;padding:4px;}
+.fnode .sub{font-size:10px;color:var(--ink-faint);margin-top:2px;}
+.fnode.st-ok{border-color:var(--teal);background:var(--tealBg);}
+.fnode.st-fail{border-color:var(--coral);background:var(--coralBg);}
+.fnode.st-warn{border-color:var(--amber);background:var(--amberBg);}
+.fnode.st-idle{border-color:var(--line2);background:var(--panel2);}
+.fdot{position:absolute;width:9px;height:9px;border-radius:50%;background:var(--teal);box-shadow:none;top:0;left:0;}
+.fdot.fail{background:var(--coral);}
+.fdot.warn{background:var(--amber);}
+.flabel{position:absolute;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--ink-faint);}
+
+/* bars */
+.barchart{position:absolute;display:flex;align-items:flex-end;gap:14px;}
+.barchart .bwrap{display:flex;flex-direction:column;align-items:center;gap:6px;}
+.barchart .bcol{width:34px;border-radius:5px 5px 2px 2px;background:var(--blue);transition:height .7s cubic-bezier(.2,.8,.2,1), background-color .4s;}
+.barchart .blabel{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--ink-faint);text-align:center;}
+.barchart .bval{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--ink-dim);}
+
+/* timeline */
+.tl-axis{position:absolute;height:2px;background:var(--line2);}
+.tl-tick{position:absolute;width:2px;background:var(--line2);}
+.tl-dot{position:absolute;width:11px;height:11px;border-radius:50%;transform:translate(-50%,-50%);}
+.tl-label{position:absolute;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--ink-dim);white-space:nowrap;}
+.tl-band{position:absolute;height:22px;border-radius:5px;top:-6px;}
+
+/* rings */
+.ring{position:absolute;border-radius:50%;border:1.6px solid var(--line2);}
+.ring-label{position:absolute;font-family:'JetBrains Mono',monospace;font-size:11px;}
+
+/* section divider */
+.divider-num{position:absolute;left:64px;top:250px;font-family:'Space Grotesk',sans-serif;font-size:150px;font-weight:700;color:var(--panel2);line-height:1;}
+.divider-title{position:absolute;left:64px;top:330px;font-family:'Space Grotesk',sans-serif;font-size:52px;font-weight:600;color:var(--ink);width:900px;}
+.divider-sub{position:absolute;left:64px;top:420px;font-size:17px;color:var(--ink-dim);width:900px;line-height:1.6;}
+
+/* recap grid */
+.grid-cell{position:absolute;border:1px solid var(--line);border-radius:10px;background:var(--panel);padding:12px 14px;}
+.grid-cell .gt{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.05em;}
+.grid-cell .gd{font-size:12.5px;color:var(--ink);margin-top:4px;line-height:1.35;}
+
+.ringpulse{animation:pulse-ring .85s ease;}
+@keyframes pulse-ring{0%{transform:scale(1);}45%{transform:scale(1.12);}100%{transform:scale(1);}}
+
+#nav{position:fixed;left:0;right:0;bottom:0;height:92px;display:flex;align-items:center;justify-content:center;gap:18px;background:linear-gradient(to top, rgba(0,0,0,.55), transparent);z-index:50;}
+#nav button{background:var(--panel2);border:1px solid var(--line2);color:var(--ink);font-family:'JetBrains Mono',monospace;font-size:13px;padding:9px 16px;border-radius:8px;cursor:pointer;transition:background .2s;}
+#nav button:hover{background:rgba(255,255,255,.12);}
+#nav button:disabled{opacity:.3;cursor:default;}
+#counter{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--ink-dim);min-width:70px;text-align:center;}
+#progress{position:fixed;left:0;top:0;height:3px;background:var(--teal);z-index:60;transition:width .4s ease;}
+
+#collision-badge{position:fixed;top:14px;right:14px;z-index:100;font-family:'JetBrains Mono',monospace;font-size:12px;padding:6px 10px;border-radius:6px;display:none;}
+.arrowmark{fill:var(--ink-faint);}
+</style>
+</head>
+<body>
+<div id="progress" style="width:0%"></div>
+<div id="viewport"><div id="stage">
+<!-- ================= S0 TITLE ================= -->
+<section class="slide" id="s0" data-idx="0">
+  <div class="eyebrow rv" data-d="0">A FIELD GUIDE FOR DISTRIBUTED SYSTEMS</div>
+  <h2 class="title rv" data-d="1" style="font-size:54px;top:110px;width:1100px;">Building Systems<br>That Don't Fall Over</h2>
+  <div class="rv" data-d="2" style="position:absolute;left:64px;top:270px;width:920px;font-size:18px;color:var(--ink-dim);line-height:1.7;">
+    Every request you send can time out, get retried, get rejected, or get rerouted.
+    This deck is the physics of that: <span style="color:var(--teal)">Resilience Patterns</span>,
+    <span style="color:var(--blue)">Rate Limiting Algorithms</span>,
+    <span style="color:var(--violet)">Reliability &amp; Availability Patterns</span>, and the
+    <span style="color:var(--amber)">Metrics</span> that tell you if any of it is working.
+  </div>
+  <div id="s0-vis" style="position:absolute;left:64px;top:420px;width:1152px;height:170px;"></div>
+  <div class="rv" data-d="4" style="position:absolute;left:64px;bottom:20px;font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--ink-faint);">
+    press → or click Next to begin
+  </div>
+</section>
+
+<!-- ================= S1 WHY RESILIENCE ================= -->
+<section class="slide" id="s1" data-idx="1">
+  <div class="eyebrow rv" data-d="0">RESILIENCE PATTERNS · WHY</div>
+  <h2 class="title rv" data-d="1">One Slow Service Can Kill Everything</h2>
+  <div class="wide-visual" id="s1-vis"></div>
+  <div class="bar rv" data-d="6"><b>Recap:</b> a single slow dependency can exhaust threads upstream and take the whole system down with it. <span class="gap"><b>But—</b> how do we stop a slow call from becoming an infinite wait in the first place?</span></div>
+</section>
+
+<!-- ================= S2 TIMEOUT ================= -->
+<section class="slide" id="s2" data-idx="2">
+  <div class="eyebrow rv" data-d="0">RESILIENCE PATTERNS · 01</div>
+  <h2 class="title rv" data-d="1">Timeout</h2>
+  <div class="fillstrip rv" data-d="2">↳ Answer: give every call a deadline. If it hasn't answered by then, stop waiting.</div>
+  <div class="visual-box" id="s2-vis"></div>
+  <div class="info-panel">
+    <div class="def rv" data-d="3">A timeout is a promise you make to yourself before you call anyone: <i>"I will not wait forever."</i> You pick a deadline; if the response hasn't arrived by then, you give up and move on — the call is cancelled, the thread is freed.</div>
+    <div class="formula rv" data-d="4">if (now - startTime) > deadline:
+    abort(call)</div>
+    <div class="uses rv" data-d="5"><div class="h">Practical use</div><ul>
+      <li>HTTP client: connect timeout 1s, read timeout 3s</li>
+      <li>DB driver: query timeout so one slow query can't freeze a pool</li>
+      <li>Without it: a hung dependency silently freezes your app too</li>
+    </ul></div>
+  </div>
+  <div class="bar rv" data-d="6"><b>Recap:</b> a timeout stops one slow call from waiting forever. <span class="gap"><b>But—</b> once you give up, do you just fail? Or try again? And if everyone retries at once...?</span></div>
+</section>
+
+<!-- ================= S3 RETRY ================= -->
+<section class="slide" id="s3" data-idx="3">
+  <div class="eyebrow rv" data-d="0">RESILIENCE PATTERNS · 02</div>
+  <h2 class="title rv" data-d="1">Retry</h2>
+  <div class="fillstrip rv" data-d="2">↳ Answer: most failures are brief blips. Try again — a couple of times, not forever.</div>
+  <div class="visual-box" id="s3-vis"></div>
+  <div class="info-panel">
+    <div class="def rv" data-d="3">Networks blip. A pod restarts. A retry just repeats the same call, betting that the failure was <i>transient</i>. It only makes sense for operations that are safe to repeat (see: Idempotency, later) and it needs a cap — 2–3 attempts, not infinite.</div>
+    <div class="formula rv" data-d="4">for attempt in 1..maxAttempts:
+    try: return call()
+    except Transient: continue
+raise Failed</div>
+    <div class="uses rv" data-d="5"><div class="h">Practical use</div><ul>
+      <li>Retry on: connection reset, 502/503, DB deadlock</li>
+      <li>Never retry on: 400 bad request, 401 unauthorized</li>
+      <li>Cap attempts — always pair with a timeout per attempt</li>
+    </ul></div>
+  </div>
+  <div class="bar rv" data-d="6"><b>Recap:</b> retrying rides out short blips. <span class="gap"><b>But—</b> if 10,000 clients all fail at once and all retry immediately, what happens to the service that's already struggling?</span></div>
+</section>
+
+<!-- ================= S4 EXP BACKOFF ================= -->
+<section class="slide" id="s4" data-idx="4">
+  <div class="eyebrow rv" data-d="0">RESILIENCE PATTERNS · 03</div>
+  <h2 class="title rv" data-d="1">Exponential Backoff</h2>
+  <div class="fillstrip rv" data-d="2">↳ Answer: don't retry instantly — wait longer after each failure, growing exponentially.</div>
+  <div class="visual-box" id="s4-vis"></div>
+  <div class="info-panel">
+    <div class="def rv" data-d="3">Instead of retrying every attempt at the same speed, you double the wait each time. Attempt 1 fails → wait 1s. Attempt 2 fails → wait 2s. Attempt 3 → 4s. This gives the struggling service breathing room that grows the longer it stays unhealthy.</div>
+    <div class="formula rv" data-d="4">wait = min(cap, base * 2^attempt)
+# base=1s → 1, 2, 4, 8, 16s...</div>
+    <div class="uses rv" data-d="5"><div class="h">Practical use</div><ul>
+      <li>AWS SDKs, gRPC clients default to this for retries</li>
+      <li>Always set a <b>cap</b> — unbounded waits are their own bug</li>
+      <li>Still has a flaw: everyone's clock started at the same failure...</li>
+    </ul></div>
+  </div>
+  <div class="bar rv" data-d="6"><b>Recap:</b> backoff spaces retries out exponentially. <span class="gap"><b>But—</b> if every client failed at the same second, they all wait 1s, 2s, 4s... in <i>lockstep</i>. They still slam the server together. Now what?</span></div>
+</section>
+
+<!-- ================= S5 JITTER ================= -->
+<section class="slide" id="s5" data-idx="5">
+  <div class="eyebrow rv" data-d="0">RESILIENCE PATTERNS · 04</div>
+  <h2 class="title rv" data-d="1">Jitter</h2>
+  <div class="fillstrip rv" data-d="2">↳ Answer: add randomness to the wait so clients spread out instead of retrying in lockstep.</div>
+  <div class="visual-box" id="s5-vis"></div>
+  <div class="info-panel">
+    <div class="def rv" data-d="3">Jitter breaks synchronization. Instead of waiting exactly 2^n seconds, each client picks a <i>random</i> value inside that window. Ten thousand clients now retry at ten thousand slightly different moments — a spread, not a spike.</div>
+    <div class="formula rv" data-d="4">wait = random(0, base * 2^attempt)
+# "full jitter" — AWS's recommended form</div>
+    <div class="uses rv" data-d="5"><div class="h">Practical use</div><ul>
+      <li>This is why "thundering herd" incidents get named and studied</li>
+      <li>Always pair jitter with backoff — jitter alone has no growth</li>
+      <li>Together: retry + backoff + jitter is the standard trio</li>
+    </ul></div>
+  </div>
+  <div class="bar rv" data-d="6"><b>Recap:</b> jitter spreads retries so they don't re-synchronize into another spike. <span class="gap"><b>But—</b> retrying still assumes the service will recover soon. What if it's actually down hard? Do you keep hammering a corpse?</span></div>
+</section>
+
+<!-- ================= S6 CIRCUIT BREAKER ================= -->
+<section class="slide" id="s6" data-idx="6">
+  <div class="eyebrow rv" data-d="0">RESILIENCE PATTERNS · 05</div>
+  <h2 class="title rv" data-d="1">Circuit Breaker</h2>
+  <div class="fillstrip rv" data-d="2">↳ Answer: stop calling entirely once failures cross a threshold — like a fuse tripping.</div>
+  <div class="visual-box" id="s6-vis"></div>
+  <div class="info-panel">
+    <div class="def rv" data-d="3">Named after the electrical fuse. The breaker watches recent call outcomes. Too many failures → it <b>opens</b>: calls fail instantly, no network hop wasted. After a cooldown it goes <b>half-open</b> — lets one test call through. Success → closes again. Failure → opens again.</div>
+    <div class="formula rv" data-d="4">failRate = fails / (fails+ok)
+if failRate > 0.5 over last 20 calls:
+    state = OPEN  (cooldown 30s)</div>
+    <div class="uses rv" data-d="5"><div class="h">Practical use</div><ul>
+      <li>Netflix Hystrix, resilience4j, Envoy outlier detection</li>
+      <li>Protects the caller <i>and</i> gives the callee room to recover</li>
+      <li>Still leaves a hole: what protects <i>shared resources</i> from one bad caller?</li>
+    </ul></div>
+  </div>
+  <div class="bar rv" data-d="6"><b>Recap:</b> a tripped circuit stops wasting calls on a dying service. <span class="gap"><b>But—</b> if Service A calls three downstreams from one shared thread pool, and one of them is slow, can it still starve the other two?</span></div>
+</section>
+
+<!-- ================= S7 BULKHEAD ================= -->
+<section class="slide" id="s7" data-idx="7">
+  <div class="eyebrow rv" data-d="0">RESILIENCE PATTERNS · 06</div>
+  <h2 class="title rv" data-d="1">Bulkhead</h2>
+  <div class="fillstrip rv" data-d="2">↳ Answer: give each dependency its own isolated pool, so one flooded compartment can't sink the ship.</div>
+  <div class="visual-box" id="s7-vis"></div>
+  <div class="info-panel">
+    <div class="def rv" data-d="3">Named after ship design: a hull is split into watertight compartments so one puncture floods only one section. Applied to software: give each downstream call its own thread pool / connection pool / queue, sized separately, so a stuck dependency can only ever exhaust its <i>own</i> slice.</div>
+    <div class="formula rv" data-d="4">pool[serviceA] = 10 threads
+pool[serviceB] = 10 threads
+# A stuck ≠ B starved</div>
+    <div class="uses rv" data-d="5"><div class="h">Practical use</div><ul>
+      <li>Separate connection pools per downstream DB / API</li>
+      <li>Kubernetes resource limits per pod = bulkheads at infra level</li>
+      <li>Now the caller is protected — but what protects the callee from too much traffic?</li>
+    </ul></div>
+  </div>
+  <div class="bar rv" data-d="6"><b>Recap:</b> bulkheads isolate failure so it can't spread sideways. <span class="gap"><b>But—</b> that protects against a slow dependency. What stops a flood of legitimate traffic from overwhelming a healthy service?</span></div>
+</section>
+
+<!-- ================= S8 RATE LIMITER (intro) ================= -->
+<section class="slide" id="s8" data-idx="8">
+  <div class="eyebrow rv" data-d="0">RESILIENCE PATTERNS · 07</div>
+  <h2 class="title rv" data-d="1">Rate Limiter</h2>
+  <div class="fillstrip rv" data-d="2">↳ Answer: cap how many requests get through per unit of time — reject the rest before they do damage.</div>
+  <div class="visual-box" id="s8-vis"></div>
+  <div class="info-panel">
+    <div class="def rv" data-d="3">A rate limiter is a bouncer at the door: it decides <i>in advance</i> how many requests are allowed per second/minute, and turns away the excess — usually with a fast, cheap "429 Too Many Requests" instead of doing real work and failing later.</div>
+    <div class="formula rv" data-d="4">if requests_in_window > limit:
+    return 429  # cheap rejection</div>
+    <div class="uses rv" data-d="5"><div class="h">Practical use</div><ul>
+      <li>Public APIs: protect against abuse and runaway clients</li>
+      <li>Internal services: protect against your own retry storms</li>
+      <li>The exact <i>counting method</i> matters a lot — that's Section 2, in depth</li>
+    </ul></div>
+  </div>
+  <div class="bar rv" data-d="6"><b>Recap:</b> a rate limiter caps traffic before it becomes a problem. <span class="gap"><b>But—</b> what happens the moment traffic exceeds the limit anyway — do you just drop things at random?</span></div>
+</section>
+
+<!-- ================= S9 LOAD SHEDDING ================= -->
+<section class="slide" id="s9" data-idx="9">
+  <div class="eyebrow rv" data-d="0">RESILIENCE PATTERNS · 08</div>
+  <h2 class="title rv" data-d="1">Load Shedding</h2>
+  <div class="fillstrip rv" data-d="2">↳ Answer: when overloaded, deliberately drop the <i>least important</i> work to protect the rest.</div>
+  <div class="visual-box" id="s9-vis"></div>
+  <div class="info-panel">
+    <div class="def rv" data-d="3">Rate limiting caps traffic at the edge; load shedding is the emergency valve <i>inside</i> the system when load still gets too high — e.g. CPU or queue depth crosses a red line. Instead of serving everything slowly (and risking a full collapse), you intentionally reject low-priority requests to keep high-priority ones fast.</div>
+    <div class="formula rv" data-d="4">if cpu > 90% or queueDepth > max:
+    reject(lowPriorityRequest)</div>
+    <div class="uses rv" data-d="5"><div class="h">Practical use</div><ul>
+      <li>Prioritize checkout over recommendations on an e-commerce site</li>
+      <li>Google/AWS load balancers shed based on queue depth, not just count</li>
+      <li>This shed decision is <i>local</i> — but what if the upstream keeps sending faster than we can even decide?</li>
+    </ul></div>
+  </div>
+  <div class="bar rv" data-d="6"><b>Recap:</b> shedding sacrifices low-value work to save the system under load. <span class="gap"><b>But—</b> shedding still means dropping requests. Could the system instead just ask the sender to slow down?</span></div>
+</section>
+
+<!-- ================= S10 BACKPRESSURE ================= -->
+<section class="slide" id="s10" data-idx="10">
+  <div class="eyebrow rv" data-d="0">RESILIENCE PATTERNS · 09</div>
+  <h2 class="title rv" data-d="1">Backpressure</h2>
+  <div class="fillstrip rv" data-d="2">↳ Answer: yes — signal upstream to slow down, instead of silently dropping or crashing.</div>
+  <div class="visual-box" id="s10-vis"></div>
+  <div class="info-panel">
+    <div class="def rv" data-d="3">Think of a kitchen sink: if water (requests) comes in faster than the drain (processing) can take it, the sink fills up. Backpressure is the drain telling the tap to slow down <i>before</i> it overflows — via a bounded queue, a "slow down" signal, or simply blocking the producer.</div>
+    <div class="formula rv" data-d="4">if queue.size >= capacity:
+    producer.pause()  # or block/reject</div>
+    <div class="uses rv" data-d="5"><div class="h">Practical use</div><ul>
+      <li>TCP itself uses backpressure (receive window)</li>
+      <li>Reactive streams (RxJava, Kafka consumer lag) — bounded buffers</li>
+      <li>Cooperative, not adversarial — needs a producer willing to listen</li>
+    </ul></div>
+  </div>
+  <div class="bar rv" data-d="6"><b>Recap:</b> backpressure pushes "slow down" upstream instead of failing downstream. <span class="gap"><b>But—</b> what happens when a whole node dies, not just slows down? Nothing to signal to — the node is just gone.</span></div>
+</section>
+
+<!-- ================= S11 FAILOVER ================= -->
+<section class="slide" id="s11" data-idx="11">
+  <div class="eyebrow rv" data-d="0">RESILIENCE PATTERNS · 10</div>
+  <h2 class="title rv" data-d="1">Failover</h2>
+  <div class="fillstrip rv" data-d="2">↳ Answer: when a node dies, redirect its traffic to a healthy replica automatically.</div>
+  <div class="visual-box" id="s11-vis"></div>
+  <div class="info-panel">
+    <div class="def rv" data-d="3">A failover is the handoff: traffic that was going to a dead or unhealthy node gets rerouted to one that's alive — a load balancer stops sending to it, a DNS record flips, or a standby gets promoted. The goal is that users barely notice.</div>
+    <div class="formula rv" data-d="4">if !healthcheck(primary):
+    route(traffic, standby)</div>
+    <div class="uses rv" data-d="5"><div class="h">Practical use</div><ul>
+      <li>Load balancer removes unhealthy instance from rotation</li>
+      <li>DB failover: standby promoted to primary on outage</li>
+      <li>Only as fast as your <i>detection</i> — which needs health checks (later)</li>
+    </ul></div>
+  </div>
+  <div class="bar rv" data-d="6"><b>Recap:</b> failover reroutes traffic away from a dead node to a live one. <span class="gap"><b>But—</b> should a struggling-but-not-quite-dead service keep trying to serve requests slowly, or refuse them outright?</span></div>
+</section>
+
+<!-- ================= S12 FAIL-FAST ================= -->
+<section class="slide" id="s12" data-idx="12">
+  <div class="eyebrow rv" data-d="0">RESILIENCE PATTERNS · 11</div>
+  <h2 class="title rv" data-d="1">Fail-Fast</h2>
+  <div class="fillstrip rv" data-d="2">↳ Answer: refuse immediately when you already know you can't succeed — don't make the caller wait to find out.</div>
+  <div class="visual-box" id="s12-vis"></div>
+  <div class="info-panel">
+    <div class="def rv" data-d="3">If you already know a request can't be served — no DB connection available, a required field is missing, the circuit is open — reject it in microseconds. The alternative (queueing it, retrying internally, hoping) just delays an inevitable failure and wastes the caller's time and your resources.</div>
+    <div class="formula rv" data-d="4">if !preconditionsMet():
+    return error  # now, not later</div>
+    <div class="uses rv" data-d="5"><div class="h">Practical use</div><ul>
+      <li>Validate input before opening a DB transaction, not after</li>
+      <li>An open circuit breaker <i>is</i> a fail-fast decision</li>
+      <li>Fails fast on certainty — but what if success is merely <i>unlikely</i>, not impossible?</li>
+    </ul></div>
+  </div>
+  <div class="bar rv" data-d="6"><b>Recap:</b> fail-fast rejects certain failure immediately instead of stalling. <span class="gap"><b>But—</b> what about requests you <i>can</i> partially serve — just not fully? Do you have to choose between all or nothing?</span></div>
+</section>
+
+<!-- ================= S13 GRACEFUL DEGRADATION ================= -->
+<section class="slide" id="s13" data-idx="13">
+  <div class="eyebrow rv" data-d="0">RESILIENCE PATTERNS · 12</div>
+  <h2 class="title rv" data-d="1">Graceful Degradation</h2>
+  <div class="fillstrip rv" data-d="2">↳ Answer: no — serve a smaller, simpler version of the feature instead of an all-or-nothing failure.</div>
+  <div class="visual-box" id="s13-vis"></div>
+  <div class="info-panel">
+    <div class="def rv" data-d="3">When a non-critical dependency is down, don't take down the whole page with it. Show the product page without "you may also like" if the recommendation service is unhealthy. Show cached prices if the live pricing service times out. The core experience survives; only the extras shrink.</div>
+    <div class="formula rv" data-d="4">try: return recommendations()
+except: return []  # page still renders</div>
+    <div class="uses rv" data-d="5"><div class="h">Practical use</div><ul>
+      <li>Netflix: fallback UI when a personalization service is down</li>
+      <li>Serve stale cache instead of a blank error page</li>
+      <li>What if instead of degrading, you could hide latency entirely for critical paths?</li>
+    </ul></div>
+  </div>
+  <div class="bar rv" data-d="6"><b>Recap:</b> degrade the extras, protect the core. <span class="gap"><b>But—</b> for a request where tail latency truly matters, is there a way to avoid waiting on the one slow replica in the first place?</span></div>
+</section>
+
+<!-- ================= S14 HEDGED REQUESTS ================= -->
+<section class="slide" id="s14" data-idx="14">
+  <div class="eyebrow rv" data-d="0">RESILIENCE PATTERNS · 13</div>
+  <h2 class="title rv" data-d="1">Hedged Requests</h2>
+  <div class="fillstrip rv" data-d="2">↳ Answer: fire a second request to a different replica if the first is slow — take whichever answers first.</div>
+  <div class="visual-box" id="s14-vis"></div>
+  <div class="info-panel">
+    <div class="def rv" data-d="3">If a request hasn't come back after, say, the 95th-percentile latency, send the <i>same</i> request to a second replica. Whichever responds first wins; the other is cancelled or ignored. This trades a little extra load for a much shorter worst-case wait — it directly attacks tail latency.</div>
+    <div class="formula rv" data-d="4">wait(p95_latency)
+if !done: sendTo(replica2)
+return firstOf(r1, r2)</div>
+    <div class="uses rv" data-d="5"><div class="h">Practical use</div><ul>
+      <li>Google's original paper: "The Tail at Scale" (2013)</li>
+      <li>Only send the hedge sparingly — it adds real load, use for p99 pain</li>
+      <li>Now — how does the caller even know a replica is worth calling at all?</li>
+    </ul></div>
+  </div>
+  <div class="bar rv" data-d="6"><b>Recap:</b> hedging trades a little duplicate work for much better worst-case latency. <span class="gap"><b>But—</b> how does anyone even know which replicas are alive and worth sending to?</span></div>
+</section>
+
+<!-- ================= S15 HEALTH CHECKS + HEARTBEATS ================= -->
+<section class="slide" id="s15" data-idx="15">
+  <div class="eyebrow rv" data-d="0">RESILIENCE PATTERNS · 14 &amp; 15</div>
+  <h2 class="title rv" data-d="1">Health Checks &amp; Heartbeats</h2>
+  <div class="fillstrip rv" data-d="2">↳ Answer: two ways to answer "is this node alive" — ask it, or let it tell you.</div>
+  <div class="visual-box" id="s15-vis"></div>
+  <div class="info-panel">
+    <div class="def rv" data-d="3"><b>Health check</b> = <i>pull</i>. Something else periodically asks "are you OK?" (an HTTP GET /health). <b>Heartbeat</b> = <i>push</i>. The node itself periodically announces "I'm still here" without being asked. Miss enough heartbeats → presumed dead.</div>
+    <div class="formula rv" data-d="4">// pull:  every 5s → GET /health
+// push:  every 5s → node emits I_AM_ALIVE
+//        if no beat in 15s → mark dead</div>
+    <div class="uses rv" data-d="5"><div class="h">Practical use</div><ul>
+      <li>Kubernetes liveness/readiness probes = health checks (pull)</li>
+      <li>Cluster membership (etcd, Consul, Cassandra gossip) = heartbeats (push)</li>
+      <li>Feeds directly into failover and load balancer routing decisions</li>
+    </ul></div>
+  </div>
+  <div class="bar rv" data-d="6"><b>Recap:</b> liveness is detected by asking (health check) or listening (heartbeat). <span class="gap"><b>But—</b> what happens to a message whose processing keeps failing, over and over, even with retries?</span></div>
+</section>
+
+<!-- ================= S16 DEAD-LETTER QUEUE ================= -->
+<section class="slide" id="s16" data-idx="16">
+  <div class="eyebrow rv" data-d="0">RESILIENCE PATTERNS · 16</div>
+  <h2 class="title rv" data-d="1">Dead-Letter Queue</h2>
+  <div class="fillstrip rv" data-d="2">↳ Answer: after N failed attempts, park the message somewhere separate instead of retrying forever.</div>
+  <div class="visual-box" id="s16-vis"></div>
+  <div class="info-panel">
+    <div class="def rv" data-d="3">A message queue keeps retrying a failed message — but if it keeps failing (bad data, a bug, a permanently down downstream), it shouldn't block the whole queue forever. After a max-retry count, it's moved to a separate "dead-letter" queue: out of the way, but not lost, for a human to inspect later.</div>
+    <div class="formula rv" data-d="4">if attempts > maxRetries:
+    moveTo(DLQ, message)
+    ack(original)  # unblock the queue</div>
+    <div class="uses rv" data-d="5"><div class="h">Practical use</div><ul>
+      <li>SQS, RabbitMQ, Kafka all support DLQ configuration natively</li>
+      <li>Alert on DLQ depth — it's a leading indicator of a real bug</li>
+      <li>This assumes retrying is safe to do multiple times — is it?</li>
+    </ul></div>
+  </div>
+  <div class="bar rv" data-d="6"><b>Recap:</b> a DLQ keeps one poison message from jamming the whole pipeline. <span class="gap"><b>But—</b> we've been saying "just retry" for 16 slides. What if retrying the same request twice charges the customer twice?</span></div>
+</section>
+
+<!-- ================= S17 IDEMPOTENCY ================= -->
+<section class="slide" id="s17" data-idx="17">
+  <div class="eyebrow rv" data-d="0">RESILIENCE PATTERNS · 17</div>
+  <h2 class="title rv" data-d="1">Idempotency</h2>
+  <div class="fillstrip rv" data-d="2">↳ Answer: design the operation so doing it twice has the exact same effect as doing it once.</div>
+  <div class="visual-box" id="s17-vis"></div>
+  <div class="info-panel">
+    <div class="def rv" data-d="3">"Set my balance to $50" is idempotent — run it 5 times, balance is still $50. "Add $50 to my balance" is <i>not</i> — run it twice by accident (e.g. a retry after a lost response) and you've charged double. The fix: attach a unique idempotency key to the request; the server remembers which keys it already processed and returns the same result without redoing the work.</div>
+    <div class="formula rv" data-d="4">if seen(idempotencyKey):
+    return cachedResult
+else:
+    result = doWork(); remember(key, result)</div>
+    <div class="uses rv" data-d="5"><div class="h">Practical use</div><ul>
+      <li>Stripe, payment APIs: client generates a UUID per logical operation</li>
+      <li>PUT is idempotent by design; POST usually isn't — this is why</li>
+      <li>This is what makes retry, hedging, and at-least-once delivery <i>safe</i></li>
+    </ul></div>
+  </div>
+  <div class="bar rv" data-d="6"><b>Recap:</b> idempotency is the safety net that makes every retry, hedge, and re-delivery in this section actually safe to do. <span class="gap"><b>That's the resilience toolbox.</b> One more look before we move to the next problem: how do you count requests precisely enough to rate-limit them?</span></div>
+</section>
+
+<!-- ================= S18 RESILIENCE RECAP GRID ================= -->
+<section class="slide" id="s18" data-idx="18">
+  <div class="eyebrow rv" data-d="0">RESILIENCE PATTERNS · RECAP</div>
+  <h2 class="title rv" data-d="1">The Whole Toolbox, One Screen</h2>
+  <div id="s18-vis" style="position:absolute;left:64px;top:150px;width:1152px;height:430px;"></div>
+  <div class="bar rv" data-d="6"><b>Recap:</b> 17 patterns, each answering a specific failure mode. <span class="gap"><b>But—</b> "rate limiter" was one box above. How do you actually count requests fairly, in real time, across many servers? Time to go deep.</span></div>
+</section>
+<!-- ================= S19 FIXED WINDOW ================= -->
+<section class="slide" id="s19" data-idx="19">
+  <div class="eyebrow rv" data-d="0">RATE LIMITING ALGORITHMS · 01</div>
+  <h2 class="title rv" data-d="1">Fixed Window</h2>
+  <div class="fillstrip rv" data-d="2">↳ Section 2: the exact recipe for counting requests fairly.</div>
+  <div class="visual-box" id="s19-vis"></div>
+  <div class="info-panel">
+    <div class="def rv" data-d="3">Simplest idea: chop time into fixed blocks — e.g. every clock-minute — and count requests in a counter that resets to zero at each boundary. Cheap, easy, one integer per window. But watch the boundary: a burst right at the end of one window, plus a burst right at the start of the next, can slip <i>2×</i> the limit through in a very short span.</div>
+    <div class="formula rv" data-d="4">windowKey = floor(now / windowSize)
+count[windowKey] += 1
+allow = count[windowKey] <= limit</div>
+    <div class="uses rv" data-d="5"><div class="h">Practical use</div><ul>
+      <li>Good enough for coarse, low-stakes limits</li>
+      <li>Flaw: burst of 2× the limit can cross a window boundary unblocked</li>
+      <li>Fix without full precision? Weight the previous window...</li>
+    </ul></div>
+  </div>
+  <div class="bar rv" data-d="6"><b>Recap:</b> fixed window is cheap but leaks up to 2× the limit at the boundary. <span class="gap"><b>But—</b> can we smooth that boundary spike without tracking every single request timestamp?</span></div>
+</section>
+
+<!-- ================= S20 SLIDING WINDOW ================= -->
+<section class="slide" id="s20" data-idx="20">
+  <div class="eyebrow rv" data-d="0">RATE LIMITING ALGORITHMS · 02</div>
+  <h2 class="title rv" data-d="1">Sliding Window (Counter)</h2>
+  <div class="fillstrip rv" data-d="2">↳ Answer: blend the previous window's count into this one, weighted by how much it overlaps.</div>
+  <div class="visual-box" id="s20-vis"></div>
+  <div class="info-panel">
+    <div class="def rv" data-d="3">Instead of a hard reset, estimate the request rate over a window that "slides" continuously: take the current window's count, plus a fraction of the <i>previous</i> window's count proportional to how much that previous window still overlaps the trailing N seconds. It's an approximation — cheap like fixed window, but the boundary spike shrinks dramatically.</div>
+    <div class="formula rv" data-d="4">overlap = 1 - (now%windowSize)/windowSize
+estRate = prevCount*overlap + currCount
+allow = estRate <= limit</div>
+    <div class="uses rv" data-d="5"><div class="h">Practical use</div><ul>
+      <li>Cloudflare, many API gateways use this by default</li>
+      <li>Two integers of state — almost as cheap as fixed window</li>
+      <li>Still an estimate. What if you need an <i>exact</i> count?</li>
+    </ul></div>
+  </div>
+  <div class="bar rv" data-d="6"><b>Recap:</b> a weighted blend of two counters approximates a smooth sliding window cheaply. <span class="gap"><b>But—</b> "approximately" isn't good enough for a strict contract. How do you count exactly, request by request?</span></div>
+</section>
+
+<!-- ================= S21 SLIDING LOG ================= -->
+<section class="slide" id="s21" data-idx="21">
+  <div class="eyebrow rv" data-d="0">RATE LIMITING ALGORITHMS · 03</div>
+  <h2 class="title rv" data-d="1">Sliding Log</h2>
+  <div class="fillstrip rv" data-d="2">↳ Answer: keep the exact timestamp of every request, and count precisely within the window.</div>
+  <div class="visual-box" id="s21-vis"></div>
+  <div class="info-panel">
+    <div class="def rv" data-d="3">The precise version: store a timestamp for every request in a sorted log (e.g. a Redis sorted set). To check a new request, drop all timestamps older than "now minus window", then count what's left. Perfectly accurate — no boundary leak, no estimation — but memory grows with request volume, not with a fixed number of counters.</div>
+    <div class="formula rv" data-d="4">log.removeOlderThan(now - window)
+allow = log.size() < limit
+if allow: log.add(now)</div>
+    <div class="uses rv" data-d="5"><div class="h">Practical use</div><ul>
+      <li>Exact, auditable limits — e.g. compliance-sensitive quotas</li>
+      <li>Cost: O(n) memory per client, not O(1) like counters</li>
+      <li>Precision solved. Now — what about <i>bursts</i>, not just averages?</li>
+    </ul></div>
+  </div>
+  <div class="bar rv" data-d="6"><b>Recap:</b> sliding log is exact but memory-hungry — one entry per request. <span class="gap"><b>But—</b> all three so far reject bursts outright. What if you want to <i>allow</i> a burst, as long as the average stays in check?</span></div>
+</section>
+
+<!-- ================= S22 TOKEN BUCKET ================= -->
+<section class="slide" id="s22" data-idx="22">
+  <div class="eyebrow rv" data-d="0">RATE LIMITING ALGORITHMS · 04</div>
+  <h2 class="title rv" data-d="1">Token Bucket</h2>
+  <div class="fillstrip rv" data-d="2">↳ Answer: let requests spend saved-up "tokens" — bursts are fine as long as tokens exist.</div>
+  <div class="visual-box" id="s22-vis"></div>
+  <div class="info-panel">
+    <div class="def rv" data-d="3">Picture a bucket that refills with tokens at a steady rate (say, 10/second), up to a max capacity. Every request must take one token to proceed; no token, no entry. If nobody's called for a while, the bucket fills up — and the next caller can burst through many requests at once, spending saved tokens, until it's empty again.</div>
+    <div class="formula rv" data-d="4">tokens = min(capacity, tokens + elapsed*refillRate)
+if tokens >= 1: tokens -= 1; allow
+else: reject</div>
+    <div class="uses rv" data-d="5"><div class="h">Practical use</div><ul>
+      <li>AWS API Gateway, Stripe API — the most common real-world limiter</li>
+      <li>Naturally allows short bursts, smooths to average rate over time</li>
+      <li>What if you want to forbid bursts entirely — a perfectly steady output?</li>
+    </ul></div>
+  </div>
+  <div class="bar rv" data-d="6"><b>Recap:</b> token bucket allows bursts up to the saved balance, then throttles to the refill rate. <span class="gap"><b>But—</b> is there an algorithm that <i>enforces</i> a constant output rate instead of just capping input?</span></div>
+</section>
+
+<!-- ================= S23 LEAKY BUCKET ================= -->
+<section class="slide" id="s23" data-idx="23">
+  <div class="eyebrow rv" data-d="0">RATE LIMITING ALGORITHMS · 05</div>
+  <h2 class="title rv" data-d="1">Leaky Bucket</h2>
+  <div class="fillstrip rv" data-d="2">↳ Answer: yes — requests queue up and drain out at a fixed, constant rate, no matter how bursty the input.</div>
+  <div class="visual-box" id="s23-vis"></div>
+  <div class="info-panel">
+    <div class="def rv" data-d="3">Flip the mental model: instead of a bucket of permission-tokens, it's a bucket of <i>water (requests)</i> with a fixed hole in the bottom. Requests pour in at any speed; they leak out — get processed — at one constant rate. If they pour in faster than the leak rate for too long, the bucket overflows and new requests are dropped.</div>
+    <div class="formula rv" data-d="4">queue.push(request)   # if not full
+every tick: process(queue.pop())  # constant rate</div>
+    <div class="uses rv" data-d="5"><div class="h">Practical use</div><ul>
+      <li>Traffic shaping in networking, smoothing writes to a downstream DB</li>
+      <li>Token bucket = smooths <i>permission</i>; leaky bucket = smooths <i>output</i></li>
+      <li>Both work per-server. What about a limit shared across 50 servers?</li>
+    </ul></div>
+  </div>
+  <div class="bar rv" data-d="6"><b>Recap:</b> leaky bucket enforces a perfectly steady output rate regardless of input burstiness. <span class="gap"><b>But—</b> all five algorithms so far assumed one counter on one machine. What happens with 50 API servers behind a load balancer?</span></div>
+</section>
+
+<!-- ================= S24 DISTRIBUTED RATE LIMITING ================= -->
+<section class="slide" id="s24" data-idx="24">
+  <div class="eyebrow rv" data-d="0">RATE LIMITING ALGORITHMS · 06</div>
+  <h2 class="title rv" data-d="1">Distributed Rate Limiting</h2>
+  <div class="fillstrip rv" data-d="2">↳ Answer: move the counter off each server and into a shared, fast store all servers agree on.</div>
+  <div class="visual-box" id="s24-vis"></div>
+  <div class="info-panel">
+    <div class="def rv" data-d="3">If each of your 50 servers keeps its own local counter, a client can get 50× the intended limit just by spreading requests across servers. The fix: store the counter centrally — usually Redis — so every server checks and increments the <i>same</i> count. The tradeoff is a network hop per check, and a small race window under extreme concurrency.</div>
+    <div class="formula rv" data-d="4">count = redis.INCR(key)
+redis.EXPIRE(key, windowSize)
+allow = count <= limit</div>
+    <div class="uses rv" data-d="5"><div class="h">Practical use</div><ul>
+      <li>Redis + Lua script for atomic check-and-increment</li>
+      <li>API gateways (Kong, Envoy) ship this as a built-in filter</li>
+      <li>At extreme scale, many systems accept slight over-limit for lower latency</li>
+    </ul></div>
+  </div>
+  <div class="bar rv" data-d="6"><b>Recap:</b> a shared store makes the limit real across every server, at the cost of one network hop per check. <span class="gap"><b>That's rate limiting solved.</b> Next: what keeps the whole <i>system</i> up, not just one request?</span></div>
+</section>
+
+<!-- ================= S25 RATE LIMIT RECAP TABLE ================= -->
+<section class="slide" id="s25" data-idx="25">
+  <div class="eyebrow rv" data-d="0">RATE LIMITING ALGORITHMS · RECAP</div>
+  <h2 class="title rv" data-d="1">Six Algorithms, One Decision Table</h2>
+  <div id="s25-vis" style="position:absolute;left:64px;top:150px;width:1152px;height:430px;"></div>
+  <div class="bar rv" data-d="6"><b>Recap:</b> pick by what you're optimizing — cheap &amp; approximate, exact, burst-tolerant, or perfectly smooth. <span class="gap"><b>But—</b> counting requests only matters if the service behind it stays up. How do whole systems stay available when machines, zones, even regions fail?</span></div>
+</section>
+
+<!-- ================= S26 SECTION DIVIDER: RELIABILITY ================= -->
+<section class="slide" id="s26" data-idx="26">
+  <div class="divider-num rv" data-d="0">03</div>
+  <div class="divider-title rv" data-d="1">Reliability &amp;<br>Availability Patterns</div>
+  <div class="divider-sub rv" data-d="2">Resilience protected one request. Rate limiting protected one service. This section zooms out to the whole system: how do you keep serving traffic when a machine dies — or a whole datacenter does?</div>
+  <div id="s26-vis" style="position:absolute;left:64px;top:520px;width:1152px;height:150px;"></div>
+</section>
+
+<!-- ================= S27 ACTIVE-ACTIVE vs ACTIVE-PASSIVE ================= -->
+<section class="slide" id="s27" data-idx="27">
+  <div class="eyebrow rv" data-d="0">RELIABILITY &amp; AVAILABILITY · 01 &amp; 02</div>
+  <h2 class="title rv" data-d="1">Active-Active vs Active-Passive</h2>
+  <div class="fillstrip rv" data-d="2">↳ The first decision: should your backup node do work, or just wait?</div>
+  <div class="wide-visual" id="s27-vis"></div>
+  <div class="bar rv" data-d="6"><b>Recap:</b> active-active serves from every node and scales capacity; active-passive keeps a cheaper idle standby that takes over on failure, at the cost of a brief failover gap. <span class="gap"><b>But—</b> if both nodes are "active" and both accept writes, what stops them from disagreeing about the data?</span></div>
+</section>
+
+<!-- ================= S28 LEADER-FOLLOWER ================= -->
+<section class="slide" id="s28" data-idx="28">
+  <div class="eyebrow rv" data-d="0">RELIABILITY &amp; AVAILABILITY · 03</div>
+  <h2 class="title rv" data-d="1">Leader-Follower</h2>
+  <div class="fillstrip rv" data-d="2">↳ Answer: elect one node the leader — only it accepts writes; everyone else just copies it.</div>
+  <div class="visual-box" id="s28-vis"></div>
+  <div class="info-panel">
+    <div class="def rv" data-d="3">One node is the leader: all writes go through it, in one agreed order. It streams those changes to followers, which apply them and can serve reads. If the leader dies, the followers (or an external coordinator) elect a new leader from among themselves. This avoids the "who's right" conflict of active-active writes.</div>
+    <div class="formula rv" data-d="4">write → leader.apply() → replicate(followers)
+read  → leader | follower (if stale reads OK)</div>
+    <div class="uses rv" data-d="5"><div class="h">Practical use</div><ul>
+      <li>PostgreSQL streaming replication, Kafka partition leaders, Raft/etcd</li>
+      <li>Reads from followers can be slightly stale — a real tradeoff to design for</li>
+      <li>This is one copy of the leader per machine — what if the whole machine class is redundant too?</li>
+    </ul></div>
+  </div>
+  <div class="bar rv" data-d="6"><b>Recap:</b> one leader avoids write conflicts; followers give you read scaling and failover candidates. <span class="gap"><b>But—</b> one leader on one machine is still one point of failure at the hardware level. How far do you spread copies?</span></div>
+</section>
+
+<!-- ================= S29 REDUNDANCY -> MULTI-ZONE -> MULTI-REGION ================= -->
+<section class="slide" id="s29" data-idx="29">
+  <div class="eyebrow rv" data-d="0">RELIABILITY &amp; AVAILABILITY · 04, 05 &amp; 06</div>
+  <h2 class="title rv" data-d="1">Redundancy, Zoom Out Twice</h2>
+  <div class="fillstrip rv" data-d="2">↳ Answer: redundancy is the principle — multi-zone and multi-region are how far you apply it.</div>
+  <div class="wide-visual" id="s29-vis"></div>
+  <div class="bar rv" data-d="6" id="s29-bar"><b>Recap:</b> redundancy = more than one copy. Multi-zone survives a datacenter outage; multi-region survives losing an entire region (fire, flood, regional outage). <span class="gap"><b>But—</b> multi-region protects the running system. What protects the <i>data itself</i> if it gets corrupted or deleted?</span></div>
+</section>
+
+<!-- ================= S30 DISASTER RECOVERY ================= -->
+<section class="slide" id="s30" data-idx="30">
+  <div class="eyebrow rv" data-d="0">RELIABILITY &amp; AVAILABILITY · 07</div>
+  <h2 class="title rv" data-d="1">Disaster Recovery</h2>
+  <div class="fillstrip rv" data-d="2">↳ Answer: DR is the overall plan for "everything is gone, now what" — not just replicas of the running system.</div>
+  <div class="visual-box" id="s30-vis"></div>
+  <div class="info-panel">
+    <div class="def rv" data-d="3">Multi-region keeps the live system running. Disaster recovery is the broader plan for the worse case — total data loss, ransomware, an operator deleting the wrong table. It's a documented, tested plan: what backups exist, how fast can you restore, and who executes the plan under pressure. A DR plan you haven't tested is a guess, not a plan.</div>
+    <div class="formula rv" data-d="4">DR plan = backups + replicas
+          + runbook + practiced drills</div>
+    <div class="uses rv" data-d="5"><div class="h">Practical use</div><ul>
+      <li>"Game days" — deliberately simulate an outage to test the runbook</li>
+      <li>DR strategy is measured directly by two numbers: RPO and RTO (Section 4)</li>
+      <li>The actual data-protection mechanisms are next — three distinct tools</li>
+    </ul></div>
+  </div>
+  <div class="bar rv" data-d="6"><b>Recap:</b> DR is the tested plan for total loss, measured by how much data you'd lose and how long recovery takes. <span class="gap"><b>But—</b> what are the actual mechanisms that let you restore data at all — and how are they different from each other?</span></div>
+</section>
+
+<!-- ================= S31 BACKUP vs REPLICATION vs PITR ================= -->
+<section class="slide" id="s31" data-idx="31">
+  <div class="eyebrow rv" data-d="0">RELIABILITY &amp; AVAILABILITY · 08, 09 &amp; 10</div>
+  <h2 class="title rv" data-d="1">Backup vs Replication vs Point-in-Time Recovery</h2>
+  <div class="fillstrip rv" data-d="2">↳ Three different tools that all sound like "keep a copy" — but protect against different things.</div>
+  <div class="wide-visual" id="s31-vis"></div>
+  <div class="bar rv" data-d="6"><b>Recap:</b> backup = periodic snapshot (slow to restore, safe from live corruption); replication = continuous live copy (fast, but copies mistakes instantly too); PITR = replay logs to any exact moment (undo the mistake precisely). <span class="gap"><b>But—</b> "fast to restore" and "recent data" — how do we put a number on that?</span></div>
+</section>
+
+<!-- ================= S32 RELIABILITY RECAP GRID ================= -->
+<section class="slide" id="s32" data-idx="32">
+  <div class="eyebrow rv" data-d="0">RELIABILITY &amp; AVAILABILITY · RECAP</div>
+  <h2 class="title rv" data-d="1">From One Machine to Every Region</h2>
+  <div id="s32-vis" style="position:absolute;left:64px;top:150px;width:1152px;height:430px;"></div>
+  <div class="bar rv" data-d="6"><b>Recap:</b> reliability is redundancy applied at increasing scope — process, zone, region — backed by a tested recovery plan. <span class="gap"><b>But—</b> how do you know, in hard numbers, whether any of this is actually good enough? Time for metrics.</span></div>
+</section>
+<!-- ================= S33 SECTION DIVIDER: METRICS ================= -->
+<section class="slide" id="s33" data-idx="33">
+  <div class="divider-num rv" data-d="0">04</div>
+  <div class="divider-title rv" data-d="1">Metrics</div>
+  <div class="divider-sub rv" data-d="2">Every pattern so far was a design decision. Metrics are how you find out, in numbers, whether those decisions are actually working — and how much room you have left before they don't.</div>
+  <div id="s33-vis" style="position:absolute;left:64px;top:480px;width:1152px;height:190px;"></div>
+</section>
+
+<!-- ================= S34 SLA / SLO / SLI ================= -->
+<section class="slide" id="s34" data-idx="34">
+  <div class="eyebrow rv" data-d="0">METRICS · 01</div>
+  <h2 class="title rv" data-d="1">SLA, SLO, SLI</h2>
+  <div class="fillstrip rv" data-d="2">↳ Three letters, one relationship: measure it (SLI), target it (SLO), promise it (SLA).</div>
+  <div class="visual-box" id="s34-vis"></div>
+  <div class="info-panel">
+    <div class="def rv" data-d="3"><b>SLI</b> (Indicator) — the raw measurement: "99.95% of requests succeeded last month." <b>SLO</b> (Objective) — your internal target for that indicator: "we aim for ≥99.9% success." <b>SLA</b> (Agreement) — the external, often contractual promise, usually looser than the SLO, with real consequences (refunds) if missed. SLI feeds SLO; SLO is set stricter than SLA on purpose, as a buffer.</div>
+    <div class="formula rv" data-d="4">SLI = goodEvents / totalEvents
+SLO = internal target (e.g. 99.9%)
+SLA = external promise (e.g. 99.5%) + penalty</div>
+    <div class="uses rv" data-d="5"><div class="h">Practical use</div><ul>
+      <li>Pick SLIs users actually feel: latency, error rate, availability</li>
+      <li>SLA should always be looser than SLO — the gap is your safety margin</li>
+      <li>Missing the SLO is a warning; missing the SLA costs money and trust</li>
+    </ul></div>
+  </div>
+  <div class="bar rv" data-d="6"><b>Recap:</b> SLI measures, SLO targets, SLA promises — with SLO stricter than SLA as a buffer. <span class="gap"><b>But—</b> if your SLO is 99.9%, exactly how much room for failure does that actually give you, in real numbers?</span></div>
+</section>
+
+<!-- ================= S35 ERROR BUDGET ================= -->
+<section class="slide" id="s35" data-idx="35">
+  <div class="eyebrow rv" data-d="0">METRICS · 02</div>
+  <h2 class="title rv" data-d="1">Error Budget</h2>
+  <div class="fillstrip rv" data-d="2">↳ Answer: 1 − SLO, turned into an actual spendable allowance.</div>
+  <div class="visual-box" id="s35-vis"></div>
+  <div class="info-panel">
+    <div class="def rv" data-d="3">If your SLO is 99.9% over 30 days, your error budget is the other 0.1% — about 43 minutes of downtime you're <i>allowed</i> to spend. Every incident spends from that budget. Spend it early? You've earned the right to slow down and stabilize instead of shipping risky changes — a genuinely useful governance tool, not just a vanity metric.</div>
+    <div class="formula rv" data-d="4">budget = (1 - SLO) * period
+# 0.001 * 30days = 43.2 minutes
+burnRate = errors_now / budget_rate</div>
+    <div class="uses rv" data-d="5"><div class="h">Practical use</div><ul>
+      <li>Google SRE: budget exhausted → freeze risky launches until it recovers</li>
+      <li>"Burn rate" alerts catch fast-draining budgets before the month ends</li>
+      <li>Budget answers "how much room" — but how do you talk about failure <i>frequency</i>?</li>
+    </ul></div>
+  </div>
+  <div class="bar rv" data-d="6"><b>Recap:</b> the error budget turns your SLO into a spendable number that governs release risk. <span class="gap"><b>But—</b> a budget tells you how much failure is allowed — it doesn't say how often failures actually happen, or how long they last when they do.</span></div>
+</section>
+
+<!-- ================= S36 MTBF / MTTR ================= -->
+<section class="slide" id="s36" data-idx="36">
+  <div class="eyebrow rv" data-d="0">METRICS · 03</div>
+  <h2 class="title rv" data-d="1">MTBF &amp; MTTR</h2>
+  <div class="fillstrip rv" data-d="2">↳ Answer: MTBF says how often it breaks; MTTR says how fast you fix it. Together, they set availability.</div>
+  <div class="visual-box" id="s36-vis"></div>
+  <div class="info-panel">
+    <div class="def rv" data-d="3"><b>MTBF</b> (Mean Time Between Failures) — average healthy time between incidents. Higher is better. <b>MTTR</b> (Mean Time To Recovery) — average time spent fixing an incident once it starts. Lower is better. Improving either one raises overall availability — and often MTTR is the cheaper lever to pull, since good tooling shortens every incident, forever.</div>
+    <div class="formula rv" data-d="4">availability = MTBF / (MTBF + MTTR)
+# 720hr MTBF, 2hr MTTR
+# = 720/722 = 99.72%</div>
+    <div class="uses rv" data-d="5"><div class="h">Practical use</div><ul>
+      <li>Invest in monitoring/runbooks to cut MTTR — fast, cheap wins</li>
+      <li>Invest in redundancy/code quality to raise MTBF — slower, structural</li>
+      <li>These describe uptime in general — but what about the moment data is lost?</li>
+    </ul></div>
+  </div>
+  <div class="bar rv" data-d="6"><b>Recap:</b> availability is a straight function of how often you break (MTBF) and how fast you recover (MTTR). <span class="gap"><b>But—</b> "recovery" for a data-loss incident means something more specific: how much data did you lose, and how long until it's back?</span></div>
+</section>
+
+<!-- ================= S37 RPO / RTO ================= -->
+<section class="slide" id="s37" data-idx="37">
+  <div class="eyebrow rv" data-d="0">METRICS · 04</div>
+  <h2 class="title rv" data-d="1">RPO &amp; RTO</h2>
+  <div class="fillstrip rv" data-d="2">↳ Answer: RPO is how much data you can afford to lose; RTO is how long you can afford to be down.</div>
+  <div class="visual-box" id="s37-vis"></div>
+  <div class="info-panel">
+    <div class="def rv" data-d="3"><b>RPO</b> (Recovery Point Objective) — the maximum acceptable data loss, measured in time: "we back up hourly" means an RPO of 1 hour. <b>RTO</b> (Recovery Time Objective) — the maximum acceptable outage duration before service is restored. These two numbers directly dictate which mechanism from Section 3 you need: backup, replication, or PITR.</div>
+    <div class="formula rv" data-d="4">RPO tight (~0)  → needs replication
+RPO loose (~1hr)→ periodic backup OK
+RTO tight       → hot standby, fast failover</div>
+    <div class="uses rv" data-d="5"><div class="h">Practical use</div><ul>
+      <li>Bank ledger: RPO ≈ 0 (can't lose a transaction) → sync replication</li>
+      <li>Internal analytics DB: RPO of hours is often fine → nightly backup</li>
+      <li>These two numbers should be written down and agreed on <i>before</i> an incident</li>
+    </ul></div>
+  </div>
+  <div class="bar rv" data-d="6"><b>Recap:</b> RPO and RTO turn "how resilient should we be" into two concrete numbers that decide your architecture. <span class="gap"><b>That's the full field guide.</b> Let's connect every piece back into one picture.</span></div>
+</section>
+
+<!-- ================= S38 FINAL RECAP ================= -->
+<section class="slide" id="s38" data-idx="38">
+  <div class="eyebrow rv" data-d="0">THE BIG PICTURE</div>
+  <h2 class="title rv" data-d="1">One Request's Journey, End to End</h2>
+  <div class="wide-visual" id="s38-vis"></div>
+  <div class="bar rv" data-d="6"><b>Recap:</b> resilience protects the request, rate limiting protects the service, reliability patterns protect the system, and metrics tell you whether any of it is actually working. <span style="color:var(--teal)"><b>That's the field guide — end.</b></span></div>
+</section>
+</div></div>
+
+<div id="nav">
+  <button id="prevBtn">← Prev</button>
+  <span id="counter">1 / 39</span>
+  <button id="nextBtn">Next →</button>
+</div>
+<div id="collision-badge"></div>
+
+<script>
+/* ---------- tiny DOM helpers ---------- */
+function el(tag,cls){ const e=document.createElement(tag); if(cls) e.className=cls; return e; }
+function place(e,x,y,w,h){ e.style.position='absolute'; e.style.left=x+'px'; e.style.top=y+'px'; if(w!=null)e.style.width=w+'px'; if(h!=null)e.style.height=h+'px'; return e; }
+function fnode(container,id,x,y,w,h,label1,sub,cls){
+  const n=el('div','fnode'+(cls?' '+cls:'')); n.dataset.id=id; place(n,x,y,w,h);
+  n.innerHTML='<div>'+label1+'</div>'+(sub?'<div class="sub">'+sub+'</div>':'');
+  container.appendChild(n); return n;
+}
+function setState(container,id,state){
+  const n=container.querySelector('[data-id="'+id+'"]'); if(!n) return;
+  n.classList.remove('st-ok','st-fail','st-warn','st-idle');
+  if(state) n.classList.add('st-'+state);
+}
+function svgOverlay(container){
+  let sv=container.querySelector('svg.overlay');
+  if(!sv){ sv=document.createElementNS('http://www.w3.org/2000/svg','svg'); sv.setAttribute('class','overlay');
+    sv.style.position='absolute'; sv.style.left='0'; sv.style.top='0'; sv.style.width='100%'; sv.style.height='100%'; sv.style.pointerEvents='none';
+    container.insertBefore(sv, container.firstChild);
+    const defs=document.createElementNS('http://www.w3.org/2000/svg','defs');
+    defs.innerHTML='<marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" class="arrowmark"/></marker>';
+    sv.appendChild(defs);
+  }
+  return sv;
+}
+function edge(container,x1,y1,x2,y2,opts){
+  opts=opts||{};
+  const sv=svgOverlay(container);
+  const l=document.createElementNS('http://www.w3.org/2000/svg','line');
+  l.setAttribute('x1',x1); l.setAttribute('y1',y1); l.setAttribute('x2',x2); l.setAttribute('y2',y2);
+  l.setAttribute('stroke',opts.color||'rgba(233,235,241,.3)');
+  l.setAttribute('stroke-width',opts.width||1.6);
+  if(opts.dash) l.setAttribute('stroke-dasharray',opts.dash);
+  if(opts.arrow) l.setAttribute('marker-end','url(#arrow)');
+  sv.appendChild(l); return l;
+}
+function dot(container,x1,y1,x2,y2,opts){
+  opts=opts||{};
+  const d=el('div','fdot'+(opts.cls?' '+opts.cls:'')); place(d,x1-4.5,y1-4.5,9,9);
+  d.style.opacity='0'; container.appendChild(d);
+  const dur=opts.duration||900, delay=opts.delay||0, start=performance.now()+delay;
+  function frame(t){
+    if(t<start){ requestAnimationFrame(frame); return; }
+    let p=(t-start)/dur; if(p>1)p=1;
+    d.style.opacity='1';
+    const ease=1-Math.pow(1-p,2);
+    d.style.left=(x1+(x2-x1)*ease-4.5)+'px'; d.style.top=(y1+(y2-y1)*ease-4.5)+'px';
+    if(p<1) requestAnimationFrame(frame); else if(opts.onDone) opts.onDone(d);
+  }
+  requestAnimationFrame(frame); return d;
+}
+function label(container,x,y,text,opts){
+  opts=opts||{};
+  const l=el('div','flabel'); place(l,x,y,opts.width||null); l.textContent=text;
+  if(opts.color) l.style.color=opts.color;
+  if(opts.size) l.style.fontSize=opts.size+'px';
+  if(opts.align) l.style.textAlign=opts.align;
+  container.appendChild(l); return l;
+}
+function pool(container,x,y,n,size,gap){
+  const cells=[];
+  for(let i=0;i<n;i++){
+    const c=el('div'); const col=i%5, row=Math.floor(i/5);
+    place(c, x+col*(size+gap), y+row*(size+gap), size, size);
+    c.style.border='1.2px solid var(--line2)'; c.style.borderRadius='3px'; c.style.background='var(--panel2)';
+    c.style.transition='background .3s,border-color .3s';
+    container.appendChild(c); cells.push(c);
+  }
+  return cells;
+}
+function barChart(container,x,y,w,h,bars,opts){
+  opts=opts||{};
+  const maxV=opts.max||Math.max.apply(null,bars.map(function(b){return b.value;}));
+  const gap=opts.gap!=null?opts.gap:14;
+  const bw=(w-(bars.length-1)*gap)/bars.length;
+  bars.forEach(function(b,i){
+    const bx=x+i*(bw+gap);
+    const wrap=el('div'); place(wrap,bx,y,bw,h);
+    const colH=Math.max(2,(b.value/maxV)*(h-34));
+    const col=el('div'); col.style.position='absolute'; col.style.left='0'; col.style.bottom='24px';
+    col.style.width=bw+'px'; col.style.height='0px'; col.style.borderRadius='5px 5px 2px 2px';
+    col.style.background=b.color||'var(--blue)'; col.style.transition='height .7s cubic-bezier(.2,.8,.2,1)';
+    wrap.appendChild(col);
+    const lab=el('div'); place(lab,0,h-16,bw); lab.style.textAlign='center'; lab.style.fontFamily="'JetBrains Mono',monospace";
+    lab.style.fontSize='10.5px'; lab.style.color='var(--ink-faint)'; lab.textContent=b.label; wrap.appendChild(lab);
+    const val=el('div'); val.style.position='absolute'; val.style.left='0'; val.style.width=bw+'px'; val.style.textAlign='center';
+    val.style.fontFamily="'JetBrains Mono',monospace"; val.style.fontSize='11px'; val.style.color='var(--ink-dim)'; val.style.bottom='26px';
+    wrap.appendChild(val);
+    container.appendChild(wrap);
+    setTimeout(function(){ col.style.height=colH+'px'; val.style.bottom=(24+colH+4)+'px'; val.textContent=b.valLabel!=null?b.valLabel:b.value; },
+      (opts.delay||0)+i*(opts.stagger!=null?opts.stagger:150));
+  });
+}
+function timeline(container,x,y,w,events){
+  const axis=el('div'); place(axis,x,y,w,2); axis.style.background='var(--line2)'; container.appendChild(axis);
+  events.forEach(function(ev){
+    const ex=x+ev.frac*w;
+    if(ev.band){
+      const b=el('div'); place(b, x+ev.band.from*w, y-6, (ev.band.to-ev.band.from)*w, 22);
+      b.style.borderRadius='5px'; b.style.background=ev.band.color||'rgba(207,159,92,.22)'; container.appendChild(b);
+    }
+    const tk=el('div'); place(tk,ex-1,y-6,2,14); tk.style.background=ev.color||'var(--line2)'; container.appendChild(tk);
+    const dt=el('div'); place(dt,ex-5.5,y-5.5,11,11); dt.style.borderRadius='50%'; dt.style.background=ev.color||'var(--blue)'; container.appendChild(dt);
+    if(ev.label){ const lb=el('div'); place(lb,ex-40,y+14,80); lb.style.textAlign='center'; lb.style.fontFamily="'JetBrains Mono',monospace";
+      lb.style.fontSize='10.5px'; lb.style.color='var(--ink-dim)'; lb.textContent=ev.label; container.appendChild(lb); }
+  });
+}
+function rings(container,cx,cy,ringsArr){
+  ringsArr.forEach(function(r){
+    const ring=el('div','ring'); place(ring,cx-r.d/2,cy-r.d/2,r.d,r.d); ring.style.borderColor=r.color||'var(--line2)';
+    container.appendChild(ring);
+    const lab=el('div','ring-label'); place(lab,cx-75,cy-r.d/2-18,150); lab.style.textAlign='center'; lab.style.color=r.color||'var(--ink-dim)';
+    lab.textContent=r.label; container.appendChild(lab);
+  });
+}
+function revealIn(slide,stepMs){
+  stepMs=stepMs||100;
+  slide.querySelectorAll('.rv').forEach(function(elx){
+    elx.classList.remove('in');
+    const d=parseInt(elx.dataset.d||'0',10);
+    setTimeout(function(){ elx.classList.add('in'); }, d*stepMs);
+  });
+}
+function mnIndicate(elx,delay){
+  if(!elx) return;
+  setTimeout(function(){ elx.classList.remove('ringpulse'); void elx.offsetWidth; elx.classList.add('ringpulse'); }, delay||0);
+}
+function mnCircumscribe(target,host,opts){
+  if(!target||!host) return;
+  opts=opts||{};
+  const tb=target.getBoundingClientRect(), hb=host.getBoundingClientRect();
+  const scale=hb.width/host.offsetWidth;
+  const ring=el('div'); ring.style.position='absolute';
+  ring.style.left=((tb.left-hb.left)/scale-8)+'px';
+  ring.style.top=((tb.top-hb.top)/scale-8)+'px';
+  ring.style.width=(tb.width/scale+16)+'px';
+  ring.style.height=(tb.height/scale+16)+'px';
+  ring.style.border='1.6px solid '+(opts.color||'var(--teal)');
+  ring.style.borderRadius=(opts.radius||14)+'px';
+  ring.style.opacity='0'; ring.style.transition='opacity .35s'; ring.style.pointerEvents='none';
+  host.appendChild(ring);
+  requestAnimationFrame(function(){ ring.style.opacity='1'; });
+  setTimeout(function(){ ring.style.opacity='0'; setTimeout(function(){ ring.remove(); },400); },1300);
+}
+
+/* ---------- per-slide animations ---------- */
+const SLIDE_PLAY = {};
+
+SLIDE_PLAY.s0 = function(){
+  const c=document.getElementById('s0-vis'); c.innerHTML='';
+  const items=[['Resilience','var(--teal)'],['Rate Limiting','var(--blue)'],['Reliability','var(--violet)'],['Metrics','var(--amber)']];
+  const w=250,h=90,gap=(1152-4*w)/3;
+  items.forEach(function(it,i){
+    const x=i*(w+gap);
+    fnode(c,'p'+i,x,40,w,h,it[0],'');
+    if(i<3) edge(c,x+w,40+h/2,x+w+gap,40+h/2,{arrow:true});
+  });
+  items.forEach(function(it,i){
+    setTimeout(function(){
+      const n=c.querySelector('[data-id="p'+i+'"]'); n.style.borderColor=it[1]; n.style.color=it[1]; mnIndicate(n,0);
+    }, 350+i*350);
+  });
+};
+
+SLIDE_PLAY.s1 = function(){
+  const c=document.getElementById('s1-vis'); c.innerHTML='';
+  fnode(c,'A',40,50,170,70,'Client','requests');
+  fnode(c,'B',330,50,170,70,'Service B','api');
+  fnode(c,'C',620,50,170,70,'Service C','downstream');
+  fnode(c,'D',910,50,170,70,'Service D','healthy');
+  edge(c,210,85,330,85,{arrow:true});
+  edge(c,500,85,620,85,{arrow:true});
+  const slowLbl=label(c,620,150,'',{size:11,color:'var(--amber)',width:270});
+  pool(c,330,168,10,26,8);
+  const cells=c.querySelectorAll('div[style*="border"]');
+  const poolCells=Array.prototype.slice.call(c.children).filter(function(e){return e.style.borderRadius==='3px';});
+  label(c,330,150,'Service B — thread pool',{size:11,color:'var(--ink-dim)'});
+  const failLbl=label(c,330,300,'',{size:11,color:'var(--coral)',width:340});
+  const failLbl2=label(c,40,300,'',{size:11,color:'var(--coral)',width:200});
+  setTimeout(function(){ setState(c,'C','warn'); slowLbl.textContent='slow — 8s response'; },900);
+  dot(c,120,85,330,85,{duration:600});
+  dot(c,410,85,620,85,{duration:700,delay:650});
+  let i=0;
+  const fillTimer=setInterval(function(){
+    if(i>=poolCells.length){ clearInterval(fillTimer);
+      setState(c,'B','fail'); failLbl.textContent='pool exhausted — new requests rejected';
+      setTimeout(function(){ setState(c,'A','fail'); failLbl2.textContent='client stalls too'; },500);
+      return;
+    }
+    poolCells[i].style.background='var(--coralBg)'; poolCells[i].style.borderColor='var(--coral)'; i++;
+  },240);
+};
+
+SLIDE_PLAY.s2 = function(){
+  const c=document.getElementById('s2-vis'); c.innerHTML='';
+  const rows=[{y:40,text:'Attempt 1 — responds in time',outcome:'ok'},{y:220,text:'Attempt 2 — exceeds deadline',outcome:'timeout'}];
+  rows.forEach(function(r,ri){
+    label(c,20,r.y,r.text,{size:11.5,color:'var(--ink-dim)'});
+    const sy=r.y+30, ch=44, cx=20,cw=90, sx=470,sw=120;
+    fnode(c,'cl'+ri,cx,sy,cw,ch,'Client');
+    fnode(c,'sv'+ri,sx,sy,sw,ch,'Server');
+    edge(c,cx+cw,sy+ch/2,sx,sy+ch/2,{});
+    const dx=cx+cw+(sx-(cx+cw))*0.55;
+    const tick=el('div'); place(tick,dx-1,sy-10,2,ch+20); tick.style.background='var(--amber)'; c.appendChild(tick);
+    label(c,dx-24,sy+ch+8,'deadline',{size:10,color:'var(--amber)',width:70});
+    const outLbl=label(c,sx,sy-16,'',{size:11,color:'var(--teal)',width:100});
+    if(r.outcome==='ok'){
+      dot(c,cx+cw,sy+ch/2,sx,sy+ch/2,{duration:650,delay:300,onDone:function(d){
+        setState(c,'sv'+ri,'ok'); outLbl.textContent='200 OK'; mnIndicate(c.querySelector('[data-id="sv'+ri+'"]')); d.remove();
+      }});
+    } else {
+      dot(c,cx+cw,sy+ch/2,dx,sy+ch/2,{duration:900,delay:300,cls:'warn',onDone:function(d){
+        d.classList.add('fail'); outLbl.style.color='var(--coral)'; outLbl.style.left=(dx-30)+'px'; outLbl.textContent='TIMEOUT';
+        setState(c,'cl'+ri,'fail');
+        setTimeout(function(){ d.remove(); setState(c,'cl'+ri,'idle'); },700);
+      }});
+    }
+  });
+};
+
+SLIDE_PLAY.s3 = function(){
+  const c=document.getElementById('s3-vis'); c.innerHTML='';
+  fnode(c,'cl',20,170,110,50,'Client');
+  fnode(c,'sv',470,170,120,50,'Server','flaky');
+  edge(c,130,195,470,195,{});
+  const attemptLbl=label(c,250,110,'',{size:11,color:'var(--ink-dim)'});
+  const outcomeLbl=label(c,300,240,'',{size:11,color:'var(--coral)',width:260});
+  const outcomes=['fail','fail','ok'];
+  outcomes.forEach(function(o,i){
+    setTimeout(function(){
+      attemptLbl.textContent='attempt '+(i+1);
+      outcomeLbl.textContent=''; outcomeLbl.style.left='300px'; outcomeLbl.style.top='240px'; outcomeLbl.style.color='var(--coral)';
+      dot(c,130,195,o==='ok'?470:300,195,{duration:550,cls:o==='fail'?'fail':'',onDone:function(d){
+        if(o==='fail'){ outcomeLbl.textContent='✕ transient error — retrying'; setTimeout(function(){ d.remove(); },300); }
+        else { setState(c,'sv','ok'); outcomeLbl.style.color='var(--teal)'; outcomeLbl.style.left='430px'; outcomeLbl.style.top='140px'; outcomeLbl.textContent='200 OK'; mnIndicate(c.querySelector('[data-id="sv"]')); setTimeout(function(){ d.remove(); },300); }
+      }});
+    }, i*950);
+  });
+};
+
+SLIDE_PLAY.s4 = function(){
+  const c=document.getElementById('s4-vis'); c.innerHTML='';
+  label(c,20,20,'wait time before next retry',{size:12,color:'var(--ink-dim)'});
+  barChart(c,20,50,580,220,[
+    {label:'try 1',value:1,valLabel:'1s',color:'var(--amber)'},
+    {label:'try 2',value:2,valLabel:'2s',color:'var(--amber)'},
+    {label:'try 3',value:4,valLabel:'4s',color:'var(--amber)'},
+    {label:'try 4',value:8,valLabel:'8s',color:'var(--amber)'},
+    {label:'try 5',value:16,valLabel:'16s cap',color:'var(--coral)'}
+  ],{stagger:220});
+  label(c,20,310,'the gap between attempts widens — less load, not zero',{size:11,color:'var(--ink-dim)'});
+  timeline(c,20,350,580,[
+    {frac:0.02,label:'t1',color:'var(--amber)'},
+    {frac:0.10,label:'t2',color:'var(--amber)'},
+    {frac:0.26,label:'t3',color:'var(--amber)'},
+    {frac:0.58,label:'t4',color:'var(--coral)'}
+  ]);
+};
+
+SLIDE_PLAY.s5 = function(){
+  const c=document.getElementById('s5-vis'); c.innerHTML='';
+  const w=580;
+  label(c,20,20,'5 clients retry after backoff — no jitter',{size:11.5,color:'var(--ink-dim)'});
+  const axis1=el('div'); place(axis1,20,90,w,2); axis1.style.background='var(--line2)'; c.appendChild(axis1);
+  for(let i=0;i<5;i++){ const d=el('div'); place(d,20+w*0.5-5,84,10,10); d.style.borderRadius='50%'; d.style.background='var(--coral)'; c.appendChild(d); }
+  label(c,20+w*0.5-55,104,'all 5 collide at once',{size:10.5,color:'var(--coral)',width:110});
+  label(c,20,190,'same 5 clients — wait randomized within the window',{size:11.5,color:'var(--ink-dim)'});
+  const axis2=el('div'); place(axis2,20,260,w,2); axis2.style.background='var(--line2)'; c.appendChild(axis2);
+  [0.30,0.42,0.5,0.60,0.7].forEach(function(f){
+    const d=el('div'); place(d,20+w*f-5,254,10,10); d.style.borderRadius='50%'; d.style.background='var(--teal)'; c.appendChild(d);
+  });
+  label(c,20+w*0.5-65,274,'spread across the window',{size:10.5,color:'var(--teal)',width:140});
+};
+
+SLIDE_PLAY.s6 = function(){
+  const c=document.getElementById('s6-vis'); c.innerHTML='';
+  fnode(c,'closed',60,40,160,70,'CLOSED','calls pass through');
+  fnode(c,'open',400,40,160,70,'OPEN','calls fail instantly');
+  fnode(c,'half',230,230,160,70,'HALF-OPEN','one test call');
+  setState(c,'closed','ok');
+  edge(c,220,75,400,75,{arrow:true,color:'var(--coral)'});
+  label(c,255,50,'too many failures',{size:10,color:'var(--coral)',width:130});
+  edge(c,470,110,320,230,{arrow:true,color:'var(--amber)'});
+  label(c,400,160,'cooldown elapses',{size:10,color:'var(--amber)',width:110});
+  edge(c,270,230,150,110,{arrow:true,color:'var(--teal)'});
+  label(c,120,180,'test call ok',{size:10,color:'var(--teal)',width:100});
+  edge(c,320,262,470,112,{arrow:true,color:'var(--coral)',dash:'4,3'});
+  label(c,395,280,'test call fails',{size:10,color:'var(--coral)',width:110});
+  setTimeout(function(){ mnCircumscribe(c.querySelector('[data-id="closed"]'),c,{color:'var(--teal)'}); },400);
+  setTimeout(function(){ setState(c,'closed','idle'); setState(c,'open','fail'); mnIndicate(c.querySelector('[data-id="open"]')); },1500);
+  setTimeout(function(){ setState(c,'open','idle'); setState(c,'half','warn'); mnIndicate(c.querySelector('[data-id="half"]')); },2700);
+  setTimeout(function(){ setState(c,'half','idle'); setState(c,'closed','ok'); mnCircumscribe(c.querySelector('[data-id="closed"]'),c,{color:'var(--teal)'}); },3900);
+};
+
+SLIDE_PLAY.s7 = function(){
+  const c=document.getElementById('s7-vis'); c.innerHTML='';
+  label(c,20,20,'pool for Service A (flooded)',{size:11,color:'var(--ink-dim)'});
+  const poolA=pool(c,20,50,10,26,8);
+  label(c,320,20,'pool for Service B (isolated)',{size:11,color:'var(--ink-dim)'});
+  pool(c,320,50,10,26,8);
+  const statusA=label(c,20,270,'Service A: healthy',{size:12,color:'var(--teal)',width:260});
+  const statusB=label(c,320,270,'Service B: healthy',{size:12,color:'var(--teal)',width:260});
+  let i=0;
+  const t=setInterval(function(){
+    if(i>=poolA.length){ clearInterval(t); statusA.textContent='Service A: stuck — its pool only'; statusA.style.color='var(--coral)'; statusB.textContent='Service B: still healthy ✓'; return; }
+    poolA[i].style.background='var(--coralBg)'; poolA[i].style.borderColor='var(--coral)'; i++;
+  },200);
+};
+
+SLIDE_PLAY.s8 = function(){
+  const c=document.getElementById('s8-vis'); c.innerHTML='';
+  label(c,20,20,'requests arriving',{size:11,color:'var(--ink-dim)'});
+  fnode(c,'gate',250,150,120,80,'RATE','LIMITER');
+  label(c,400,150,'limit: 5 req/s',{size:11,color:'var(--amber)',width:150});
+  const rejLbl=label(c,270,260,'',{size:14,color:'var(--coral)',width:100});
+  const outcomes=['ok','ok','ok','ok','ok','fail','fail'];
+  outcomes.forEach(function(o,i){
+    setTimeout(function(){
+      const startY=60+(i%3)*24;
+      dot(c,30,startY,250,190,{duration:500,cls:o==='fail'?'fail':'',onDone:function(d){
+        if(o==='ok'){ dot(c,370,190,580,190,{duration:380}); d.remove(); }
+        else { rejLbl.textContent='429 ×'+(i-4); d.remove(); }
+      }});
+    }, i*260);
+  });
+};
+
+SLIDE_PLAY.s9 = function(){
+  const c=document.getElementById('s9-vis'); c.innerHTML='';
+  label(c,20,20,'incoming: mixed priority requests',{size:11,color:'var(--ink-dim)'});
+  fnode(c,'shed',250,150,120,80,'LOAD','SHEDDER');
+  const types=[['checkout','high','var(--teal)','ok'],['recs','low','var(--ink-faint)','fail'],['checkout','high','var(--teal)','ok'],['recs','low','var(--ink-faint)','fail'],['checkout','high','var(--teal)','ok']];
+  const statusLbl=label(c,400,150,'',{size:11,color:'var(--ink-dim)',width:180});
+  types.forEach(function(t,i){
+    setTimeout(function(){
+      const y=60+(i%3)*24;
+      statusLbl.textContent=t[0]+' ('+t[1]+' priority)';
+      dot(c,30,y,250,190,{duration:480,cls:t[3]==='fail'?'fail':'',onDone:function(d){
+        if(t[3]==='ok'){ dot(c,370,190,580,190,{duration:380}); }
+        d.remove();
+      }});
+    }, i*380);
+  });
+};
+
+SLIDE_PLAY.s10 = function(){
+  const c=document.getElementById('s10-vis'); c.innerHTML='';
+  fnode(c,'prod','producer',20,170,120,50,'Producer');
+  fnode(c,'q',220,150,180,90,'Bounded Queue','');
+  fnode(c,'cons',470,170,120,50,'Consumer');
+  edge(c,140,195,220,195,{arrow:true});
+  edge(c,400,195,470,195,{arrow:true});
+  const cells=pool(c,235,175,8,17,4);
+  const signalLbl=label(c,220,255,'',{size:11,color:'var(--amber)',width:220});
+  let filled=0;
+  const fillT=setInterval(function(){
+    if(filled>=cells.length){ clearInterval(fillT); signalLbl.textContent='queue full → "slow down" signal sent to producer'; setState(c,'prod','warn');
+      setTimeout(function(){
+        let drained=0;
+        const drainT=setInterval(function(){
+          if(drained>=cells.length){ clearInterval(drainT); setState(c,'prod','idle'); signalLbl.textContent='drained — producer resumes'; return; }
+          cells[cells.length-1-drained].style.background='var(--panel2)'; cells[cells.length-1-drained].style.borderColor='var(--line2)'; drained++;
+        },180);
+      },900);
+      return;
+    }
+    cells[filled].style.background='var(--amberBg)'; cells[filled].style.borderColor='var(--amber)'; filled++;
+  },160);
+};
+
+SLIDE_PLAY.s11 = function(){
+  const c=document.getElementById('s11-vis'); c.innerHTML='';
+  fnode(c,'lb',20,170,110,50,'Load','Balancer');
+  fnode(c,'p1',300,60,150,60,'Primary','healthy');
+  fnode(c,'p2',300,270,150,60,'Standby','idle');
+  edge(c,130,195,300,90,{arrow:true,color:'var(--teal)'});
+  edge(c,130,195,300,300,{arrow:true,dash:'3,3'});
+  setState(c,'p1','ok');
+  const statusLbl=label(c,470,90,'',{size:11,color:'var(--coral)',width:130});
+  setTimeout(function(){ setState(c,'p1','fail'); statusLbl.textContent='primary down ✕'; },900);
+  setTimeout(function(){
+    const el2=c.querySelector('[data-id="p2"]'); setState(c,'p2','ok');
+    label(c,470,300,'promoted — now serving',{size:11,color:'var(--teal)',width:150});
+    mnIndicate(el2);
+  },1900);
+};
+
+SLIDE_PLAY.s12 = function(){
+  const c=document.getElementById('s12-vis'); c.innerHTML='';
+  label(c,20,30,'no DB connection available',{size:12,color:'var(--ink-dim)'});
+  fnode(c,'cl1',20,90,110,50,'Client A');
+  fnode(c,'q1',220,80,160,70,'Queue &amp; hope','risky path');
+  const wait=label(c,420,105,'',{size:16,color:'var(--coral)',width:150});
+  edge(c,130,115,220,115,{arrow:true});
+  fnode(c,'cl2',20,250,110,50,'Client B');
+  fnode(c,'fail2',220,240,160,70,'Reject now','fail-fast path');
+  edge(c,130,275,220,275,{arrow:true,color:'var(--teal)'});
+  const ok=label(c,420,265,'',{size:14,color:'var(--teal)',width:180});
+  setState(c,'q1','warn'); setState(c,'fail2','fail');
+  let n=0;
+  const t=setInterval(function(){ n++; wait.textContent='...still waiting ('+n+'s)'; if(n>=4){ clearInterval(t); wait.textContent='times out anyway, 4s wasted'; } },600);
+  setTimeout(function(){ ok.textContent='error in 4ms — caller retries elsewhere'; },500);
+};
+
+SLIDE_PLAY.s13 = function(){
+  const c=document.getElementById('s13-vis'); c.innerHTML='';
+  fnode(c,'page',20,60,200,270,'Product Page','core content');
+  setState(c,'page','ok');
+  fnode(c,'recs',260,60,320,90,'Recommendations','"you may also like"');
+  fnode(c,'price',260,180,320,90,'Live Pricing','real-time quote');
+  const recLbl=label(c,600,90,'',{size:11,color:'var(--coral)',width:200});
+  const priceLbl=label(c,600,210,'',{size:11,color:'var(--amber)',width:200});
+  setTimeout(function(){ setState(c,'recs','fail'); recLbl.textContent='service down → hidden, page still loads'; },800);
+  setTimeout(function(){ setState(c,'price','warn'); priceLbl.textContent='times out → shows cached price'; },1500);
+};
+
+SLIDE_PLAY.s14 = function(){
+  const c=document.getElementById('s14-vis'); c.innerHTML='';
+  fnode(c,'cl',20,170,110,50,'Client');
+  fnode(c,'r1',420,60,170,60,'Replica 1');
+  fnode(c,'r2',420,270,170,60,'Replica 2');
+  edge(c,130,195,420,90,{arrow:true});
+  const p95=label(c,150,140,'',{size:10,color:'var(--amber)',width:200});
+  const r2lbl=label(c,600,300,'',{size:10,color:'var(--ink-dim)',width:120});
+  const winLbl=label(c,300,220,'',{size:12,color:'var(--teal)',width:200});
+  dot(c,130,195,420,90,{duration:1400,cls:'warn',onDone:function(d){ d.remove(); }});
+  setTimeout(function(){ p95.textContent='p95 latency elapsed — replica 1 still silent'; edge(c,130,195,420,300,{arrow:true,dash:'3,3',color:'var(--blue)'}); r2lbl.textContent='hedge sent here'; },700);
+  dot(c,130,195,420,300,{duration:500,delay:750,onDone:function(d){ setState(c,'r2','ok'); winLbl.textContent='replica 2 answers first — used'; mnIndicate(c.querySelector('[data-id="r2"]')); d.remove(); }});
+};
+
+SLIDE_PLAY.s15 = function(){
+  const c=document.getElementById('s15-vis'); c.innerHTML='';
+  label(c,20,20,'PULL — health check',{size:12,color:'var(--ink-dim)'});
+  fnode(c,'lb1',20,60,130,50,'Load','Balancer');
+  fnode(c,'svc1',300,60,130,50,'Service','node');
+  const l1=label(c,170,45,'',{size:10,color:'var(--blue)',width:130});
+  label(c,20,220,'PUSH — heartbeat',{size:12,color:'var(--ink-dim)'});
+  fnode(c,'svc2',20,270,130,50,'Service','node');
+  fnode(c,'reg2',300,270,150,50,'Membership','registry');
+  const l2=label(c,170,300,'',{size:10,color:'var(--teal)',width:150});
+  let a=0;
+  const t1=setInterval(function(){ a++; edge(c,150,85,300,85,{arrow:true,color:'var(--blue)'}); l1.textContent='GET /health → 200 ('+a+')'; if(a>=3) clearInterval(t1); },500);
+  let b=0;
+  const t2=setInterval(function(){ b++; edge(c,150,295,300,295,{arrow:true,color:'var(--teal)'}); l2.textContent='I_AM_ALIVE beat #'+b; if(b>=3) clearInterval(t2); },500);
+};
+
+SLIDE_PLAY.s16 = function(){
+  const c=document.getElementById('s16-vis'); c.innerHTML='';
+  fnode(c,'q',20,150,160,80,'Message Queue','');
+  fnode(c,'proc',280,150,160,80,'Processor','');
+  fnode(c,'dlq',280,300,160,70,'Dead-Letter','Queue');
+  edge(c,180,190,280,190,{arrow:true});
+  edge(c,360,230,360,300,{arrow:true,color:'var(--coral)'});
+  const attemptLbl=label(c,470,190,'',{size:11,color:'var(--coral)',width:150});
+  const dlqLbl=label(c,470,320,'',{size:11,color:'var(--coral)',width:150});
+  [1,2,3].forEach(function(n){
+    setTimeout(function(){ attemptLbl.textContent='attempt '+n+' failed ✕'; setState(c,'proc','fail'); },n*500);
+  });
+  setTimeout(function(){ dlqLbl.textContent='moved to DLQ — queue unblocked'; setState(c,'dlq','warn'); mnIndicate(c.querySelector('[data-id="dlq"]')); },1900);
+};
+
+SLIDE_PLAY.s17 = function(){
+  const c=document.getElementById('s17-vis'); c.innerHTML='';
+  fnode(c,'cl',20,170,140,50,'Client','retries once');
+  fnode(c,'sv',420,170,170,50,'Server','remembers keys');
+  edge(c,160,195,420,195,{arrow:true});
+  const keyLbl=label(c,180,110,'',{size:11,color:'var(--ink-dim)',width:280});
+  const resLbl=label(c,180,250,'',{size:12,color:'var(--teal)',width:320});
+  keyLbl.textContent='key=" idem-8841 ", amount=$50';
+  dot(c,160,195,420,195,{duration:600,onDone:function(d){ resLbl.textContent='1st call → balance charged once'; setState(c,'sv','ok'); d.remove(); }});
+  setTimeout(function(){
+    dot(c,160,195,420,195,{duration:600,cls:'warn',onDone:function(d){ resLbl.textContent='2nd call (retry, same key) → same result, no double charge'; mnIndicate(c.querySelector('[data-id="sv"]')); d.remove(); }});
+  },1300);
+};
+
+SLIDE_PLAY.s18 = function(){
+  const c=document.getElementById('s18-vis'); c.innerHTML='';
+  const items=[
+    ['Timeout','give every call a deadline'],['Retry','repeat safe, transient failures'],
+    ['Backoff','wait longer after each failure'],['Jitter','randomize the wait, avoid sync'],
+    ['Circuit Breaker','stop calling a dying service'],['Bulkhead','isolate resource pools'],
+    ['Rate Limiter','cap traffic in advance'],['Load Shedding','drop low-priority work first'],
+    ['Backpressure','signal upstream to slow down'],['Failover','reroute to a healthy node'],
+    ['Fail-Fast','reject certain failure instantly'],['Graceful Degradation','shrink features, not the app'],
+    ['Hedged Requests','duplicate to beat tail latency'],['Health Checks','pull: "are you OK?"'],
+    ['Heartbeats','push: "I am alive"'],['Dead-Letter Queue','park poison messages'],
+    ['Idempotency','safe to repeat, same effect once']
+  ];
+  const cols=5,cw=220,ch=96,gx=8,gy=8;
+  items.forEach(function(it,i){
+    const col=i%cols, row=Math.floor(i/cols);
+    const cell=el('div','grid-cell'); place(cell,col*(cw+gx),row*(ch+gy),cw,ch);
+    cell.innerHTML='<div class="gt">'+it[0]+'</div><div class="gd">'+it[1]+'</div>';
+    cell.classList.add('rv','pop'); cell.dataset.d=String(i%10);
+    c.appendChild(cell);
+  });
+  revealIn(c.closest('.slide'),70);
+};
+
+SLIDE_PLAY.s19 = function(){
+  const c=document.getElementById('s19-vis'); c.innerHTML='';
+  label(c,20,20,'clock-minute windows — counter resets at boundary',{size:11,color:'var(--ink-dim)'});
+  timeline(c,20,90,580,[{frac:0,label:'0:00'},{frac:0.5,label:'0:30'},{frac:1,label:'1:00'}]);
+  barChart(c,20,140,270,150,[{label:'window 1',value:8,valLabel:'8 req',color:'var(--blue)'}],{stagger:0});
+  barChart(c,330,140,270,150,[{label:'window 2',value:8,valLabel:'8 req',color:'var(--blue)'}],{stagger:200});
+  const warnLbl=label(c,150,320,'',{size:12,color:'var(--coral)',width:400});
+  setTimeout(function(){ warnLbl.textContent='16 requests in ~2 seconds around the boundary — limit was 8/window'; },900);
+};
+
+SLIDE_PLAY.s20 = function(){
+  const c=document.getElementById('s20-vis'); c.innerHTML='';
+  label(c,20,20,'estimated rate = prev×overlap + current',{size:11,color:'var(--ink-dim)'});
+  timeline(c,20,90,580,[{frac:0,label:'prev'},{frac:0.7,label:'now'},{frac:1,label:'curr'},{frac:0.7,band:{from:0.45,to:0.7,color:'rgba(99,183,164,.22)'}}]);
+  barChart(c,60,140,200,140,[{label:'prev window',value:8,valLabel:'8',color:'var(--ink-faint)'}],{stagger:0});
+  barChart(c,340,140,200,140,[{label:'× 0.3 overlap + curr',value:6.4,valLabel:'≈6.4',color:'var(--teal)'}],{stagger:300});
+  label(c,60,300,'smooth estimate — no hard reset, no 2× spike',{size:12,color:'var(--teal)',width:500});
+};
+
+SLIDE_PLAY.s21 = function(){
+  const c=document.getElementById('s21-vis'); c.innerHTML='';
+  label(c,20,20,'sorted log of exact timestamps',{size:11,color:'var(--ink-dim)'});
+  const w=580;
+  const axis=el('div'); place(axis,20,100,w,2); axis.style.background='var(--line2)'; c.appendChild(axis);
+  const fracs=[0.05,0.12,0.30,0.38,0.55,0.62,0.70,0.90];
+  const dots=[];
+  fracs.forEach(function(f,i){ const d=el('div'); place(d,20+w*f-5,94,10,10); d.style.borderRadius='50%'; d.style.background='var(--ink-faint)'; c.appendChild(d); dots.push(d); });
+  const winBand=el('div'); place(winBand,20+w*0.55-4,88,w*0.45+8,22); winBand.style.border='1.4px dashed var(--amber)'; winBand.style.borderRadius='6px'; c.appendChild(winBand);
+  label(c,20+w*0.55,120,'lookback window',{size:10,color:'var(--amber)',width:200});
+  const countLbl=label(c,20,180,'',{size:14,color:'var(--ink)',width:400});
+  setTimeout(function(){
+    let n=0; fracs.forEach(function(f){ if(f>=0.55) n++; });
+    dots.forEach(function(d,i){ if(fracs[i]>=0.55){ d.style.background='var(--teal)'; } else { d.style.background='var(--ink-faint)'; d.style.opacity='.35'; } });
+    countLbl.textContent=n+' timestamps inside the window right now — exact count, no estimate';
+  },700);
+};
+
+SLIDE_PLAY.s22 = function(){
+  const c=document.getElementById('s22-vis'); c.innerHTML='';
+  label(c,20,20,'bucket refills at a steady rate, holds up to capacity',{size:11,color:'var(--ink-dim)'});
+  fnode(c,'bucket',60,60,150,200,'','');
+  const bucketEl=c.querySelector('[data-id="bucket"]');
+  bucketEl.style.alignItems='flex-end'; bucketEl.style.justifyContent='flex-start'; bucketEl.style.overflow='hidden';
+  const fill=el('div'); place(fill,0,0,150,0); fill.style.position='absolute'; fill.style.left='0'; fill.style.bottom='0';
+  fill.style.background='var(--tealBg)'; fill.style.borderTop='2px solid var(--teal)'; fill.style.transition='height .5s';
+  bucketEl.style.position='absolute'; bucketEl.appendChild(fill);
+  const tokLbl=label(c,60,270,'',{size:12,color:'var(--teal)',width:200});
+  fnode(c,'gate',330,120,140,60,'consume','1 token / req');
+  const outLbl=label(c,500,140,'',{size:12,color:'var(--ink-dim)',width:200});
+  let tokens=10; const cap=10;
+  fill.style.height=(tokens/cap*190)+'px'; tokLbl.textContent=tokens+' / '+cap+' tokens';
+  const seq=['ok','ok','ok','ok','ok','ok','ok','fail','fail'];
+  seq.forEach(function(o,i){
+    setTimeout(function(){
+      if(o==='ok' && tokens>0){ tokens--; outLbl.textContent='burst request '+(i+1)+' → allowed'; outLbl.style.color='var(--teal)'; }
+      else { outLbl.textContent='request '+(i+1)+' → no tokens left, rejected'; outLbl.style.color='var(--coral)'; }
+      fill.style.height=(Math.max(0,tokens)/cap*190)+'px'; tokLbl.textContent=Math.max(0,tokens)+' / '+cap+' tokens';
+    }, i*350);
+  });
+};
+
+SLIDE_PLAY.s23 = function(){
+  const c=document.getElementById('s23-vis'); c.innerHTML='';
+  label(c,20,20,'bursty input in, constant output rate',{size:11,color:'var(--ink-dim)'});
+  fnode(c,'q','q2',60,60,140,220,'','FIFO queue');
+  const qEl=c.querySelector('[data-id="q2"]'); qEl.style.position='absolute';
+  const cells=pool(c,75,80,10,26,8);
+  fnode(c,'proc2',330,150,150,60,'processed','constant rate');
+  const outLbl=label(c,510,170,'',{size:12,color:'var(--teal)',width:220});
+  let filled=5;
+  cells.forEach(function(cell,i){ if(i<filled){ cell.style.background='var(--blueBg)'; cell.style.borderColor='var(--blue)'; } });
+  let tick=0;
+  const t=setInterval(function(){
+    tick++;
+    if(tick%2===0 && filled<cells.length){ cells[filled].style.background='var(--blueBg)'; cells[filled].style.borderColor='var(--blue)'; filled++; }
+    if(filled>0){ filled--; cells[filled].style.background='var(--panel2)'; cells[filled].style.borderColor='var(--line2)'; outLbl.textContent='leaked out request #'+(tick); }
+    if(tick>=8){ clearInterval(t); outLbl.textContent='steady drain — bursts absorbed, never sped up'; }
+  },260);
+};
+
+SLIDE_PLAY.s24 = function(){
+  const c=document.getElementById('s24-vis'); c.innerHTML='';
+  fnode(c,'s1',60,40,130,60,'Server 1');
+  fnode(c,'s2',60,160,130,60,'Server 2');
+  fnode(c,'s3',60,280,130,60,'Server 3');
+  fnode(c,'redis',330,150,170,80,'Shared Counter','Redis · INCR key');
+  [70,190,310].forEach(function(y){ edge(c,190,y+30,330,190,{arrow:true}); });
+  const countLbl=label(c,540,180,'',{size:16,color:'var(--teal)',width:150});
+  let count=0;
+  [0,1,2].forEach(function(i){
+    setTimeout(function(){ count++; countLbl.textContent='count = '+count; mnIndicate(c.querySelector('[data-id="redis"]')); }, 400+i*450);
+  });
+  const noteLbl=label(c,330,250,'',{size:10.5,color:'var(--ink-dim)',width:300});
+  setTimeout(function(){ noteLbl.textContent='every server checks the same number — limit is real across all 3'; },1500);
+};
+
+SLIDE_PLAY.s25 = function(){
+  const c=document.getElementById('s25-vis'); c.innerHTML='';
+  const rows=[
+    ['Fixed Window','cheapest','possible boundary spike'],
+    ['Sliding Window','cheap','smoothed estimate'],
+    ['Sliding Log','exact','memory grows with volume'],
+    ['Token Bucket','allows bursts','needs burst tolerance'],
+    ['Leaky Bucket','perfectly smooth','no burst allowed'],
+    ['Distributed','correct across servers','network hop per check']
+  ];
+  const colW=[260,430,430]; const rh=58;
+  const headers=['Algorithm','Strength','Tradeoff'];
+  headers.forEach(function(h,ci){
+    const x=ci===0?0:colW[0]+(ci===2?colW[1]:0);
+    const cell=el('div'); place(cell,x,0,colW[ci],36); cell.style.fontFamily="'JetBrains Mono',monospace";
+    cell.style.fontSize='11px'; cell.style.color='var(--ink-dim)'; cell.style.textTransform='uppercase'; cell.style.letterSpacing='.06em';
+    cell.textContent=h; c.appendChild(cell);
+  });
+  rows.forEach(function(r,ri){
+    const y=44+ri*rh;
+    const rowBg=el('div'); place(rowBg,0,y,1120,rh-8); rowBg.style.borderTop='1px solid var(--line)'; c.appendChild(rowBg);
+    r.forEach(function(txt,ci){
+      const x=ci===0?0:colW[0]+(ci===2?colW[1]:0);
+      const cell=el('div'); place(cell,x,y+8,colW[ci]-16);
+      cell.style.fontSize=ci===0?'14px':'13px'; cell.style.color=ci===0?'var(--ink)':'var(--ink-dim)';
+      if(ci===0) cell.style.fontWeight='600';
+      cell.textContent=txt; cell.classList.add('rv','pop'); cell.dataset.d=String(ri);
+      c.appendChild(cell);
+    });
+  });
+  revealIn(c.closest('.slide'),90);
+};
+
+SLIDE_PLAY.s26 = function(){
+  const c=document.getElementById('s26-vis'); c.innerHTML='';
+  fnode(c,'req',30,40,150,60,'One Request');
+  fnode(c,'svc',260,40,150,60,'One Service');
+  fnode(c,'sys',490,40,150,60,'Whole System');
+  [180,410].forEach(function(x){ edge(c,x,70,x+80,70,{arrow:true}); });
+  label(c,30,0,'resilience →',{size:10,color:'var(--ink-faint)'});
+  label(c,260,0,'rate limiting →',{size:10,color:'var(--ink-faint)'});
+  label(c,490,0,'reliability',{size:10,color:'var(--violet)'});
+};
+
+SLIDE_PLAY.s27 = function(){
+  const c=document.getElementById('s27-vis'); c.innerHTML='';
+  label(c,60,20,'ACTIVE-ACTIVE',{size:13,color:'var(--teal)'});
+  fnode(c,'lb1',60,70,110,50,'LB');
+  fnode(c,'aa1',260,50,140,50,'Node A','active');
+  fnode(c,'aa2',260,130,140,50,'Node B','active');
+  setState(c,'aa1','ok'); setState(c,'aa2','ok');
+  edge(c,170,95,260,75,{arrow:true}); edge(c,170,95,260,155,{arrow:true});
+  label(c,60,200,'both serve traffic — 2× capacity, more complex writes',{size:11,color:'var(--ink-dim)',width:420});
+
+  label(c,660,20,'ACTIVE-PASSIVE',{size:13,color:'var(--violet)'});
+  fnode(c,'lb2',660,70,110,50,'LB');
+  fnode(c,'ap1',860,50,140,50,'Node A','active');
+  fnode(c,'ap2',860,130,140,50,'Node B','standby');
+  setState(c,'ap1','ok'); setState(c,'ap2','idle');
+  edge(c,770,95,860,75,{arrow:true,color:'var(--teal)'});
+  edge(c,770,95,860,155,{arrow:true,dash:'3,3'});
+  const passLbl=label(c,660,200,'only A serves — cheaper, but a gap on failover',{size:11,color:'var(--ink-dim)',width:420});
+  setTimeout(function(){
+    setState(c,'ap1','fail'); passLbl.textContent='A fails...';
+    setTimeout(function(){ setState(c,'ap2','ok'); passLbl.textContent='B promoted after a brief gap — now serving'; mnIndicate(c.querySelector('[data-id="ap2"]')); },900);
+  },1600);
+};
+
+SLIDE_PLAY.s28 = function(){
+  const c=document.getElementById('s28-vis'); c.innerHTML='';
+  fnode(c,'ld',230,40,160,60,'Leader','accepts writes');
+  fnode(c,'f1',60,220,150,60,'Follower','replicates');
+  fnode(c,'f2',420,220,150,60,'Follower','replicates');
+  setState(c,'ld','ok');
+  edge(c,280,100,150,220,{arrow:true,color:'var(--blue)'});
+  edge(c,340,100,470,220,{arrow:true,color:'var(--blue)'});
+  const wLbl=label(c,60,140,'',{size:11,color:'var(--blue)',width:150});
+  dot(c,260,20,310,70,{duration:0});
+  setTimeout(function(){ wLbl.textContent='write → leader'; },300);
+  setTimeout(function(){ dot(c,310,100,150,225,{duration:600}); dot(c,310,100,470,225,{duration:600}); },700);
+  setTimeout(function(){ setState(c,'f1','ok'); setState(c,'f2','ok'); label(c,60,290,'replicated — followers can now serve reads',{size:10.5,color:'var(--teal)',width:400}); },1400);
+};
+
+SLIDE_PLAY.s29 = function(){
+  const c=document.getElementById('s29-vis'); c.innerHTML='';
+  const stages=[
+    {x:20,w:250,title:'1 instance',sub:'single point of failure',n:1},
+    {x:310,w:250,title:'redundancy',sub:'2 copies, 1 machine class',n:2},
+    {x:600,w:250,title:'multi-zone',sub:'copies across zones in a region',n:3},
+    {x:890,w:250,title:'multi-region',sub:'copies across regions, survives regional loss',n:4}
+  ];
+  stages.forEach(function(st,si){
+    label(c,st.x,20,st.title,{size:12.5,color:'var(--ink)',width:st.w});
+    label(c,st.x,40,st.sub,{size:10.5,color:'var(--ink-dim)',width:st.w});
+    for(let i=0;i<st.n;i++){
+      fnode(c,'n'+si+'_'+i, st.x+ (i%2)*100, 80+Math.floor(i/2)*90, 90,70,'●','',null);
+    }
+    if(si<3){ edge(c, st.x+st.w-30, 220, st.x+st.w+30, 220, {arrow:true,color:'var(--ink-faint)'}); }
+  });
+  stages.forEach(function(st,si){
+    for(let i=0;i<st.n;i++){
+      setTimeout(function(){ setState(c,'n'+si+'_'+i,'ok'); }, si*300+i*150);
+    }
+  });
+};
+
+SLIDE_PLAY.s30 = function(){
+  const c=document.getElementById('s30-vis'); c.innerHTML='';
+  fnode(c,'live',60,50,180,80,'Live System','multi-region');
+  fnode(c,'backup',60,220,180,70,'Backups','+ replicas');
+  fnode(c,'runbook',320,140,220,80,'Tested Runbook','who does what, in order');
+  setState(c,'live','ok'); setState(c,'backup','ok');
+  edge(c,240,90,320,170,{arrow:true});
+  edge(c,240,255,320,190,{arrow:true});
+  const drillLbl=label(c,320,240,'',{size:11,color:'var(--amber)',width:280});
+  setTimeout(function(){ drillLbl.textContent='"game day" — simulate an outage, time the response'; setState(c,'runbook','warn'); },900);
+};
+
+SLIDE_PLAY.s31 = function(){
+  const c=document.getElementById('s31-vis'); c.innerHTML='';
+  const cols=[
+    {x:20,title:'Backup',sub:'periodic snapshot',color:'var(--blue)'},
+    {x:420,title:'Replication',sub:'continuous live copy',color:'var(--teal)'},
+    {x:820,title:'Point-in-Time Recovery',sub:'replay logs to any moment',color:'var(--amber)'}
+  ];
+  cols.forEach(function(col,ci){
+    label(c,col.x,10,col.title,{size:13,color:col.color,width:300});
+    label(c,col.x,32,col.sub,{size:11,color:'var(--ink-dim)',width:300});
+    timeline(c,col.x,220,300,ci===0?[{frac:0.2,label:'snap'},{frac:0.6,label:'snap'},{frac:0.95,label:'snap'}]
+      :ci===1?[{frac:0,label:'t0'},{frac:1,label:'now',band:{from:0,to:1,color:'rgba(99,183,164,.18)'}}]
+      :[{frac:0,label:'t0'},{frac:0.55,label:'mistake',color:'var(--coral)'},{frac:1,label:'now'},{frac:0.55,band:{from:0,to:0.55,color:'rgba(207,159,92,.18)'}}]);
+    const noteLbl=label(c,col.x,260,'',{size:10.5,color:'var(--ink-dim)',width:340});
+    if(ci===0) noteLbl.textContent='restore = load the last snapshot (data since then is lost)';
+    if(ci===1) noteLbl.textContent='restore = instant (but a mistake replicates instantly too)';
+    if(ci===2) noteLbl.textContent='restore = replay log up to just before the mistake';
+    setTimeout(function(){},0);
+  });
+};
+
+SLIDE_PLAY.s32 = function(){
+  const c=document.getElementById('s32-vis'); c.innerHTML='';
+  const items=[
+    ['Active-Active','both nodes serve traffic'],['Active-Passive','standby takes over on failure'],
+    ['Leader-Follower','one writer, many readers'],['Redundancy','more than one copy, period'],
+    ['Multi-Zone','survives a datacenter outage'],['Multi-Region','survives losing a region'],
+    ['Disaster Recovery','tested plan for total loss'],['Backup','periodic snapshot'],
+    ['Replication','continuous live copy'],['Point-in-Time Recovery','restore to an exact moment']
+  ];
+  const cols=5,cw=220,ch=96,gx=8,gy=8;
+  items.forEach(function(it,i){
+    const col=i%cols, row=Math.floor(i/cols);
+    const cell=el('div','grid-cell'); place(cell,col*(cw+gx),row*(ch+gy),cw,ch);
+    cell.innerHTML='<div class="gt">'+it[0]+'</div><div class="gd">'+it[1]+'</div>';
+    cell.classList.add('rv','pop'); cell.dataset.d=String(i%10);
+    c.appendChild(cell);
+  });
+  revealIn(c.closest('.slide'),70);
+};
+
+SLIDE_PLAY.s33 = function(){
+  const c=document.getElementById('s33-vis'); c.innerHTML='';
+  rings(c,240,90,[{d:170,label:'SLA',color:'var(--coral)'},{d:110,label:'SLO',color:'var(--amber)'},{d:55,label:'SLI',color:'var(--teal)'}]);
+  label(c,420,40,'promise → target → measurement',{size:14,color:'var(--ink-dim)',width:600});
+};
+
+SLIDE_PLAY.s34 = function(){
+  const c=document.getElementById('s34-vis'); c.innerHTML='';
+  rings(c,280,220,[{d:340,label:'SLA — external promise (99.5%)',color:'var(--coral)'},
+                   {d:220,label:'SLO — internal target (99.9%)',color:'var(--amber)'},
+                   {d:110,label:'SLI — raw measurement (99.95%)',color:'var(--teal)'}]);
+};
+
+SLIDE_PLAY.s35 = function(){
+  const c=document.getElementById('s35-vis'); c.innerHTML='';
+  label(c,20,20,'error budget over a 30-day period · SLO 99.9%',{size:11.5,color:'var(--ink-dim)'});
+  const barW=560, barH=34;
+  const track=el('div'); place(track,20,70,barW,barH); track.style.border='1px solid var(--line)'; track.style.borderRadius='8px'; track.style.overflow='hidden'; track.style.background='var(--panel)'; c.appendChild(track);
+  const fill=el('div'); place(fill,0,0,0,barH); fill.style.background='var(--coralBg)'; fill.style.borderRight='2px solid var(--coral)'; fill.style.transition='width 1.2s ease'; track.appendChild(fill);
+  const lbl=label(c,20,116,'',{size:12,color:'var(--ink)',width:500});
+  setTimeout(function(){ fill.style.width='0%'; lbl.textContent='budget: 43.2 minutes of allowed downtime this month'; },200);
+  const incidents=[8,15,12];
+  let spent=0; const totalBudget=43.2;
+  incidents.forEach(function(m,i){
+    setTimeout(function(){
+      spent+=m; const pct=Math.min(100,(spent/totalBudget)*100);
+      fill.style.width=pct+'%';
+      lbl.textContent='incident '+(i+1)+': '+m+' min spent — '+spent.toFixed(1)+' / '+totalBudget+' min budget used ('+pct.toFixed(0)+'%)';
+      if(pct>=100) lbl.style.color='var(--coral)';
+    }, 900+i*1100);
+  });
+};
+
+SLIDE_PLAY.s36 = function(){
+  const c=document.getElementById('s36-vis'); c.innerHTML='';
+  label(c,20,20,'incident timeline',{size:11.5,color:'var(--ink-dim)'});
+  timeline(c,20,110,580,[
+    {frac:0,label:'deploy'},
+    {frac:0.28,label:'fail 1',color:'var(--coral)',band:{from:0.28,to:0.34,color:'rgba(201,119,111,.3)'}},
+    {frac:0.34,label:'fixed',color:'var(--teal)'},
+    {frac:0.7,label:'fail 2',color:'var(--coral)',band:{from:0.7,to:0.75,color:'rgba(201,119,111,.3)'}},
+    {frac:0.75,label:'fixed',color:'var(--teal)'},
+    {frac:1,label:'now'}
+  ]);
+  label(c,20,180,'MTBF = average healthy gap between fail 1 and fail 2',{size:11,color:'var(--amber)',width:560});
+  label(c,20,210,'MTTR = average width of the red band (fail → fixed)',{size:11,color:'var(--coral)',width:560});
+  const availLbl=label(c,20,270,'',{size:15,color:'var(--teal)',width:560});
+  setTimeout(function(){ availLbl.textContent='availability = 720h / (720h + 2h) = 99.72%'; mnIndicate(availLbl); },900);
+};
+
+SLIDE_PLAY.s37 = function(){
+  const c=document.getElementById('s37-vis'); c.innerHTML='';
+  label(c,20,20,'data-loss incident',{size:11.5,color:'var(--ink-dim)'});
+  timeline(c,20,110,580,[
+    {frac:0.2,label:'last backup',color:'var(--blue)'},
+    {frac:0.55,label:'incident',color:'var(--coral)',band:{from:0.2,to:0.55,color:'rgba(207,159,92,.28)'}},
+    {frac:0.85,label:'restored',color:'var(--teal)',band:{from:0.55,to:0.85,color:'rgba(201,119,111,.22)'}}
+  ]);
+  label(c,20+580*0.2,150,'',{width:0});
+  const rpoLbl=label(c,60,190,'',{size:12,color:'var(--amber)',width:260});
+  const rtoLbl=label(c,400,190,'',{size:12,color:'var(--coral)',width:260});
+  setTimeout(function(){ rpoLbl.textContent='RPO: data lost = backup → incident gap'; },500);
+  setTimeout(function(){ rtoLbl.textContent='RTO: downtime = incident → restored gap'; },1000);
+  label(c,20,270,'tight RPO → replication. tight RTO → hot standby.',{size:12,color:'var(--ink-dim)',width:560});
+};
+
+SLIDE_PLAY.s38 = function(){
+  const c=document.getElementById('s38-vis'); c.innerHTML='';
+  const stages=[
+    ['Request','timeout · retry · backoff · jitter','var(--teal)'],
+    ['Circuit','breaker · bulkhead · fail-fast','var(--teal)'],
+    ['Edge','rate limit · shed · backpressure','var(--blue)'],
+    ['System','failover · redundancy · multi-region','var(--violet)'],
+    ['Metrics','SLO · error budget · MTTR · RTO','var(--amber)']
+  ];
+  const w=210,gap=(1152-5*w)/4;
+  stages.forEach(function(st,i){
+    const x=i*(w+gap);
+    fnode(c,'st'+i,x,140,w,110,st[0],st[2] ? '' : '');
+    const nlabel = c.querySelector('[data-id="st'+i+'"]');
+    nlabel.querySelector('div').style.color=st[2];
+    label(c,x,260,st[1],{size:10,color:'var(--ink-dim)',width:w});
+    if(i<4) edge(c,x+w,195,x+w+gap,195,{arrow:true});
+  });
+  stages.forEach(function(st,i){ setTimeout(function(){ mnIndicate(c.querySelector('[data-id="st'+i+'"]')); }, 300+i*300); });
+};
+
+/* ---------- nav + lifecycle ---------- */
+const slides = Array.from(document.querySelectorAll('.slide'));
+let current = 0;
+const counterEl = document.getElementById('counter');
+const prevBtn = document.getElementById('prevBtn');
+const nextBtn = document.getElementById('nextBtn');
+const progressEl = document.getElementById('progress');
+
+function goToSlide(idx){
+  if(idx<0||idx>=slides.length) return;
+  slides[current].classList.remove('active');
+  slides[current].classList.add('leaving');
+  const leftEl = slides[current];
+  setTimeout(function(){ leftEl.classList.remove('leaving'); }, 520);
+  current = idx;
+  const s = slides[current];
+  s.classList.add('active');
+  revealIn(s, 90);
+  if(SLIDE_PLAY[s.id]){ setTimeout(function(){ SLIDE_PLAY[s.id](s); }, 80); }
+  counterEl.textContent = (current+1)+' / '+slides.length;
+  prevBtn.disabled = current===0;
+  nextBtn.disabled = current===slides.length-1;
+  progressEl.style.width = ((current+1)/slides.length*100)+'%';
+}
+prevBtn.addEventListener('click', function(){ goToSlide(current-1); });
+nextBtn.addEventListener('click', function(){ goToSlide(current+1); });
+document.addEventListener('keydown', function(e){
+  if(e.key==='ArrowRight'||e.key===' '){ e.preventDefault(); goToSlide(current+1); }
+  else if(e.key==='ArrowLeft'){ goToSlide(current-1); }
+  else if(e.key==='c'||e.key==='C'){ mnCheckCollisions(); }
+});
+
+function fitStage(){
+  const vw=window.innerWidth, vh=window.innerHeight-92;
+  const scale=Math.min(vw/1280, vh/720)*0.96;
+  document.getElementById('stage').style.transform='scale('+scale+')';
+}
+window.addEventListener('resize', fitStage);
+fitStage();
+
+/* ---------- collision checker (press C) ---------- */
+function mnCheckCollisions(opts){
+  opts = opts || {};
+  const s = slides[current];
+  const stageRect = document.getElementById('stage').getBoundingClientRect();
+  const scale = stageRect.width/1280;
+  const items = Array.from(s.querySelectorAll('[style*="left"]')).filter(function(e){ return e.offsetParent!==null; });
+  const boxes = items.map(function(e){
+    const r = e.getBoundingClientRect();
+    return { e:e, x:(r.left-stageRect.left)/scale, y:(r.top-stageRect.top)/scale, w:r.width/scale, h:r.height/scale };
+  });
+  const collisions = [];
+  for(let i=0;i<boxes.length;i++){
+    for(let j=i+1;j<boxes.length;j++){
+      const a=boxes[i], b=boxes[j];
+      if(a.e.contains(b.e) || b.e.contains(a.e)) continue;
+      const overlap = !(a.x+a.w<=b.x || b.x+b.w<=a.x || a.y+a.h<=b.y || b.y+b.h<=a.y);
+      if(overlap) collisions.push([a,b]);
+    }
+  }
+  const badge = document.getElementById('collision-badge');
+  badge.style.display='block';
+  if(collisions.length===0){
+    badge.style.background='rgba(99,183,164,.18)'; badge.style.color='var(--teal)'; badge.style.border='1px solid var(--teal)';
+    badge.textContent='✓ no overlaps — '+s.id;
+  } else {
+    badge.style.background='rgba(201,119,111,.18)'; badge.style.color='var(--coral)'; badge.style.border='1px solid var(--coral)';
+    badge.textContent=collisions.length+' overlaps — '+s.id;
+    console.log('Collisions on', s.id, collisions);
+  }
+  document.querySelectorAll('.collide-outline').forEach(function(e){ e.remove(); });
+  if(opts.highlight!==false){
+    collisions.forEach(function(pair){
+      pair.forEach(function(box){
+        const o=document.createElement('div'); o.className='collide-outline';
+        o.style.position='absolute'; o.style.left=box.x+'px'; o.style.top=box.y+'px';
+        o.style.width=box.w+'px'; o.style.height=box.h+'px';
+        o.style.border='1.5px dashed var(--coral)'; o.style.pointerEvents='none'; o.style.zIndex='999';
+        document.getElementById('stage').appendChild(o);
+      });
+    });
+  }
+}
+window.mnCheckCollisions = mnCheckCollisions;
+
+/* ---------- boot ---------- */
+goToSlide(0);
+</script>
+</body>
+</html>

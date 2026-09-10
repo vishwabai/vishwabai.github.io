@@ -1,0 +1,1123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Electromagnetism — From a Single Charge to Light</title>
+<style>
+  :root{
+    --bg:#05060a; --ink:#dcdce0; --dim:#7f818c;
+    --pos:#d16a6a; --neg:#6a90cf; --efield:#4fa394; --bfield:#9b83c7;
+    --metal:#9aa0a8; --gold:#c99a4b; --green:#82b07d; --amber:#d0a24f;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%;background:#000;overflow:hidden;
+    font-family:"Segoe UI",system-ui,-apple-system,sans-serif;color:var(--ink)}
+  .wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#000}
+  .stage{position:relative;aspect-ratio:16/9;width:min(100vw,177.78vh);
+    height:min(56.25vw,100vh);background:var(--bg);overflow:hidden;
+    box-shadow:0 0 60px rgba(0,0,0,.8)}
+  canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+
+  /* ---- overlay text zones (fixed → never overlap the canvas figure) ---- */
+  .layer{position:absolute;inset:0;pointer-events:none}
+  .tag{position:absolute;top:3.2%;left:3.2%;font-size:1.35vh;letter-spacing:.18em;
+    text-transform:uppercase;color:var(--dim);font-weight:600}
+  .counter{position:absolute;top:3.2%;right:3.2%;font-size:1.3vh;color:var(--dim);
+    letter-spacing:.1em;font-variant-numeric:tabular-nums}
+  .title{position:absolute;top:6.5%;left:0;right:0;text-align:center;
+    font-family:Georgia,"Times New Roman",serif;font-size:3.9vh;font-weight:600;
+    letter-spacing:.01em;color:var(--ink);padding:0 6%}
+  .subtitle{position:absolute;top:15.5%;left:0;right:0;text-align:center;
+    font-size:1.7vh;color:var(--dim);letter-spacing:.03em;padding:0 12%}
+  .caption{position:absolute;bottom:6.2%;left:0;right:0;text-align:center;
+    font-size:1.95vh;color:var(--ink);padding:0 9%;line-height:1.5}
+  .caption .k{color:var(--gold)} .caption em{color:var(--efield);font-style:normal}
+
+  /* bridge (recap / gap / fill) centered content */
+  .bridge{position:absolute;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:2.6vh;padding:0 12%;text-align:center}
+  .bridge div{opacity:0}
+  .recap{font-size:2.1vh;color:var(--dim);animation:rise .7s ease-out .15s forwards}
+  .recap b{color:var(--ink);font-weight:600}
+  .gap{font-family:Georgia,serif;font-size:3.4vh;color:var(--gold);font-weight:600;
+    line-height:1.35;animation:rise .7s ease-out 1.5s forwards}
+  .fill{font-size:2.1vh;color:var(--green);letter-spacing:.02em;
+    animation:rise .7s ease-out 3.0s forwards}
+  .fill b{font-weight:600}
+  @keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+
+  /* section divider slide */
+  .sect{position:absolute;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;text-align:center;padding:0 8%}
+  .sect .num{font-family:Georgia,serif;font-size:2.2vh;color:var(--gold);
+    letter-spacing:.3em;margin-bottom:1.4vh;opacity:0;animation:rise .6s ease-out .1s forwards}
+  .sect .big{font-family:Georgia,serif;font-size:5.4vh;font-weight:600;
+    opacity:0;animation:rise .7s ease-out .35s forwards}
+  .sect .lead{font-size:1.9vh;color:var(--dim);margin-top:2vh;max-width:70%;
+    line-height:1.55;opacity:0;animation:rise .7s ease-out .7s forwards}
+  .herowrap{position:absolute;top:14%;left:0;right:0;text-align:center;padding:0 8%}
+  .herowrap .big{font-family:Georgia,serif;font-size:5.2vh;font-weight:600;opacity:0;
+    animation:rise .7s ease-out .2s forwards}
+  .herowrap .lead{font-size:1.9vh;color:var(--dim);margin:2vh auto 0;max-width:60%;
+    line-height:1.55;opacity:0;animation:rise .7s ease-out .7s forwards}
+
+  /* nav */
+  .nav{position:absolute;bottom:2.8%;right:3.2%;display:flex;gap:1.2vh;pointer-events:auto}
+  .nav button{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);
+    color:var(--ink);width:4.6vh;height:4.6vh;border-radius:50%;cursor:pointer;
+    font-size:2vh;display:grid;place-items:center;transition:.2s;font-family:serif}
+  .nav button:hover{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.3)}
+  .nav button:disabled{opacity:.25;cursor:default}
+  .bar{position:absolute;bottom:0;left:0;height:3px;background:var(--gold);
+    transition:width .4s ease;opacity:.8}
+  .hint{position:absolute;bottom:3%;left:3.2%;font-size:1.2vh;color:var(--dim);
+    letter-spacing:.05em;pointer-events:none}
+  @media (prefers-reduced-motion: reduce){*{animation-duration:.001s!important}}
+</style>
+</head>
+<body>
+<div class="wrap"><div class="stage" id="stage">
+  <canvas id="cv"></canvas>
+  <div class="layer" id="overlay"></div>
+  <div class="bar" id="bar"></div>
+  <div class="hint">← / →  ·  space to advance</div>
+  <div class="nav">
+    <button id="prev" title="Previous">‹</button>
+    <button id="next" title="Next">›</button>
+  </div>
+</div></div>
+
+<script>
+/* ============================================================= ENGINE ==== */
+const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+const overlay=document.getElementById('overlay');
+const W=1600,H=900;                       // virtual coordinate space
+const DPR=Math.min(window.devicePixelRatio||1,2);
+function fit(){ cv.width=W*DPR; cv.height=H*DPR; ctx.setTransform(DPR,0,0,DPR,0,0);}
+fit();
+
+const C={bg:'#05060a',ink:'#dcdce0',dim:'#7f818c',pos:'#d16a6a',neg:'#6a90cf',
+  efield:'#4fa394',bfield:'#9b83c7',metal:'#9aa0a8',gold:'#c99a4b',
+  green:'#82b07d',amber:'#d0a24f',faint:'rgba(220,220,224,.10)'};
+
+/* ---- math helpers ---- */
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const lerp=(a,b,t)=>a+(b-a)*t;
+const easeIO=t=>t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
+const easeO=t=>1-Math.pow(1-t,3);
+/* staged reveal: progress of segment [s,s+d] at time t, eased */
+function seg(t,s,d,ease=easeIO){return ease(clamp((t-s)/d,0,1));}
+const TAU=Math.PI*2;
+
+/* ---- drawing primitives (all take ctx-space 1600x900) ---- */
+function setFont(sz,{serif=false,weight=400,italic=false}={}){
+  ctx.font=`${italic?'italic ':''}${weight} ${sz}px ${serif?'Georgia, serif':'"Segoe UI",system-ui,sans-serif'}`;}
+function text(str,x,y,o={}){
+  const {size=22,color=C.ink,align='center',baseline='middle',serif=false,
+    italic=false,weight=400,alpha=1}=o;
+  ctx.save();ctx.globalAlpha=alpha;setFont(size,{serif,weight,italic});
+  ctx.fillStyle=color;ctx.textAlign=align;ctx.textBaseline=baseline;
+  ctx.fillText(str,x,y);ctx.restore();}
+function line(x1,y1,x2,y2,o={}){
+  const{color=C.ink,width=2,alpha=1,dash=null,cap='round'}=o;
+  ctx.save();ctx.globalAlpha=alpha;ctx.strokeStyle=color;ctx.lineWidth=width;
+  ctx.lineCap=cap;if(dash)ctx.setLineDash(dash);
+  ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();ctx.restore();}
+function arrow(x1,y1,x2,y2,o={}){
+  const{color=C.ink,width=2.5,head=12,alpha=1,prog=1,dash=null}=o;
+  const ex=lerp(x1,x2,prog),ey=lerp(y1,y2,prog);
+  if(prog<=0.001)return;
+  line(x1,y1,ex,ey,{color,width,alpha,dash});
+  const a=Math.atan2(ey-y1,ex-x1);const h=head;
+  ctx.save();ctx.globalAlpha=alpha;ctx.fillStyle=color;
+  ctx.beginPath();ctx.moveTo(ex,ey);
+  ctx.lineTo(ex-h*Math.cos(a-.4),ey-h*Math.sin(a-.4));
+  ctx.lineTo(ex-h*Math.cos(a+.4),ey-h*Math.sin(a+.4));
+  ctx.closePath();ctx.fill();ctx.restore();}
+function ring(x,y,r,o={}){
+  const{color=C.ink,width=2,alpha=1,dash=null,prog=1}=o;
+  ctx.save();ctx.globalAlpha=alpha;ctx.strokeStyle=color;ctx.lineWidth=width;
+  if(dash)ctx.setLineDash(dash);ctx.beginPath();
+  ctx.arc(x,y,r,-Math.PI/2,-Math.PI/2+TAU*prog);ctx.stroke();ctx.restore();}
+function disc(x,y,r,color,alpha=1){ctx.save();ctx.globalAlpha=alpha;
+  ctx.fillStyle=color;ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.fill();ctx.restore();}
+function charge(x,y,sign,o={}){
+  const{r=20,alpha=1,glow=true,label=null}=o;
+  const col=sign>0?C.pos:C.neg;
+  ctx.save();ctx.globalAlpha=alpha;
+  if(glow){ctx.shadowColor=col;ctx.shadowBlur=14;}
+  ctx.fillStyle=col;ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.fill();
+  ctx.restore();
+  ctx.save();ctx.globalAlpha=alpha;ctx.strokeStyle='#0a0a0e';ctx.lineWidth=r*0.18;
+  ctx.lineCap='round';const s=r*0.5;
+  ctx.beginPath();ctx.moveTo(x-s,y);ctx.lineTo(x+s,y);
+  if(sign>0){ctx.moveTo(x,y-s);ctx.lineTo(x,y+s);}ctx.stroke();ctx.restore();
+  if(label)text(label,x,y+r+18,{size:19,italic:true,serif:true,color:col,alpha});}
+/* short field arrow for vector fields */
+function fieldArrow(x,y,ang,len,color,alpha){
+  const x2=x+Math.cos(ang)*len,y2=y+Math.sin(ang)*len;
+  arrow(x,y,x2,y2,{color,width:1.8,head:6,alpha});}
+/* sample a vector field fn(x,y)->{fx,fy}; draw normalized-ish arrows */
+function vecField(fn,x0,y0,x1,y1,step,color,scale=1,alpha=.85){
+  for(let x=x0;x<=x1;x+=step)for(let y=y0;y<=y1;y+=step){
+    const v=fn(x,y);if(!v)continue;const m=Math.hypot(v.fx,v.fy);if(m<1e-6)continue;
+    const L=clamp(scale*Math.pow(m,.5),4,step*0.62);
+    fieldArrow(x-Math.cos(Math.atan2(v.fy,v.fx))*L/2,
+               y-Math.sin(Math.atan2(v.fy,v.fx))*L/2,
+               Math.atan2(v.fy,v.fx),L,color,alpha*clamp(m*40,.25,1));}}
+/* sine wave polyline */
+function wave(x0,y0,x1,amp,k,phase,o={}){
+  const{color=C.efield,width=2.5,alpha=1,steps=140,fn=Math.sin}=o;
+  ctx.save();ctx.globalAlpha=alpha;ctx.strokeStyle=color;ctx.lineWidth=width;
+  ctx.lineJoin='round';ctx.beginPath();
+  for(let i=0;i<=steps;i++){const x=lerp(x0,x1,i/steps);
+    const y=y0-amp*fn(k*(x-x0)-phase);i?ctx.lineTo(x,y):ctx.moveTo(x,y);}
+  ctx.stroke();ctx.restore();}
+function dot(x,y,r,color,alpha=1){disc(x,y,r,color,alpha);}
+function label(str,x,y,color=C.dim,size=18,align='center'){
+  text(str,x,y,{size,color,align,italic:true,serif:true});}
+
+/* small circuit kit */
+function wirePath(pts,o={}){const{color=C.metal,width=3,alpha=1}=o;
+  ctx.save();ctx.globalAlpha=alpha;ctx.strokeStyle=color;ctx.lineWidth=width;
+  ctx.lineJoin='round';ctx.lineCap='round';ctx.beginPath();
+  pts.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));
+  ctx.stroke();ctx.restore();}
+function resistor(x,y,w,horiz=true,color=C.metal){
+  const n=6,seg=w/n;ctx.save();ctx.strokeStyle=color;ctx.lineWidth=3;
+  ctx.lineJoin='round';ctx.beginPath();
+  if(horiz){ctx.moveTo(x,y);for(let i=0;i<n;i++){const sx=x+i*seg;
+    ctx.lineTo(sx+seg/2,y+(i%2?10:-10));ctx.lineTo(sx+seg,y);}}
+  ctx.stroke();ctx.restore();}
+function capSym(x,y,gap=14,len=34,color=C.metal){
+  ctx.save();ctx.strokeStyle=color;ctx.lineWidth=3;
+  line(x-gap/2,y-len/2,x-gap/2,y+len/2,{color,width:3});
+  line(x+gap/2,y-len/2,x+gap/2,y+len/2,{color,width:3});ctx.restore();}
+function battery(x,y,color=C.metal){
+  line(x-6,y-22,x-6,y+22,{color,width:3});
+  line(x+6,y-12,x+6,y+12,{color,width:5});}
+function coil(x,y,w,loops=4,color=C.metal){
+  const r=w/(loops*2);ctx.save();ctx.strokeStyle=color;ctx.lineWidth=3;
+  ctx.beginPath();for(let i=0;i<loops;i++){const cx=x+r+i*2*r;
+    ctx.arc(cx,y,r,Math.PI,0,false);}ctx.stroke();ctx.restore();}
+
+/* ============================================================ SLIDES ===== */
+const slides=[];
+function addSlide(cfg){slides.push(cfg);}
+
+/* ---------- INTRO ---------- */
+addSlide({kind:'title',
+  title:'Electromagnetism',
+  lead:'From a single charge to light — built one gap at a time.',
+  render(t){
+    const cx=500,cy=605;
+    for(let i=0;i<16;i++){const a=i/16*TAU;const p=seg(t,.2+i*.03,1.2);
+      const r1=42,r2=200;
+      arrow(cx+Math.cos(a)*r1,cy+Math.sin(a)*r1,
+            cx+Math.cos(a)*lerp(r1,r2,p),cy+Math.sin(a)*lerp(r1,r2,p),
+            {color:C.efield,width:1.5,head:7,alpha:.45*p});}
+    charge(cx,cy,+1,{r:34});
+    text('a charge',cx,cy+130,{size:19,italic:true,serif:true,color:C.dim,alpha:seg(t,.6,1)});
+    const p2=seg(t,1.4,1.6);
+    if(p2>0){line(cx+230,cy,980,cy,{color:C.dim,width:1.4,alpha:.28*p2,dash:[5,9]});
+      wave(1000,cy,1440,52,.034,t*3,{color:C.efield,width:2.4,alpha:.8*p2});
+      wave(1000,cy,1440,30,.034,t*3,{color:C.bfield,width:2,alpha:.5*p2,fn:x=>Math.sin(x)});
+      text('light',1215,cy+95,{size:19,italic:true,serif:true,color:C.dim,alpha:.7*p2});}
+  }});
+
+addSlide({kind:'concept',tag:'The whole story',title:'One thread, five ideas',
+  takeaway:'Each idea appears to <em>fill a gap</em> the last one opened. Follow the thread.',
+  render(t){
+    const ys=460,xs=[240,480,760,1040,1330],
+      nm=['charge','field','current','magnetism','light'],
+      cl=[C.pos,C.efield,C.amber,C.bfield,C.ink];
+    line(xs[0],ys,xs[4],ys,{color:C.faint,width:3});
+    const pr=seg(t,.2,2.4);
+    line(xs[0],ys,lerp(xs[0],xs[4],pr),ys,{color:C.gold,width:3,alpha:.6});
+    const pulse=lerp(xs[0],xs[4],(t*.18)%1);disc(pulse,ys,6,C.gold,.8);
+    xs.forEach((x,i)=>{const p=seg(t,.2+i*.42,.5);
+      disc(x,ys,9+5*p,cl[i],.9*p+.1);ring(x,ys,20,{color:cl[i],alpha:.4*p,width:1.5});
+      text(nm[i],x,ys-52,{size:20,serif:true,color:cl[i],alpha:p});
+      text('P4.'+(i+1),x,ys+50,{size:14,color:C.dim,alpha:.6*p});});
+  }});
+
+/* ---------- P4.1 SECTION ---------- */
+addSlide({kind:'section',num:'P 4 . 1',big:'Electrostatics',
+  lead:'Charges that sit still — and the invisible landscape they build around themselves.',
+  render(t){const cx=800,cy=700;
+    for(let i=0;i<10;i++){const a=i/10*TAU+t*.1;
+      arrow(cx,cy,cx+Math.cos(a)*80,cy+Math.sin(a)*80,{color:C.efield,width:1,head:5,alpha:.16});}
+    charge(cx,cy,+1,{r:16,glow:true});}});
+
+/* ---------- Coulomb's law ---------- */
+addSlide({kind:'concept',tag:'P4.1 · Electrostatics',title:"Coulomb's Law",
+  subtitle:'Two charges push or pull along the line joining them.',
+  takeaway:'Force <em>F = k q₁q₂ / r²</em> — double the gap, quarter the force. The <em>1/r²</em> is everything.',
+  render(t){
+    const y=430,x1=560; const r=lerp(150,330,(Math.sin(t*.9)+1)/2);
+    const x2=x1+r;
+    const F=9000/(r*r); // arbitrary scaled 1/r^2
+    charge(x1,y,+1,{r:24,label:'q₁'});charge(x2,y,+1,{r:24,label:'q₂'});
+    // distance marker
+    line(x1,y+60,x2,y+60,{color:C.dim,width:1.2,dash:[4,6],alpha:.6});
+    line(x1,y+52,x1,y+68,{color:C.dim,width:1.2,alpha:.6});
+    line(x2,y+52,x2,y+68,{color:C.dim,width:1.2,alpha:.6});
+    label('r',(x1+x2)/2,y+82,C.dim,20);
+    // repulsion arrows, length ∝ 1/r^2
+    arrow(x1,y,x1-F,y,{color:C.gold,width:3,head:12});
+    arrow(x2,y,x2+F,y,{color:C.gold,width:3,head:12});
+    text('F',x2+F+22,y-4,{size:20,italic:true,serif:true,color:C.gold});
+    // ghost: 2r → F/4
+    const gx=x1+2*r;
+    if(2*r<820){disc(gx,y,6,C.dim,.35);
+      arrow(gx,y,gx+F/4,y,{color:C.dim,width:2,head:8,alpha:.5});
+      text('2r → F/4',gx+40,y+34,{size:16,color:C.dim,alpha:.55,align:'left'});}
+    text('F = k q₁q₂ / r²',800,700,{size:26,serif:true,italic:true,color:C.ink,alpha:seg(t,.4,1)});
+  }});
+
+/* ---------- Electric field ---------- */
+addSlide({kind:'concept',tag:'P4.1 · Electrostatics',title:'The Electric Field',
+  subtitle:'Stop tracking every pair. Let the charge paint the whole space.',
+  takeaway:'<em>E = F/q</em> lives at every point, whether or not a test charge is there to feel it.',
+  render(t){
+    const cx=640,cy=440;
+    for(let i=0;i<14;i++){const a=i/14*TAU;const p=seg(t,.1+i*.02,1);
+      arrow(cx+Math.cos(a)*40,cy+Math.sin(a)*40,
+            cx+Math.cos(a)*lerp(40,190,p),cy+Math.sin(a)*lerp(40,190,p),
+            {color:C.efield,width:1.6,head:7,alpha:.5*p});}
+    charge(cx,cy,+1,{r:26,label:'Q'});
+    // test charge orbiting, feels qE outward
+    const p2=seg(t,1.2,1);
+    if(p2>0){const ang=t*.7;const R=230;
+      const tx=cx+Math.cos(ang)*R,ty=cy+Math.sin(ang)*R;
+      charge(tx,ty,+1,{r:13,label:null,glow:false,alpha:p2});
+      arrow(tx,ty,tx+Math.cos(ang)*46,ty+Math.sin(ang)*46,{color:C.gold,width:2.4,head:9,alpha:p2});
+      text('q',tx+Math.cos(ang)*22,ty+Math.sin(ang)*22-16,{size:16,italic:true,serif:true,color:C.neg,alpha:p2});
+      text('F = qE',tx+Math.cos(ang)*70,ty+Math.sin(ang)*70,{size:17,serif:true,italic:true,color:C.gold,alpha:p2,align:'left'});}
+    text('E = F / q',1120,440,{size:26,serif:true,italic:true,color:C.efield,alpha:seg(t,.5,1)});
+  }});
+
+/* bridge → Gauss */
+addSlide({kind:'bridge',
+  recap:'We can now draw the field as arrows filling all of space.',
+  gap:'But summing the field from a whole <i>cloud</i> of charge is brutal — is there a shortcut when the shape is symmetric?',
+  fill:'Gauss\u2019s law — let the field <b>count the charge</b> for you.'});
+
+/* ---------- Gauss's law ---------- */
+addSlide({kind:'concept',tag:'P4.1 · Electrostatics',title:"Gauss's Law",
+  subtitle:'The flux poking out of any closed surface only counts what is inside.',
+  takeaway:'∮ <em>E·dA = Q/ε₀</em>  ·  locally  <em>∇·E = ρ/ε₀</em>. Symmetry turns a hard integral into one line.',
+  render(t){
+    const cx=560,cy=440,R=170;
+    charge(cx,cy,+1,{r:22,label:'Q'});
+    // field lines through surface
+    const n=16;let cross=0;
+    for(let i=0;i<n;i++){const a=i/n*TAU;const p=seg(t,.1,1);
+      arrow(cx+Math.cos(a)*30,cy+Math.sin(a)*30,
+            cx+Math.cos(a)*lerp(30,250,p),cy+Math.sin(a)*lerp(30,250,p),
+            {color:C.efield,width:1.4,head:6,alpha:.4*p});
+      if(p>=.99)cross++;}
+    // gaussian sphere draws in
+    ring(cx,cy,R,{color:C.gold,width:2.5,dash:[7,7],prog:seg(t,.4,1.2),alpha:.85});
+    text('closed surface',cx,cy-R-22,{size:15,color:C.gold,alpha:seg(t,.9,.6)});
+    // deformed (blob) surface = same flux
+    const p3=seg(t,1.8,1.2);
+    if(p3>0){ctx.save();ctx.globalAlpha=.5*p3;ctx.strokeStyle=C.gold;ctx.lineWidth=2;
+      ctx.setLineDash([4,6]);ctx.beginPath();
+      for(let k=0;k<=60;k++){const a=k/60*TAU;
+        const rr=R+40+30*Math.sin(a*3+1);
+        const x=cx+Math.cos(a)*rr*.0+ (940)+Math.cos(a)*(rr);
+        const y=cy+Math.sin(a)*rr;k?ctx.lineTo(x,y):ctx.moveTo(x,y);}
+      ctx.stroke();ctx.restore();
+      charge(940,cy,+1,{r:16,alpha:p3});
+      text('same charge inside  →  same flux',940,cy+230,{size:17,color:C.dim,alpha:p3});}
+    text('∮ E·dA = Q/ε₀',300,750,{size:23,serif:true,italic:true,color:C.efield,alpha:seg(t,.6,1),align:'left'});
+    text('∇·E = ρ/ε₀',1000,750,{size:23,serif:true,italic:true,color:C.gold,alpha:seg(t,1.2,1),align:'left'});
+  }});
+
+/* bridge → potential */
+addSlide({kind:'bridge',
+  recap:'Flux through any closed surface counts the enclosed charge — hard problems collapse under symmetry.',
+  gap:'But the field is a <i>vector</i> — three numbers at every point. Isn\u2019t there one simpler number holding the same information?',
+  fill:'Electric potential — a single <b>scalar hill</b> the field rolls down.'});
+
+/* ---------- Potential ---------- */
+addSlide({kind:'concept',tag:'P4.1 · Electrostatics',title:'Potential & Energy',
+  subtitle:'One scalar V per point. The field is just its downhill slope.',
+  takeaway:'<em>E = −∇V</em>, energy <em>U = qV</em>. Equipotentials (rings) always cross field lines at right angles.',
+  render(t){
+    const cx=560,cy=460;
+    // equipotential rings (⟂ to field)
+    for(let i=1;i<=5;i++){const rr=i*44;const p=seg(t,.2+i*.12,.8);
+      ring(cx,cy,rr,{color:C.neg,width:1.4,alpha:.5*p,dash:[3,7]});}
+    // field lines radial
+    for(let i=0;i<12;i++){const a=i/12*TAU;const p=seg(t,.5,1);
+      arrow(cx+Math.cos(a)*28,cy+Math.sin(a)*28,cx+Math.cos(a)*lerp(28,240,p),
+            cy+Math.sin(a)*lerp(28,240,p),{color:C.efield,width:1.3,head:6,alpha:.35*p});}
+    charge(cx,cy,+1,{r:22,label:'Q'});
+    // a test charge sliding DOWN the potential (outward), speeding up
+    const p2=seg(t,1.2,1);
+    if(p2>0){const ph=(t*.5)%1;const rr=lerp(50,250,easeO(ph));
+      const ax=cx+Math.cos(-0.6)*rr,ay=cy+Math.sin(-0.6)*rr;
+      charge(ax,ay,+1,{r:12,glow:false,alpha:p2});
+      arrow(ax,ay,ax+Math.cos(-.6)*40,ay+Math.sin(-.6)*40,{color:C.gold,width:2.2,head:8,alpha:p2});}
+    label('equipotential',cx,cy+250,C.neg,16);
+    text('E = −∇V',1120,400,{size:25,serif:true,italic:true,color:C.efield,alpha:seg(t,.6,1)});
+    text('U = qV',1120,470,{size:25,serif:true,italic:true,color:C.gold,alpha:seg(t,1,1)});
+  }});
+
+/* bridge → conductors */
+addSlide({kind:'bridge',
+  recap:'Potential gives an energy landscape; the field points straight downhill.',
+  gap:'But what if the charges are <i>free to move</i> — electrons loose inside a metal? Where do they settle?',
+  fill:'Conductors — charge flees to the surface until the inside field <b>dies</b>.'});
+
+/* ---------- Conductors, images, BVP ---------- */
+addSlide({kind:'concept',tag:'P4.1 · Electrostatics',title:'Conductors & Images',
+  subtitle:'Inside a conductor E = 0. Outside, the boundary reshapes the whole field.',
+  takeaway:'A charge near a plane induces surface charge — replaceable by a mirror <em>image −q</em>. Solve <em>∇²V=−ρ/ε₀</em> with boundary conditions.',
+  render(t){
+    const gx=800; // grounded plane at x=gx
+    line(gx,220,gx,700,{color:C.metal,width:4});
+    for(let y=230;y<700;y+=26)line(gx,y,gx+16,y+16,{color:C.metal,width:1.2,alpha:.5});
+    const qx=560,qy=460;
+    charge(qx,qy,+1,{r:22,label:'+q'});
+    // induced negative surface charges
+    const p1=seg(t,.3,1);
+    for(let y=260;y<=660;y+=44){const d=Math.abs(y-qy);
+      const s=clamp(1-d/300,0,1)*p1;if(s<.05)continue;
+      disc(gx-6,y,4+3*s,C.neg,.7*s);text('−',gx-6,y,{size:14,color:'#0a0a0e',alpha:.9*s});}
+    // field lines bending into surface ⟂
+    const p2=seg(t,.6,1.2);
+    for(let i=0;i<7;i++){const a=(-.9+i*.3);
+      const ex=qx+Math.cos(a)*lerp(30,240,p2),ey=qy+Math.sin(a)*lerp(30,240,p2);
+      arrow(qx+Math.cos(a)*26,qy+Math.sin(a)*26,Math.min(ex,gx-4),ey,
+        {color:C.efield,width:1.3,head:6,alpha:.4*p2});}
+    // image charge appears
+    const p3=seg(t,1.6,1);
+    if(p3>0){const ix=gx+(gx-qx);
+      charge(ix,qy,-1,{r:22,label:'−q (image)',alpha:.75*p3});
+      line(gx,qy,ix,qy,{color:C.dim,width:1,dash:[4,6],alpha:.4*p3});}
+    text('∇²V = −ρ/ε₀',420,720,{size:22,serif:true,italic:true,color:C.gold,alpha:seg(t,1,1),align:'left'});
+  }});
+
+/* bridge → capacitance */
+addSlide({kind:'bridge',
+  recap:'Conductors force E perpendicular to their surface and zero within.',
+  gap:'Set two conductors close and charge them oppositely — how <i>much</i> charge can they hoard per volt?',
+  fill:'Capacitance — and a dielectric between them lets them hold even more.'});
+
+/* ---------- Capacitance, dielectric, energy ---------- */
+addSlide({kind:'concept',tag:'P4.1 · Electrostatics',title:'Capacitance & Dielectrics',
+  subtitle:'Two plates trap a uniform field. Slide in an insulator and it fights back.',
+  takeaway:'<em>C = Q/V = ε₀A/d</em>. A dielectric polarizes, weakening E and <em>raising C</em>. Energy <em>U = ½CV²</em> lives in the field, density <em>½ε₀E²</em>.',
+  render(t){
+    const lx=520,rx=760,ty=270,by=650;
+    line(lx,ty,lx,by,{color:C.pos,width:6});line(rx,ty,rx,by,{color:C.neg,width:6});
+    text('+',lx-24,ty-20,{size:22,color:C.pos});text('−',rx+24,ty-20,{size:22,color:C.neg});
+    // uniform field arrows between plates
+    const p1=seg(t,.2,1);
+    for(let y=ty+34;y<by;y+=52){arrow(lx+12,y,rx-12,y,{color:C.efield,width:1.5,head:7,alpha:.5*p1});}
+    // dielectric slab sliding in with dipoles
+    const slide=seg(t,1.2,1.4);
+    if(slide>0){const sx=lerp(1100,585,slide),sw=120;
+      ctx.save();ctx.globalAlpha=.5;ctx.strokeStyle=C.metal;
+      ctx.strokeRect(sx,ty+10,sw,by-ty-20);ctx.restore();
+      for(let y=ty+50;y<by-20;y+=60)for(let x=sx+30;x<sx+sw;x+=60){
+        disc(x-10,y,4,C.pos,.6);disc(x+10,y,4,C.neg,.6);
+        line(x-10,y,x+10,y,{color:C.dim,width:1,alpha:.4});}
+      if(slide>.95)text('dielectric polarizes → E ↓ , C ↑',675,by+40,{size:17,color:C.dim});}
+    text('C = ε₀A/d',1130,380,{size:24,serif:true,italic:true,color:C.efield,alpha:seg(t,.5,1)});
+    text('U = ½CV²',1130,450,{size:24,serif:true,italic:true,color:C.gold,alpha:seg(t,.9,1)});
+  }});
+
+/* bridge → multipole */
+addSlide({kind:'bridge',
+  recap:'Two plates store energy in the field between them — U = ½CV².',
+  gap:'Now zoom far out on <i>any</i> messy charged blob. What does its field simplify to?',
+  fill:'The multipole expansion — monopole + dipole + quadrupole + …'});
+
+/* ---------- Multipole ---------- */
+addSlide({kind:'concept',tag:'P4.1 · Electrostatics',title:'Multipole Expansion',
+  subtitle:'From far away, complexity collapses into a few clean terms.',
+  takeaway:'<em>V ≈ (1/r)·monopole + (1/r²)·dipole + (1/r³)·quadrupole …</em> — each term fades faster with distance.',
+  render(t){
+    const cx=520,cy=440;
+    // messy blob of charges
+    const seeds=[[0,0,1],[40,-30,-1],[-35,25,1],[20,45,-1],[-25,-40,1],[50,20,-1]];
+    seeds.forEach(([dx,dy,s])=>charge(cx+dx,cy+dy,s,{r:11,glow:false}));
+    ring(cx,cy,80,{color:C.dim,width:1,dash:[3,6],alpha:.4});
+    // observer far right
+    const ox=1180;disc(ox,cy,7,C.gold,seg(t,.3,.6));
+    line(cx,cy,ox,cy,{color:C.dim,width:1,dash:[4,8],alpha:.3});
+    label('r',(cx+ox)/2,cy-18,C.dim,18);
+    // successive terms stacking
+    const terms=['(1/r)  monopole  — net charge',
+                 '(1/r²) dipole    — separation',
+                 '(1/r³) quadrupole— shape'];
+    const cols=[C.pos,C.efield,C.bfield];
+    terms.forEach((s,i)=>{const p=seg(t,.6+i*.7,.6);
+      text(s,900,300+i*54,{size:19,serif:true,italic:true,color:cols[i],alpha:p,align:'left'});});
+    text('each correction dies faster with distance',900,300+3*54+14,
+      {size:15,color:C.dim,alpha:seg(t,2.6,.8),align:'left'});
+  }});
+
+/* bridge → currents (section jump) */
+addSlide({kind:'bridge',
+  recap:'Any static charge distribution = monopole + dipole + quadrupole + …',
+  gap:'Every idea so far assumed charges sit <i>perfectly still</i>. What wakes up the instant they start to flow?',
+  fill:'Currents — and with them, a brand-new force.'});
+
+/* ---------- P4.2 SECTION ---------- */
+addSlide({kind:'section',num:'P 4 . 2',big:'Currents & DC Circuits',
+  lead:'Charge on the move — drifting through wires, pumped by batteries, obeying simple loop rules.',
+  render(t){const y=700;line(300,y,1300,y,{color:C.metal,width:4});
+    for(let i=0;i<8;i++){const x=300+((t*120+i*130)%1000);disc(x,y,7,C.amber,.8);}}});
+
+/* ---------- Current, J, Ohm ---------- */
+addSlide({kind:'concept',tag:'P4.2 · Currents',title:'Current & Ohm\u2019s Law',
+  subtitle:'A river of electrons, jostling through the lattice at a slow drift.',
+  takeaway:'Current density <em>J = I/A</em>, resistance from <em>ρ</em>. Push harder and more flows: <em>V = IR</em>.',
+  render(t){
+    const y=440,x0=360,x1=1240,h=70;
+    // wire body
+    ctx.save();ctx.fillStyle='rgba(154,160,168,.10)';ctx.fillRect(x0,y-h/2,x1-x0,h);ctx.restore();
+    line(x0,y-h/2,x1,y-h/2,{color:C.metal,width:2});line(x0,y+h/2,x1,y+h/2,{color:C.metal,width:2});
+    // lattice ions
+    for(let x=x0+50;x<x1;x+=90)for(let yy=-1;yy<=1;yy+=2)
+      {disc(x,y+yy*20,5,C.dim,.4);}
+    // drifting electrons (slow, with jitter)
+    for(let i=0;i<26;i++){const base=(t*70+i*47)%(x1-x0);
+      const jx=x0+base+8*Math.sin(t*6+i);
+      const jy=y+22*Math.sin(t*3+i*1.7);
+      disc(jx,jy,5,C.neg,.85);}
+    arrow(x0-6,y+120,x1+6,y+120,{color:C.amber,width:2.5,head:11,alpha:seg(t,.4,1)});
+    text('conventional current  I',(x0+x1)/2,y+150,{size:17,color:C.amber,alpha:seg(t,.6,1)});
+    arrow(x0,y-h/2-24,x0+90,y-h/2-24,{color:C.efield,width:2,head:8,alpha:seg(t,.8,1)});
+    text('drift',x0+130,y-h/2-24,{size:15,italic:true,serif:true,color:C.efield,alpha:seg(t,.8,1),align:'left'});
+    text('J = I/A',560,730,{size:22,serif:true,italic:true,color:C.efield,alpha:seg(t,.5,1)});
+    text('V = IR',960,730,{size:22,serif:true,italic:true,color:C.gold,alpha:seg(t,.9,1)});
+  }});
+
+/* ---------- EMF, Kirchhoff, power ---------- */
+addSlide({kind:'concept',tag:'P4.2 · Currents',title:'EMF, Power & Kirchhoff',
+  subtitle:'A battery pumps charge uphill; resistors bleed the energy back out as heat.',
+  takeaway:'Loop rule: voltages around a loop sum to 0. Junction rule: current in = current out. Heat <em>P = I²R</em>.',
+  render(t){
+    const L=520,R=1060,T=300,B=620;
+    wirePath([[L,T],[R,T],[R,B],[L,B],[L,T]],{color:C.metal,width:3});
+    // battery on left side
+    battery(L,(T+B)/2);text('EMF',L-58,(T+B)/2,{size:16,serif:true,italic:true,color:C.gold});
+    // resistor on top, glowing = dissipating
+    const glow=.5+.5*Math.sin(t*4);
+    ctx.save();ctx.shadowColor=C.amber;ctx.shadowBlur=8*glow;
+    resistor(720,T,140,true,C.amber);ctx.restore();
+    text('R   P=I²R',790,T-28,{size:16,serif:true,italic:true,color:C.amber,align:'left'});
+    // junction branch (a second resistor down-right) for Kirchhoff
+    wirePath([[R,(T+B)/2],[R+150,(T+B)/2]],{color:C.metal,width:3});
+    disc(R,(T+B)/2,6,C.efield,seg(t,.6,.6));
+    text('junction: I₁ = I₂ + I₃',R+30,(T+B)/2-30,{size:15,color:C.efield,align:'left',alpha:seg(t,.6,1)});
+    line(R+150,(T+B)/2,R+150,(T+B)/2-120,{color:C.metal,width:3});
+    line(R+150,(T+B)/2-120,R,(T+B)/2-120,{color:C.metal,width:3,dash:[4,6]});
+    // flowing charge dots clockwise
+    const per=2*((R-L)+(B-T));const N=16;
+    for(let i=0;i<N;i++){let d=((t*180+i*per/N)%per);let x,y;
+      if(d<R-L){x=L+d;y=T;} else if(d<R-L+B-T){x=R;y=T+(d-(R-L));}
+      else if(d<2*(R-L)+B-T){x=R-(d-(R-L+B-T));y=B;}
+      else{x=L;y=B-(d-(2*(R-L)+B-T));}
+      disc(x,y,5,C.amber,.85);}
+  }});
+
+/* bridge → RC */
+addSlide({kind:'bridge',
+  recap:'We can now solve any steady network with the loop and junction rules.',
+  gap:'But those rules describe the <i>settled</i> state. What happens in the split-second right after you flip the switch?',
+  fill:'The RC transient — a capacitor filling up in exponential slow-motion.'});
+
+/* ---------- RC transient ---------- */
+addSlide({kind:'concept',tag:'P4.2 · Currents',title:'RC Transient',
+  subtitle:'Close the switch and the capacitor charges — fast at first, then crawling.',
+  takeaway:'<em>V(t) = V₀(1 − e^{−t/RC})</em>. One time-constant <em>τ = RC</em> gets you 63% of the way.',
+  render(t){
+    const L=340,T=300,B=560,R=760;
+    // circuit
+    battery(L,(T+B)/2);wirePath([[L,T],[430,T]],{color:C.metal,width:3});
+    resistor(430,T,120,true,C.metal);text('R',490,T-22,{size:16,serif:true,italic:true,color:C.metal});
+    wirePath([[550,T],[R,T],[R,(T+B)/2-18]],{color:C.metal,width:3});
+    capSym(R,(T+B)/2);text('C',R+34,(T+B)/2,{size:16,serif:true,italic:true,color:C.metal});
+    wirePath([[R,(T+B)/2+18],[R,B],[L,B]],{color:C.metal,width:3});
+    line(L,T,L,(T+B)/2-22,{color:C.metal,width:3});line(L,(T+B)/2+22,L,B,{color:C.metal,width:3});
+    // charge accumulating on plates
+    const q=1-Math.exp(-(t%6)/1.6);
+    for(let i=0;i<Math.round(q*6);i++){disc(R-7,(T+B)/2-16+i*6,3,C.pos,.8);
+      disc(R+7,(T+B)/2-16+i*6,3,C.neg,.8);}
+    // charging curve plot
+    const ax=940,ay0=560,ax1=1420,ay1=300;
+    line(ax,ay0,ax1,ay0,{color:C.dim,width:1.5});line(ax,ay0,ax,ay1,{color:C.dim,width:1.5});
+    label('t',ax1-6,ay0+22,C.dim,16);label('V',ax-22,ay1+6,C.dim,16);
+    ctx.save();ctx.strokeStyle=C.gold;ctx.lineWidth=2.5;ctx.beginPath();
+    const T0=(t%6);
+    for(let i=0;i<=100;i++){const tt=i/100*5;if(tt>T0*0.9+0.1)break;
+      const x=ax+(tt/5)*(ax1-ax);const v=1-Math.exp(-tt/1.6);
+      const y=ay0-v*(ay0-ay1);i?ctx.lineTo(x,y):ctx.moveTo(x,y);}
+    ctx.stroke();ctx.restore();
+    // tau marker
+    const xt=ax+(1.6/5)*(ax1-ax);line(xt,ay0,xt,ay0-0.63*(ay0-ay1),{color:C.efield,width:1,dash:[3,4],alpha:.6});
+    text('τ = RC',xt+8,ay0-0.63*(ay0-ay1)-14,{size:15,serif:true,italic:true,color:C.efield,align:'left'});
+    text('V(t)=V₀(1−e^{−t/RC})',1150,730,{size:20,serif:true,italic:true,color:C.gold,alpha:seg(t,.4,1)});
+  }});
+
+/* bridge → magnetostatics */
+addSlide({kind:'bridge',
+  recap:'Circuits in time: capacitors and (soon) inductors rule the transients.',
+  gap:'Back to that promise — a <i>moving</i> charge. Standing still it only makes an E-field. In motion, what new thing appears around it?',
+  fill:'Magnetism — a force that only acts on charges that move.'});
+
+/* ---------- P4.3 SECTION ---------- */
+addSlide({kind:'section',num:'P 4 . 3',big:'Magnetostatics',
+  lead:'Steady currents weave a new field — one that only ever pushes sideways.',
+  render(t){const cx=800,cy=700;for(let i=1;i<=3;i++)ring(cx,cy,i*26,{color:C.bfield,width:1.6,alpha:.32});
+    disc(cx,cy,6,C.amber,1);}});
+
+/* ---------- Lorentz force ---------- */
+addSlide({kind:'concept',tag:'P4.3 · Magnetostatics',title:'The Lorentz Force',
+  subtitle:'A magnetic field never speeds a charge up — it only bends its path.',
+  takeaway:'<em>F = qv×B</em> is always ⟂ to motion, so charges circle. Add speed along B and you get a <em>helix</em> (the cyclotron).',
+  render(t){
+    const cx=640,cy=450,rr=150;
+    // B out of page grid
+    for(let x=380;x<=920;x+=70)for(let y=250;y<=650;y+=70){
+      ring(x,y,7,{color:C.bfield,width:1.2,alpha:.35});disc(x,y,2,C.bfield,.5);}
+    text('B out of page  ⊙',cx,700,{size:16,color:C.bfield,alpha:seg(t,.3,1)});
+    ring(cx,cy,rr,{color:C.dim,width:1,dash:[4,7],alpha:.4});
+    const ang=t*1.3;
+    const px=cx+Math.cos(ang)*rr,py=cy+Math.sin(ang)*rr;
+    charge(px,py,+1,{r:14,glow:false});
+    // velocity tangent
+    const vx=-Math.sin(ang),vy=Math.cos(ang);
+    arrow(px,py,px+vx*70,py+vy*70,{color:C.amber,width:2.4,head:9});
+    text('v',px+vx*88,py+vy*88,{size:18,italic:true,serif:true,color:C.amber});
+    // force toward center
+    arrow(px,py,px+(cx-px)*.32,py+(cy-py)*.32,{color:C.gold,width:2.4,head:9});
+    text('F',px+(cx-px)*.42,py+(cy-py)*.42,{size:18,italic:true,serif:true,color:C.gold});
+    // helix hint
+    const p2=seg(t,1.5,1.2);
+    if(p2>0){ctx.save();ctx.globalAlpha=.6*p2;ctx.strokeStyle=C.efield;ctx.lineWidth=2;ctx.beginPath();
+      for(let i=0;i<=120;i++){const a=i/120*TAU*3;const x=1120+i/120*260;
+        const y=cy+50*Math.sin(a);i?ctx.lineTo(x,y):ctx.moveTo(x,y);}ctx.stroke();ctx.restore();
+      text('helix',1250,cy+90,{size:16,italic:true,serif:true,color:C.efield,alpha:p2});}
+  }});
+
+/* bridge → Biot-Savart */
+addSlide({kind:'bridge',
+  recap:'A magnetic field bends any moving charge into a circle or a helix.',
+  gap:'Fine — but where does <i>B itself</i> come from? Nothing here made the field.',
+  fill:'Moving charge makes it — Biot\u2013Savart and Amp\u00e8re turn current into B.'});
+
+/* ---------- Biot-Savart & Ampere ---------- */
+addSlide({kind:'concept',tag:'P4.3 · Magnetostatics',title:'Biot\u2013Savart & Amp\u00e8re',
+  subtitle:'Every scrap of current sprays a little B; add them up and it curls around the wire.',
+  takeaway:'<em>dB ∝ I dl×r̂ / r²</em>. The shortcut: <em>∮B·dl = μ₀I</em> — B circles a wire, weakening as 1/r.',
+  render(t){
+    const wx=640;
+    // current wire (up)
+    line(wx,240,wx,680,{color:C.amber,width:4});
+    arrow(wx,470,wx,380,{color:C.amber,width:3,head:12});
+    text('I',wx-24,300,{size:20,italic:true,serif:true,color:C.amber});
+    // circular B field around wire (into/out shown by arrows on circles)
+    for(let i=1;i<=4;i++){const rr=i*48;const p=seg(t,.2+i*.15,.9);
+      ring(wx,460,rr,{color:C.bfield,width:1.5,alpha:.5*p});
+      // arrowhead on right (out) & left (in) to show curl
+      const ax=wx+rr,ay=460;arrow(ax,ay+9,ax,ay-9,{color:C.bfield,width:1.6,head:6,alpha:.7*p});
+      const bx=wx-rr;arrow(bx,ay-9,bx,ay+9,{color:C.bfield,width:1.6,head:6,alpha:.7*p});}
+    text('B',wx+210,460,{size:20,italic:true,serif:true,color:C.bfield,align:'left',alpha:seg(t,.6,1)});
+    // Ampere loop highlight
+    const p3=seg(t,1.6,1);
+    ring(wx,460,96,{color:C.gold,width:2,dash:[6,6],alpha:.7*p3});
+    text('Amp\u00e8rian loop',wx,460-96-18,{size:15,color:C.gold,alpha:p3});
+    text('∮ B·dl = μ₀ I',1080,700,{size:22,serif:true,italic:true,color:C.gold,alpha:seg(t,.5,1)});
+    text('B ∝ 1/r',1080,640,{size:18,serif:true,italic:true,color:C.bfield,alpha:seg(t,1,1)});
+  }});
+
+/* bridge → materials */
+addSlide({kind:'bridge',
+  recap:'Currents curl magnetic field around themselves; symmetry gives it instantly.',
+  gap:'Then why is <i>iron</i> magnetic with no battery attached? Where is its current?',
+  fill:'Inside matter — atomic current loops, aligning into dia-, para-, and ferromagnets.'});
+
+/* ---------- Magnetic materials ---------- */
+addSlide({kind:'concept',tag:'P4.3 · Magnetostatics',title:'Dipoles & Materials',
+  subtitle:'A current loop is a tiny magnet. Trillions of them decide how matter responds.',
+  takeaway:'<em>B = μ₀(H + M)</em>. Para/ferro loops align <i>with</i> B (ferro stays); dia loops nudge <i>against</i> it.',
+  render(t){
+    // a current loop = dipole (left)
+    const cx=430,cy=400;
+    ring(cx,cy,60,{color:C.amber,width:3});
+    arrow(cx+60,cy-6,cx+60,cy+14,{color:C.amber,width:2,head:7});
+    arrow(cx,cy,cx,cy-110,{color:C.bfield,width:3,head:12});
+    text('m',cx+18,cy-100,{size:18,italic:true,serif:true,color:C.bfield});
+    text('current loop = magnetic dipole',cx,cy+110,{size:15,color:C.dim});
+    // three material boxes: dia / para / ferro
+    const bx=[760,1010,1260],names=['diamagnetic','paramagnetic','ferromagnetic'],
+      cols=[C.neg,C.efield,C.pos];
+    // external B (up) shown behind
+    text('external B ↑',1010,250,{size:15,color:C.bfield,alpha:seg(t,.3,1)});
+    const UP=-Math.PI/2;
+    bx.forEach((x,i)=>{const y0=340,y1=560;
+      ctx.save();ctx.globalAlpha=.6;ctx.strokeStyle=cols[i];ctx.strokeRect(x-70,y0,140,y1-y0);ctx.restore();
+      text(names[i],x,y1+26,{size:15,color:cols[i]});
+      const p=seg(t,.5+i*.4,1.4);
+      for(let r=0;r<3;r++)for(let c=0;c<3;c++){
+        const dx=x-45+c*45,dy=y0+35+r*60,k=r*3+c;
+        let ang;
+        if(i===0) ang = Math.PI/2;                                   // dia: oppose (down)
+        else if(i===1) ang = UP + (1-p)*1.4*Math.sin(k*2.1) + 0.35*Math.sin(t*2+k)*(1-.6*p); // para: jitters toward up
+        else ang = UP;                                               // ferro: locked up
+        arrow(dx,dy+11,dx+Math.cos(ang)*22,dy+11+Math.sin(ang)*22,{color:cols[i],width:1.8,head:6,alpha:.9});}
+    });
+    text('B = μ₀(H + M)',700,720,{size:20,serif:true,italic:true,color:C.gold,alpha:seg(t,1.5,1),align:'left'});
+  }});
+
+/* bridge → induction */
+addSlide({kind:'bridge',
+  recap:'Currents and aligned atomic loops build magnetic fields — the static magnetic story is complete.',
+  gap:'So charge \u2192 magnetism. But is the reverse true? Can a magnet, doing nothing electric, <i>create</i> a current?',
+  fill:'Yes — a <b>changing</b> field does it. This is induction.'});
+
+/* ---------- P4.4 SECTION ---------- */
+addSlide({kind:'section',num:'P 4 . 4',big:'Electrodynamics & Induction',
+  lead:'Let the fields change in time — and electricity and magnetism start feeding each other.',
+  render(t){const cx=800,cy=700;wave(cx-260,cy,cx+260,40,.03,t*3,{color:C.efield,width:2.5,alpha:.55});
+    disc(cx-260+((t*160)%520),cy,5,C.gold,.8);}});
+
+/* ---------- Faraday / Lenz ---------- */
+addSlide({kind:'concept',tag:'P4.4 · Induction',title:'Faraday & Lenz',
+  subtitle:'Move a magnet through a coil and current appears from nowhere — fighting the change.',
+  takeaway:'<em>EMF = −dΦ/dt</em>. The minus sign is Lenz: the induced current always <i>opposes</i> what created it.',
+  render(t){
+    const cx=780,cy=440;
+    // coil (concentric ellipses)
+    for(let i=-2;i<=2;i++)ring(cx+i*14,cy,120,{color:C.metal,width:2,alpha:.8});
+    // moving bar magnet
+    const mx=lerp(320,cx-170,(Math.sin(t*.9)+1)/2);
+    ctx.save();ctx.fillStyle=C.pos;ctx.fillRect(mx-70,cy-24,70,48);
+    ctx.fillStyle=C.neg;ctx.fillRect(mx,cy-24,70,48);ctx.restore();
+    text('N',mx-35,cy,{size:18,weight:700,color:'#0a0a0e'});text('S',mx+35,cy,{size:18,weight:700,color:'#0a0a0e'});
+    // flux arrows through coil
+    const moving=Math.cos(t*.9); // sign of velocity
+    for(let y=-1;y<=1;y++)arrow(mx+70,cy+y*40,cx+60,cy+y*40,{color:C.bfield,width:1.5,head:6,alpha:.4});
+    // induced current dots around coil, direction flips with dΦ/dt
+    const dir=Math.sign(moving);
+    for(let i=0;i<12;i++){const a=i/12*TAU + dir*t*2.2;
+      disc(cx+Math.cos(a)*120,cy+Math.sin(a)*120*0.62*1.0,4.5,C.amber,.85);}
+    // galvanometer
+    const gx=1160,gy=440;ring(gx,gy,50,{color:C.metal,width:2});
+    const needle=dir*0.6*Math.abs(moving);
+    arrow(gx,gy,gx+Math.sin(needle)*40,gy-Math.cos(needle)*40,{color:C.gold,width:2.5,head:8});
+    line(cx,cy+120,gx-50,gy,{color:C.metal,width:2,alpha:.5});
+    text('induced I',cx,cy+170,{size:15,color:C.amber});
+    text('EMF = −dΦ/dt',700,730,{size:22,serif:true,italic:true,color:C.gold,alpha:seg(t,.4,1)});
+  }});
+
+/* bridge → inductance */
+addSlide({kind:'bridge',
+  recap:'A changing magnetic flux drives an EMF that opposes the change.',
+  gap:'So a coil resists a changing flux. But a coil <i>carrying its own changing current</i> — does it fight <b>itself</b>?',
+  fill:'It does. That self-opposition is inductance.'});
+
+/* ---------- Inductance ---------- */
+addSlide({kind:'concept',tag:'P4.4 · Induction',title:'Inductance & Energy',
+  subtitle:'An inductor hates change: ramp its current and it pushes back.',
+  takeaway:'Self <em>V = −L dI/dt</em>, mutual <em>M</em> couples two coils. Energy <em>U = ½LI²</em> is stored in the B-field.',
+  render(t){
+    const cx=520,cy=430;
+    coil(cx-120,cy,240,6,C.metal);
+    // ramping current
+    const I=(t%4)/4;
+    arrow(cx-160,cy+70,cx-160+I*260,cy+70,{color:C.amber,width:3,head:10});
+    text('I ramping up',cx,cy+100,{size:15,color:C.amber});
+    // back-emf opposing
+    arrow(cx+150,cy-70,cx-40,cy-70,{color:C.gold,width:2.6,head:9,alpha:seg(t,.5,1)});
+    text('back-EMF opposes',cx+20,cy-100,{size:15,color:C.gold,alpha:seg(t,.5,1)});
+    // stored B field around coil
+    for(let i=1;i<=3;i++)ring(cx,cy,i*40,{color:C.bfield,width:1.2,alpha:.25});
+    // mutual coupling: second coil
+    const p2=seg(t,1.4,1.2);
+    if(p2>0){const c2=980;coil(c2-90,cy,180,5,C.metal);
+      for(let i=0;i<3;i++)line(cx+150,cy-40+i*20,c2-90,cy-40+i*20,{color:C.bfield,width:1.3,dash:[4,6],alpha:.4*p2});
+      text('mutual  M',c2,cy+90,{size:15,color:C.bfield,alpha:p2});
+      // induced current in 2nd coil
+      for(let i=0;i<8;i++){disc(c2-90+((t*120+i*40)%180),cy+55,4,C.amber,.7*p2);}}
+    text('U = ½LI²',1240,430,{size:24,serif:true,italic:true,color:C.gold,alpha:seg(t,1,1)});
+  }});
+
+/* bridge → RLC */
+addSlide({kind:'bridge',
+  recap:'Inductors store energy in B and resist current change; capacitors store it in E.',
+  gap:'Wire a capacitor and an inductor together — each one\u2019s stored energy feeds the other. What happens next?',
+  fill:'They oscillate. Add R and you get resonance — the LC \u2192 RLC circuit.'});
+
+/* ---------- RLC / resonance ---------- */
+addSlide({kind:'concept',tag:'P4.4 · Induction',title:'LC \u2192 RLC & Resonance',
+  subtitle:'Energy sloshes between capacitor and inductor like a pendulum — until resistance drains it.',
+  takeaway:'LC rings at <em>ω₀ = 1/√(LC)</em>. R damps it. Drive near ω₀ and the response <i>peaks</i> — resonance.',
+  render(t){
+    // left: energy sloshing bar between C (E) and L (B)
+    const bx=380,by=460;
+    const frac=(Math.cos(t*2)+1)/2; // 1=all in C, 0=all in L
+    capSym(bx,by,16,60,C.efield);text('C',bx,by+58,{size:16,serif:true,italic:true,color:C.efield});
+    coil(bx+180,by-16,110,4,C.bfield);text('L',bx+235,by+50,{size:16,serif:true,italic:true,color:C.bfield});
+    wirePath([[bx,by-40],[bx+180,by-40]],{color:C.metal,width:2.5});
+    wirePath([[bx,by+40],[bx+180+110,by+40],[bx+180+110,by-16]],{color:C.metal,width:2.5});
+    line(bx+180,by-16,bx+180,by-40,{color:C.metal,width:2.5});
+    // energy bars
+    ctx.save();ctx.fillStyle=C.efield;ctx.globalAlpha=.7;ctx.fillRect(bx-16,by-40-frac*70,32,frac*70);
+    ctx.fillStyle=C.bfield;ctx.fillRect(bx+180+40,by-70,20,(1-frac)*70);ctx.restore();
+    text('energy sloshes  C ⇄ L',bx+130,by+150,{size:15,color:C.dim});
+    // right: resonance curve
+    const ax=920,ay0=600,ax1=1400,ay1=300;
+    line(ax,ay0,ax1,ay0,{color:C.dim,width:1.4});line(ax,ay0,ax,ay1,{color:C.dim,width:1.4});
+    label('ω',ax1-4,ay0+22,C.dim,16);label('amplitude',ax+2,ay1-14,C.dim,14);
+    ctx.save();ctx.strokeStyle=C.gold;ctx.lineWidth=2.5;ctx.beginPath();
+    const pC=seg(t,.4,1.4);
+    for(let i=0;i<=Math.round(120*pC);i++){const w=i/120;const x=ax+w*(ax1-ax);
+      const Q=8,peak=1/Math.sqrt(Math.pow(1-(w/0.5)**2,2)+(w/0.5/Q)**2);
+      const y=ay0-clamp(peak/1,0,1)*(ay0-ay1)*0.9;i?ctx.lineTo(x,y):ctx.moveTo(x,y);}
+    ctx.stroke();ctx.restore();
+    const wpk=ax+0.5*(ax1-ax);line(wpk,ay0,wpk,ay1+20,{color:C.efield,width:1,dash:[3,5],alpha:.6});
+    text('ω₀ = 1/√(LC)',wpk+8,ay1+8,{size:16,serif:true,italic:true,color:C.efield,align:'left',alpha:seg(t,1,1)});
+  }});
+
+/* bridge → AC */
+addSlide({kind:'bridge',
+  recap:'LC circuits oscillate; R damps them; driving near ω₀ produces resonance.',
+  gap:'Drive a circuit with a steady AC source and everything oscillates forever. Tracking sines with calculus is painful — is there a cleaner language?',
+  fill:'Phasors — spin the sine into a vector and calculus becomes algebra.'});
+
+/* ---------- AC / phasors ---------- */
+addSlide({kind:'concept',tag:'P4.4 · Induction',title:'AC, Phasors & Impedance',
+  subtitle:'A rotating arrow\u2019s shadow is the AC signal. Its angle is the phase.',
+  takeaway:'Impedance <em>Z = R + jX</em> sets amplitude & phase; power factor <em>cosφ</em> is the useful fraction.',
+  render(t){
+    const cx=500,cy=440,rr=150;
+    ring(cx,cy,rr,{color:C.faint,width:1.5});
+    const w=t*1.6;
+    // voltage phasor & current phasor (lagging by phi)
+    const phi=0.8;
+    const vx=cx+Math.cos(w)*rr,vy=cy-Math.sin(w)*rr;
+    const ix=cx+Math.cos(w-phi)*rr*.7,iy=cy-Math.sin(w-phi)*rr*.7;
+    arrow(cx,cy,vx,vy,{color:C.gold,width:2.6,head:10});text('V',vx+12,vy,{size:18,italic:true,serif:true,color:C.gold});
+    arrow(cx,cy,ix,iy,{color:C.amber,width:2.6,head:10});text('I',ix+12,iy,{size:18,italic:true,serif:true,color:C.amber});
+    // sine projections to the right
+    const px0=720,px1=1160;
+    line(px0,cy,px1,cy,{color:C.dim,width:1,alpha:.4});
+    wave(px0,cy,px1,rr,.02,w,{color:C.gold,width:2,alpha:.8,fn:Math.sin});
+    wave(px0,cy,px1,rr*.7,.02,w-phi,{color:C.amber,width:2,alpha:.8,fn:Math.sin});
+    line(vx,vy,px0,vy,{color:C.gold,width:1,dash:[3,4],alpha:.4});
+    line(ix,iy,px0,iy,{color:C.amber,width:1,dash:[3,4],alpha:.4});
+    // impedance triangle
+    const tx=1240,ty=560;const p2=seg(t,1,1.2);
+    arrow(tx,ty,tx+120,ty,{color:C.metal,width:2,head:8,alpha:p2});text('R',tx+60,ty+22,{size:16,italic:true,serif:true,color:C.metal,alpha:p2});
+    arrow(tx+120,ty,tx+120,ty-90,{color:C.bfield,width:2,head:8,alpha:p2});text('X',tx+140,ty-45,{size:16,italic:true,serif:true,color:C.bfield,alpha:p2});
+    arrow(tx,ty,tx+120,ty-90,{color:C.gold,width:2.2,head:8,alpha:p2});text('Z',tx+50,ty-60,{size:16,italic:true,serif:true,color:C.gold,alpha:p2});
+    text('φ',tx+26,ty-10,{size:15,italic:true,serif:true,color:C.dim,alpha:p2});
+  }});
+
+/* bridge → Maxwell */
+addSlide({kind:'bridge',
+  recap:'Phasors and impedance tame every steady AC circuit with algebra.',
+  gap:'Now a trap: charge a capacitor and Amp\u00e8re\u2019s law gives <i>two different answers</i> for the same loop. Something is missing from it.',
+  fill:'Maxwell\u2019s fix — the displacement current — and E&M becomes whole.'});
+
+/* ---------- P4.5 SECTION ---------- */
+addSlide({kind:'section',num:'P 4 . 5',big:'Maxwell\u2019s Equations & EM Waves',
+  lead:'Four equations. One of them predicts light — and it was hiding a missing term all along.',
+  render(t){const cx=800,cy=700;
+    wave(cx-280,cy,cx+280,42,.028,t*3,{color:C.efield,width:2.5,alpha:.55});
+    wave(cx-280,cy,cx+280,26,.028,t*3,{color:C.bfield,width:2,alpha:.4,fn:Math.sin});}});
+
+/* ---------- Displacement current + 4 eqns ---------- */
+addSlide({kind:'concept',tag:'P4.5 · Maxwell',title:'The Missing Term',
+  subtitle:'Amp\u00e8re\u2019s law fails at a charging capacitor — a changing E-field must count as current.',
+  takeaway:'Add displacement current <em>ε₀ ∂E/∂t</em> and the four equations close into a self-consistent whole.',
+  render(t){
+    // charging capacitor with Ampere loop; wire current vs field-in-gap
+    const y=360,lx=430,rx=520;
+    line(300,y,lx,y,{color:C.amber,width:4});line(rx,y,720,y,{color:C.amber,width:4});
+    line(lx,y-40,lx,y+40,{color:C.pos,width:5});line(rx,y-40,rx,y+40,{color:C.neg,width:5});
+    arrow(340,y,400,y,{color:C.amber,width:2.5,head:9});text('I',360,y-20,{size:16,italic:true,serif:true,color:C.amber});
+    // changing E in gap
+    for(let i=-1;i<=1;i++)arrow(lx+8,y+i*22,rx-8,y+i*22,{color:C.efield,width:1.6,head:6,alpha:.6+.4*Math.sin(t*4)});
+    text('∂E/∂t',(lx+rx)/2,y+62,{size:15,serif:true,italic:true,color:C.efield});
+    ring((lx+rx)/2,y,70,{color:C.gold,width:2,dash:[5,6],alpha:.7});
+    text('same loop, no wire through it — yet B is still there',(lx+rx)/2,y+110,{size:14,color:C.dim});
+    // four equations
+    const eqs=[['∇·E = ρ/ε₀','Gauss',C.efield],
+               ['∇·B = 0','no monopoles',C.bfield],
+               ['∇×E = −∂B/∂t','Faraday',C.gold],
+               ['∇×B = μ₀J + μ₀ε₀ ∂E/∂t','Amp\u00e8re + Maxwell',C.amber]];
+    eqs.forEach((e,i)=>{const p=seg(t,.6+i*.5,.7);const yy=520+i*58;
+      text(e[0],560,yy,{size:24,serif:true,italic:true,color:e[2],align:'left',alpha:p});
+      text(e[1],1120,yy,{size:15,color:C.dim,align:'left',alpha:p});});
+    // highlight added term
+    const ph=seg(t,3,1);if(ph>0)text('← the new piece',1120,520+3*58,{size:15,color:C.amber,align:'left',alpha:ph});
+  }});
+
+/* ---------- Potentials & gauge ---------- */
+addSlide({kind:'concept',tag:'P4.5 · Maxwell',title:'Potentials & Gauge',
+  subtitle:'Repackage the six field components into a scalar φ and a vector A.',
+  takeaway:'<em>E = −∇φ − ∂A/∂t</em>, <em>B = ∇×A</em>. A has slack — fix it with a gauge (Coulomb or Lorenz).',
+  render(t){
+    text('B = ∇×A',480,340,{size:26,serif:true,italic:true,color:C.bfield,alpha:seg(t,.2,1)});
+    text('E = −∇φ − ∂A/∂t',480,410,{size:26,serif:true,italic:true,color:C.efield,alpha:seg(t,.6,1)});
+    // gauge freedom illustration: A wiggles, B unchanged
+    const cx=1050,cy=430;const p2=seg(t,1.2,1);
+    const jitter=0.3*Math.sin(t*2);
+    for(let i=0;i<5;i++){const a=i/5*TAU;
+      arrow(cx+Math.cos(a)*70,cy+Math.sin(a)*70,
+            cx+Math.cos(a)*70+Math.cos(a+1.4+jitter)*40,
+            cy+Math.sin(a)*70+Math.sin(a+1.4+jitter)*40,
+            {color:C.metal,width:1.6,head:6,alpha:.6*p2});}
+    text('A (can shift…)',cx,cy-110,{size:15,italic:true,serif:true,color:C.metal,alpha:p2});
+    ring(cx,cy,26,{color:C.bfield,width:2.5,alpha:p2});
+    text('…B stays fixed',cx,cy+120,{size:15,color:C.bfield,alpha:p2});
+    text('Coulomb:  ∇·A = 0        Lorenz:  ∇·A + (1/c²)∂φ/∂t = 0',800,640,
+      {size:18,serif:true,italic:true,color:C.gold,alpha:seg(t,1.8,1)});
+  }});
+
+/* ---------- EM wave & polarization ---------- */
+addSlide({kind:'concept',tag:'P4.5 · Maxwell',title:'Light: the EM Wave',
+  subtitle:'A changing E makes a B; a changing B remakes the E. The pattern outruns its source.',
+  takeaway:'In vacuum it travels at <em>c = 1/√(μ₀ε₀)</em>. E ⟂ B ⟂ direction. Polarization = which way E points.',
+  render(t){
+    const y=440,x0=340,x1=1120,ph=t*3;
+    line(x0,y,x1,y,{color:C.dim,width:1,alpha:.35});
+    // E (vertical) and B (drawn as depth via horizontal offset) in phase
+    wave(x0,y,x1,110,.03,ph,{color:C.efield,width:2.6});
+    // E field bars
+    for(let x=x0;x<=x1;x+=40){const e=110*Math.sin(.03*(x-x0)-ph);
+      line(x,y,x,y-e,{color:C.efield,width:1.2,alpha:.35});}
+    // B wave (skewed to suggest ⟂ plane)
+    ctx.save();ctx.strokeStyle=C.bfield;ctx.lineWidth=2.2;ctx.globalAlpha=.8;ctx.beginPath();
+    for(let i=0;i<=140;i++){const x=lerp(x0,x1,i/140);const b=70*Math.sin(.03*(x-x0)-ph);
+      const yy=y+b*0.4;i?ctx.lineTo(x+b*0.0,yy):ctx.moveTo(x,yy);}
+    ctx.stroke();ctx.restore();
+    arrow(x1-10,y,x1+40,y,{color:C.gold,width:2.5,head:10});text('c',x1+56,y,{size:20,italic:true,serif:true,color:C.gold});
+    text('E',x0-24,y-90,{size:20,italic:true,serif:true,color:C.efield});
+    text('B',x0-24,y+40,{size:20,italic:true,serif:true,color:C.bfield});
+    // polarization inset (E tip traces a line vs circle)
+    const cx=1300,cy=440;ring(cx,cy,55,{color:C.faint,width:1.2});
+    const lin=seg(t,0,2)<1; const a=ph;
+    const ex=Math.cos(a)*50, ey=Math.sin(a)*50;
+    // circular polarization tip
+    arrow(cx,cy,cx+ex,cy+ey,{color:C.efield,width:2,head:7});
+    ring(cx,cy,50,{color:C.efield,width:1,dash:[2,5],alpha:.4});
+    text('polarization',cx,cy+90,{size:14,color:C.dim});
+  }});
+
+/* bridge → Poynting */
+addSlide({kind:'bridge',
+  recap:'Maxwell\u2019s equations predict self-sustaining waves that travel at exactly the speed of light.',
+  gap:'A wave clearly carries something — sunlight warms your skin. How much energy, and which way is it flowing?',
+  fill:'The Poynting vector points the way; the wave even carries momentum.'});
+
+/* ---------- Poynting / momentum / stress ---------- */
+addSlide({kind:'concept',tag:'P4.5 · Maxwell',title:'Energy & Momentum',
+  subtitle:'Cross the electric and magnetic fields and you get the direction energy flows.',
+  takeaway:'<em>S = (1/μ₀) E×B</em> — power per area. Fields carry momentum too: that\u2019s radiation pressure (the Maxwell stress tensor).',
+  render(t){
+    const cx=640,cy=430;
+    arrow(cx,cy,cx,cy-120,{color:C.efield,width:3,head:11});text('E',cx-24,cy-110,{size:20,italic:true,serif:true,color:C.efield});
+    arrow(cx,cy,cx+120,cy,{color:C.bfield,width:3,head:11});text('B',cx+110,cy+26,{size:20,italic:true,serif:true,color:C.bfield});
+    // S = E x B (out toward viewer/into page) → draw diagonal + label
+    arrow(cx,cy,cx-70,cy+90,{color:C.gold,width:3,head:11});
+    text('S = E×B',cx-120,cy+120,{size:20,serif:true,italic:true,color:C.gold});
+    // energy flowing arrows
+    for(let i=0;i<5;i++){const p=((t*.6+i*.2)%1);
+      const x=lerp(cx+40,1100,p),yv=lerp(cy-60,cy-60,p);
+      arrow(x,cy-40,x+40,cy-40,{color:C.gold,width:1.6,head:6,alpha:.5*(1-Math.abs(p-.5)*1.4)});}
+    // radiation pressure on a surface
+    const sx=1160;line(sx,300,sx,560,{color:C.metal,width:5});
+    for(let y=320;y<560;y+=40)arrow(sx-80,y,sx-8,y,{color:C.gold,width:1.6,head:6,alpha:.5});
+    arrow(sx,430,sx+40,430,{color:C.amber,width:2.4,head:9});
+    text('radiation pressure',sx-10,590,{size:15,color:C.amber});
+  }});
+
+/* bridge → media */
+addSlide({kind:'bridge',
+  recap:'The Poynting vector carries energy and momentum in the direction of travel.',
+  gap:'Vacuum is easy. What happens when the wave slams into <i>glass or metal</i> — a boundary?',
+  fill:'It splits — part reflects, part refracts. Fresnel\u2019s equations set the shares.'});
+
+/* ---------- Waves in media / Fresnel ---------- */
+addSlide({kind:'concept',tag:'P4.5 · Maxwell',title:'Boundaries: Reflect & Refract',
+  subtitle:'At an interface the wave bends and partly bounces — set by the change in speed.',
+  takeaway:'Snell bends it (<em>n₁sinθ₁ = n₂sinθ₂</em>); Fresnel splits the power between reflected and transmitted.',
+  render(t){
+    const ix=800,iy=460; // interface point
+    line(400,iy,1200,iy,{color:C.metal,width:2,alpha:.5}); // interface
+    ctx.save();ctx.fillStyle='rgba(79,163,148,.06)';ctx.fillRect(400,iy,800,300);ctx.restore();
+    text('n₁ (fast)',500,iy-30,{size:15,italic:true,serif:true,color:C.dim});
+    text('n₂ (slow)',500,iy+40,{size:15,italic:true,serif:true,color:C.dim});
+    line(ix,260,ix,iy,{color:C.dim,width:1,dash:[4,6],alpha:.4}); // normal
+    // incident ray
+    const inc=seg(t,.2,1);
+    arrow(ix-260,iy-220,ix,iy,{color:C.gold,width:2.6,head:10,prog:inc});
+    text('incident',ix-200,iy-200,{size:15,color:C.gold,alpha:inc});
+    // reflected
+    const p2=seg(t,1,1);
+    arrow(ix,iy,ix+220,iy-186,{color:C.amber,width:2.2,head:9,prog:p2,alpha:.9});
+    text('reflected',ix+180,iy-170,{size:14,color:C.amber,alpha:p2});
+    // refracted (bent toward normal)
+    arrow(ix,iy,ix+120,iy+240,{color:C.efield,width:2.4,head:9,prog:p2});
+    text('refracted',ix+150,iy+220,{size:14,color:C.efield,alpha:p2});
+    text('n₁sinθ₁ = n₂sinθ₂',420,760,{size:20,serif:true,italic:true,color:C.gold,align:'left',alpha:seg(t,1.4,1)});
+  }});
+
+/* bridge → radiation */
+addSlide({kind:'bridge',
+  recap:'At boundaries, waves reflect and refract by fixed, predictable shares.',
+  gap:'We can catch and bend waves. But how do we <i>make</i> one on purpose and launch it across a room — or a planet?',
+  fill:'Shake a charge. Accelerating charge radiates — antennas, waveguides, transmission lines.'});
+
+/* ---------- Radiation / antennas / waveguides ---------- */
+addSlide({kind:'concept',tag:'P4.5 · Maxwell',title:'Making Waves: Radiation',
+  subtitle:'A charge that accelerates kinks its own field lines — and the kink flies off as radiation.',
+  takeaway:'An oscillating dipole antenna broadcasts EM waves; guides & lines carry them with low loss. Radiation ∝ acceleration².',
+  render(t){
+    const cx=560,cy=440;
+    // oscillating dipole charge
+    const disp=60*Math.sin(t*3);
+    charge(cx,cy-disp,+1,{r:14,glow:false});charge(cx,cy+disp,-1,{r:14,glow:false});
+    line(cx,cy-disp,cx,cy+disp,{color:C.amber,width:2,alpha:.5});
+    // expanding wavefronts (donut nulls along axis)
+    for(let i=0;i<5;i++){const rr=((t*130+i*90)%450);const al=clamp(1-rr/450,0,1)*.6;
+      ctx.save();ctx.globalAlpha=al;ctx.strokeStyle=C.efield;ctx.lineWidth=2;ctx.beginPath();
+      for(let k=0;k<=80;k++){const a=k/80*TAU;const lobe=Math.abs(Math.sin(a)); // dipole pattern
+        const r2=rr*(0.3+0.7*lobe);
+        const x=cx+Math.cos(a)*r2,y=cy+Math.sin(a)*r2;k?ctx.lineTo(x,y):ctx.moveTo(x,y);}
+      ctx.closePath();ctx.stroke();ctx.restore();}
+    text('oscillating dipole',cx,cy+230,{size:15,color:C.dim});
+    // right: waveguide (bouncing ray in a pipe)
+    const gx0=1050,gx1=1420,gy0=340,gy1=560;
+    line(gx0,gy0,gx1,gy0,{color:C.metal,width:3});line(gx0,gy1,gx1,gy1,{color:C.metal,width:3});
+    ctx.save();ctx.strokeStyle=C.gold;ctx.lineWidth=2;ctx.globalAlpha=.8;ctx.beginPath();
+    let gx=gx0,up=true,gy=(gy0+gy1)/2;ctx.moveTo(gx,gy);
+    const per=90;for(let x=gx0;x<=gx1;x+=6){const ph=((x-gx0+t*140)%(2*per))/per;
+      const yy=gy0+20+(gy1-gy0-40)*(ph<1?ph:2-ph);ctx.lineTo(x,yy);}
+    ctx.stroke();ctx.restore();
+    text('waveguide mode',(gx0+gx1)/2,gy1+30,{size:15,color:C.dim});
+  }});
+
+/* ---------- SYNTHESIS ---------- */
+addSlide({kind:'concept',tag:'Synthesis',title:'The Whole Chain, in One Breath',
+  subtitle:'Every gap you crossed, lit up at once.',
+  takeaway:'Charge → field → potential → current → magnetism → induction → <em>Maxwell</em> → light. One story.',
+  render(t){
+    const nodes=[['charge',C.pos],['field',C.efield],['potential',C.neg],
+      ['current',C.amber],['B-field',C.bfield],['induction',C.gold],
+      ['Maxwell',C.green],['light',C.ink]];
+    const y=440,x0=230,x1=1370;
+    line(x0,y,x1,y,{color:C.faint,width:3});
+    const pr=seg(t,.2,3);line(x0,y,lerp(x0,x1,pr),y,{color:C.gold,width:3,alpha:.5});
+    nodes.forEach((nd,i)=>{const x=lerp(x0,x1,i/(nodes.length-1));
+      const p=seg(t,.2+i*.35,.5);
+      disc(x,y,8+4*p,nd[1],.9*p+.1);ring(x,y,18,{color:nd[1],width:1.4,alpha:.4*p});
+      text(nd[0],x,y+(i%2?52:-46),{size:17,serif:true,color:nd[1],alpha:p});
+      if(i<nodes.length-1&&p>.9)text('→',lerp(x0,x1,(i+.5)/(nodes.length-1)),y-22,
+        {size:16,color:C.dim,alpha:.5});});
+    const pulse=lerp(x0,x1,(t*.16)%1);disc(pulse,y,5,C.gold,.9);
+  }});
+
+/* ---------- APPLICATIONS ---------- */
+addSlide({kind:'concept',tag:'Why it matters',title:'Where This Lives',
+  subtitle:'The same eight ideas run every wire, motor, screen, and scanner.',
+  takeaway:'From the transistor in your pocket to the MRI in a hospital — all of it is these equations, applied.',
+  render(t){
+    const apps=[
+      ['Electronics','every chip, circuit & sensor',C.amber,(x,y)=>{resistor(x-40,y,80,true,C.amber);}],
+      ['Motors / Generators','force & induction, spinning',C.bfield,(x,y)=>{ring(x,y,30,{color:C.bfield,width:2});const a=t*3;arrow(x,y,x+Math.cos(a)*30,y+Math.sin(a)*30,{color:C.amber,width:2,head:7});}],
+      ['RF / Wireless','antennas & radiation',C.efield,(x,y)=>{for(let i=1;i<=3;i++)ring(x,y+14,i*13,{color:C.efield,width:1.5,alpha:.6});disc(x,y+14,3,C.efield);}],
+      ['Photonics','light guided & bent',C.gold,(x,y)=>{wave(x-42,y,x+42,14,.12,t*3,{color:C.gold,width:2});}],
+      ['MRI','spins in huge B-fields',C.neg,(x,y)=>{ring(x,y,32,{color:C.neg,width:3});disc(x,y,6,C.pos);}],
+      ['EMC','taming interference',C.metal,(x,y)=>{ctx.strokeStyle=C.metal;ctx.lineWidth=2;ctx.strokeRect(x-34,y-24,68,48);for(let i=0;i<3;i++)ring(x-60,y,8+i*6,{color:C.efield,width:1,alpha:.4});}],
+    ];
+    const cols=3,cw=380,ch=210,gx0=260,gy0=340;
+    apps.forEach((a,i)=>{const cx=gx0+(i%cols)*cw,cy=gy0+Math.floor(i/cols)*ch;
+      const p=seg(t,.2+i*.28,.6);ctx.save();ctx.globalAlpha=p;
+      a[3](cx,cy-10);ctx.restore();
+      text(a[0],cx,cy+40,{size:19,serif:true,color:a[2],alpha:p});
+      text(a[1],cx,cy+66,{size:14,color:C.dim,alpha:p});});
+  }});
+
+/* ---------- END ---------- */
+addSlide({kind:'end',
+  title:'You hold the whole chain.',
+  lead:'Charge to light, one gap at a time. Re-run any bridge — the pull is where the learning is.',
+  render(t){const cx=760,cy=600;
+    for(let i=0;i<10;i++){const a=i/10*TAU;const p=seg(t,.2+i*.05,1.2);
+      arrow(cx+Math.cos(a)*40,cy+Math.sin(a)*40,cx+Math.cos(a)*lerp(40,150,p),
+        cy+Math.sin(a)*lerp(40,150,p),{color:C.efield,width:1.3,head:6,alpha:.35*p});}
+    charge(cx,cy,+1,{r:22});
+    wave(cx+180,cy,cx+520,44,.03,t*3,{color:C.efield,width:2.2,alpha:.6});
+    wave(cx+180,cy,cx+520,28,.03,t*3,{color:C.bfield,width:1.8,alpha:.4,fn:Math.sin});}});
+
+/* ============================================================= BOOT ====== */
+function esc(s){return s==null?'':s;}
+function bridgeMotif(t){
+  const y=205;line(220,y,1380,y,{color:C.faint,width:2});
+  const pulse=220+((t*150)%1160);disc(pulse,y,4,C.gold,.45);
+  ring(800,y,40,{color:C.gold,width:1.4,alpha:.12+.08*Math.sin(t*3)});
+  text('?',800,y,{size:32,serif:true,color:C.gold,alpha:.12+.06*Math.sin(t*3)});
+  for(let i=0;i<26;i++){const x=(i*63+t*18)%1600;const yy=300+((i*151)%460);
+    disc(x,yy,1.4,C.dim,.09);}
+}
+function applyOverlay(s,i,n){
+  const counter=`<div class="counter">${String(i+1).padStart(2,'0')} / ${n}</div>`;
+  let html='';
+  if(s.kind==='title'||s.kind==='end'){
+    html=`<div class="herowrap">
+      <div class="big">${esc(s.title)}</div>
+      <div class="lead">${esc(s.lead)}</div></div>${counter}`;
+  } else if(s.kind==='section'){
+    html=`<div class="tag">Section</div>${counter}
+      <div class="sect"><div class="num">${esc(s.num)}</div>
+      <div class="big">${esc(s.big)}</div>
+      <div class="lead">${esc(s.lead)}</div></div>`;
+  } else if(s.kind==='bridge'){
+    html=`<div class="tag">Recap · Gap · Fill</div>${counter}
+      <div class="bridge">
+        <div class="recap"><b>Here's what we have:</b> ${esc(s.recap)}</div>
+        <div class="gap">${esc(s.gap)}</div>
+        <div class="fill">The answer: <b>${esc(s.fill)}</b></div>
+      </div>`;
+  } else { // concept
+    html=`<div class="tag">${esc(s.tag)}</div>${counter}
+      <div class="title">${esc(s.title)}</div>
+      ${s.subtitle?`<div class="subtitle">${esc(s.subtitle)}</div>`:''}
+      ${s.takeaway?`<div class="caption">${esc(s.takeaway)}</div>`:''}`;
+  }
+  overlay.innerHTML=html;
+}
+let cur=0, t0=performance.now();
+const bar=document.getElementById('bar');
+const prevB=document.getElementById('prev'), nextB=document.getElementById('next');
+function goTo(i){cur=clamp(i,0,slides.length-1);t0=performance.now();
+  applyOverlay(slides[cur],cur,slides.length);
+  bar.style.width=((cur+1)/slides.length*100)+'%';
+  prevB.disabled=cur===0;nextB.disabled=cur===slides.length-1;}
+function loop(now){const t=(now-t0)/1000;
+  ctx.clearRect(0,0,W,H);ctx.fillStyle=C.bg;ctx.fillRect(0,0,W,H);
+  const s=slides[cur];
+  if(s.kind==='bridge')bridgeMotif(t);
+  if(s.render)s.render(t);
+  requestAnimationFrame(loop);}
+prevB.onclick=()=>goTo(cur-1);nextB.onclick=()=>goTo(cur+1);
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowRight'||e.key===' '){e.preventDefault();goTo(cur+1);}
+  else if(e.key==='ArrowLeft'){e.preventDefault();goTo(cur-1);}});
+goTo(0);requestAnimationFrame(loop);
+</script>
+</body>
+</html>

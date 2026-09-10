@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Analytical Mechanics — a visual course</title>
+<style>
+  html,body{margin:0;height:100%;background:#000;overflow:hidden;
+    font-family:'Inter','Segoe UI',system-ui,sans-serif;}
+  #c{display:block;width:100vw;height:100vh;cursor:pointer;}
+  #hint{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);
+    color:#7c8088;text-align:center;font-size:15px;letter-spacing:.3px;
+    pointer-events:none;opacity:0;transition:opacity .6s;line-height:1.9;}
+  #hint b{color:#c9cdd4;font-weight:600;}
+  #hint.show{opacity:1;}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hint"></div>
+<script>
+"use strict";
+/* ============================================================
+   ANALYTICAL MECHANICS — Manim-style standalone deck
+   Custom canvas math-layout engine + physics animations.
+   ============================================================ */
+const canvas=document.getElementById('c');
+const ctx=canvas.getContext('2d');
+const VW=1280, VH=720;          // virtual 16:9 stage
+let W=0,H=0,dpr=1;
+
+/* ---------- palette (muted, low-glow) ---------- */
+const C={
+  bg:'#08080b', stage:'#0b0c10', ink:'#e6e7ea', dim:'#8b8f98',
+  faint:'#3a3e47', grid:'#24272e',
+  blue:'#6d9dc5', teal:'#4f9a94', gold:'#c7a94e', coral:'#c67c68',
+  green:'#7fa35f', purple:'#9481b8', rose:'#bd7a97', slate:'#61707e'
+};
+
+/* ---------- easing / math utils ---------- */
+const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+const lerp=(a,b,t)=>a+(b-a)*t;
+const eOut=t=>1-Math.pow(1-t,3);
+const eInOut=t=>t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;
+const eOutBack=t=>{const c=1.70158,c3=c+1;return 1+c3*Math.pow(t-1,3)+c*Math.pow(t-1,2);};
+function appear(s,k,dur=.55){ if(s.step<k)return 0; if(s.step>k)return 1; return eOut(clamp(s.st/dur,0,1)); }
+function av(s,k,from,to,dur=.55){ return lerp(from,to,appear(s,k,dur)); }
+
+/* ---------- primitive drawing ---------- */
+function line(x1,y1,x2,y2,col,w=2,alpha=1,dash){ctx.save();ctx.globalAlpha*=alpha;ctx.strokeStyle=col;ctx.lineWidth=w;ctx.lineCap='round';if(dash)ctx.setLineDash(dash);ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();ctx.restore();}
+function arrow(x1,y1,x2,y2,col,w=2.4,alpha=1,head=12){line(x1,y1,x2,y2,col,w,alpha);const a=Math.atan2(y2-y1,x2-x1);ctx.save();ctx.globalAlpha*=alpha;ctx.fillStyle=col;ctx.beginPath();ctx.moveTo(x2,y2);ctx.lineTo(x2-head*Math.cos(a-.42),y2-head*Math.sin(a-.42));ctx.lineTo(x2-head*Math.cos(a+.42),y2-head*Math.sin(a+.42));ctx.closePath();ctx.fill();ctx.restore();}
+function dot(x,y,r,col,alpha=1,glow=0){ctx.save();ctx.globalAlpha*=alpha;if(glow){ctx.shadowColor=col;ctx.shadowBlur=glow;}ctx.fillStyle=col;ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();ctx.restore();}
+function ring(x,y,r,col,w=2,alpha=1){ctx.save();ctx.globalAlpha*=alpha;ctx.strokeStyle=col;ctx.lineWidth=w;ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.stroke();ctx.restore();}
+function arcp(cx,cy,r,a0,a1,col,w=2,alpha=1,dash,ccw=false){ctx.save();ctx.globalAlpha*=alpha;ctx.strokeStyle=col;ctx.lineWidth=w;ctx.lineCap='round';if(dash)ctx.setLineDash(dash);ctx.beginPath();ctx.arc(cx,cy,r,a0,a1,ccw);ctx.stroke();ctx.restore();}
+function polyline(pts,col,w=2,alpha=1,dash){if(pts.length<2)return;ctx.save();ctx.globalAlpha*=alpha;ctx.strokeStyle=col;ctx.lineWidth=w;ctx.lineJoin='round';ctx.lineCap='round';if(dash)ctx.setLineDash(dash);ctx.beginPath();ctx.moveTo(pts[0][0],pts[0][1]);for(let i=1;i<pts.length;i++)ctx.lineTo(pts[i][0],pts[i][1]);ctx.stroke();ctx.restore();}
+function fillpath(pts,col,alpha=1){if(pts.length<2)return;ctx.save();ctx.globalAlpha*=alpha;ctx.fillStyle=col;ctx.beginPath();ctx.moveTo(pts[0][0],pts[0][1]);for(let i=1;i<pts.length;i++)ctx.lineTo(pts[i][0],pts[i][1]);ctx.closePath();ctx.fill();ctx.restore();}
+function rrect(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+function box(x,y,w,h,r,fill,stroke,sw=1.2,alpha=1){ctx.save();ctx.globalAlpha*=alpha;rrect(x,y,w,h,r);if(fill){ctx.fillStyle=fill;ctx.fill();}if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=sw;ctx.stroke();}ctx.restore();}
+
+/* ---------- UI text (sans) ---------- */
+function T(s,x,y,size,col,align='left',alpha=1,weight=400){ctx.save();ctx.globalAlpha*=alpha;ctx.fillStyle=col;ctx.textAlign=align;ctx.textBaseline='alphabetic';ctx.font=weight+' '+size+"px 'Inter','Segoe UI',system-ui,sans-serif";ctx.fillText(s,x,y);ctx.restore();}
+function wrapLines(s,size,maxW,weight=400){ctx.font=weight+' '+size+"px 'Inter',sans-serif";const words=s.split(' ');let lines=[],cur='';for(const w of words){const t=cur?cur+' '+w:w;if(ctx.measureText(t).width>maxW&&cur){lines.push(cur);cur=w;}else cur=t;}if(cur)lines.push(cur);return lines;}
+function para(s,x,y,size,col,maxW,lh,align='left',alpha=1,weight=400){const ls=wrapLines(s,size,maxW,weight);ls.forEach((l,i)=>T(l,x,y+i*lh,size,col,align,alpha,weight));return ls.length*lh;}
+
+/* ---------- math layout engine ---------- */
+function setF(size,ital){ctx.font=(ital?'italic ':'')+size+"px 'Cambria Math','STIX Two Math','Georgia','Times New Roman',serif";}
+const A={
+  t:s=>({k:'t',s}), v:s=>({k:'v',s}), dot:(s,n=1)=>({k:'dot',s,n}),
+  row:(...xs)=>({k:'row',xs:xs.flat()}),
+  frac:(n,d)=>({k:'frac',n,d}),
+  sup:(b,e)=>({k:'sup',b,e}), sub:(b,x)=>({k:'sub',b,x}),
+  ss:(b,x,e)=>({k:'ss',b,x,e})
+};
+function mM(a,size){
+  if(a.k==='t'||a.k==='v'||a.k==='dot'){setF(size,a.k!=='t');const w=ctx.measureText(a.s).width;let asc=size*.72;if(a.k==='dot')asc+=size*.16;return{w,a:asc,d:size*.24};}
+  if(a.k==='row'){let w=0,as=0,ds=0;for(const it of a.xs){const m=mM(it,size);w+=m.w;as=Math.max(as,m.a);ds=Math.max(ds,m.d);}return{w,a:as,d:ds};}
+  if(a.k==='frac'){const n=mM(a.n,size*.92),d=mM(a.d,size*.92);const bw=Math.max(n.w,d.w)+size*.34;const ax=size*.30,g=size*.14;return{w:bw,a:ax+g+n.a+n.d,d:-ax+g+d.a+d.d};}
+  if(a.k==='sup'){const b=mM(a.b,size),e=mM(a.e,size*.7);const sh=size*.5;return{w:b.w+e.w,a:Math.max(b.a,sh+e.a),d:Math.max(b.d,e.d-sh)};}
+  if(a.k==='sub'){const b=mM(a.b,size),e=mM(a.x,size*.7);const sh=size*.22;return{w:b.w+e.w,a:Math.max(b.a,e.a-sh),d:Math.max(b.d,sh+e.d)};}
+  if(a.k==='ss'){const b=mM(a.b,size),sb=mM(a.x,size*.7),sp=mM(a.e,size*.7);const up=size*.5,dn=size*.22;return{w:b.w+Math.max(sb.w,sp.w),a:Math.max(b.a,up+sp.a),d:Math.max(b.d,dn+sb.d)};}
+}
+function mP(a,x,y,size,col){
+  ctx.fillStyle=col;
+  if(a.k==='t'||a.k==='v'){setF(size,a.k==='v');ctx.textAlign='left';ctx.textBaseline='alphabetic';ctx.fillText(a.s,x,y);return ctx.measureText(a.s).width;}
+  if(a.k==='dot'){setF(size,true);ctx.textAlign='left';ctx.textBaseline='alphabetic';ctx.fillText(a.s,x,y);const w=ctx.measureText(a.s).width;const n=a.n||1,r=Math.max(1.4,size*.05);for(let i=0;i<n;i++){const dx=x+w/2+(i-(n-1)/2)*(r*2.6);ctx.beginPath();ctx.arc(dx,y-size*.74,r,0,7);ctx.fill();}return w;}
+  if(a.k==='row'){let cx=x;for(const it of a.xs)cx+=mP(it,cx,y,size,col);return cx-x;}
+  if(a.k==='frac'){const n=mM(a.n,size*.92),d=mM(a.d,size*.92);const bw=Math.max(n.w,d.w)+size*.34;const ax=size*.30,g=size*.14,by=y-ax;ctx.strokeStyle=col;ctx.lineWidth=Math.max(1.2,size*.045);ctx.beginPath();ctx.moveTo(x,by);ctx.lineTo(x+bw,by);ctx.stroke();mP(a.n,x+(bw-n.w)/2,by-g-n.d,size*.92,col);mP(a.d,x+(bw-d.w)/2,by+g+d.a,size*.92,col);return bw;}
+  if(a.k==='sup'){const bw=mP(a.b,x,y,size,col);mP(a.e,x+bw,y-size*.5,size*.7,col);return bw+mM(a.e,size*.7).w;}
+  if(a.k==='sub'){const bw=mP(a.b,x,y,size,col);mP(a.x,x+bw,y+size*.22,size*.7,col);return bw+mM(a.x,size*.7).w;}
+  if(a.k==='ss'){const bw=mP(a.b,x,y,size,col);mP(a.e,x+bw,y-size*.5,size*.7,col);mP(a.x,x+bw,y+size*.22,size*.7,col);return bw+Math.max(mM(a.x,size*.7).w,mM(a.e,size*.7).w);}
+}
+// draw equation; anchor: y is vertical CENTER of the expression
+function eq(a,x,cy,size,col,align='center',alpha=1){ctx.save();ctx.globalAlpha*=alpha;const m=mM(a,size);let ox=x;if(align==='center')ox=x-m.w/2;else if(align==='right')ox=x-m.w;const base=cy+(m.a-m.d)/2;mP(a,ox,base,size,col);ctx.restore();return m;}
+function eqBox(a,cx,cy,size,col,alpha=1,padX=22,padY=16,bg='rgba(255,255,255,.035)',bd=null){const m=mM(a,size);const w=m.w+padX*2,h=m.a+m.d+padY*2;ctx.save();ctx.globalAlpha*=alpha;rrect(cx-w/2,cy-h/2,w,h,10);ctx.fillStyle=bg;ctx.fill();if(bd){ctx.strokeStyle=bd;ctx.lineWidth=1.2;ctx.stroke();}ctx.restore();eq(a,cx,cy,size,col,'center',alpha);return{w,h};}
+
+/* ---------- RECAP / GAP / FILL kicker ---------- */
+function kicker(kind,text,x,y,maxW,alpha){
+  const map={RECAP:{c:C.slate},GAP:{c:C.gold},FILL:{c:C.teal}};
+  const k=map[kind]; if(alpha<=0)return;
+  ctx.save();ctx.globalAlpha*=alpha;
+  T(kind,x,y,14,k.c,'left',1,700);
+  ctx.restore();
+  const tw=(()=>{ctx.font="700 14px 'Inter',sans-serif";return ctx.measureText(kind).width;})();
+  para(text,x+tw+14,y,17,kind==='GAP'?C.ink:C.dim,maxW-tw-14,23,'left',alpha,kind==='GAP'?500:400);
+}
+
+/* ---------- reusable physics props ---------- */
+function pendulum(px,py,L,ang,col,bobR=13,rodW=2.6,alpha=1){const bx=px+L*Math.sin(ang),by=py+L*Math.cos(ang);line(px,py,bx,by,col,rodW,alpha);dot(px,py,4,C.dim,alpha);dot(bx,by,bobR,col,alpha);return[bx,by];}
+function spring(x1,y,x2,coils,amp,col,w=2,alpha=1){const pts=[[x1,y]];const seg=coils*2;const len=x2-x1,lead=len*.14;for(let i=0;i<=seg;i++){const t=i/seg;const xx=x1+lead+ (len-2*lead)*t;const yy=y+(i===0||i===seg?0:(i%2?amp:-amp));pts.push([xx,yy]);}pts.push([x2,y]);polyline(pts,col,w,alpha);}
+function grid(x,y,w,h,step,col,alpha=.5){ctx.save();ctx.globalAlpha*=alpha;ctx.strokeStyle=col;ctx.lineWidth=1;for(let gx=x;gx<=x+w+.1;gx+=step){ctx.beginPath();ctx.moveTo(gx,y);ctx.lineTo(gx,y+h);ctx.stroke();}for(let gy=y;gy<=y+h+.1;gy+=step){ctx.beginPath();ctx.moveTo(x,gy);ctx.lineTo(x+w,gy);ctx.stroke();}ctx.restore();}
+
+/* ============================================================
+   SLIDES
+   ============================================================ */
+const MX=72;
+const slides=[];
+const S=(tag,title,steps,draw)=>slides.push({tag,title,steps,draw});
+
+/* ---- 0. TITLE ---- */
+S('','',3,(s)=>{
+  const cx=VW/2, cy=310;
+  // swinging pendulum flourish
+  const ang=0.6*Math.cos(s.t*1.4);
+  const px=cx, py=150;
+  const a0=appear(s,0,1);
+  pendulum(px,py,150,ang,C.blue,14,2.6,a0*0.9);
+  // faint phase swirl behind
+  ctx.save();ctx.globalAlpha=0.25*a0;
+  for(let i=0;i<5;i++){const rr=40+i*26;arcp(cx,cy+150,rr,0.6,0.6+4.6,C.slate,1);}
+  ctx.restore();
+  T('ANALYTICAL MECHANICS',cx,cy+130,58,C.ink,'center',appear(s,0,.8),700);
+  T('the geometry of motion',cx,cy+172,24,C.blue,'center',appear(s,1,.8),400);
+  para("From Newton's forces to action, symmetry, and phase space — the language behind robotics, spacecraft, and quantum mechanics.",cx,cy+220,18,C.dim,760,26,'center',appear(s,2,.8));
+  if(appear(s,2,1)>.9){const b=0.5+0.5*Math.sin(s.t*2.2);T('press  →  to begin',cx,660,15,C.slate,'center',0.5+0.5*b);}
+});
+
+/* ---- 1. WHY NEWTON ISN'T ENOUGH ---- */
+S('ACT I · THE SETUP','Why F = ma is the hard way',4,(s)=>{
+  // bead on a curved wire, left panel
+  const cx=360, cy=340;
+  // wire (parabola-ish bowl)
+  const pts=[];for(let i=-160;i<=160;i+=6){const x=cx+i;const y=cy+ i*i/380 -60;pts.push([x,y]);}
+  polyline(pts,C.slate,3,appear(s,0));
+  // bead position along wire
+  const u=120*Math.sin(s.t*1.3);
+  const bx=cx+u, by=cy+u*u/380-60;
+  dot(bx,by,12,C.blue,appear(s,0));
+  T('a bead on a wire',cx,180,18,C.dim,'center',appear(s,0));
+  if(s.step>=1){const a=appear(s,1);
+    // gravity + unknown normal force
+    arrow(bx,by,bx,by+70,C.coral,2.6,a); T('mg',bx+14,by+58,16,C.coral,'left',a);
+    // normal (perp to wire) — unknown
+    const slope=2*u/380; const nx=-slope, ny=1; const nl=Math.hypot(nx,ny);
+    arrow(bx,by,bx-nx/nl*64,by-ny/nl*64,C.gold,2.6,a); T('N = ?',bx-nx/nl*70-30,by-ny/nl*64,16,C.gold,'left',a);
+  }
+  // right panel: double pendulum tangle
+  if(s.step>=2){const a=appear(s,2);const dx=900,dy=250;
+    const t1=0.5*Math.cos(s.t*1.7), t2=0.9*Math.cos(s.t*2.3+1);
+    const [x1,y1]=pendulum(dx,dy,110,t1,C.teal,11,2.4,a);
+    const x2=x1+90*Math.sin(t2), y2=y1+90*Math.cos(t2);
+    line(x1,y1,x2,y2,C.teal,2.4,a);dot(x2,y2,11,C.teal,a);dot(x1,y1,7,C.teal,a);
+    T('now write ΣF = ma here…',dx,180,17,C.dim,'center',a);
+    T('coupled, tangled, full of unknown link forces',dx,470,15,C.slate,'center',a);
+  }
+  kicker('RECAP','Newton gives ΣF = ma — but you must know every constraint force (N, tensions, joint reactions) even though you never asked about them.',MX,545,VW-2*MX,appear(s,1));
+  kicker('GAP','We only care about motion along the allowed paths. Can we describe that motion without ever solving for the forces that merely enforce the path?',MX,600,VW-2*MX,appear(s,3));
+});
+
+/* ---- 2. GENERALIZED COORDINATES ---- */
+S('ACT I · THE SETUP','Generalized coordinates',4,(s)=>{
+  const px=380,py=210;
+  // pendulum described two ways
+  const ang=0.7*Math.cos(s.t*1.6);
+  const [bx,by]=pendulum(px,py,180,ang,C.blue,13,2.6,appear(s,0));
+  // step0: cartesian (x,y) with constraint
+  if(s.step>=0){const a=appear(s,0);
+    line(px,py,px,by,C.faint,1.4,a,[4,4]);line(px,by,bx,by,C.faint,1.4,a,[4,4]);
+    T('(x, y)',bx+18,by+6,17,C.dim,'left',a);
+    eq(A.row(A.sup(A.v('x'),A.t('2')),A.t(' + '),A.sup(A.v('y'),A.t('2')),A.t(' = '),A.sup(A.v('ℓ'),A.t('2'))), px, 470,22,C.dim,'center',a);
+    T('2 numbers, but they are not free',px,505,15,C.slate,'center',a);
+  }
+  // step1: collapse to angle
+  if(s.step>=1){const a=appear(s,1);
+    arcp(px,py,46,Math.PI/2,Math.PI/2+ang,C.gold,2.5,a);
+    eq(A.v('θ'),px+ (ang>0?36:-46), py+70,22,C.gold,'center',a);
+  }
+  // step2: the config space is a circle
+  if(s.step>=2){const a=appear(s,2);const qcx=940,qcy=300;
+    ring(qcx,qcy,110,C.slate,2,a);
+    const qx=qcx+110*Math.sin(ang),qy=qcy-110*Math.cos(ang);
+    dot(qx,qy,10,C.gold,a);
+    T('configuration space',qcx,150,17,C.dim,'center',a);
+    T('one dial: q = θ',qcx,450,17,C.gold,'center',a);
+    eqBox(A.row(A.v('q'),A.t(' = ('),A.sub(A.v('q'),A.t('1')),A.t(', …, '),A.sub(A.v('q'),A.v('n')),A.t(')')),qcx,500,22,C.ink,a,20,14);
+  }
+  kicker('FILL','A generalized coordinate is any independent number that fixes the configuration. Choose the minimal set q₁…qₙ — the constraints are already built in, so no constraint forces appear.',MX,600,VW-2*MX,appear(s,3));
+});
+
+/* ---- 3. CONSTRAINTS ---- */
+S('ACT I · THE SETUP','Constraints: holonomic vs. not',4,(s)=>{
+  // left: holonomic — position relation
+  const lx=340,ly=300;
+  T('HOLONOMIC',lx,175,15,C.blue,'center',appear(s,0),700);
+  para('a relation between positions',lx,200,15,C.dim,300,20,'center',appear(s,0));
+  if(s.step>=0){const a=appear(s,0);
+    const pts=[];for(let i=-140;i<=140;i+=6){const x=lx+i;const y=ly+70+40*Math.sin(i/50);pts.push([x,y]);}
+    polyline(pts,C.slate,3,a);
+    const u=120*Math.sin(s.t*1.2);const bx=lx+u,by=ly+70+40*Math.sin(u/50);dot(bx,by,11,C.blue,a);
+    eqBox(A.row(A.v('f'),A.t('('),A.v('x'),A.t(', '),A.v('y'),A.t(', '),A.v('t'),A.t(') = 0')),lx,ly+180,20,C.ink,a,18,12);
+    T('→ removes a whole coordinate',lx,ly+235,15,C.slate,'center',a);
+  }
+  // right: non-holonomic — rolling disk (velocity relation)
+  const rx=950,ry=340;
+  T('NON-HOLONOMIC',rx,175,15,C.coral,'center',appear(s,1),700);
+  para('a relation that ties velocities',rx,200,15,C.dim,320,20,'center',appear(s,1));
+  if(s.step>=1){const a=appear(s,1);
+    const roll=s.t*1.4; const R=52; const cxx=rx+ (120*Math.sin(s.t*0.6)); 
+    line(rx-160,ry+R,rx+160,ry+R,C.slate,2,a); // ground
+    ring(cxx,ry,R,C.coral,2.4,a);
+    // spoke
+    line(cxx,ry, cxx+R*Math.cos(roll), ry+R*Math.sin(roll), C.coral,2,a);
+    dot(cxx,ry,4,C.coral,a);
+    eqBox(A.row(A.dot('x'),A.t(' = '),A.v('R'),A.dot('θ')),rx,ry+120,20,C.ink,a,18,12);
+    T('roll-without-slip: a speed law,',rx,ry+165,15,C.slate,'center',a);
+    T('not integrable to a position law',rx,ry+186,15,C.slate,'center',a);
+  }
+  line(VW/2,170,VW/2,470,C.grid,1,appear(s,1));
+  kicker('RECAP','Holonomic constraints are position equations f(q,t)=0 — each one deletes a coordinate.',MX,560,VW-2*MX,appear(s,2));
+  kicker('GAP','So how many independent dials are truly left after the constraints have had their say?',MX,610,VW-2*MX,appear(s,3));
+});
+
+/* ---- 4. DEGREES OF FREEDOM ---- */
+S('ACT I · THE SETUP','Degrees of freedom = the count that matters',4,(s)=>{
+  // N free particles
+  const a0=appear(s,0);
+  T('N free particles in 3D',320,190,17,C.dim,'center',a0);
+  for(let i=0;i<4;i++){const x=200+i*80,y=260+18*Math.sin(s.t*2+i);dot(x,y,9,C.blue,a0);}
+  eqBox(A.row(A.t('dof = '),A.t('3'),A.v('N')),320,340,22,C.ink,a0,18,12);
+  // link them → rigid body
+  if(s.step>=1){const a=appear(s,1);
+    T('lock the distances → rigid body',960,190,17,C.dim,'center',a);
+    const cx=960,cy=280,R=60;const verts=[];for(let i=0;i<3;i++){const th=s.t*0.7+i*2.094;verts.push([cx+R*Math.cos(th),cy+R*Math.sin(th)]);}
+    for(let i=0;i<3;i++){for(let j=i+1;j<3;j++)line(verts[i][0],verts[i][1],verts[j][0],verts[j][1],C.teal,2,a);}
+    verts.forEach(v=>dot(v[0],v[1],9,C.teal,a));
+    eqBox(A.row(A.t('dof = 6')),960,400,22,C.teal,a,18,12);
+    T('3 translate · 3 rotate',960,445,15,C.slate,'center',a);
+  }
+  // formula
+  if(s.step>=2){const a=appear(s,2);
+    eqBox(A.row(A.t('dof = '),A.t('3'),A.v('N'),A.t(' − (number of constraints)')),VW/2,540,24,C.gold,a,22,16,'rgba(199,169,78,.06)',C.gold);
+  }
+  kicker('FILL','Degrees of freedom = independent ways to move = number of generalized coordinates. This single number sets how many equations of motion you will write — one per dof.',MX,610,VW-2*MX,appear(s,3));
+});
+
+/* ---- 5. VIRTUAL WORK ---- */
+S('ACT II · WORK & DYNAMICS','Virtual work: how forces disappear',4,(s)=>{
+  const cx=560,cy=330;
+  // curved constraint surface
+  const pts=[];for(let i=-220;i<=220;i+=6){const x=cx+i;const y=cy+ i*i/520;pts.push([x,y]);}
+  polyline(pts,C.slate,3,appear(s,0));
+  const u=40, bx=cx+u,by=cy+u*u/520;
+  dot(bx,by,12,C.blue,appear(s,0));
+  T('a bead constrained to the surface',cx,180,17,C.dim,'center',appear(s,0));
+  // step1 virtual displacement (tangent), frozen time
+  if(s.step>=1){const a=appear(s,1);
+    const slope=2*u/520;const tl=Math.hypot(1,slope);
+    arrow(bx,by,bx+90/tl,by+90*slope/tl,C.teal,2.8,a);
+    eq(A.row(A.v('δ'),A.v('r')),bx+95/tl+8,by+90*slope/tl,20,C.teal,'left',a);
+    T('an imagined step, consistent with the constraint (time frozen)',cx,510,15,C.slate,'center',a);
+  }
+  // step2 constraint force perpendicular
+  if(s.step>=2){const a=appear(s,2);
+    const slope=2*u/520;const nx=-slope,ny=1,nl=Math.hypot(nx,ny);
+    arrow(bx,by,bx+nx/nl*80,by-ny/nl*80,C.gold,2.8,a);
+    eq(A.row(A.v('N')),bx+nx/nl*80-6,by-ny/nl*80-16,20,C.gold,'left',a);
+    // right-angle mark
+    T('⟂',bx+8,by-12,18,C.dim,'center',a);
+  }
+  // step3 the key identity
+  if(s.step>=3){const a=appear(s,3);
+    eqBox(A.row(A.v('N'),A.t(' · '),A.v('δ'),A.v('r'),A.t(' = 0')),VW/2,600,26,C.gold,a,24,16,'rgba(199,169,78,.06)',C.gold);
+  }
+  kicker('FILL','Constraint forces act perpendicular to every allowed virtual displacement, so they do zero virtual work. Project the dynamics onto δr and the unknown forces vanish exactly.',MX,545,VW-2*MX,appear(s,3));
+});
+
+/* ---- 6. D'ALEMBERT ---- */
+S("ACT II · WORK & DYNAMICS","D'Alembert: statics in disguise",3,(s)=>{
+  const cx=VW/2;
+  // a mass with applied force and motion
+  const mx=380+30*Math.sin(s.t*1.5), my=300;
+  box(mx-30,my-30,60,60,8,'rgba(109,157,197,.15)',C.blue,2,appear(s,0));
+  arrow(mx,my,mx+90,my,C.blue,2.6,appear(s,0)); T('F',mx+96,my-6,18,C.blue,'left',appear(s,0));
+  T('applied force drives real motion',380,190,17,C.dim,'center',appear(s,0));
+  if(s.step>=1){const a=appear(s,1);
+    arrow(mx,my,mx-70,my,C.rose,2.6,a);
+    eq(A.row(A.t('−'),A.v('m'),A.v('a')),mx-76,my-18,18,C.rose,'right',a);
+    T('add the reversed inertial force −ma',380,420,15,C.slate,'center',a);
+    T('…now the body is in "equilibrium"',380,442,15,C.slate,'center',a);
+  }
+  if(s.step>=2){const a=appear(s,2);
+    eqBox(A.row(A.t('Σ ('),A.sub(A.v('F'),A.v('i')),A.t(' − '),A.sub(A.dot('p',1),A.v('i')),A.t(') · '),A.v('δ'),A.sub(A.v('r'),A.v('i')),A.t(' = 0')),960,320,24,C.ink,a,22,16,'rgba(255,255,255,.04)',C.teal);
+    para("Treat −ṗ as just another force. Then D'Alembert's principle turns all of dynamics into the statics of virtual work — and the constraint forces are already gone.",720,410,17,C.dim,500,25,'left',a);
+  }
+  kicker('RECAP','Virtual work erased the constraint forces; adding −ṗ recasts motion as equilibrium.',MX,600,VW-2*MX,appear(s,1));
+  kicker('GAP','This works, but δr for different coordinates are linked. Is there one scalar we can differentiate that spits out every equation automatically?',MX,650,VW-2*MX,appear(s,2));
+});
+
+/* ---- 7. THE LAGRANGIAN ---- */
+S('ACT III · LEAST ACTION','The Lagrangian  L = T − V',4,(s)=>{
+  const px=340,py=210;
+  const A0=0.8,ang=A0*Math.cos(s.t*1.5);
+  const [bx,by]=pendulum(px,py,180,ang,C.blue,13,2.6,appear(s,0));
+  // energy bars
+  const T_=Math.pow(Math.sin(s.t*1.5),2); const V_=1-T_;
+  if(s.step>=1){const a=appear(s,1);const gx=620,gy=430,bw=64;
+    // kinetic
+    box(gx,gy-140*T_,bw,140*T_,4,C.teal,null,0,a); box(gx,gy-140,bw,140,4,null,C.grid,1,a);
+    T('T',gx+bw/2,gy+22,16,C.teal,'center',a); T('kinetic',gx+bw/2,gy+42,12,C.slate,'center',a);
+    // potential
+    box(gx+110,gy-140*V_,bw,140*V_,4,C.coral,null,0,a); box(gx+110,gy-140,bw,140,4,null,C.grid,1,a);
+    T('V',gx+110+bw/2,gy+22,16,C.coral,'center',a); T('potential',gx+110+bw/2,gy+42,12,C.slate,'center',a);
+    T('energy sloshes T ⇄ V as it swings',gx+60,180,16,C.dim,'center',a);
+  }
+  if(s.step>=2){const a=appear(s,2);
+    eqBox(A.row(A.v('L'),A.t(' = '),A.v('T'),A.t(' − '),A.v('V')),1010,300,30,C.gold,a,26,18,'rgba(199,169,78,.06)',C.gold);
+    eq(A.row(A.v('L'),A.t(' = ½'),A.v('m'),A.sup(A.v('ℓ'),A.t('2')),A.sup(A.dot('θ'),A.t('2')),A.t(' + '),A.v('mgℓ'),A.t(' cos '),A.v('θ')),1010,380,19,C.dim,'center',a);
+  }
+  kicker('RECAP','We have coordinates, the dof count, and a force-free way to get equations.',MX,560,VW-2*MX,appear(s,3));
+  kicker('FILL','Encode a system in one scalar: the Lagrangian L = T − V. Not total energy — the difference. Everything about the motion is hidden inside this single function of q and q̇.',MX,610,VW-2*MX,appear(s,3));
+});
+
+/* ---- 8. EULER–LAGRANGE ---- */
+S('ACT III · LEAST ACTION','The Euler–Lagrange equation',4,(s)=>{
+  const cx=VW/2;
+  eq(A.row(A.v('L'),A.t('('),A.v('q'),A.t(', '),A.dot('q'),A.t(', '),A.v('t'),A.t(')')),cx,210,26,C.dim,'center',appear(s,0));
+  T('feed in one scalar…',cx,255,16,C.slate,'center',appear(s,0));
+  if(s.step>=1){const a=appear(s,1);
+    const E=A.row(A.frac(A.v('d'),A.row(A.v('d'),A.v('t'))),A.t(' '),A.frac(A.row(A.t('∂'),A.v('L')),A.row(A.t('∂'),A.dot('q'))),A.t(' − '),A.frac(A.row(A.t('∂'),A.v('L')),A.row(A.t('∂'),A.v('q'))),A.t(' = 0'));
+    eqBox(E,cx,350,34,C.ink,a,30,22,'rgba(255,255,255,.045)',C.gold);
+    T('…out come the equations of motion — one per coordinate',cx,430,16,C.dim,'center',a);
+  }
+  if(s.step>=2){const a=appear(s,2);
+    T('∂L/∂q̇  =  the momentum',cx-260,500,17,C.teal,'center',a);
+    T('∂L/∂q  =  the force',cx+260,500,17,C.coral,'center',a);
+    T('d/dt(momentum) = force  →  Newton, reborn, coordinate-free',cx,540,16,C.dim,'center',a);
+  }
+  kicker('RECAP','One scalar L, one universal recipe, any coordinates you like.',MX,600,VW-2*MX,appear(s,3));
+  kicker('GAP','But where does this equation *come from* — why this exact combination of derivatives?',MX,650,VW-2*MX,appear(s,3));
+});
+
+/* ---- 9. WORKED EXAMPLE ---- */
+S('ACT III · LEAST ACTION','Watch it work: the pendulum',5,(s)=>{
+  const px=250,py=200;const A0=0.7,ang=A0*Math.cos(s.t*1.5);
+  pendulum(px,py,150,ang,C.blue,12,2.4,1);
+  const cx=760;let y=200;const L=52;
+  const step=(k,expr,col)=>{const a=appear(s,k);if(a<=0)return;eq(expr,cx,y,22,col||C.ink,'center',a);y+=L;};
+  y=210;
+  step(0,A.row(A.v('L'),A.t(' = ½'),A.v('m'),A.sup(A.v('ℓ'),A.t('2')),A.sup(A.dot('θ'),A.t('2')),A.t(' + '),A.v('mgℓ'),A.t(' cos '),A.v('θ')),C.gold);
+  step(1,A.row(A.frac(A.row(A.t('∂'),A.v('L')),A.row(A.t('∂'),A.dot('θ'))),A.t(' = '),A.v('m'),A.sup(A.v('ℓ'),A.t('2')),A.dot('θ')),C.teal);
+  step(2,A.row(A.frac(A.v('d'),A.row(A.v('d'),A.v('t'))),A.t(' → '),A.v('m'),A.sup(A.v('ℓ'),A.t('2')),A.dot('θ',2)),C.teal);
+  step(3,A.row(A.frac(A.row(A.t('∂'),A.v('L')),A.row(A.t('∂'),A.v('θ'))),A.t(' = −'),A.v('mgℓ'),A.t(' sin '),A.v('θ')),C.coral);
+  if(s.step>=4){const a=appear(s,4);
+    eqBox(A.row(A.dot('θ',2),A.t(' = − '),A.frac(A.v('g'),A.v('ℓ')),A.t(' sin '),A.v('θ')),cx,y+10,28,C.ink,a,26,18,'rgba(255,255,255,.045)',C.gold);
+    T('notice: the string tension never appeared.',px+40,470,16,C.slate,'center',a);
+    T('we asked about θ — so we only got θ.',px+40,494,16,C.slate,'center',a);
+  }
+  kicker('FILL','Turn the crank on L and the equation of motion falls out — no free-body diagram, no constraint force, no vectors. That economy is the whole point.',MX,610,VW-2*MX,appear(s,4));
+});
+
+/* ---- 10. LEAST ACTION ---- */
+S('ACT III · LEAST ACTION','The deepest statement: least action',4,(s)=>{
+  // (t, q) plane with many paths
+  const x0=260,x1=1020,yb=520,yt=200;
+  line(x0,yb+ (yt-yb)*0,x0,yt,C.faint,1.5,appear(s,0)); // y axis
+  line(x0,yb,x1,yb,C.faint,1.5,appear(s,0)); // t axis
+  T('q',x0-24,yt+6,18,C.dim,'left',appear(s,0));T('t',x1+8,yb+6,18,C.dim,'left',appear(s,0));
+  const A_=[x0+40,470], B_=[x1-40,250];
+  dot(A_[0],A_[1],8,C.ink,appear(s,0));dot(B_[0],B_[1],8,C.ink,appear(s,0));
+  T('fixed start',A_[0],A_[1]+30,14,C.slate,'center',appear(s,0));T('fixed end',B_[0],B_[1]-18,14,C.slate,'center',appear(s,0));
+  // wiggling trial paths
+  if(s.step>=1){const a=appear(s,1);
+    for(let k=0;k<5;k++){const amp=(k-2)*30;const pts=[];for(let i=0;i<=40;i++){const t=i/40;const x=lerp(A_[0],B_[0],t);const base=lerp(A_[1],B_[1],t);const y=base+amp*Math.sin(Math.PI*t)*(0.6+0.4*Math.sin(s.t*1.5+k));pts.push([x,y]);}polyline(pts,C.slate,1.6,a*0.55);}
+  }
+  // true path highlighted
+  if(s.step>=2){const a=appear(s,2);const pts=[];for(let i=0;i<=40;i++){const t=i/40;pts.push([lerp(A_[0],B_[0],t),lerp(A_[1],B_[1],t)]);}polyline(pts,C.gold,3.2,a);T('the true path',(A_[0]+B_[0])/2+40,(A_[1]+B_[1])/2-20,15,C.gold,'left',a);}
+  if(s.step>=3){const a=appear(s,3);
+    eqBox(A.row(A.v('S'),A.t(' = ∫ '),A.v('L'),A.t(' '),A.v('dt'),A.t('  ,   '),A.v('δ'),A.v('S'),A.t(' = 0')),VW/2,600,26,C.gold,a,24,16,'rgba(199,169,78,.06)',C.gold);
+  }
+  kicker('FILL','Nature extremizes the action S = ∫L dt. Demanding δS = 0 over all paths *is* the Euler–Lagrange equation. One variational principle generates all of mechanics.',MX,545,VW-2*MX,appear(s,3));
+});
+
+/* ---- 11. NOETHER ---- */
+S('ACT IV · SYMMETRY','Noether: symmetry becomes conservation',4,(s)=>{
+  const panels=[
+    {x:280,title:'shift in space',sub:'translation symmetry',out:'momentum p',col:C.blue,draw:(cx,cy,a,t)=>{const off=20*Math.sin(t*1.3);box(cx-30+off,cy-30,60,60,8,'rgba(109,157,197,.15)',C.blue,2,a);arrow(cx-90,cy+60,cx+90,cy+60,C.faint,1.6,a);}},
+    {x:640,title:'turn it',sub:'rotational symmetry',out:'angular mom. L',col:C.teal,draw:(cx,cy,a,t)=>{const th=t*0.8;for(let i=0;i<3;i++){const p=th+i*2.094;dot(cx+50*Math.cos(p),cy+50*Math.sin(p),8,C.teal,a);}ring(cx,cy,50,C.faint,1.4,a);}},
+    {x:1000,title:'wait a moment',sub:'time symmetry',out:'energy E',col:C.gold,draw:(cx,cy,a,t)=>{arcp(cx,cy,44,-1.9,1.9,C.gold,2.4,a);const p=-1.9+3.8*(0.5+0.5*Math.sin(t));dot(cx+44*Math.cos(p),cy+44*Math.sin(p),7,C.gold,a);}}
+  ];
+  panels.forEach((P,i)=>{const a=appear(s,i);if(a<=0)return;const cy=300;
+    P.draw(P.x,cy,a,s.t);
+    T(P.title,P.x,200,17,C.ink,'center',a,600);
+    T(P.sub,P.x,410,14,C.slate,'center',a);
+    T('↓',P.x,440,20,C.dim,'center',a);
+    T('conserves',P.x,470,13,C.dim,'center',a);
+    eqBox(A.v(P.out.split(' ')[0]==='momentum'?'p':P.out.split(' ')[0]==='angular'?'L':'E'),P.x,505,22,P.col,a,16,10);
+    T(P.out,P.x,555,14,P.col,'center',a);
+  });
+  kicker('FILL','Noether’s theorem: every continuous symmetry of L yields a conserved quantity. Conservation laws are not luck — they are symmetries wearing a different mask.',MX,620,VW-2*MX,appear(s,3));
+});
+
+/* ---- 12. CYCLIC COORDINATES ---- */
+S('ACT IV · SYMMETRY','Reading conservation straight off L',3,(s)=>{
+  const cx=VW/2;
+  eq(A.row(A.t('if '),A.v('L'),A.t(' does not contain a coordinate '),A.v('q')),cx,230,24,C.dim,'center',appear(s,0));
+  T('(then q is called "cyclic" or "ignorable")',cx,270,15,C.slate,'center',appear(s,0));
+  if(s.step>=1){const a=appear(s,1);
+    const E=A.row(A.frac(A.row(A.t('∂'),A.v('L')),A.row(A.t('∂'),A.v('q'))),A.t(' = 0'),A.t('   ⟹   '),A.frac(A.v('d'),A.row(A.v('d'),A.v('t'))),A.frac(A.row(A.t('∂'),A.v('L')),A.row(A.t('∂'),A.dot('q'))),A.t(' = 0'));
+    eqBox(E,cx,360,26,C.ink,a,26,18);
+  }
+  if(s.step>=2){const a=appear(s,2);
+    eqBox(A.row(A.sub(A.v('p'),A.v('q')),A.t(' = '),A.frac(A.row(A.t('∂'),A.v('L')),A.row(A.t('∂'),A.dot('q'))),A.t(' = constant')),cx,470,28,C.teal,a,24,16,'rgba(79,154,148,.07)',C.teal);
+    T('the conjugate momentum is frozen for the whole motion',cx,540,16,C.dim,'center',a);
+  }
+  kicker('RECAP','Symmetry ⇒ conservation, and cyclic coordinates make it mechanical: a missing q means a constant p.',MX,610,VW-2*MX,appear(s,2));
+});
+
+/* ---- 13. LEGENDRE / MOMENTUM ---- */
+S('ACT V · PHASE SPACE','Trading velocity for momentum',3,(s)=>{
+  const cx=VW/2;
+  T('Lagrange lives in',360,220,16,C.dim,'center',appear(s,0));
+  eqBox(A.row(A.t('('),A.v('q'),A.t(', '),A.dot('q'),A.t(')')),360,270,24,C.blue,appear(s,0),18,12);
+  T('position & velocity',360,320,14,C.slate,'center',appear(s,0));
+  if(s.step>=1){const a=appear(s,1);arrow(520,270,760,270,C.dim,2,a);
+    eq(A.row(A.v('p'),A.t(' = '),A.frac(A.row(A.t('∂'),A.v('L')),A.row(A.t('∂'),A.dot('q')))),640,235,20,C.gold,'center',a);
+    T('Legendre transform',640,300,13,C.slate,'center',a);
+  }
+  if(s.step>=2){const a=appear(s,2);
+    T('Hamilton lives in',920,220,16,C.dim,'center',a);
+    eqBox(A.row(A.t('('),A.v('q'),A.t(', '),A.v('p'),A.t(')')),920,270,24,C.teal,a,18,12);
+    T('position & momentum',920,320,14,C.slate,'center',a);
+    para('Why bother? Velocity is a derived, second-class citizen. Momentum is fundamental — conserved, quantized, and it makes the equations beautifully symmetric.',cx,430,17,C.dim,760,25,'center',a);
+  }
+  kicker('GAP','If we swap q̇ for p, what do the equations of motion look like in this new, even footing?',MX,600,VW-2*MX,appear(s,2));
+});
+
+/* ---- 14. HAMILTONIAN ---- */
+S('ACT V · PHASE SPACE',"Hamilton's equations",4,(s)=>{
+  const cx=VW/2;
+  eqBox(A.row(A.v('H'),A.t(' = '),A.v('p'),A.dot('q'),A.t(' − '),A.v('L'),A.t('  =  '),A.v('T'),A.t(' + '),A.v('V')),cx,220,26,C.gold,appear(s,0),24,16,'rgba(199,169,78,.06)',C.gold);
+  T('the Hamiltonian is (usually) the total energy',cx,270,15,C.slate,'center',appear(s,0));
+  if(s.step>=1){const a=appear(s,1);
+    eqBox(A.row(A.dot('q'),A.t(' = '),A.frac(A.row(A.t('∂'),A.v('H')),A.row(A.t('∂'),A.v('p')))),cx-180,380,30,C.teal,a,24,16);
+    eqBox(A.row(A.dot('p'),A.t(' = −'),A.frac(A.row(A.t('∂'),A.v('H')),A.row(A.t('∂'),A.v('q')))),cx+180,380,30,C.coral,a,24,16);
+  }
+  if(s.step>=2){const a=appear(s,2);
+    T('two first-order equations replace one second-order one',cx,460,16,C.dim,'center',a);
+    T('perfectly symmetric in q and p — position and momentum on equal terms',cx,490,15,C.slate,'center',a);
+  }
+  kicker('RECAP','Legendre swapped q̇ → p; now motion is a symmetric pair: q̇ = ∂H/∂p, ṗ = −∂H/∂q.',MX,560,VW-2*MX,appear(s,3));
+  kicker('GAP','A state is now the pair (q, p). What does the *space of all states* look like — and how does a system move through it?',MX,615,VW-2*MX,appear(s,3));
+});
+
+/* ---- 15. PHASE SPACE PORTRAIT ---- */
+S('ACT V · PHASE SPACE','Phase space: the arena of motion',5,(s)=>{
+  const cx=560,cy=360,sx=95,sy=90;
+  const px=(th)=>cx+th*sx, py=(p)=>cy-p*sy;
+  // axes
+  line(cx-260,cy,cx+260,cy,C.faint,1.5,appear(s,0));line(cx,cy-190,cx,cy+190,C.faint,1.5,appear(s,0));
+  T('θ',cx+266,cy+6,18,C.dim,'left',appear(s,0));T('p',cx+8,cy-196,18,C.dim,'left',appear(s,0));
+  T('every point = one complete state',cx,190,17,C.dim,'center',appear(s,0));
+  // one orbit traced
+  if(s.step>=1){const a=appear(s,1);
+    const E=0.5; // libration
+    const pts=[];for(let i=0;i<=120;i++){const th=-Math.PI+ i/120*2*Math.PI;const val=2*(E+Math.cos(th));if(val<0)continue;const p=Math.sqrt(val);pts.push([px(th),py(p)]);}
+    const pts2=pts.map(q=>[q[0],2*cy-q[1]]);
+    polyline(pts,C.blue,2.4,a);polyline(pts2.reverse(),C.blue,2.4,a);
+    // moving state
+    const th=1.5*Math.cos(s.t*1.4);const p=-1.5*1.4*Math.sin(s.t*1.4);
+    dot(px(th),py(p),8,C.gold,a,6);
+    T('a closed loop = oscillation',cx,cy+215,15,C.slate,'center',a);
+  }
+  // portrait: many orbits + separatrix + rotation
+  if(s.step>=2){const a=appear(s,2);
+    for(const E of [-0.5,0,0.6,1.2]){const col=Math.abs(E-1)<0.05?C.coral:C.slate;
+      const up=[],dn=[];for(let i=0;i<=160;i++){const th=-Math.PI+i/160*2*Math.PI;const val=2*(E+Math.cos(th));if(val<0){continue;}const p=Math.sqrt(val);up.push([px(th),py(p)]);dn.push([px(th),py(-p)]);}
+      polyline(up,col,1.6,a*0.8);polyline(dn,col,1.6,a*0.8);
+    }
+    // rotation orbits (energy>1): p never zero
+    for(const E of [1.6,2.2]){const top=[],bot=[];for(let i=0;i<=160;i++){const th=-Math.PI+i/160*2*Math.PI;const p=Math.sqrt(2*(E+Math.cos(th)));top.push([px(th),py(p)]);bot.push([px(th),py(-p)]);}polyline(top,C.teal,1.6,a*0.7);polyline(bot,C.teal,1.6,a*0.7);}
+    T('separatrix',cx+150,cy-150,13,C.coral,'left',a);
+    T('above: it goes over the top (rotation)',cx,cy-215,14,C.teal,'center',a);
+  }
+  // Liouville blob
+  if(s.step>=3){const a=appear(s,3);const N=40;
+    let blob=[];for(let i=0;i<N;i++){const ang=i/N*2*Math.PI;blob.push([-1.6+0.28*Math.cos(ang), 0.9+0.28*Math.sin(ang)]);}
+    const tt=(s.st%3); const stepN=Math.floor(tt*60);
+    for(let k=0;k<stepN;k++){blob=blob.map(([th,p])=>[th+p*0.016, p-Math.sin(th)*0.016]);}
+    fillpath(blob.map(([th,p])=>[px(th),py(p)]),'rgba(148,129,184,.25)',a);
+    polyline(blob.map(([th,p])=>[px(th),py(p)]).concat([blob[0]].map(([th,p])=>[px(th),py(p)])),C.purple,2,a);
+    T('the blob shears but its AREA is conserved',960,300,16,C.purple,'center',a);
+    T('(Liouville’s theorem)',960,326,14,C.slate,'center',a);
+  }
+  kicker('FILL','Phase space (q,p) turns dynamics into geometry: states are points, histories are flow lines, and the flow is incompressible — volumes are never created or destroyed.',MX,610,VW-2*MX,appear(s,4));
+});
+
+/* ---- 16. POISSON BRACKETS ---- */
+S('ACT VI · STRUCTURE','Poisson brackets: the algebra of motion',4,(s)=>{
+  const cx=VW/2;
+  eqBox(A.row(A.t('{'),A.v('f'),A.t(', '),A.v('g'),A.t('} = '),A.frac(A.row(A.t('∂'),A.v('f')),A.row(A.t('∂'),A.v('q'))),A.frac(A.row(A.t('∂'),A.v('g')),A.row(A.t('∂'),A.v('p'))),A.t(' − '),A.frac(A.row(A.t('∂'),A.v('f')),A.row(A.t('∂'),A.v('p'))),A.frac(A.row(A.t('∂'),A.v('g')),A.row(A.t('∂'),A.v('q')))),cx,230,24,C.ink,appear(s,0),24,16);
+  if(s.step>=1){const a=appear(s,1);
+    eqBox(A.row(A.dot('A'),A.t(' = { '),A.v('A'),A.t(', '),A.v('H'),A.t(' }')),cx,340,28,C.gold,a,24,16,'rgba(199,169,78,.06)',C.gold);
+    T('time evolution of ANY quantity = its bracket with H',cx,395,16,C.dim,'center',a);
+  }
+  if(s.step>=2){const a=appear(s,2);
+    eq(A.row(A.t('{ '),A.v('A'),A.t(', '),A.v('H'),A.t(' } = 0'),A.t('   ⟺   '),A.v('A'),A.t(' is conserved')),cx,460,20,C.teal,'center',a);
+    eq(A.row(A.t('{ '),A.v('q'),A.t(', '),A.v('p'),A.t(' } = 1')),cx,510,20,C.slate,'center',a);
+  }
+  if(s.step>=3){const a=appear(s,3);
+    eqBox(A.row(A.t('{ , }'),A.t('   →   '),A.frac(A.t('1'),A.row(A.v('i'),A.v('ℏ'))),A.t('[ , ]')),cx,585,24,C.purple,a,22,14,'rgba(148,129,184,.07)',C.purple);
+  }
+  kicker('FILL','The Poisson bracket is the skeleton beneath Hamilton’s equations. Replace it with a commutator ÷ iℏ and classical mechanics becomes quantum mechanics — same bones, new flesh.',MX,635,VW-2*MX,appear(s,3));
+});
+
+/* ---- 17. CANONICAL TRANSFORMATIONS ---- */
+S('ACT VI · STRUCTURE','Canonical transformations',3,(s)=>{
+  // left messy portrait
+  const lx=360,ly=340;
+  T('a hard problem…',lx,190,17,C.dim,'center',appear(s,0));
+  if(s.step>=0){const a=appear(s,0);
+    for(let k=0;k<5;k++){const pts=[];for(let i=0;i<=60;i++){const t=i/60*6.28;const r=40+k*18;pts.push([lx+r*Math.cos(t)+18*Math.sin(2*t+k),ly+r*0.7*Math.sin(t)]);}polyline(pts,C.slate,1.6,a*0.8);}
+    T('(q, p)',lx,ly+150,16,C.slate,'center',a);
+  }
+  arrow(560,340,720,340,C.gold,2.4,appear(s,1));
+  eq(A.row(A.t('('),A.v('q'),A.t(','),A.v('p'),A.t(') → ('),A.v('Q'),A.t(','),A.v('P'),A.t(')')),640,300,18,C.gold,'center',appear(s,1));
+  T('preserving { , }',640,360,13,C.slate,'center',appear(s,1));
+  // right clean straight flow
+  if(s.step>=2){const a=appear(s,2);const rx=960,ry=340;
+    T('…the same problem, trivial',rx,190,17,C.dim,'center',a);
+    for(let k=0;k<5;k++){line(rx-140,ry-80+k*40,rx+140,ry-80+k*40,C.teal,1.8,a*0.85);}
+    T('(Q, P)',rx,ry+150,16,C.teal,'center',a);
+  }
+  kicker('RECAP','Poisson brackets define which coordinate changes are "legal" (canonical) — they keep Hamilton’s form intact.',MX,560,VW-2*MX,appear(s,2));
+  kicker('GAP','So can we always find the *perfect* canonical coordinates in which every problem becomes trivial?',MX,615,VW-2*MX,appear(s,2));
+});
+
+/* ---- 18. HAMILTON–JACOBI ---- */
+S('ACT VII · THE SUMMIT','Hamilton–Jacobi: motion as wavefronts',4,(s)=>{
+  eqBox(A.row(A.v('H'),A.t('('),A.v('q'),A.t(', '),A.frac(A.row(A.t('∂'),A.v('S')),A.row(A.t('∂'),A.v('q'))),A.t(') + '),A.frac(A.row(A.t('∂'),A.v('S')),A.row(A.t('∂'),A.v('t'))),A.t(' = 0')),VW/2,205,24,C.gold,appear(s,0),24,16,'rgba(199,169,78,.06)',C.gold);
+  T('one master equation for a single function S(q,t)',VW/2,255,15,C.slate,'center',appear(s,0));
+  // wavefronts + perpendicular rays
+  if(s.step>=1){const a=appear(s,1);const ox=320,oy=430;
+    for(let k=0;k<6;k++){const r=40+k*46+ (s.t*30)%46;arcp(ox,oy,r,-1.2,1.2,C.blue,1.8,a*clamp(1.4-r/360,0,1));}
+    T('wavefronts  S = const',ox+70,300,15,C.blue,'center',a);
+  }
+  if(s.step>=2){const a=appear(s,2);const ox=320,oy=430;
+    for(let k=-2;k<=2;k++){const ang=k*0.4;arrow(ox,oy,ox+300*Math.cos(ang),oy+300*Math.sin(ang),C.gold,1.6,a*0.8,8);}
+    T('trajectories run ⟂ to the fronts',760,410,16,C.dim,'center',a);
+    T('exactly like rays ⟂ to light waves',760,436,15,C.slate,'center',a);
+  }
+  if(s.step>=3){const a=appear(s,3);
+    eqBox(A.row(A.v('ψ'),A.t(' ~ '),A.sup(A.v('e'),A.row(A.v('i'),A.v('S'),A.t('/'),A.v('ℏ')))),980,300,24,C.purple,a,22,14,'rgba(148,129,184,.07)',C.purple);
+    T('S becomes the quantum phase',980,352,14,C.purple,'center',a);
+  }
+  kicker('FILL','Solve for one function S — the action as a field — and every trajectory is read off as a ray perpendicular to its level sets. Mechanics becomes optics, and S/ℏ becomes the phase of the wavefunction.',MX,600,VW-2*MX,appear(s,3));
+});
+
+/* ---- 19. ACTION-ANGLE ---- */
+S('ACT VII · THE SUMMIT','Action–angle variables',4,(s)=>{
+  const cx=420,cy=360;
+  line(cx-200,cy,cx+200,cy,C.faint,1.4,appear(s,0));line(cx,cy-150,cx,cy+150,C.faint,1.4,appear(s,0));
+  T('q',cx+206,cy+6,16,C.dim,'left',appear(s,0));T('p',cx+8,cy-156,16,C.dim,'left',appear(s,0));
+  // closed orbit whose enclosed area = J
+  if(s.step>=0){const a=appear(s,0);const pts=[];for(let i=0;i<=80;i++){const t=i/80*6.28;pts.push([cx+130*Math.cos(t),cy-90*Math.sin(t)]);}
+    fillpath(pts,'rgba(199,169,78,.14)',a);polyline(pts,C.gold,2.4,a);
+    eq(A.row(A.v('J'),A.t(' = ∮ '),A.v('p'),A.t(' '),A.v('dq')),cx,cy,20,C.gold,'center',a);
+    T('the action J = enclosed area',cx,cy+185,15,C.slate,'center',a);
+  }
+  if(s.step>=1){const a=appear(s,1);
+    const th=s.t*1.2;dot(cx+130*Math.cos(th),cy-90*Math.sin(th),8,C.teal,a,6);
+    T('the angle φ winds at a steady rate',920,240,16,C.dim,'center',a);
+    eqBox(A.row(A.dot('φ'),A.t(' = '),A.frac(A.row(A.t('∂'),A.v('H')),A.row(A.t('∂'),A.v('J'))),A.t(' = '),A.v('ω'),A.t(' = const')),920,300,22,C.teal,a,20,14);
+  }
+  if(s.step>=2){const a=appear(s,2);
+    para('J is constant, φ is linear in time — the motion is laid perfectly flat. Ideal for perturbation theory and for finding frequencies without ever solving the orbit.',920,390,17,C.dim,420,25,'center',a);
+  }
+  if(s.step>=3){const a=appear(s,3);
+    eqBox(A.row(A.t('∮ '),A.v('p'),A.t(' '),A.v('dq'),A.t(' = '),A.v('n'),A.v('h')),920,500,24,C.purple,a,22,14,'rgba(148,129,184,.07)',C.purple);
+    T('quantize the action → Bohr–Sommerfeld',920,552,14,C.purple,'center',a);
+  }
+  kicker('RECAP','On the summit: H–J solves everything at once; action–angle flattens periodic motion and hands its very action J to the quantum theory.',MX,620,VW-2*MX,appear(s,3));
+});
+
+/* ---- 20. CENTRAL FORCE ---- */
+S('ACT VIII · CLASSIC PROBLEMS','Central force → effective 1D',4,(s)=>{
+  // orbit
+  const cx=380,cy=350;
+  dot(cx,cy,10,C.gold,appear(s,0),8);T('force centre',cx,cy+30,14,C.slate,'center',appear(s,0));
+  T('θ is cyclic → angular momentum ℓ is conserved',380,190,16,C.dim,'center',appear(s,0));
+  if(s.step>=0){const a=appear(s,0);
+    const A_=140,B_=95;const pts=[];for(let i=0;i<=100;i++){const t=i/100*6.28;pts.push([cx+A_*Math.cos(t)-40,cy+B_*Math.sin(t)]);}polyline(pts,C.blue,2.2,a);
+    const t=s.t*1.1;const ox=cx+A_*Math.cos(t)-40,oy=cy+B_*Math.sin(t);dot(ox,oy,8,C.blue,a);line(cx,cy,ox,oy,C.faint,1.2,a,[3,3]);
+  }
+  // effective potential
+  if(s.step>=1){const a=appear(s,1);const gx=760,gy0=520,gw=420,gh=300;
+    line(gx,gy0,gx+gw,gy0,C.faint,1.4,a);line(gx,gy0,gx,gy0-gh,C.faint,1.4,a);
+    T('r',gx+gw+8,gy0+6,16,C.dim,'left',a);T('V_eff',gx-6,gy0-gh-6,14,C.dim,'right',a);
+    const Veff=(r)=>{const l2=2.2, k=6;return l2/(r*r)-k/r;};
+    const pts=[];for(let i=1;i<=120;i++){const r=0.5+i/120*5;const v=Veff(r);pts.push([gx+ (r/5.5)*gw, gy0-100- v*26]);}
+    polyline(pts,C.teal,2.4,a);
+    T('centrifugal wall + attraction = a well',gx+gw/2,gy0-gh-24,15,C.teal,'center',a);
+  }
+  if(s.step>=2){const a=appear(s,2);const gx=760,gy0=520;
+    line(gx,gy0-100- (-1.0)*26, gx+420,gy0-100-(-1.0)*26, C.coral,1.8,a,[6,5]);
+    T('energy line',gx+420,gy0-100-(-1.0)*26-10,13,C.coral,'right',a);
+    T('its crossings = turning points (perihelion / aphelion)',gx+210,gy0+30,14,C.slate,'center',a);
+  }
+  kicker('FILL','One conserved quantity (ℓ) collapses a 2D orbit to a single particle rolling in an effective potential V_eff(r) = V(r) + ℓ²/2mr². Kepler ellipses fall right out.',MX,610,VW-2*MX,appear(s,3));
+});
+
+/* ---- 21. SCATTERING ---- */
+S('ACT VIII · CLASSIC PROBLEMS','Scattering: reading a force from deflections',3,(s)=>{
+  const cx=680,cy=360;
+  dot(cx,cy,10,C.gold,appear(s,0),8);T('scatterer',cx,cy-24,14,C.slate,'center',appear(s,0));
+  T('fire particles at different impact parameters b',cx,185,16,C.dim,'center',appear(s,0));
+  if(s.step>=0){const a=appear(s,0);
+    for(let k=-3;k<=3;k++){if(k===0)continue;const b=k*34;
+      const pts=[];for(let i=0;i<=80;i++){const x=-360+i/80*720;const dx=x, dyc=b;
+        // simple hyperbolic-ish deflection near center
+        const r=Math.hypot(dx,dyc)+30;const bend= 4200/(r*r)*Math.sign(b)* (x>0?1:0.2);
+        pts.push([cx+x, cy+b - bend]);}
+      polyline(pts,k%2?C.blue:C.teal,1.8,a*0.9);
+    }
+  }
+  if(s.step>=1){const a=appear(s,1);
+    // one highlighted with angle chi
+    const b=34;const pts=[];for(let i=0;i<=80;i++){const x=-360+i/80*720;const r=Math.hypot(x,b)+30;const bend=4200/(r*r)*(x>0?1:0.2);pts.push([cx+x,cy+b-bend]);}
+    polyline(pts,C.gold,2.6,a);
+    line(cx-360,cy+b,cx+360,cy+b,C.faint,1,a,[4,4]);
+    T('b',cx-330,cy+b-8,15,C.dim,'left',a);
+    T('χ',cx+250,cy-20,16,C.gold,'left',a);
+    T('deflection χ(b) encodes the force law',cx,cy+180,15,C.slate,'center',a);
+  }
+  if(s.step>=2){const a=appear(s,2);
+    eqBox(A.row(A.frac(A.v('dσ'),A.v('dΩ')),A.t(' = '),A.frac(A.v('b'),A.row(A.t('sin '),A.v('χ'))),A.t(' | '),A.frac(A.v('db'),A.v('dχ')),A.t(' |')),cx,600,24,C.ink,a,22,14,'rgba(255,255,255,.04)',C.teal);
+    T('the differential cross-section — how physics reads matter, from Rutherford to the LHC',cx,650,15,C.dim,'center',a);
+  }
+  kicker('GAP','Orbits and scattering are big motions. What about the tiny wobbles a system makes right near its resting point?',MX,555,VW-2*MX,appear(s,1));
+});
+
+/* ---- 22. NORMAL MODES ---- */
+S('ACT VIII · CLASSIC PROBLEMS','Small oscillations & normal modes',4,(s)=>{
+  T('near equilibrium, everything is springs',VW/2,185,17,C.dim,'center',appear(s,0));
+  eq(A.row(A.v('V'),A.t(' ≈ ½ '),A.sub(A.v('k'),A.row(A.v('i'),A.v('j'))),A.sub(A.v('x'),A.v('i')),A.sub(A.v('x'),A.v('j'))),VW/2,235,20,C.slate,'center',appear(s,0));
+  const wallL=340,wallR=940,y=340;
+  const drawCoupled=(yy,x1o,x2o,a,label,col)=>{
+    line(wallL,yy-40,wallL,yy+40,C.faint,3,a);line(wallR,yy-40,wallR,yy+40,C.faint,3,a);
+    const c1=520+x1o,c2=760+x2o;
+    spring(wallL,yy,c1-28,6,8,C.slate,1.6,a);spring(c1+28,yy,c2-28,6,8,C.slate,1.6,a);spring(c2+28,yy,wallR,6,8,C.slate,1.6,a);
+    box(c1-28,yy-24,56,48,6,'rgba(109,157,197,.18)',col,2,a);box(c2-28,yy-24,56,48,6,'rgba(109,157,197,.18)',col,2,a);
+    T(label,wallL-16,yy+6,14,col,'right',a);
+  };
+  if(s.step>=1){const a=appear(s,1);const A_=26;const ph=Math.sin(s.t*2.2)*A_;
+    drawCoupled(340,ph,ph,a,'mode 1',C.teal);
+    T('in phase — low frequency',VW/2,300,14,C.teal,'center',a);
+  }
+  if(s.step>=2){const a=appear(s,2);const A_=26;const ph=Math.sin(s.t*3.3)*A_;
+    drawCoupled(470,ph,-ph,a,'mode 2',C.coral);
+    T('out of phase — high frequency',VW/2,430,14,C.coral,'center',a);
+  }
+  if(s.step>=3){const a=appear(s,3);
+    para('Diagonalize the springs (an eigenvalue problem) and you find normal modes: special patterns that each oscillate at one clean frequency. Every motion is a sum of them — this is molecular spectra, and why bridges and buildings have modes.',VW/2,560,17,C.dim,900,25,'center',a);
+  }
+  kicker('FILL','Any stable system near rest is a set of independent oscillators in disguise. Find its normal modes and its whole small-motion life is solved.',MX,635,VW-2*MX,appear(s,3));
+});
+
+/* ---- 23. INERTIA TENSOR ---- */
+S('ACT IX · RIGID BODIES','The inertia tensor',3,(s)=>{
+  const cx=420,cy=340;
+  T('spin an odd-shaped body…',cx,190,17,C.dim,'center',appear(s,0));
+  if(s.step>=0){const a=appear(s,0);
+    // a slab tilted, spin axis ω, angular momentum L not parallel
+    const th=s.t*0.9;
+    // draw box outline (parallelogram) rotating
+    const w=120,h=44;const c=Math.cos(th),sn=Math.sin(th);
+    const cor=[[-w/2,-h/2],[w/2,-h/2],[w/2,h/2],[-w/2,h/2]].map(([x,y])=>[cx+x*c-y*sn, cy+x*sn*0.5+y*0.9]);
+    polyline(cor.concat([cor[0]]),C.slate,2,a);
+    arrow(cx,cy,cx,cy-140,C.blue,2.6,a);T('ω',cx-24,cy-130,18,C.blue,'left',a);
+    arrow(cx,cy,cx+70,cy-120,C.coral,2.6,a);T('L',cx+76,cy-118,18,C.coral,'left',a);
+    T('L and ω point different ways!',cx,cy+150,15,C.slate,'center',a);
+  }
+  if(s.step>=1){const a=appear(s,1);
+    eqBox(A.row(A.v('L'),A.t(' = '),A.v('I'),A.v('ω')),900,270,26,C.gold,a,22,14,'rgba(199,169,78,.06)',C.gold);
+    T('but I is a matrix (a tensor), not a number',900,320,15,C.dim,'center',a);
+    // matrix
+    const mx=900,my=430;
+    T('⎡',mx-120,my,60,C.dim,'center',a);T('⎤',mx+120,my,60,C.dim,'center',a);
+    const rows=[['I₁','·','·'],['·','I₂','·'],['·','·','I₃']];
+    rows.forEach((r,i)=>r.forEach((e,j)=>T(e,mx-70+j*70,my-30+i*30,18,i===j?C.teal:C.faint,'center',a)));
+  }
+  if(s.step>=2){const a=appear(s,2);
+    T('choose the principal axes → I is diagonal → L ∥ ω again',VW/2,560,16,C.dim,'center',a);
+  }
+  kicker('RECAP','For a rigid body, inertia is directional: L = Iω with I a 3×3 tensor. Off-diagonal terms tilt L away from ω.',MX,610,VW-2*MX,appear(s,2));
+});
+
+/* ---- 24. EULER'S EQUATIONS ---- */
+S('ACT IX · RIGID BODIES',"Euler's equations & the tennis-racket flip",3,(s)=>{
+  eqBox(A.row(A.sub(A.v('I'),A.t('1')),A.sub(A.dot('ω',1),A.t('1')),A.t(' = ('),A.sub(A.v('I'),A.t('2')),A.t('−'),A.sub(A.v('I'),A.t('3')),A.t(')'),A.sub(A.v('ω'),A.t('2')),A.sub(A.v('ω'),A.t('3')),A.t('  (+ cyclic)')),VW/2,215,22,C.ink,appear(s,0),22,14);
+  T('rotation seen from inside the body',VW/2,265,15,C.slate,'center',appear(s,0));
+  if(s.step>=1){const a=appear(s,1);
+    // three axes with stability labels
+    const cx=VW/2,cy=420;
+    const axes=[{d:[-1,-0.2],lab:'I₁ (min): stable',c:C.teal},{d:[0,-1],lab:'I₂ (mid): UNSTABLE',c:C.coral},{d:[1,-0.2],lab:'I₃ (max): stable',c:C.teal}];
+    axes.forEach((ax,i)=>{arrow(cx,cy,cx+ax.d[0]*150,cy+ax.d[1]*150,ax.c,2.4,a);T(ax.lab,cx+ax.d[0]*175,cy+ax.d[1]*175,14,ax.c,ax.d[0]<0?'right':ax.d[0]>0?'left':'center',a);});
+    // flipping object about mid axis
+    const flip=Math.sin(s.t*1.5)>0?1:-1;const wob=0.4*Math.sin(s.t*6)*(Math.abs(Math.sin(s.t*1.5))<0.3?1:0.1);
+    box(cx-60,cy+150,120,26,4,'rgba(198,124,104,.18)',C.coral,2,a);
+  }
+  if(s.step>=2){const a=appear(s,2);
+    para('Spin a phone or racket about its intermediate axis and it flips end-over-end — the Dzhanibekov effect. Euler’s nonlinear terms make the middle axis unstable. Same math governs asteroids and tumbling satellites.',VW/2,590,17,C.dim,920,25,'center',a);
+  }
+  kicker('GAP','A free body tumbles forever. Add gravity and a spin, and something stranger happens — what?',MX,650,VW-2*MX,appear(s,1));
+});
+
+/* ---- 25. TOPS & GYROSCOPES ---- */
+S('ACT IX · RIGID BODIES','Tops & gyroscopes: precession',3,(s)=>{
+  const cx=520,cy=430;
+  // pivot at bottom, axis tilted, precessing
+  const prec=s.t*1.1, tilt=0.5;
+  const axLen=170;
+  const ax=Math.sin(tilt)*Math.cos(prec), az=Math.sin(tilt)*Math.sin(prec), ay=-Math.cos(tilt);
+  const tipx=cx+ax*axLen, tipy=cy+ay*axLen; // ignore z-depth, fake with x
+  line(cx,cy,tipx,tipy,C.slate,3,appear(s,0));
+  dot(cx,cy,5,C.dim,appear(s,0));
+  // spinning disk (ellipse ⟂ axis)
+  ctx.save();ctx.globalAlpha*=appear(s,0);ctx.translate(tipx,tipy);const angA=Math.atan2(tipy-cy,tipx-cx);ctx.rotate(angA+Math.PI/2);ctx.strokeStyle=C.blue;ctx.lineWidth=2.4;ctx.beginPath();ctx.ellipse(0,0,44,16,0,0,7);ctx.stroke();ctx.restore();
+  // spin arrow
+  arrow(tipx,tipy,tipx+ax*40,tipy+ay*40,C.blue,2,appear(s,0),8);
+  // precession circle (top view hint)
+  arcp(cx,cy-Math.cos(tilt)*axLen,Math.sin(tilt)*axLen,0,6.28,C.faint,1.4,appear(s,0),[4,4]);
+  T('the axis sweeps a cone: precession',cx,200,17,C.dim,'center',appear(s,0));
+  arrow(cx,cy+40,cx,cy+120,C.coral,2.4,appear(s,0));T('gravity torque',cx+16,cy+110,14,C.coral,'left',appear(s,0));
+  if(s.step>=1){const a=appear(s,1);
+    eqBox(A.row(A.v('Ω'),A.t(' = '),A.frac(A.row(A.v('mgr')),A.row(A.v('I'),A.v('ω')))),960,320,26,C.gold,a,22,14,'rgba(199,169,78,.06)',C.gold);
+    para('Torque doesn’t topple a fast spin — it steers it sideways. The faster it spins, the slower and steadier it precesses.',960,410,17,C.dim,420,25,'center',a);
+  }
+  if(s.step>=2){const a=appear(s,2);
+    para('This stubbornness is a sensor: gyrocompasses, phone MEMS gyros, and spacecraft attitude control all live off a spinning body’s resistance to being turned.',960,500,17,C.slate,420,25,'center',a);
+  }
+  kicker('FILL','A gyroscope answers torque with perpendicular motion. That single fact — angular momentum wants to keep its direction — is the workhorse of navigation and stabilization.',MX,635,VW-2*MX,appear(s,2));
+});
+
+/* ---- 26. ROBOTICS ---- */
+S('ACT X · WHERE IT LIVES','Robotics & multibody dynamics',3,(s)=>{
+  // 2-link arm
+  const bx=380,by=470;
+  const q1=0.7+0.4*Math.sin(s.t*0.9), q2=-0.9+0.6*Math.sin(s.t*1.3+1);
+  const L1=150,L2=120;
+  const j1x=bx+L1*Math.cos(-q1), j1y=by+L1*Math.sin(-q1);
+  const ex=j1x+L2*Math.cos(-q1+q2), ey=j1y+L2*Math.sin(-q1+q2);
+  line(bx-40,by,bx+40,by,C.faint,4,appear(s,0));
+  line(bx,by,j1x,j1y,C.blue,6,appear(s,0));line(j1x,j1y,ex,ey,C.teal,6,appear(s,0));
+  dot(bx,by,9,C.dim,appear(s,0));dot(j1x,j1y,8,C.dim,appear(s,0));dot(ex,ey,9,C.gold,appear(s,0),6);
+  arcp(bx,by,40,-q1-0.3,-q1+0.3,C.blue,2,appear(s,0));T('q₁',bx+50,by-30,15,C.blue,'left',appear(s,0));
+  T('q₂',j1x+18,j1y+4,15,C.teal,'left',appear(s,0));
+  T('joint angles = generalized coordinates',bx,200,16,C.dim,'center',appear(s,0));
+  if(s.step>=1){const a=appear(s,1);
+    eqBox(A.row(A.v('M'),A.t('('),A.v('q'),A.t(')'),A.dot('q',2),A.t(' + '),A.v('C'),A.t('('),A.v('q'),A.t(','),A.dot('q'),A.t(')'),A.dot('q'),A.t(' + '),A.v('g'),A.t('('),A.v('q'),A.t(') = '),A.v('τ')),920,300,20,C.gold,a,20,14,'rgba(199,169,78,.06)',C.gold);
+    para('The Lagrangian of the arm gives exactly this — the equation every robot controller solves. Joint reaction forces never appear, so it scales to dozens of links.',920,400,17,C.dim,430,25,'center',a);
+  }
+  if(s.step>=2){const a=appear(s,2);
+    T('inverse dynamics: choose the motion, read off the torques τ',VW/2,600,16,C.slate,'center',a);}
+  kicker('RECAP','Everything abstract now pays off: generalized coordinates + Lagrangian = the standard form of robot dynamics.',MX,650,VW-2*MX,appear(s,2));
+});
+
+/* ---- 27. SPACECRAFT ---- */
+S('ACT X · WHERE IT LIVES','Spacecraft attitude control',3,(s)=>{
+  const cx=470,cy=350;
+  // satellite body rotating slowly one way
+  const bodySpin=-s.t*0.5;
+  ctx.save();ctx.globalAlpha*=appear(s,0);ctx.translate(cx,cy);ctx.rotate(bodySpin);
+  box(-55,-55,110,110,10,'rgba(97,112,126,.18)',C.slate,2.4,1);
+  // solar panels
+  box(-160,-22,95,44,6,'rgba(109,157,197,.15)',C.blue,2,1);box(65,-22,95,44,6,'rgba(109,157,197,.15)',C.blue,2,1);
+  ctx.restore();
+  // internal reaction wheel spinning fast the other way
+  const wheel=s.t*4;
+  arcp(cx,cy,30,wheel,wheel+4.2,C.gold,3,appear(s,0));
+  arrow(cx+30*Math.cos(wheel+4.2),cy+30*Math.sin(wheel+4.2), cx+30*Math.cos(wheel+4.5),cy+30*Math.sin(wheel+4.5),C.gold,2,appear(s,0),8);
+  T('reaction wheel',cx,cy+95,14,C.gold,'center',appear(s,0));
+  T('no pivot in space — no ground to push on',cx,190,17,C.dim,'center',appear(s,0));
+  if(s.step>=1){const a=appear(s,1);
+    eqBox(A.row(A.sub(A.v('L'),A.t('total')),A.t(' = constant')),960,290,24,C.teal,a,22,14,'rgba(79,154,148,.07)',C.teal);
+    para('Spin a wheel one way and the whole craft turns the other — angular momentum is only traded, never created. Euler’s equations + quaternions steer it.',960,380,17,C.dim,430,25,'center',a);
+  }
+  if(s.step>=2){const a=appear(s,2);
+    T('Hubble, the ISS, and every CubeSat point exactly this way',VW/2,600,16,C.slate,'center',a);}
+  kicker('FILL','With no fixed point, attitude is pure rigid-body dynamics: conserve total angular momentum, exchange it internally with wheels and gyros, integrate Euler’s equations to know where you point.',MX,650,VW-2*MX,appear(s,2));
+});
+
+/* ---- 28. BRIDGE TO QUANTUM / STAT MECH ---- */
+S('ACT X · WHERE IT LIVES','The bridge to quantum & statistical mechanics',4,(s)=>{
+  const cx=VW/2;
+  T('the classical structure is a template',cx,185,17,C.dim,'center',appear(s,0));
+  const rows=[
+    {k:1,l:'Poisson bracket  { , }',r:'commutator  [ , ] ⁄ iℏ',c:C.purple},
+    {k:1,l:'Hamiltonian H',r:'energy operator  Ĥ',c:C.purple},
+    {k:2,l:'action S',r:'quantum phase  S⁄ℏ',c:C.purple},
+    {k:2,l:'∮ p dq',r:'quantized:  = n h',c:C.purple},
+  ];
+  let y=260;
+  rows.forEach(R=>{const a=appear(s,R.k);if(a<=0)return;
+    T(R.l,cx-40,y,19,C.blue,'right',a);arrow(cx-20,y-6,cx+20,y-6,C.dim,1.8,a,8);T(R.r,cx+40,y,19,R.c,'left',a);y+=48;});
+  if(s.step>=3){const a=appear(s,3);
+    T('statistical mechanics:',cx,500,17,C.gold,'center',a,600);
+    para('phase space + Liouville’s theorem → ensembles; weight each microstate by e^(−H/kT); count states as phase-space volume. Thermodynamics is Hamiltonian mechanics for 10²³ coordinates.',cx,530,17,C.dim,880,25,'center',a);
+  }
+  kicker('FILL','Quantum and statistical mechanics don’t discard classical mechanics — they inherit its skeleton. Master H, S, and { , } here, and you already speak both.',MX,635,VW-2*MX,appear(s,3));
+});
+
+/* ---- 29. THE MAP ---- */
+S('','The whole territory, in one breath',7,(s)=>{
+  const cx=VW/2;
+  T('one idea, deepening',cx,150,18,C.dim,'center',appear(s,0));
+  const nodes=[
+    {x:180,y:250,t:'Newton',sub:'F = ma',c:C.slate,k:0},
+    {x:400,y:250,t:'Generalized\ncoordinates',sub:'q, constraints, dof',c:C.blue,k:1},
+    {x:640,y:250,t:'Lagrangian',sub:'least action  δS=0',c:C.gold,k:2},
+    {x:880,y:250,t:'Noether',sub:'symmetry ⇒ conservation',c:C.teal,k:3},
+    {x:1090,y:250,t:'Hamiltonian',sub:'phase space (q,p)',c:C.coral,k:4},
+    {x:520,y:470,t:'Poisson / canonical\n· Hamilton–Jacobi',sub:'action–angle',c:C.purple,k:5},
+    {x:900,y:470,t:'Quantum · Stat-mech\nRobotics · Spacecraft',sub:'where it all lives',c:C.rose,k:6},
+  ];
+  // connections
+  const conn=[[0,1],[1,2],[2,3],[3,4],[2,5],[4,5],[5,6],[4,6]];
+  conn.forEach(([i,j])=>{const a=appear(s,Math.max(nodes[i].k,nodes[j].k));if(a<=0)return;line(nodes[i].x,nodes[i].y,nodes[j].x,nodes[j].y,C.grid,1.6,a);});
+  nodes.forEach(n=>{const a=appear(s,n.k);if(a<=0)return;
+    const lines=n.t.split('\n');
+    box(n.x-88,n.y-26-(lines.length-1)*10,176,52+(lines.length-1)*20,10,'rgba(255,255,255,.03)',n.c,1.6,a);
+    lines.forEach((l,i)=>T(l,n.x,n.y-2-(lines.length-1)*9+i*19,16,C.ink,'center',a,600));
+    T(n.sub,n.x,n.y+22+(lines.length-1)*10,12,n.c,'center',a);
+  });
+  if(appear(s,6,1)>0.9){T('From one bead on a wire to the phase of a wavefunction — the same geometry, all the way up.',cx,650,17,C.dim,'center',0.5+0.5*Math.sin(s.t*1.5));}
+});
+
+/* ============================================================
+   ENGINE
+   ============================================================ */
+let cur=0, step=0, slideT=0, stepT=0, fade=1, last=performance.now();
+
+function resize(){
+  dpr=Math.min(window.devicePixelRatio||1,2);
+  W=window.innerWidth; H=window.innerHeight;
+  canvas.width=W*dpr; canvas.height=H*dpr;
+  canvas.style.width=W+'px'; canvas.style.height=H+'px';
+}
+window.addEventListener('resize',resize); resize();
+
+function next(){const sl=slides[cur];if(step<sl.steps-1){step++;stepT=0;}else if(cur<slides.length-1){cur++;step=0;slideT=0;stepT=0;fade=0;}}
+function prev(){if(step>0){step--;stepT=0;}else if(cur>0){cur--;step=slides[cur].steps-1;slideT=0;stepT=0;fade=0;}}
+function restart(){cur=0;step=0;slideT=0;stepT=0;fade=0;}
+
+window.addEventListener('keydown',e=>{
+  if(['ArrowRight',' ','PageDown','ArrowDown','Enter'].includes(e.key)){next();e.preventDefault();}
+  else if(['ArrowLeft','PageUp','ArrowUp','Backspace'].includes(e.key)){prev();e.preventDefault();}
+  else if(e.key==='Home'){restart();}
+  else if(e.key==='f'||e.key==='F'){if(!document.fullscreenElement)document.documentElement.requestFullscreen();else document.exitFullscreen();}
+  hideHint();
+});
+canvas.addEventListener('click',e=>{ if(e.clientX < W*0.28) prev(); else next(); hideHint();});
+// touch
+let tx=0;canvas.addEventListener('touchstart',e=>{tx=e.touches[0].clientX;},{passive:true});
+canvas.addEventListener('touchend',e=>{const dx=e.changedTouches[0].clientX-tx;if(dx>40)prev();else next();hideHint();},{passive:true});
+
+const hintEl=document.getElementById('hint');
+hintEl.innerHTML="<b>Analytical Mechanics</b><br>a visual course<br><br>→ / Space &nbsp; advance &nbsp;·&nbsp; ← &nbsp; back &nbsp;·&nbsp; F &nbsp; fullscreen<br>click right / left · swipe";
+setTimeout(()=>hintEl.classList.add('show'),400);
+let hintGone=false;
+function hideHint(){if(hintGone)return;hintGone=true;hintEl.classList.remove('show');}
+setTimeout(hideHint,7000);
+
+/* chrome: header + footer */
+function chrome(sl){
+  if(sl.tag){T(sl.tag,MX,64,15,C.dim,'left',1,700);}
+  if(sl.title){T(sl.title,MX,104,32,C.ink,'left',1,600);line(MX,122,VW-MX,122,C.grid,1,0.8);}
+  // footer progress dots for steps
+  const n=sl.steps, gap=16, tot=(n-1)*gap, x0=VW/2-tot/2, y=690;
+  for(let i=0;i<n;i++){const on=i<=step;dot(x0+i*gap,y,on?4:3,on?C.gold:C.faint,1);}
+  // counter
+  T((cur+1)+' / '+slides.length,VW-MX,y+5,14,C.dim,'right',1);
+  // hint
+  T('→ advance   ·   ← back',MX,y+5,13,C.slate,'left',1);
+  // progress bar
+  const prog=(cur+ (step)/(Math.max(1,sl.steps-1)))/slides.length;
+  line(0,VH-2,VW,VH-2,C.grid,2,1);line(0,VH-2,VW*clamp(prog,0,1),VH-2,C.gold,2,1);
+}
+
+function frame(now){
+  const dt=Math.min((now-last)/1000,0.05); last=now;
+  slideT+=dt; stepT+=dt; if(fade<1)fade=Math.min(1,fade+dt/0.4);
+  // clear full canvas black (letterbox)
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.fillStyle=C.bg; ctx.fillRect(0,0,W,H);
+  // fit 16:9 stage
+  const scale=Math.min(W/VW,H/VH), ox=(W-VW*scale)/2, oy=(H-VH*scale)/2;
+  ctx.setTransform(dpr*scale,0,0,dpr*scale,dpr*ox,dpr*oy);
+  ctx.save();ctx.beginPath();ctx.rect(0,0,VW,VH);ctx.clip();
+  // stage background
+  ctx.fillStyle=C.stage;ctx.fillRect(0,0,VW,VH);
+  const sl=slides[cur];
+  const s={t:slideT,step,st:stepT};
+  ctx.save();ctx.globalAlpha=eOut(fade);
+  try{ sl.draw(s); }catch(err){ T('render error: '+err.message,40,40,16,'#c67c68'); }
+  ctx.restore();
+  chrome(sl);
+  ctx.restore();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

@@ -1,0 +1,1919 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Probabilistic &amp; Specialized Data Structures</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root{
+    --bg:#000000;
+    --panel:#0a0a0d;
+    --line:#1c1c20;
+    --teal:#4fd1c5;
+    --amber:#f0a860;
+    --rose:#e08080;
+    --violet:#a68cd0;
+    --ink:#e9e9ec;
+    --ink-dim:#9a9aa4;
+    --ink-faint:#5c5c66;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:#000;height:100%;overflow:hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;}
+  #deck-wrap{width:100vw;height:100vh;background:#000;display:flex;align-items:center;justify-content:center;position:relative;}
+  #scaler{width:1280px;height:720px;transform-origin:center center;position:relative;flex:none;}
+  #deck{position:relative;width:1280px;height:720px;background:#000;overflow:hidden;
+    border:1px solid #141418;border-radius:6px;}
+
+  .slide{position:absolute;inset:0;display:none;flex-direction:column;
+    padding:46px 76px 34px 76px;}
+  .slide.active{display:flex;}
+
+  .slide-eyebrow{font-size:13px;letter-spacing:3.5px;text-transform:uppercase;
+    color:var(--ink-faint);font-weight:700;display:flex;justify-content:space-between;
+    align-items:center;}
+  .slide-eyebrow .eb-name{color:var(--teal);opacity:.85;}
+  .slide-eyebrow .eyebrow-num{color:var(--ink-faint);letter-spacing:2px;font-weight:600;}
+
+  .slide-title{font-size:34px;font-weight:700;color:var(--ink);margin:12px 0 6px 0;
+    line-height:1.25;letter-spacing:-.2px;}
+  .slide-sub{font-size:16.5px;color:var(--ink-dim);margin:0 0 14px 0;max-width:1080px;
+    line-height:1.5;}
+
+  .stage{position:relative;flex:1;min-height:0;width:100%;}
+  .stage svg{width:100%;height:100%;display:block;overflow:visible;}
+
+  .caption{font-size:15px;color:var(--ink-dim);margin-top:10px;max-width:1120px;line-height:1.55;}
+  .caption b, .caption strong{color:var(--amber);font-weight:600;}
+  .caption em{color:var(--ink);font-style:normal;border-bottom:1px solid var(--ink-faint);}
+
+  /* bridge / RECAP-GAP-FILL slides */
+  .bridge-wrap{flex:1;display:flex;flex-direction:column;justify-content:center;gap:22px;
+    max-width:980px;}
+  .bridge-row{display:flex;align-items:baseline;gap:16px;opacity:0;}
+  .bridge-tag{font-size:12px;letter-spacing:3px;font-weight:800;min-width:88px;flex:none;
+    padding-top:3px;}
+  .bridge-recap .bridge-tag{color:var(--ink-faint);}
+  .bridge-gap .bridge-tag{color:var(--rose);}
+  .bridge-fill .bridge-tag{color:var(--amber);}
+  .bridge-text{font-size:24px;line-height:1.5;color:var(--ink-dim);}
+  .bridge-recap .bridge-text{font-size:19px;color:var(--ink-faint);}
+  .bridge-gap .bridge-text{color:var(--ink);font-style:italic;}
+  .bridge-fill .bridge-text{color:var(--amber);font-weight:700;font-style:normal;}
+  .bridge-fill .bridge-sub{display:block;font-size:15px;color:var(--ink-dim);font-weight:400;margin-top:4px;font-style:normal;}
+
+  /* nav chrome */
+  #nav-bottom{position:absolute;left:0;right:0;bottom:0;height:6px;background:#111114;}
+  #nav-progress{height:100%;width:0%;background:linear-gradient(90deg,var(--teal),var(--amber));
+    transition:width .35s ease;}
+  #dots{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);display:flex;gap:7px;
+    z-index:20;}
+  #dots .dot{width:6px;height:6px;border-radius:50%;background:#3a3a40;cursor:pointer;transition:background .2s, width .2s;}
+  #dots .dot.active{background:var(--amber);width:16px;border-radius:3px;}
+
+  #replay-btn{position:absolute;top:44px;right:74px;width:30px;height:30px;border-radius:50%;
+    border:1px solid var(--line);background:rgba(255,255,255,0.03);color:var(--ink-dim);
+    display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:20;font-size:14px;}
+  #replay-btn:hover{color:var(--amber);border-color:var(--amber);}
+
+  #arrow-left,#arrow-right{position:absolute;top:50%;transform:translateY(-50%);
+    width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,0.02);
+    border:1px solid var(--line);color:var(--ink-faint);display:flex;align-items:center;
+    justify-content:center;cursor:pointer;z-index:20;font-size:16px;user-select:none;}
+  #arrow-left{left:14px;} #arrow-right{right:14px;}
+  #arrow-left:hover,#arrow-right:hover{color:var(--amber);border-color:var(--amber);}
+
+  #hint{position:absolute;top:10px;left:50%;transform:translateX(-50%);font-size:10.5px;letter-spacing:1.5px;
+    color:var(--ink-faint);opacity:0;transition:opacity .4s;text-transform:uppercase;z-index:25;
+    background:#000;padding:2px 10px;border-radius:10px;}
+
+  .r-up{opacity:0;animation:rup .6s ease forwards;}
+  .d1{animation-delay:.05s;} .d2{animation-delay:.15s;} .d3{animation-delay:.28s;}
+  @keyframes rup{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+
+  .mono{font-variant-numeric:tabular-nums;font-family:"SF Mono",Menlo,Consolas,monospace;}
+  .tag-pill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;
+    letter-spacing:.5px;font-weight:700;}
+</style>
+</head>
+<body>
+<div id="deck-wrap">
+  <div id="scaler">
+    <div id="deck">
+      <div id="hint">&larr; &rarr; to navigate &middot; space = next</div>
+      <div id="arrow-left">&#8592;</div>
+      <div id="arrow-right">&#8594;</div>
+      <div id="replay-btn" title="Replay animation">&#8635;</div>
+<div id="slides">
+      <section class="slide" id="intro-1">
+        <div class="slide-eyebrow"><span class="eb-name">FOUNDATIONS</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">Some questions don't need an exact answer</h1>
+        <p class="slide-sub r-up d2">Has this URL been seen before? Roughly how many unique visitors today? Is this the top-selling item? None of these need a perfect record of every item &mdash; just a trustworthy estimate.</p>
+        <div class="stage"><svg viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"><g class="dyn"></g></svg></div>
+        <div class="caption r-up d3">A normal set stores every item it has ever seen. Watch what happens to its memory as the count climbs &mdash; then watch what a <b>sketch</b> does instead.</div>
+      </section>
+      <section class="slide" id="intro-2">
+        <div class="slide-eyebrow"><span class="eb-name">FOUNDATIONS</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">You can't maximize memory, speed and certainty together</h1>
+        <p class="slide-sub r-up d2">Every structure on this deck sits somewhere on this triangle. Exact structures anchor one corner. Everything we build today deliberately gives up a little certainty to win big on the other two.</p>
+        <div class="stage"><svg viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"><g class="dyn"></g></svg></div>
+        <div class="caption r-up d3">That single trade &mdash; <b>a little uncertainty for a lot of space and speed</b> &mdash; is the one trick behind all fifteen structures. Only the details of <em>how</em> change.</div>
+      </section>
+      <section class="slide" id="intro-3">
+        <div class="slide-eyebrow"><span class="eb-name">FOUNDATIONS</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">Fifteen structures, five families</h1>
+        <p class="slide-sub r-up d2">Every structure we cover solves one of five recurring problems. Keep this map in mind &mdash; each new structure will slot into one of these five boxes.</p>
+        <div class="stage"><svg viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"><g class="dyn"></g></svg></div>
+        <div class="caption r-up d3">We'll build every family from first principles &mdash; starting with the question <em>"is this item in the set?"</em></div>
+      </section>
+      <section class="slide bridge" id="intro-bridge">
+        <div class="slide-eyebrow"><span class="eb-name">FOUNDATIONS</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">Let's start with the simplest question of all</h1>
+        <p class="slide-sub r-up d2">In production: </p>
+        <div class="bridge-wrap">
+          <div class="bridge-row bridge-recap"><div class="bridge-tag">RECAP</div><div class="bridge-text">A regular hash set answers <em>"is X in here?"</em> with total certainty &mdash; at the cost of storing every item in full.</div></div>
+          <div class="bridge-row bridge-gap"><div class="bridge-tag">GAP</div><div class="bridge-text">but what if we have <em>ten billion</em> URLs to check against, and only a few megabytes of RAM &mdash; do we really need to store each item to answer a yes/no question?</div></div>
+          <div class="bridge-row bridge-fill"><div class="bridge-tag">NEXT</div><div class="bridge-text">BLOOM FILTER<span class="bridge-sub">trade certainty for space &mdash; answer "maybe" instead of "yes"</span></div></div>
+        </div>
+      </section>
+      <section class="slide" id="bloom-1">
+        <div class="slide-eyebrow"><span class="eb-name">BLOOM FILTER</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">Represent a whole set with a handful of bits</h1>
+        <p class="slide-sub r-up d2">A Bloom filter is just a bit array of size m, all zeros. To insert an item, run it through k independent hash functions and flip the bits they point to on.</p>
+        <div class="stage"><svg viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"><g class="dyn"></g></svg></div>
+        <div class="caption r-up d3">Notice: we never stored <em>"apple"</em> anywhere. We only remember <em>which bits its hashes touched</em>. That's the entire trick.</div>
+      </section>
+      <section class="slide" id="bloom-2">
+        <div class="slide-eyebrow"><span class="eb-name">BLOOM FILTER</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">Query: all-ones means "maybe", one zero means "definitely not"</h1>
+        <p class="slide-sub r-up d2">To check membership, hash the query the same way and look at those k bits. If even one is still 0, the item was never inserted &mdash; guaranteed.</p>
+        <div class="stage"><svg viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"><g class="dyn"></g></svg></div>
+        <div class="caption r-up d3">A Bloom filter can say <b>"definitely not present"</b> with 100% confidence, but can only ever say <b>"probably present"</b> &mdash; never a guaranteed yes.</div>
+      </section>
+      <section class="slide" id="bloom-3">
+        <div class="slide-eyebrow"><span class="eb-name">BLOOM FILTER</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">False positives: two items can turn on the same bits</h1>
+        <p class="slide-sub r-up d2">This is the price of compression. "apple" and "mango" together happened to set bit 9. A totally different word, "kiwi", might hash to bits that are all already on &mdash; a false positive.</p>
+        <div class="stage"><svg viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"><g class="dyn"></g></svg></div>
+        <div class="caption r-up d3">P(false positive) &asymp; (1 &minus; e<sup style="font-size:10px">&minus;kn/m</sup>)<sup style="font-size:10px">k</sup>. More bits per item (m/n) or a tuned k drives this down &mdash; it never reaches zero.</div>
+      </section>
+      <section class="slide bridge" id="bloom-bridge">
+        <div class="slide-eyebrow"><span class="eb-name">BLOOM FILTER</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">A filter that can never forget</h1>
+        <p class="slide-sub r-up d2">In production: Chrome Safe Browsing (malicious URL check) &middot; Cassandra/HBase (skip disk reads for missing keys) &middot; Medium/Akamai request de-duplication &middot; Bitcoin SPV wallets</p>
+        <div class="bridge-wrap">
+          <div class="bridge-row bridge-recap"><div class="bridge-tag">RECAP</div><div class="bridge-text">A Bloom filter answers membership in O(1) time using a handful of bits per item, with zero false negatives.</div></div>
+          <div class="bridge-row bridge-gap"><div class="bridge-tag">GAP</div><div class="bridge-text">but bit 9 belongs to both "apple" and "mango" now &mdash; if we delete "apple" and flip that bit back to 0, what happens to "mango"?</div></div>
+          <div class="bridge-row bridge-fill"><div class="bridge-tag">NEXT</div><div class="bridge-text">COUNTING BLOOM FILTER<span class="bridge-sub">give every bit some breathing room instead of just one</span></div></div>
+        </div>
+      </section>
+      <section class="slide" id="cbloom-1">
+        <div class="slide-eyebrow"><span class="eb-name">COUNTING BLOOM FILTER</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">Replace each bit with a small counter</h1>
+        <p class="slide-sub r-up d2">Same k hash functions, same array size &mdash; but every slot is now a 4-bit counter (0&ndash;15) instead of a single bit. Insert increments; delete decrements.</p>
+        <div class="stage"><svg viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"><g class="dyn"></g></svg></div>
+        <div class="caption r-up d3">Now deleting "apple" only lowers shared counters &mdash; it never wipes out "mango"'s claim on that slot.</div>
+      </section>
+      <section class="slide bridge" id="cbloom-bridge">
+        <div class="slide-eyebrow"><span class="eb-name">COUNTING BLOOM FILTER</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">Deletion isn't free</h1>
+        <p class="slide-sub r-up d2">In production: Squid web cache eviction &middot; peer-to-peer systems tracking dynamic membership &middot; distributed caches needing add + remove</p>
+        <div class="bridge-wrap">
+          <div class="bridge-row bridge-recap"><div class="bridge-tag">RECAP</div><div class="bridge-text">Counters let us delete items safely, at roughly 4&times; the memory of a plain Bloom filter.</div></div>
+          <div class="bridge-row bridge-gap"><div class="bridge-tag">GAP</div><div class="bridge-text">but we're still burning a full counter for every slot even when most counters are 0 or 1 &mdash; can we get deletion <em>and</em> better space efficiency?</div></div>
+          <div class="bridge-row bridge-fill"><div class="bridge-tag">NEXT</div><div class="bridge-text">CUCKOO FILTER<span class="bridge-sub">store a fingerprint of the item instead of touching many shared bits</span></div></div>
+        </div>
+      </section>
+      <section class="slide" id="cuckoo-1">
+        <div class="slide-eyebrow"><span class="eb-name">CUCKOO FILTER</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">Store a short fingerprint in one of two buckets</h1>
+        <p class="slide-sub r-up d2">Hash the item to get bucket A, and derive a small fingerprint (e.g. 8 bits). Bucket B is computed as A XOR hash(fingerprint) &mdash; so the item can always be found from either bucket.</p>
+        <div class="stage"><svg viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"><g class="dyn"></g></svg></div>
+        <div class="caption r-up d3">This is the same idea behind <em>cuckoo hashing</em>: every item has exactly two possible homes, computed independently of each other.</div>
+      </section>
+      <section class="slide" id="cuckoo-2">
+        <div class="slide-eyebrow"><span class="eb-name">CUCKOO FILTER</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">When both buckets are full, kick a neighbor out</h1>
+        <p class="slide-sub r-up d2">If bucket A and bucket B are both full when inserting, evict a random existing fingerprint from A, and re-insert <em>it</em> into its own alternate bucket. Repeat until something lands.</p>
+        <div class="stage"><svg viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"><g class="dyn"></g></svg></div>
+        <div class="caption r-up d3">This "cuckoo kick" is why buckets stay nearly full (95%+ load) without ever needing chaining or extra pointers &mdash; and it's also why a full table can occasionally fail to insert.</div>
+      </section>
+      <section class="slide" id="cuckoo-3">
+        <div class="slide-eyebrow"><span class="eb-name">CUCKOO FILTER</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">A fingerprint compare beats a counter check</h1>
+        <p class="slide-sub r-up d2">False positive rate depends only on fingerprint size f and bucket size b (entries per bucket): &asymp; 2b / 2<sup style="font-size:10px">f</sup>. No hashing per query bit &mdash; just compare stored bytes.</p>
+        <div class="stage"><svg viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"><g class="dyn"></g></svg></div>
+        <div class="caption r-up d3">For false-positive rates under about 3%, cuckoo filters use <em>less</em> total memory than an equivalent Bloom filter &mdash; and support deletion natively.</div>
+      </section>
+      <section class="slide bridge" id="cuckoo-bridge">
+        <div class="slide-eyebrow"><span class="eb-name">CUCKOO FILTER</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">Sometimes even 8-bit fingerprints are more than you need</h1>
+        <p class="slide-sub r-up d2">In production: Network routers (packet filtering) &middot; large-scale web crawlers (URL dedup) &middot; RocksDB's cuckoo table storage format</p>
+        <div class="bridge-wrap">
+          <div class="bridge-row bridge-recap"><div class="bridge-tag">RECAP</div><div class="bridge-text">Cuckoo filters compress membership into short fingerprints with two candidate homes each, supporting deletion natively.</div></div>
+          <div class="bridge-row bridge-gap"><div class="bridge-tag">GAP</div><div class="bridge-text">but bucket arrays still jump around in memory during collisions &mdash; is there a layout that keeps everything in one flat, cache-friendly array?</div></div>
+          <div class="bridge-row bridge-fill"><div class="bridge-tag">NEXT</div><div class="bridge-text">QUOTIENT FILTER<span class="bridge-sub">split each fingerprint into a bucket address and a remainder, stored in-place</span></div></div>
+        </div>
+      </section>
+      <section class="slide" id="quotient-1">
+        <div class="slide-eyebrow"><span class="eb-name">QUOTIENT FILTER</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">Split the fingerprint itself into an address and a value</h1>
+        <p class="slide-sub r-up d2">Take a fingerprint of q+r bits. The top q bits ("quotient") pick a home slot directly in one flat array; the bottom r bits ("remainder") are the only thing actually stored there.</p>
+        <div class="stage"><svg viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"><g class="dyn"></g></svg></div>
+        <div class="caption r-up d3">No separate hash table, no pointer chasing &mdash; just one contiguous array, which is exactly what CPU caches love.</div>
+      </section>
+      <section class="slide bridge" id="quotient-bridge">
+        <div class="slide-eyebrow"><span class="eb-name">QUOTIENT FILTER</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">A filter that can be merged like two sorted lists</h1>
+        <p class="slide-sub r-up d2">In production: Squeakr (DNA k-mer counting) &middot; SSD/flash-optimized databases &middot; systems needing mergeable, resizable filters</p>
+        <div class="bridge-wrap">
+          <div class="bridge-row bridge-recap"><div class="bridge-tag">RECAP</div><div class="bridge-text">Membership filters (Bloom, Counting Bloom, Cuckoo, Quotient) all answer <em>"is X probably in this set?"</em> using a fixed, tiny footprint.</div></div>
+          <div class="bridge-row bridge-gap"><div class="bridge-tag">GAP</div><div class="bridge-text">but none of them can tell us <em>how many distinct</em> items exist, or <em>how often</em> each one showed up &mdash; how do you count billions of unique things in kilobytes?</div></div>
+          <div class="bridge-row bridge-fill"><div class="bridge-tag">NEXT</div><div class="bridge-text">HYPERLOGLOG<span class="bridge-sub">estimate a count from the rarest pattern you happen to observe</span></div></div>
+        </div>
+      </section>
+      <section class="slide" id="hll-1">
+        <div class="slide-eyebrow"><span class="eb-name">HYPERLOGLOG</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">Rare patterns reveal how many coin flips happened</h1>
+        <p class="slide-sub r-up d2">Flip a fair coin until you get tails. If you happened to see 10 heads in a row before that, you probably flipped a lot &mdash; runs that long are rare unless you tried many times.</p>
+        <div class="stage"><svg viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"><g class="dyn"></g></svg></div>
+        <div class="caption r-up d3">Hashing an item is exactly like flipping coins with its bits: a hash with <em>10 leading zeros</em> is a rare (1-in-1024) event. If you saw one, you likely hashed roughly 2<sup style="font-size:10px">10</sup> items.</div>
+      </section>
+      <section class="slide" id="hll-2">
+        <div class="slide-eyebrow"><span class="eb-name">HYPERLOGLOG</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">One lucky guess is noisy &mdash; average many small guesses instead</h1>
+        <p class="slide-sub r-up d2">A single max-leading-zeros counter swings wildly. So split incoming hashes across m buckets (using their first few bits as the bucket index), and let each bucket keep its own max.</p>
+        <div class="stage"><svg viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"><g class="dyn"></g></svg></div>
+        <div class="caption r-up d3">Averaging m independent "rare event" observations with the right kind of mean cancels out most of the noise from any single unlucky or lucky hash.</div>
+      </section>
+      <section class="slide" id="hll-3">
+        <div class="slide-eyebrow"><span class="eb-name">HYPERLOGLOG</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">12 KB of memory, billions of items, ~1% error</h1>
+        <p class="slide-sub r-up d2">Standard error &asymp; 1.04 / &radic;m. With m = 16,384 registers at 6 bits each (~12 KB total), HyperLogLog estimates cardinalities in the billions within about 0.8% error &mdash; with small-range and large-range bias corrections applied.</p>
+        <div class="stage"><svg viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"><g class="dyn"></g></svg></div>
+        <div class="caption r-up d3">Compare that to a real HashSet of a billion 20-byte strings: roughly 20&nbsp;GB. HyperLogLog gets you within 1% of the truth for 0.00006% of the memory.</div>
+      </section>
+      <section class="slide bridge" id="hll-bridge">
+        <div class="slide-eyebrow"><span class="eb-name">HYPERLOGLOG</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">Counting how many is only half the question</h1>
+        <p class="slide-sub r-up d2">In production: Redis PFCOUNT/PFADD &middot; Google BigQuery APPROX_COUNT_DISTINCT &middot; Presto/Spark distinct counting &middot; ad-tech unique visitor dashboards</p>
+        <div class="bridge-wrap">
+          <div class="bridge-row bridge-recap"><div class="bridge-tag">RECAP</div><div class="bridge-text">HyperLogLog tells us <em>how many distinct</em> items passed through &mdash; using leading-zero runs and a handful of kilobytes.</div></div>
+          <div class="bridge-row bridge-gap"><div class="bridge-tag">GAP</div><div class="bridge-text">but it can't tell us <em>how many times</em> each individual item showed up &mdash; like, how many times did people search for "iPhone" today?</div></div>
+          <div class="bridge-row bridge-fill"><div class="bridge-tag">NEXT</div><div class="bridge-text">COUNT-MIN SKETCH<span class="bridge-sub">a small grid of counters that never undercounts, only ever overcounts</span></div></div>
+        </div>
+      </section>
+      <section class="slide" id="cms-1">
+        <div class="slide-eyebrow"><span class="eb-name">COUNT-MIN SKETCH</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">A 2D grid where every row uses a different hash</h1>
+        <p class="slide-sub r-up d2">Build a grid of d rows &times; w columns, all zero. To record an item, hash it once per row (d independent hash functions) and increment that cell in every row.</p>
+        <div class="stage"><svg viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"><g class="dyn"></g></svg></div>
+        <div class="caption r-up d3">Different rows use different hash functions, so a collision in row 1 almost never repeats in row 2 &mdash; that's the whole insight we'll use next.</div>
+      </section>
+      <section class="slide" id="cms-2">
+        <div class="slide-eyebrow"><span class="eb-name">COUNT-MIN SKETCH</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">To read a count, take the minimum across rows</h1>
+        <p class="slide-sub r-up d2">Query hashes the item the same way and reads all d cells &mdash; but returns the <em>smallest</em> value, not the sum or average.</p>
+        <div class="stage"><svg viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"><g class="dyn"></g></svg></div>
+        <div class="caption r-up d3">Collisions can only <b>add</b> other items' counts into a cell, never subtract &mdash; so every cell value is &ge; the true count. The minimum across rows is the tightest overestimate you can trust.</div>
+      </section>
+      <section class="slide" id="cms-3">
+        <div class="slide-eyebrow"><span class="eb-name">COUNT-MIN SKETCH</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">Sizing the grid from an accuracy target</h1>
+        <p class="slide-sub r-up d2">Choose width w = &lceil;e/&epsilon;&rceil; and depth d = &lceil;ln(1/&delta;)&rceil;. Then with probability at least 1&minus;&delta;, the estimate exceeds the truth by at most &epsilon;&middot;N (N = total updates seen).</p>
+        <div class="stage"><svg viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"><g class="dyn"></g></svg></div>
+        <div class="caption r-up d3">Want error under 0.1% of total traffic, 99% of the time? That's roughly w=2,719, d=5 &mdash; about 13,600 counters total, regardless of how many distinct items exist.</div>
+      </section>
+      <section class="slide bridge" id="cms-bridge">
+        <div class="slide-eyebrow"><span class="eb-name">COUNT-MIN SKETCH</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">Frequency told us "how often" &mdash; not "how alike"</h1>
+        <p class="slide-sub r-up d2">In production: Network heavy-hitter / DDoS detection &middot; Twitter trending topics &middot; database query planners estimating join cardinality</p>
+        <div class="bridge-wrap">
+          <div class="bridge-row bridge-recap"><div class="bridge-tag">RECAP</div><div class="bridge-text">Count-Min Sketch tracks approximate frequencies for millions of distinct keys in a small, fixed grid, always overestimating and rarely by much.</div></div>
+          <div class="bridge-row bridge-gap"><div class="bridge-tag">GAP</div><div class="bridge-text">but frequency counts don't tell us whether two entire <em>documents</em> or <em>sets</em> are similar &mdash; how do you compare billions of web pages for near-duplicates without comparing them pairwise?</div></div>
+          <div class="bridge-row bridge-fill"><div class="bridge-tag">NEXT</div><div class="bridge-text">MINHASH<span class="bridge-sub">a single random hash function can estimate the overlap between two whole sets</span></div></div>
+        </div>
+      </section>
+      <section class="slide" id="minhash-1">
+        <div class="slide-eyebrow"><span class="eb-name">MINHASH</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">Comparing every pair of documents doesn't scale</h1>
+        <p class="slide-sub r-up d2">Jaccard similarity of two sets A and B is |A&cap;B| / |A&cup;B|. Computing it directly means intersecting entire word-sets &mdash; fine for two documents, impossible for a billion-page comparison matrix.</p>
+        <div class="stage"><svg viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"><g class="dyn"></g></svg></div>
+        <div class="caption r-up d3">We want a short "fingerprint" per document such that comparing <em>fingerprints</em> approximates comparing the full sets.</div>
+      </section>
+      <section class="slide" id="minhash-2">
+        <div class="slide-eyebrow"><span class="eb-name">MINHASH</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">The minimum of a random hash is a fair coin flip over the union</h1>
+        <p class="slide-sub r-up d2">Apply one random hash function to every word in a set; keep only the smallest resulting value. Remarkable fact: P(min-hash of A equals min-hash of B) is exactly the Jaccard similarity of A and B.</p>
+        <div class="stage"><svg viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"><g class="dyn"></g></svg></div>
+        <div class="caption r-up d3">Why? The item achieving the overall minimum hash (across A&cup;B) is equally likely to be any element of the union &mdash; and it produces a matching min for both sets exactly when that element lies in A&cap;B.</div>
+      </section>
+      <section class="slide" id="minhash-3">
+        <div class="slide-eyebrow"><span class="eb-name">MINHASH</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">A signature vector turns similarity into a matching-fraction</h1>
+        <p class="slide-sub r-up d2">Run k independent hash functions, keep the min of each, and stack them into a signature of length k. The fraction of positions where two signatures agree estimates the Jaccard similarity.</p>
+        <div class="stage"><svg viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"><g class="dyn"></g></svg></div>
+        <div class="caption r-up d3">Estimating similarity for a billion documents now means comparing short fixed-length signatures &mdash; and Locality-Sensitive Hashing buckets similar signatures together so you never do pairwise comparisons at all.</div>
+      </section>
+      <section class="slide bridge" id="minhash-bridge">
+        <div class="slide-eyebrow"><span class="eb-name">MINHASH</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">We've been processing data as it flows past, once each</h1>
+        <p class="slide-sub r-up d2">In production: Google's original near-duplicate web-page detection &middot; plagiarism/code-clone detection &middot; recommendation engines (user-item overlap) &middot; genomic k-mer similarity</p>
+        <div class="bridge-wrap">
+          <div class="bridge-row bridge-recap"><div class="bridge-tag">RECAP</div><div class="bridge-text">HyperLogLog, Count-Min Sketch and MinHash all summarize a <em>stream</em> of data using fixed memory and one pass.</div></div>
+          <div class="bridge-row bridge-gap"><div class="bridge-tag">GAP</div><div class="bridge-text">but what if the task isn't summarizing &mdash; it's picking a fair, uniformly random <em>sample</em> from a stream so long you'll never know its length in advance?</div></div>
+          <div class="bridge-row bridge-fill"><div class="bridge-tag">NEXT</div><div class="bridge-text">RESERVOIR SAMPLING<span class="bridge-sub">keep a running sample that stays perfectly fair no matter how long the stream runs</span></div></div>
+        </div>
+      </section>
+      <section class="slide" id="reservoir-1">
+        <div class="slide-eyebrow"><span class="eb-name">RESERVOIR SAMPLING</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">Pick k fair winners from a line that never stops</h1>
+        <p class="slide-sub r-up d2">You want 3 uniformly random items from a stream of unknown, possibly huge length &mdash; seeing each item exactly once, using only O(k) memory. You can't wait for the stream to end to count it first.</p>
+        <div class="stage"><svg viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"><g class="dyn"></g></svg></div>
+        <div class="caption r-up d3">Naively: store everything, then pick at the end. That needs O(n) memory &mdash; exactly what we're trying to avoid.</div>
+      </section>
+      <section class="slide" id="reservoir-2">
+        <div class="slide-eyebrow"><span class="eb-name">RESERVOIR SAMPLING</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">Algorithm R: let later items fight for a seat with fair odds</h1>
+        <p class="slide-sub r-up d2">Fill the reservoir with the first k items. For every item i after that (1-indexed), roll a random j between 1 and i. If j &le; k, item i evicts reservoir slot j.</p>
+        <div class="stage"><svg viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"><g class="dyn"></g></svg></div>
+        <div class="caption r-up d3">Item i's chance of entering is k/i. Once in, its chance of surviving every later round multiplies out to exactly k/N &mdash; the same as everyone else, no matter when they arrived.</div>
+      </section>
+      <section class="slide bridge" id="reservoir-bridge">
+        <div class="slide-eyebrow"><span class="eb-name">RESERVOIR SAMPLING</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">A fair sample doesn't need the data kept in order</h1>
+        <p class="slide-sub r-up d2">In production: Kafka streaming log sampling &middot; unbiased A/B test cohort selection &middot; SQL TABLESAMPLE on huge tables &middot; random tweet sampling for research</p>
+        <div class="bridge-wrap">
+          <div class="bridge-row bridge-recap"><div class="bridge-tag">RECAP</div><div class="bridge-text">Reservoir Sampling maintains a uniformly random sample of a stream of unknown length, in O(k) memory, one pass.</div></div>
+          <div class="bridge-row bridge-gap"><div class="bridge-tag">GAP</div><div class="bridge-text">but many real systems need their in-memory data <em>sorted</em> and searchable in O(log n) &mdash; without the rebalancing complexity of a red-black tree. What's the simplest way to get that?</div></div>
+          <div class="bridge-row bridge-fill"><div class="bridge-tag">NEXT</div><div class="bridge-text">SKIP LIST<span class="bridge-sub">stack coin flips on top of a linked list to build free "express lanes"</span></div></div>
+        </div>
+      </section>
+      <section class="slide" id="skip-1">
+        <div class="slide-eyebrow"><span class="eb-name">SKIP LIST</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">A plain sorted linked list forces you to check every node</h1>
+        <p class="slide-sub r-up d2">Searching for 47 in a sorted linked list of 12 items means walking node by node from the start &mdash; O(n) in the worst case, even though the data is sorted.</p>
+        <div class="stage"><svg viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"><g class="dyn"></g></svg></div>
+        <div class="caption r-up d3">Balanced trees fix this with O(log n) search, but need rotations on every insert/delete. Is there a simpler trick that's still probabilistically balanced?</div>
+      </section>
+      <section class="slide" id="skip-2">
+        <div class="slide-eyebrow"><span class="eb-name">SKIP LIST</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">Flip a coin per node to build express lanes above it</h1>
+        <p class="slide-sub r-up d2">Every node is promoted to level 2 with probability 1/2, to level 3 with probability 1/4, and so on &mdash; pure randomness, no rebalancing logic at all.</p>
+        <div class="stage"><svg viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"><g class="dyn"></g></svg></div>
+        <div class="caption r-up d3">The result looks like a highway system: a sparse top level for long jumps, denser lower levels for fine-grained steps &mdash; built entirely by coin flips at insert time.</div>
+      </section>
+      <section class="slide" id="skip-3">
+        <div class="slide-eyebrow"><span class="eb-name">SKIP LIST</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">Search top-down: go right while safe, drop down when blocked</h1>
+        <p class="slide-sub r-up d2">Start at the top-left. Move right as long as the next value is still &le; target. When the next value would overshoot, drop one level and repeat.</p>
+        <div class="stage"><svg viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"><g class="dyn"></g></svg></div>
+        <div class="caption r-up d3">Each dropped level eliminates roughly half the remaining candidates &mdash; the same halving behavior as binary search, achieved with zero rebalancing.</div>
+      </section>
+      <section class="slide bridge" id="skip-bridge">
+        <div class="slide-eyebrow"><span class="eb-name">SKIP LIST</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">A sorted structure that's simple, fast, and lock-friendly</h1>
+        <p class="slide-sub r-up d2">In production: Redis sorted sets (ZSET) &middot; LevelDB/RocksDB in-memory write buffers &middot; Lucene posting-list traversal &middot; concurrent/lock-free data structures</p>
+        <div class="bridge-wrap">
+          <div class="bridge-row bridge-recap"><div class="bridge-tag">RECAP</div><div class="bridge-text">Skip Lists give sorted, O(log n)-search structures without any rebalancing logic &mdash; just randomness.</div></div>
+          <div class="bridge-row bridge-gap"><div class="bridge-tag">GAP</div><div class="bridge-text">in fact, that's exactly the structure databases use to buffer writes in memory before flushing to disk &mdash; but why buffer writes at all instead of writing straight to disk?</div></div>
+          <div class="bridge-row bridge-fill"><div class="bridge-tag">NEXT</div><div class="bridge-text">LSM TREE<span class="bridge-sub">turn slow random disk writes into fast sequential ones</span></div></div>
+        </div>
+      </section>
+      <section class="slide" id="lsm-1">
+        <div class="slide-eyebrow"><span class="eb-name">LSM TREE</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">Random writes are the enemy of spinning disks and even SSDs</h1>
+        <p class="slide-sub r-up d2">A B-tree updates the exact page a key lives on &mdash; scattered across disk. At high write volume, this means constant random-access seeks, which are orders of magnitude slower than sequential access.</p>
+        <div class="stage"><svg viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"><g class="dyn"></g></svg></div>
+        <div class="caption r-up d3">The fix: never write randomly. Buffer writes in memory, then flush them to disk as one big sequential block.</div>
+      </section>
+      <section class="slide" id="lsm-2">
+        <div class="slide-eyebrow"><span class="eb-name">LSM TREE</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">Writes flow: memory buffer &rarr; immutable file &rarr; background merge</h1>
+        <p class="slide-sub r-up d2">New writes land in an in-memory <b>Memtable</b>. When it fills up, it's flushed as a new, immutable, sorted <b>SSTable</b> file on disk. A background process periodically <b>compacts</b> (merges) SSTables together.</p>
+        <div class="stage"><svg viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"><g class="dyn"></g></svg></div>
+        <div class="caption r-up d3">This is the three-part machine at the heart of Cassandra, RocksDB, LevelDB and HBase &mdash; we'll open each box on the next two slides.</div>
+      </section>
+      <section class="slide" id="lsm-3">
+        <div class="slide-eyebrow"><span class="eb-name">LSM TREE</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">Compaction merges sorted files the way merge-sort merges runs</h1>
+        <p class="slide-sub r-up d2">Because every SSTable is already internally sorted, merging two of them is a simple sorted-merge pass &mdash; and it's the moment overwritten or deleted keys finally get discarded for good.</p>
+        <div class="stage"><svg viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"><g class="dyn"></g></svg></div>
+        <div class="caption r-up d3">Without compaction, reads would have to check an ever-growing pile of files. Compaction keeps that pile shallow, trading some background CPU/IO for consistently fast reads.</div>
+      </section>
+      <section class="slide bridge" id="lsm-bridge">
+        <div class="slide-eyebrow"><span class="eb-name">LSM TREE</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">Two of the boxes we just drew deserve a closer look</h1>
+        <p class="slide-sub r-up d2">In production: Apache Cassandra &middot; RocksDB / LevelDB &middot; HBase &middot; InfluxDB &middot; ScyllaDB</p>
+        <div class="bridge-wrap">
+          <div class="bridge-row bridge-recap"><div class="bridge-tag">RECAP</div><div class="bridge-text">LSM trees turn slow random writes into fast sequential ones by buffering in a Memtable and flushing to immutable SSTables.</div></div>
+          <div class="bridge-row bridge-gap"><div class="bridge-tag">GAP</div><div class="bridge-text">we glossed over the memory buffer itself &mdash; what actually happens if the process crashes before that buffer is flushed to disk?</div></div>
+          <div class="bridge-row bridge-fill"><div class="bridge-tag">NEXT</div><div class="bridge-text">MEMTABLE<span class="bridge-sub">the volatile write buffer, backed by a durability trick</span></div></div>
+        </div>
+      </section>
+      <section class="slide" id="memtable-1">
+        <div class="slide-eyebrow"><span class="eb-name">MEMTABLE</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">A sorted in-memory buffer with a durability safety net</h1>
+        <p class="slide-sub r-up d2">The Memtable holds all recent writes sorted by key (commonly as a Skip List, for cheap sorted iteration and O(log n) inserts). But RAM is volatile &mdash; a crash would lose every unflushed write.</p>
+        <div class="stage"><svg viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"><g class="dyn"></g></svg></div>
+        <div class="caption r-up d3">Every write is <em>also</em> appended to an on-disk Write-Ahead Log (WAL) before touching the Memtable. On restart, replaying the WAL rebuilds the Memtable exactly as it was.</div>
+      </section>
+      <section class="slide" id="memtable-2">
+        <div class="slide-eyebrow"><span class="eb-name">MEMTABLE</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">One size threshold, then a clean handoff</h1>
+        <p class="slide-sub r-up d2">Once the Memtable reaches its size limit (e.g. 64&nbsp;MB), it's frozen as read-only, handed to a background thread to flush as a new SSTable, and a brand-new empty Memtable takes over writes immediately.</p>
+        <div class="stage"><svg viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"><g class="dyn"></g></svg></div>
+        <div class="caption r-up d3">Bigger Memtables mean fewer, larger SSTables (less compaction later) but slower crash recovery and more RAM pressure &mdash; a real, frequently-tuned production trade-off.</div>
+      </section>
+      <section class="slide bridge" id="memtable-bridge">
+        <div class="slide-eyebrow"><span class="eb-name">MEMTABLE</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">The Memtable's job ends the moment it becomes a file</h1>
+        <p class="slide-sub r-up d2">In production: RocksDB / Cassandra memtable size tuning is one of the most common production performance knobs</p>
+        <div class="bridge-wrap">
+          <div class="bridge-row bridge-recap"><div class="bridge-tag">RECAP</div><div class="bridge-text">The Memtable is the volatile, sorted write buffer, protected by a Write-Ahead Log and flushed wholesale once full.</div></div>
+          <div class="bridge-row bridge-gap"><div class="bridge-tag">GAP</div><div class="bridge-text">once flushed, that data becomes a static file on disk &mdash; what makes that file fast to search, given it can never be modified again?</div></div>
+          <div class="bridge-row bridge-fill"><div class="bridge-tag">NEXT</div><div class="bridge-text">SSTABLE<span class="bridge-sub">sorted, indexed, and paired with a Bloom filter to skip files that can't possibly help</span></div></div>
+        </div>
+      </section>
+      <section class="slide" id="sstable-1">
+        <div class="slide-eyebrow"><span class="eb-name">SSTABLE</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">Sorted, immutable, and searchable without loading the whole file</h1>
+        <p class="slide-sub r-up d2">An SSTable stores key-value pairs sorted by key in one file, plus a <b>sparse index</b> (e.g. every 100th key's byte offset) so a lookup can binary-search the index, then read just one small block from disk.</p>
+        <div class="stage"><svg viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"><g class="dyn"></g></svg></div>
+        <div class="caption r-up d3">Immutability is the real prize: no locks for concurrent readers, trivial replication, and merging two files is just a sorted merge &mdash; exactly what we saw compaction do.</div>
+      </section>
+      <section class="slide" id="sstable-2">
+        <div class="slide-eyebrow"><span class="eb-name">SSTABLE</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">A Bloom filter per file skips disk reads entirely</h1>
+        <p class="slide-sub r-up d2">Every SSTable ships with a small embedded Bloom filter over its own keys. Before touching disk, the read path checks it: "definitely not here" means skip this file completely.</p>
+        <div class="stage"><svg viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"><g class="dyn"></g></svg></div>
+        <div class="caption r-up d3">This is the full circle back to slide one: a data structure we treated as a toy example now sits inside every production LSM database, saving real disk IO on every read.</div>
+      </section>
+      <section class="slide bridge" id="sstable-bridge">
+        <div class="slide-eyebrow"><span class="eb-name">SSTABLE</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">Storage engines were about ordered keys and values</h1>
+        <p class="slide-sub r-up d2">In production: Google Bigtable (origin of the format) &middot; Cassandra data files &middot; LevelDB/RocksDB &middot; Kafka segment files (same append-only philosophy)</p>
+        <div class="bridge-wrap">
+          <div class="bridge-row bridge-recap"><div class="bridge-tag">RECAP</div><div class="bridge-text">SSTables are immutable, sorted, indexed files &mdash; the disk-resident half of every LSM-based database, paired with Bloom filters for fast negative lookups.</div></div>
+          <div class="bridge-row bridge-gap"><div class="bridge-tag">GAP</div><div class="bridge-text">but plenty of systems don't store key-value pairs at all &mdash; they store yes/no flags for millions of records. What's the fastest way to combine a million such flags at once?</div></div>
+          <div class="bridge-row bridge-fill"><div class="bridge-tag">NEXT</div><div class="bridge-text">BITMAP<span class="bridge-sub">one bit per record, combined at CPU speed with AND / OR / XOR</span></div></div>
+        </div>
+      </section>
+      <section class="slide" id="bitmap-1">
+        <div class="slide-eyebrow"><span class="eb-name">BITMAP</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">One bit per record, one CPU instruction per 64 of them</h1>
+        <p class="slide-sub r-up d2">To track a boolean per record (is_active, is_premium, in_segment_7), use one bit per record ID. Combining two bitmaps with AND/OR/XOR processes 32 or 64 records per single CPU instruction.</p>
+        <div class="stage"><svg viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"><g class="dyn"></g></svg></div>
+        <div class="caption r-up d3">This is how "premium users who were active yesterday" becomes one bitwise AND across two arrays &mdash; no loops over individual user records at all.</div>
+      </section>
+      <section class="slide bridge" id="bitmap-bridge">
+        <div class="slide-eyebrow"><span class="eb-name">BITMAP</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">Bitmaps are blazing fast &mdash; when the data is dense</h1>
+        <p class="slide-sub r-up d2">In production: Redis SETBIT/BITCOUNT/BITOP for feature flags &middot; database bitmap indexes on low-cardinality columns &middot; real-time analytics segment combining</p>
+        <div class="bridge-wrap">
+          <div class="bridge-row bridge-recap"><div class="bridge-tag">RECAP</div><div class="bridge-text">Bitmaps combine millions of boolean flags per record using native bitwise CPU instructions.</div></div>
+          <div class="bridge-row bridge-gap"><div class="bridge-tag">GAP</div><div class="bridge-text">but what if only 5 out of 10 million IDs are actually set &mdash; do we really need 10 million bits of mostly zeros just to represent 5 numbers?</div></div>
+          <div class="bridge-row bridge-fill"><div class="bridge-tag">NEXT</div><div class="bridge-text">ROARING BITMAP<span class="bridge-sub">store each chunk of the bitmap in whatever format is smallest for it</span></div></div>
+        </div>
+      </section>
+      <section class="slide" id="roaring-1">
+        <div class="slide-eyebrow"><span class="eb-name">ROARING BITMAP</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">Split the ID space into chunks, pick the cheapest container per chunk</h1>
+        <p class="slide-sub r-up d2">Divide the 32-bit key space into 65,536-value chunks. Each chunk picks its own best representation: a plain bitmap if dense, a sorted array of values if sparse, or a run-list if the values are clustered in ranges.</p>
+        <div class="stage"><svg viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"><g class="dyn"></g></svg></div>
+        <div class="caption r-up d3">A single structure now adapts itself: dense regions stay compact bitmaps, sparse regions barely use any memory at all.</div>
+      </section>
+      <section class="slide" id="roaring-2">
+        <div class="slide-eyebrow"><span class="eb-name">ROARING BITMAP</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">Bitwise operations run directly on the compressed containers</h1>
+        <p class="slide-sub r-up d2">AND-ing two roaring bitmaps ANDs matching chunks: array&times;array does a merge-intersect, bitmap&times;bitmap does native word-AND, and mixed pairs convert only the smaller side &mdash; never decompressing the whole structure.</p>
+        <div class="stage"><svg viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"><g class="dyn"></g></svg></div>
+        <div class="caption r-up d3">You get the sparse-friendly size of a hash set and the dense-friendly speed of a raw bitmap, automatically, per chunk.</div>
+      </section>
+      <section class="slide bridge" id="roaring-bridge">
+        <div class="slide-eyebrow"><span class="eb-name">ROARING BITMAP</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">Compressed ID sets that AND and OR at bitmap speed</h1>
+        <p class="slide-sub r-up d2">In production: Apache Lucene / Elasticsearch (filtering doc-id sets) &middot; Apache Druid &middot; Spark &middot; Pilosa &middot; ClickHouse</p>
+        <div class="bridge-wrap">
+          <div class="bridge-row bridge-recap"><div class="bridge-tag">RECAP</div><div class="bridge-text">Roaring Bitmaps compress sparse or clustered ID sets while keeping fast native bitwise operations, chunk by chunk.</div></div>
+          <div class="bridge-row bridge-gap"><div class="bridge-tag">GAP</div><div class="bridge-text">search engines run exactly this kind of set-intersection billions of times a day &mdash; but how do they get from "the word cat" to "a set of matching document IDs" in the first place?</div></div>
+          <div class="bridge-row bridge-fill"><div class="bridge-tag">NEXT</div><div class="bridge-text">INVERTED INDEX<span class="bridge-sub">flip the mapping from document → words to word → documents</span></div></div>
+        </div>
+      </section>
+      <section class="slide" id="inverted-1">
+        <div class="slide-eyebrow"><span class="eb-name">INVERTED INDEX</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">Flip the mapping: word &rarr; documents, not document &rarr; words</h1>
+        <p class="slide-sub r-up d2">A forward index stores what words are in each document &mdash; useless for search. An inverted index stores, for every word, the sorted list of document IDs that contain it: a <b>posting list</b>.</p>
+        <div class="stage"><svg viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"><g class="dyn"></g></svg></div>
+        <div class="caption r-up d3">Now "find documents containing &lsquo;fox&rsquo;" is a single lookup into a hash map or B-tree keyed by the word &mdash; no scanning of documents required.</div>
+      </section>
+      <section class="slide" id="inverted-2">
+        <div class="slide-eyebrow"><span class="eb-name">INVERTED INDEX</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">Boolean search is just posting-list intersection</h1>
+        <p class="slide-sub r-up d2">"quick AND fox" merges the two posting lists like a sorted merge &mdash; matching IDs survive. Skip pointers embedded in long posting lists let this jump ahead instead of scanning every entry.</p>
+        <div class="stage"><svg viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"><g class="dyn"></g></svg></div>
+        <div class="caption r-up d3">Modern engines increasingly store posting lists as <em>Roaring Bitmaps of document IDs</em> &mdash; turning boolean search into the same bitwise AND/OR we just built.</div>
+      </section>
+      <section class="slide bridge" id="inverted-bridge">
+        <div class="slide-eyebrow"><span class="eb-name">INVERTED INDEX</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">This is how every keyword search you've ever run actually works</h1>
+        <p class="slide-sub r-up d2">In production: Google / Bing web search &middot; Elasticsearch, Solr, Lucene &middot; PostgreSQL GIN full-text indexes</p>
+        <div class="bridge-wrap">
+          <div class="bridge-row bridge-recap"><div class="bridge-tag">RECAP</div><div class="bridge-text">The inverted index maps words to posting lists of document IDs, letting boolean search become list intersection at scale.</div></div>
+          <div class="bridge-row bridge-gap"><div class="bridge-tag">GAP</div><div class="bridge-text">we've now met every structure on the map &mdash; but real systems rarely use just one. How do they actually fit together in one running database?</div></div>
+          <div class="bridge-row bridge-fill"><div class="bridge-tag">NEXT</div><div class="bridge-text">SYNTHESIS<span class="bridge-sub">watch four of these structures work together inside one real write and one real read</span></div></div>
+        </div>
+      </section>
+      <section class="slide" id="synth-1">
+        <div class="slide-eyebrow"><span class="eb-name">SYNTHESIS</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">Fifteen structures, one recurring trade</h1>
+        <p class="slide-sub r-up d2">Every structure we covered gave up a small, well-understood amount of certainty or freshness in exchange for a large win in memory, speed, or both.</p>
+        <div class="stage"><svg viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"><g class="dyn"></g></svg></div>
+        <div class="caption r-up d3">None of these are exotic research toys &mdash; every single one ships in software you have used this week.</div>
+      </section>
+      <section class="slide" id="synth-2">
+        <div class="slide-eyebrow"><span class="eb-name">SYNTHESIS</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">One write into Cassandra touches four of these structures</h1>
+        <p class="slide-sub r-up d2">A single INSERT: append to the WAL, add to the <b>Memtable</b> (a skip list), and eventually flush into an <b>SSTable</b> carrying its own <b>Bloom filter</b> for fast future negative lookups.</p>
+        <div class="stage"><svg viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"><g class="dyn"></g></svg></div>
+        <div class="caption r-up d3">None of these structures live in isolation &mdash; they're building blocks that compose into the storage engine of a real, widely-deployed database.</div>
+      </section>
+      <section class="slide" id="synth-3">
+        <div class="slide-eyebrow"><span class="eb-name">SYNTHESIS</span><span class="eyebrow-num"></span></div>
+        <h1 class="slide-title r-up d1">A search-engine query touches a different four</h1>
+        <p class="slide-sub r-up d2">Elasticsearch resolves "quick fox" &rarr; two posting lists from the <b>Inverted Index</b>, each stored as a <b>Roaring Bitmap</b> of document IDs, intersected in place; a <b>MinHash</b> pass elsewhere flags near-duplicate results to demote.</p>
+        <div class="stage"><svg viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet"><g class="dyn"></g></svg></div>
+        <div class="caption r-up d3">Same fifteen-structure toolbox, completely different assembly &mdash; that's the actual skill: recognizing which trade-off a problem needs, then reaching for the matching tool.</div>
+      </section>
+</div>
+<div id="nav-bottom"><div id="nav-progress"></div></div>
+<div id="dots"></div>
+<script>
+const slideScripts = {};
+slideScripts['intro-1'] = function(svg, slideEl){
+
+  const dyn = svg.querySelector('.dyn');
+  label(dyn, 150, 40, 'EXACT SET', {anchor:'middle', size:14, weight:700, color:'var(--ink)'});
+  label(dyn, 150, 58, 'stores every item', {anchor:'middle', size:12, color:'var(--ink-faint)'});
+  label(dyn, 800, 40, 'PROBABILISTIC SKETCH', {anchor:'middle', size:14, weight:700, color:'var(--ink)'});
+  label(dyn, 800, 58, 'stores a fixed-size summary', {anchor:'middle', size:12, color:'var(--ink-faint)'});
+  drawLine(dyn,{x1:60,y1:330,x2:260,y2:330,color:'#3a3a42',width:1.5,delay:0,dur:1});
+  drawLine(dyn,{x1:650,y1:330,x2:950,y2:330,color:'#3a3a42',width:1.5,delay:0,dur:1});
+  const items = ['user_00192','user_00193','user_00194','user_00195','user_00196','user_00197','user_00198'];
+  let by = 320;
+  items.forEach(function(t,i){
+    popIn(dyn, 60, by-i*30, function(g){
+      g.appendChild(svgEl('rect',{x:0,y:-16,width:200,height:22,fill:'#141418',stroke:'#33333a',rx:4}));
+      g.appendChild(svgEl('text',{x:8,y:0,'font-size':11,fill:'var(--ink-dim)','font-family':'monospace'}, t));
+    }, 300+i*180, 350);
+  });
+  growBarV(dyn, {x:290, yBase:330, w:26, targetH:24*items.length, color:'var(--rose)', delay:300, dur:1400});
+  label(dyn, 303, 350, 'memory', {anchor:'middle', size:11, color:'var(--ink-faint)', delay:1700});
+  const cnt = label(dyn, 150, 360, '0', {anchor:'middle', size:18, color:'var(--rose)', weight:700, delay:1700});
+  countUp(cnt, 0, items.length, 1700, 700, function(v){ return Math.round(v)+' items stored'; });
+
+  const g2 = svgEl('g',{}); dyn.appendChild(g2);
+  const rect2 = svgEl('rect',{x:770,y:298,width:60,height:32,fill:'none',stroke:'var(--teal)','stroke-width':2,rx:5,opacity:0});
+  g2.appendChild(rect2); fadeIn(rect2, 2200, 500);
+  const t2 = svgEl('text',{x:800,y:319,'text-anchor':'middle','font-size':13,fill:'var(--teal)','font-weight':700,'font-family':'monospace',opacity:0}, '');
+  g2.appendChild(t2); fadeIn(t2, 2400, 400);
+  countUp(t2, 0, items.length, 2400, 700, function(v){ return Math.round(v)+' items'; });
+  label(dyn, 800, 350, 'same fixed size, always', {anchor:'middle', size:11, color:'var(--ink-faint)', delay:2900});
+  
+};
+slideScripts['intro-2'] = function(svg, slideEl){
+
+  const dyn = svg.querySelector('.dyn');
+  const cx=500, cy=190, R=150;
+  const pts = [[cx, cy-R], [cx-R*0.87, cy+R*0.5], [cx+R*0.87, cy+R*0.5]];
+  const labels = ['CERTAINTY\n(exact answers)','LOW MEMORY','HIGH SPEED'];
+  for(let i=0;i<3;i++){
+    drawLine(dyn,{x1:pts[i][0],y1:pts[i][1],x2:pts[(i+1)%3][0],y2:pts[(i+1)%3][1],color:'#33333c',width:1.6,delay:i*150,dur:500});
+  }
+  const labelPos = [[cx,cy-R-28],[cx-R*0.87-70,cy+R*0.5+16],[cx+R*0.87+68,cy+R*0.5+16]];
+  const shortLabels = ['CERTAINTY','LOW MEMORY','HIGH SPEED'];
+  shortLabels.forEach(function(t,i){
+    label(dyn, labelPos[i][0], labelPos[i][1], t, {anchor:'middle', size:13, weight:700, color:'var(--ink)', delay:700+i*120});
+  });
+  popIn(dyn, cx-95, cy+40, function(g){
+    g.appendChild(svgEl('circle',{r:6,fill:'var(--ink-faint)'}));
+    g.appendChild(svgEl('text',{x:11,y:4,'font-size':11.5,fill:'var(--ink-faint)'},'exact hash set / B-tree'));
+  }, 1400, 400);
+  popIn(dyn, cx-15, cy+72, function(g){
+    g.appendChild(svgEl('circle',{r:8,fill:'var(--amber)'}));
+    g.appendChild(svgEl('text',{x:13,y:5,'font-size':13,fill:'var(--amber)','font-weight':700},'probabilistic sketches'));
+  }, 1900, 450);
+  drawLine(dyn,{x1:cx-95,y1:cy+46,x2:cx-20,y2:cy+68,color:'var(--amber)',width:1.4,delay:2400,dur:400,dash:'4,4'});
+  label(dyn, cx, cy+R*0.5+35, 'trade a bit of this', {anchor:'middle', size:11, color:'var(--ink-faint)', delay:2900});
+  
+};
+slideScripts['intro-3'] = function(svg, slideEl){
+
+  const dyn = svg.querySelector('.dyn');
+  const fams = [
+    {t:'MEMBERSHIP', s:'is X in the set?', ex:'Bloom, Counting Bloom,\nCuckoo, Quotient filters', c:'var(--teal)'},
+    {t:'CARDINALITY / FREQUENCY', s:'how many? how often? how similar?', ex:'HyperLogLog, Count-Min\nSketch, MinHash', c:'var(--amber)'},
+    {t:'SAMPLING / ORDER', s:'pick fairly, search quickly', ex:'Reservoir Sampling,\nSkip List', c:'var(--violet)'},
+    {t:'STORAGE ENGINES', s:'write fast, read smart', ex:'LSM Tree, Memtable,\nSSTable', c:'var(--rose)'},
+    {t:'BITMAPS / SEARCH', s:'combine sets, find documents', ex:'Bitmap, Roaring Bitmap,\nInverted Index', c:'var(--teal)'}
+  ];
+  const bw=176, bh=210, gap=14;
+  const totalW = 5*bw+4*gap;
+  const x0 = (1000-totalW)/2;
+  fams.forEach(function(f,i){
+    const x = x0 + i*(bw+gap), y=60;
+    box(dyn, x, y, bw, bh, {fill:'#0c0c10', stroke:f.c, sw:1.4, rx:8, delay:i*180, dur:450});
+    label(dyn, x+bw/2, y+34, f.t, {anchor:'middle', size:12.5, weight:700, color:f.c, delay:i*180+250});
+    const subLines = f.s.split('\n');
+    subLines.forEach(function(l,li){ label(dyn, x+bw/2, y+58+li*15, l, {anchor:'middle', size:10.5, color:'var(--ink-dim)', delay:i*180+350}); });
+    const exLines = f.ex.split('\n');
+    exLines.forEach(function(l,li){ label(dyn, x+bw/2, y+140+li*16, l, {anchor:'middle', size:10.5, color:'var(--ink-faint)', delay:i*180+450}); });
+    drawLine(dyn,{x1:x+18,y1:y+100,x2:x+bw-18,y2:y+100,color:'#26262c',width:1,delay:i*180+350,dur:250});
+  });
+  
+};
+slideScripts['bloom-1'] = function(svg, slideEl){
+
+  const dyn = svg.querySelector('.dyn');
+  const n=20, w=40, gap=4;
+  const x0 = (1000-(n*w+(n-1)*gap))/2;
+  const y=180;
+  const cells = cellsRow(dyn, {x:x0,y:y,n:n,w:w,h:40,gap:gap,delay:0,stagger:25,labels:new Array(n).fill('0'),fontSize:14});
+  label(dyn, 500, 140, 'bit array, m = 20, all zero', {anchor:'middle', size:13, color:'var(--ink-faint)', delay:700});
+
+  function insert(word, idxs, color, delay){
+    popIn(dyn, 500, 60, function(g){
+      g.appendChild(svgEl('rect',{x:-55,y:-18,width:110,height:28,fill:'#141418',stroke:color,rx:6,'stroke-width':1.5}));
+      g.appendChild(svgEl('text',{x:0,y:5,'text-anchor':'middle','font-size':14,fill:color,'font-weight':700}, '"'+word+'"'));
+    }, delay, 400);
+    idxs.forEach(function(idx,j){
+      const cx0 = 500, cy0 = 75;
+      const target = cells[idx];
+      moveAlong(dyn, [[cx0,cy0],[target.x+target.w/2, target.y]], {color:color, r:5, dur:550, delay:delay+250+j*130});
+      setTimeout(function(){
+        setCell(target, {fill: 'rgba(240,168,96,0.22)', stroke: color}, 0, 300);
+        target.text.textContent = '1';
+        target.text.setAttribute('fill', color);
+      }, delay+250+j*130+560);
+    });
+  }
+  insert('apple', [3,9,15], 'var(--teal)', 900);
+  insert('mango', [1,9,17], 'var(--violet)', 2300);
+  
+};
+slideScripts['bloom-2'] = function(svg, slideEl){
+
+  const dyn = svg.querySelector('.dyn');
+  const n=20, w=40, gap=4;
+  const x0 = (1000-(n*w+(n-1)*gap))/2;
+  const y=200;
+  const onBits = [1,3,9,15,17];
+  const labelsArr = new Array(n).fill('0'); onBits.forEach(i=>labelsArr[i]='1');
+  const cells = cellsRow(dyn, {x:x0,y:y,n:n,w:w,h:40,gap:gap,delay:0,stagger:15,labels:labelsArr,fontSize:14});
+  cells.forEach(function(c,i){ if(onBits.includes(i)){ c.rect.setAttribute('fill','rgba(240,168,96,0.16)'); c.rect.setAttribute('stroke','var(--amber)'); c.text.setAttribute('fill','var(--amber)'); } });
+
+  function query(word, idxs, y0, verdict, vcolor){
+    popIn(dyn, 130, y0, function(g){
+      g.appendChild(svgEl('text',{x:0,y:0,'font-size':14,fill:'var(--ink)','font-family':'monospace'}, '"'+word+'"' + ' → bits '+idxs.join(',')));
+    }, 900, 350);
+    idxs.forEach(function(idx,j){
+      drawLine(dyn, {x1:230,y1:y0-4,x2:cells[idx].x+cells[idx].w/2,y2:y,color:vcolor,width:1.4,delay:1300+j*150,dur:400,dash:'3,3'});
+    });
+    popIn(dyn, 800, y0, function(g){
+      g.appendChild(svgEl('rect',{x:-115,y:-16,width:230,height:26,fill:'none',stroke:vcolor,'stroke-width':1.6,rx:5}));
+      g.appendChild(svgEl('text',{x:0,y:4,'text-anchor':'middle','font-size':12.5,fill:vcolor,'font-weight':700}, verdict));
+    }, 2200, 400);
+  }
+  query('apple', [3,9,15], 100, 'ALL SET \u2192 "maybe" present', 'var(--teal)');
+  query('kiwi', [1,3,4], 320, 'bit 4 = 0 \u2192 definitely NOT', 'var(--rose)');
+  cells[4].g.style.filter='none';
+  setTimeout(function(){ setCell(cells[4], {stroke:'var(--rose)'}, 0, 300); }, 2600);
+  
+};
+slideScripts['bloom-3'] = function(svg, slideEl){
+
+  const dyn = svg.querySelector('.dyn');
+  const n=20, w=40, gap=4;
+  const x0 = (1000-(n*w+(n-1)*gap))/2;
+  const y=110;
+  const onBits = [1,3,9,15,17];
+  const labelsArr = new Array(n).fill('0'); onBits.forEach(i=>labelsArr[i]='1');
+  const cells = cellsRow(dyn, {x:x0,y:y,n:n,w:w,h:36,gap:gap,delay:0,stagger:10,labels:labelsArr,fontSize:13});
+  cells.forEach(function(c,i){ if(onBits.includes(i)){ c.rect.setAttribute('fill','rgba(240,168,96,0.16)'); c.rect.setAttribute('stroke','var(--amber)'); c.text.setAttribute('fill','var(--amber)'); } });
+  label(dyn, cells[9].x+cells[9].w/2, y-14, 'shared by 2 words', {anchor:'middle', size:10.5, color:'var(--ink-faint)', delay:600});
+
+  const kiwiIdx=[3,9,17];
+  popIn(dyn, 500, 200, function(g){
+    g.appendChild(svgEl('text',{x:0,y:0,'text-anchor':'middle','font-size':15,fill:'var(--rose)','font-family':'monospace'}, '"kiwi" was NEVER inserted'));
+  }, 700, 400);
+  kiwiIdx.forEach(function(idx,j){
+    drawLine(dyn, {x1:500,y1:210,x2:cells[idx].x+cells[idx].w/2,y2:y+36,color:'var(--rose)',width:1.5,delay:1200+j*180,dur:400,dash:'3,3'});
+  });
+  popIn(dyn, 500, 270, function(g){
+    g.appendChild(svgEl('rect',{x:-160,y:-18,width:320,height:30,fill:'none',stroke:'var(--rose)','stroke-width':1.6,rx:6}));
+    g.appendChild(svgEl('text',{x:0,y:5,'text-anchor':'middle','font-size':14,fill:'var(--rose)','font-weight':700}, 'yet all 3 bits are already 1 \u2192 FALSE POSITIVE'));
+  }, 2000, 450);
+  const fx=500, fy=335;
+  label(dyn, fx, fy, 'p \u2248 (1 \u2212 e', {anchor:'end', size:16, color:'var(--ink)', mono:true, delay:2600});
+  label(dyn, fx+2, fy-8, '\u2212kn/m', {anchor:'start', size:10, color:'var(--ink-dim)', mono:true, delay:2700});
+  label(dyn, fx+52, fy, ')', {anchor:'start', size:16, color:'var(--ink)', mono:true, delay:2600});
+  label(dyn, fx+60, fy-8, 'k', {anchor:'start', size:10, color:'var(--ink-dim)', mono:true, delay:2700});
+  label(dyn, fx+90, fy, '   optimal k = (m/n)\u00b7ln2', {anchor:'start', size:13, color:'var(--ink-faint)', delay:2900});
+  
+};
+slideScripts['cbloom-1'] = function(svg, slideEl){
+
+  const dyn = svg.querySelector('.dyn');
+  const n=14, w=54, gap=6;
+  const x0 = (1000-(n*w+(n-1)*gap))/2;
+  const y=170;
+  const cells = cellsRow(dyn, {x:x0,y:y,n:n,w:w,h:46,gap:gap,delay:0,stagger:25,labels:new Array(n).fill('0'),fontSize:16});
+  label(dyn, 500, 138, 'counter array, 4 bits per slot (0-15)', {anchor:'middle', size:12.5, color:'var(--ink-faint)', delay:600});
+
+  function bump(idx, amt, color, delay, curVal){
+    const target = cells[idx];
+    popIn(dyn, target.x+target.w/2, 90, function(g){
+      g.appendChild(svgEl('text',{x:0,y:0,'text-anchor':'middle','font-size':15,fill:color,'font-weight':700}, amt>0? '+1':'-1'));
+    }, delay, 300);
+    moveAlong(dyn, [[target.x+target.w/2, 100],[target.x+target.w/2, target.y]], {color:color, r:4, dur:400, delay:delay+250});
+    setTimeout(function(){
+      const nv = curVal+amt;
+      target.text.textContent = nv;
+      target.text.setAttribute('fill', color);
+      target.rect.setAttribute('stroke', color);
+      target.rect.setAttribute('fill', nv>0 ? 'rgba(240,168,96,0.14)':'#141418');
+    }, delay+250+420);
+  }
+  bump(3,1,'var(--teal)',900,0);
+  bump(9,1,'var(--teal)',1250,0);
+  bump(11,1,'var(--teal)',1600,0);
+  bump(9,1,'var(--violet)',2300,1);
+  bump(11,1,'var(--violet)',2650,1);
+  bump(5,1,'var(--violet)',3000,0);
+  label(dyn, cells[9].x+cells[9].w/2, y+80, 'counter = 2', {anchor:'middle', size:11.5, color:'var(--ink-faint)', delay:3400});
+  setTimeout(function(){
+    bump(3,-1,'var(--rose)',4200,1);
+    label(dyn, cells[3].x+cells[3].w/2, y+80, 'delete "apple"', {anchor:'middle', size:11, color:'var(--rose)', delay:4200});
+  }, 0);
+  setTimeout(function(){
+    label(dyn, cells[9].x+cells[9].w/2, y+100, 'still 1 \u2014 "mango" survives', {anchor:'middle', size:11, color:'var(--teal)', delay:4900});
+  }, 0);
+  
+};
+slideScripts['cuckoo-1'] = function(svg, slideEl){
+
+  const dyn = svg.querySelector('.dyn');
+  const nb=10, bw=88, bh=90, gap=6;
+  const x0 = (1000-(nb*bw+(nb-1)*gap))/2;
+  const y=140;
+  const buckets=[];
+  for(let i=0;i<nb;i++){
+    const bx = x0+i*(bw+gap);
+    box(dyn, bx, y, bw, bh, {fill:'#0d0d11', stroke:'#33333c', sw:1.3, rx:6, delay:i*40, dur:300});
+    label(dyn, bx+bw/2, y+bh+16, 'i='+i, {anchor:'middle', size:10, color:'var(--ink-faint)', delay:i*40});
+    buckets.push({x:bx,y:y,w:bw,h:bh,slots:0});
+  }
+  popIn(dyn, 500, 60, function(g){
+    g.appendChild(svgEl('text',{x:0,y:0,'text-anchor':'middle','font-size':15,fill:'var(--ink)','font-family':'monospace'}, '"orange"  \u2192  fingerprint = 0xB4'));
+  }, 500, 400);
+  const bA=2, bB=7;
+  function drop(bIdx, tag, color, delay){
+    const b = buckets[bIdx];
+    const slotY = b.y+16+b.slots*22;
+    moveAlong(dyn, [[500,80],[b.x+b.w/2, slotY]], {color:color, r:5, dur:600, delay:delay});
+    setTimeout(function(){
+      popIn(dyn, b.x+10, slotY, function(g){
+        g.appendChild(svgEl('rect',{x:0,y:-11,width:b.w-20,height:18,fill:'rgba(240,168,96,0.14)',stroke:color,rx:3}));
+        g.appendChild(svgEl('text',{x:(b.w-20)/2,y:3,'text-anchor':'middle','font-size':11,fill:color,'font-family':'monospace'}, tag));
+      }, 0, 300);
+      b.slots++;
+    }, delay+620);
+  }
+  drop(bA,'B4','var(--teal)',900);
+  setTimeout(function(){
+    label(dyn, buckets[bA].x+buckets[bA].w/2, y-16, 'bucket A = hash("orange")', {anchor:'middle', size:10.5, color:'var(--teal)', delay:1600});
+  },0);
+  drawLine(dyn,{x1:buckets[bA].x+buckets[bA].w/2, y1:y-4, x2:buckets[bB].x+buckets[bB].w/2, y2:y-4, color:'var(--violet)', width:1.3, delay:2100, dur:500, dash:'4,4'});
+  label(dyn, (buckets[bA].x+buckets[bB].x)/2+buckets[bA].w/2, y-14, 'B = A XOR hash(fingerprint)', {anchor:'middle', size:10.5, color:'var(--violet)', delay:2600});
+  drop(bB,'B4','var(--violet)',2900);
+  label(dyn, buckets[bB].x+buckets[bB].w/2, y+bh+34, 'either bucket finds it', {anchor:'middle', size:10.5, color:'var(--ink-faint)', delay:3800});
+  
+};
+slideScripts['cuckoo-2'] = function(svg, slideEl){
+
+  const dyn = svg.querySelector('.dyn');
+  const bw=180, bh=178, gap=140;
+  const xA=500-bw-gap/2, xB=500+gap/2, y=80;
+  box(dyn, xA, y, bw, bh, {fill:'#0d0d11', stroke:'var(--teal)', sw:1.4, rx:8, title:'BUCKET A', titleY:y+22, delay:0});
+  box(dyn, xB, y, bw, bh, {fill:'#0d0d11', stroke:'var(--violet)', sw:1.4, rx:8, title:'BUCKET C', titleY:y+22, delay:0});
+  const existing = ['7F','2C','A1','E2'];
+  existing.forEach(function(t,i){
+    popIn(dyn, xA+16, y+50+i*28, function(g){
+      g.appendChild(svgEl('rect',{x:0,y:-11,width:bw-32,height:20,fill:'rgba(255,255,255,0.04)',stroke:'#3a3a42',rx:3}));
+      g.appendChild(svgEl('text',{x:(bw-32)/2,y:4,'text-anchor':'middle','font-size':11,fill:'var(--ink-dim)','font-family':'monospace'}, t));
+    }, i*150, 300);
+  });
+  label(dyn, xA+bw/2, y+bh+18, 'FULL (4/4 slots)', {anchor:'middle', size:11, color:'var(--rose)', delay:750});
+  popIn(dyn, 500, 40, function(g){
+    g.appendChild(svgEl('text',{x:0,y:0,'text-anchor':'middle','font-size':14,fill:'var(--amber)','font-family':'monospace'}, 'insert "B4" \u2192 bucket A is full'));
+  }, 1050, 400);
+  setTimeout(function(){
+    moveAlong(dyn, [[xA+bw-16, y+50],[xA+bw+70, y+50],[xB+16, y+50]], {color:'var(--rose)', r:6, dur:900, delay:0});
+    label(dyn, (xA+bw+xB)/2+8, y+30, 'kick "7F" out \u2192', {anchor:'middle', size:11.5, color:'var(--rose)', delay:100});
+  }, 1550);
+  setTimeout(function(){
+    popIn(dyn, xA+16, y+50, function(g){
+      g.appendChild(svgEl('rect',{x:0,y:-11,width:bw-32,height:20,fill:'rgba(240,168,96,0.18)',stroke:'var(--amber)',rx:3}));
+      g.appendChild(svgEl('text',{x:(bw-32)/2,y:4,'text-anchor':'middle','font-size':11,fill:'var(--amber)','font-family':'monospace'}, 'B4'));
+    }, 0, 350);
+  }, 2500);
+  setTimeout(function(){
+    popIn(dyn, xB+16, y+50, function(g){
+      g.appendChild(svgEl('rect',{x:0,y:-11,width:bw-32,height:20,fill:'rgba(255,255,255,0.04)',stroke:'#3a3a42',rx:3}));
+      g.appendChild(svgEl('text',{x:(bw-32)/2,y:4,'text-anchor':'middle','font-size':11,fill:'var(--ink-dim)','font-family':'monospace'}, '7F  (relocated)'));
+    }, 0, 400);
+    label(dyn, xB+bw/2, y+bh+18, 'has room (0/4 \u2192 1/4)', {anchor:'middle', size:11, color:'var(--teal)', delay:100});
+  }, 2600);
+  
+};
+slideScripts['cuckoo-3'] = function(svg, slideEl){
+
+  const dyn = svg.querySelector('.dyn');
+  const rows = [
+    {name:'Bloom Filter', del:'No', mem:'Baseline', fp:'Tunable, no floor', color:'var(--teal)'},
+    {name:'Counting Bloom', del:'Yes', mem:'~4\u00d7 Bloom', fp:'Same as Bloom', color:'var(--violet)'},
+    {name:'Cuckoo Filter', del:'Yes', mem:'~Bloom or less (<3% FP)', fp:'\u2248 2b / 2^f', color:'var(--amber)'}
+  ];
+  const headers = ['STRUCTURE','DELETE?','MEMORY','FALSE POSITIVE RATE'];
+  const colX = [70, 330, 460, 680];
+  headers.forEach(function(h,i){ label(dyn, colX[i], 60, h, {size:11.5, weight:700, color:'var(--ink-faint)', delay:i*60}); });
+  drawLine(dyn,{x1:60,y1:74,x2:960,y2:74,color:'#2a2a30',width:1,delay:300,dur:400});
+  rows.forEach(function(r,i){
+    const y = 120+i*70;
+    label(dyn, colX[0], y, r.name, {size:15, weight:700, color:r.color, delay:500+i*250});
+    label(dyn, colX[1], y, r.del, {size:14, color:'var(--ink)', delay:600+i*250});
+    label(dyn, colX[2], y, r.mem, {size:13.5, color:'var(--ink-dim)', delay:700+i*250});
+    label(dyn, colX[3], y, r.fp, {size:13.5, color:'var(--ink-dim)', mono:true, delay:800+i*250});
+    if(i<rows.length-1) drawLine(dyn,{x1:60,y1:y+30,x2:960,y2:y+30,color:'#1c1c20',width:1,delay:900+i*250,dur:300});
+  });
+  
+};
+slideScripts['quotient-1'] = function(svg, slideEl){
+
+  const dyn = svg.querySelector('.dyn');
+  popIn(dyn, 500, 55, function(g){
+    g.appendChild(svgEl('text',{x:0,y:0,'text-anchor':'middle','font-size':15,fill:'var(--ink)','font-family':'monospace'}, 'fingerprint("plum") = 1011 0110   (q=4 bits | r=4 bits)'));
+  }, 300, 400);
+  const fpX = 500-90;
+  ['1','0','1','1'].forEach(function(b,i){ label(dyn, fpX+i*22, 90, b, {anchor:'middle', size:16, color:'var(--teal)', mono:true, weight:700, delay:800}); });
+  ['0','1','1','0'].forEach(function(b,i){ label(dyn, fpX+90+i*22, 90, b, {anchor:'middle', size:16, color:'var(--amber)', mono:true, weight:700, delay:800}); });
+  label(dyn, 488, 112, 'quotient \u2192 slot index      |      remainder \u2192 stored value', {anchor:'middle', size:11.5, color:'var(--ink-dim)', delay:1100});
+
+  const n=16, w=48, gap=4;
+  const x0 = (1000-(n*w+(n-1)*gap))/2;
+  const y=220;
+  const cells = cellsRow(dyn, {x:x0,y:y,n:n,w:w,h:40,gap:gap,delay:1400,stagger:15,labels:new Array(n).fill(''),fontSize:13});
+  const slot = parseInt('1011',2);
+  drawLine(dyn,{x1:500,y1:130,x2:cells[slot].x+cells[slot].w/2, y2:y, color:'var(--teal)', width:1.6, delay:1900, dur:500, dash:'4,4'});
+  setTimeout(function(){
+    setCell(cells[slot], {fill:'rgba(240,168,96,0.2)', stroke:'var(--amber)', text:'0110'}, 0, 300);
+    label(dyn, cells[slot].x+cells[slot].w/2, y-14, 'slot 11', {anchor:'middle', size:10.5, color:'var(--teal)', delay:0});
+  }, 2450);
+  label(dyn, 500, y+70, 'if slot 11 is taken, linear-probe forward — metadata bits track the cluster', {anchor:'middle', size:12, color:'var(--ink-faint)', delay:2900});
+  
+};
+slideScripts['hll-1'] = function(svg, slideEl){
+
+  const dyn = svg.querySelector('.dyn');
+  const words = ['cat','a17x','q9zz1','mn204','xk7p'];
+  const hashes = ['00010110...','01100101...','00000000 0011...','10101100...','00100010...'];
+  const zeros = [3,1,10,0,2];
+  words.forEach(function(w,i){
+    const y = 70+i*56;
+    label(dyn, 90, y, '"'+w+'"', {size:14, color:'var(--ink)', mono:true, delay:i*250});
+    drawLine(dyn,{x1:180,y1:y-5,x2:340,y2:y-5,color:'#33333c',width:1.2,delay:i*250+150,dur:350});
+    label(dyn, 350, y, hashes[i], {size:13.5, color:'var(--ink-dim)', mono:true, delay:i*250+500});
+    const color = zeros[i]>=8 ? 'var(--amber)' : 'var(--ink-faint)';
+    popIn(dyn, 700, y-5, function(g){
+      g.appendChild(svgEl('rect',{x:0,y:-15,width:220,height:24,fill:zeros[i]>=8?'rgba(240,168,96,0.14)':'transparent',stroke:color,rx:5,'stroke-width':1.3}));
+      g.appendChild(svgEl('text',{x:110,y:2,'text-anchor':'middle','font-size':12.5,fill:color,'font-weight':zeros[i]>=8?700:400}, zeros[i]+' leading zero'+(zeros[i]===1?'':'s')));
+    }, i*250+950, 350);
+  });
+  popIn(dyn, 500, 340, function(g){
+    g.appendChild(svgEl('text',{x:0,y:0,'text-anchor':'middle','font-size':14,fill:'var(--amber)','font-weight':700}, '"q9zz1" saw 10 zeros \u2192 estimate \u2248 2\u00b9\u2070 \u2248 1024 distinct items hashed so far'));
+  }, 2900, 450);
+  
+};
+slideScripts['hll-2'] = function(svg, slideEl){
+
+  const dyn = svg.querySelector('.dyn');
+  const m=12, w=64, gap=8;
+  const x0 = (1000-(m*w+(m-1)*gap))/2;
+  const y=110;
+  const regVals = [3,1,5,2,4,1,3,6,2,3,4,1];
+  const cells = cellsRow(dyn, {x:x0,y:y,n:m,w:w,h:56,gap:gap,delay:0,stagger:20,labels:regVals.map(String),fontSize:19});
+  cells.forEach(function(c,i){ c.text.setAttribute('fill','var(--teal)'); c.text.setAttribute('font-weight',700); });
+  label(dyn, 500, y-20, 'm = 12 registers, each holding its own max-leading-zero count', {anchor:'middle', size:12.5, color:'var(--ink-faint)', delay:800});
+
+  label(dyn, 500, y+110, 'E \u2248 \u03b1', {anchor:'end', size:18, color:'var(--ink)', mono:true, delay:1700});
+  label(dyn, 502, y+118, 'm', {anchor:'start', size:10, color:'var(--ink-dim)', mono:true, delay:1800});
+  label(dyn, 512, y+110, ' \u00b7 m\u00b2 / ', {anchor:'start', size:18, color:'var(--ink)', mono:true, delay:1700});
+  label(dyn, 590, y+100, 'm', {anchor:'start', size:13, color:'var(--ink-dim)', mono:true, delay:1900});
+  label(dyn, 590, y+118, '\u03a3 2\u207b\u1d39\u2c7c', {anchor:'start', size:16, color:'var(--amber)', mono:true, weight:700, delay:1900});
+  drawLine(dyn,{x1:588,y1:y+104,x2:660,y2:y+104,color:'var(--ink-dim)',width:1.2,delay:1900,dur:1});
+  label(dyn, 500, y+165, 'the harmonic-mean-style sum punishes any single register that got a huge, lucky value', {anchor:'middle', size:12, color:'var(--ink-faint)', delay:2300});
+  
+};
+slideScripts['hll-3'] = function(svg, slideEl){
+
+  const dyn = svg.querySelector('.dyn');
+  label(dyn, 260, 60, 'EXACT HASH SET', {anchor:'middle', size:13, weight:700, color:'var(--rose)', delay:0});
+  label(dyn, 740, 60, 'HYPERLOGLOG', {anchor:'middle', size:13, weight:700, color:'var(--amber)', delay:150});
+  growBarV(dyn, {x:220, yBase:320, w:70, targetH:230, color:'var(--rose)', delay:400, dur:1200});
+  const t1 = label(dyn, 255, 90, '0 GB', {anchor:'middle', size:20, weight:700, color:'var(--rose)', delay:1400});
+  countUp(t1, 0, 20, 1400, 900, function(v){ return v.toFixed(1)+' GB'; });
+  growBarV(dyn, {x:705, yBase:320, w:70, targetH:6, color:'var(--amber)', delay:400, dur:1200});
+  const t2 = label(dyn, 740, 90, '0 KB', {anchor:'middle', size:20, weight:700, color:'var(--amber)', delay:1400});
+  countUp(t2, 0, 12, 1400, 900, function(v){ return Math.round(v)+' KB'; });
+  drawLine(dyn,{x1:160,y1:320,x2:860,y2:320,color:'#33333c',width:1.4,delay:0,dur:1});
+  label(dyn, 500, 355, 'both counting 1,000,000,000 unique items \u00b7 error \u2248 0.8%', {anchor:'middle', size:12.5, color:'var(--ink-faint)', delay:2600});
+  
+};
+slideScripts['cms-1'] = function(svg, slideEl){
+
+  const dyn = svg.querySelector('.dyn');
+  const rows=4, cols=10, cw=68, ch=44, gap=6;
+  const x0=(1000-(cols*cw+(cols-1)*gap))/2, y0=90;
+  const grid=[];
+  for(let r=0;r<rows;r++){
+    const rowCells = cellsRow(dyn, {x:x0,y:y0+r*(ch+gap),n:cols,w:cw,h:ch,gap:gap,delay:r*80,stagger:12,labels:new Array(cols).fill('0'),fontSize:14});
+    label(dyn, x0-34, y0+r*(ch+gap)+ch/2+5, 'h'+(r+1), {anchor:'middle', size:12, color:'var(--ink-faint)', mono:true, delay:r*80});
+    grid.push(rowCells);
+  }
+  popIn(dyn, 500, 45, function(g){
+    g.appendChild(svgEl('text',{x:0,y:0,'text-anchor':'middle','font-size':14,fill:'var(--ink)','font-family':'monospace'}, 'update("iPhone", +1)'));
+  }, 900, 400);
+  const targets=[3,7,1,5];
+  targets.forEach(function(colIdx, r){
+    const cell = grid[r][colIdx];
+    setTimeout(function(){
+      moveAlong(dyn, [[500,55],[cell.x+cell.w/2, cell.y]], {color:'var(--amber)', r:5, dur:500, delay:0});
+    }, 1400+r*130);
+    setTimeout(function(){
+      setCell(cell, {fill:'rgba(240,168,96,0.2)', stroke:'var(--amber)', text:'1'}, 0, 250);
+    }, 1400+r*130+520);
+  });
+  
+};
+slideScripts['cms-2'] = function(svg, slideEl){
+
+  const dyn = svg.querySelector('.dyn');
+  const rows=4, cols=10, cw=68, ch=40, gap=6;
+  const x0=(1000-(cols*cw+(cols-1)*gap))/2, y0=70;
+  const trueVals=[9,7,9,15];
+  const grid=[];
+  for(let r=0;r<rows;r++){
+    const labs = new Array(cols).fill('').map(function(){ return Math.floor(Math.random()*4).toString(); });
+    const target = 3+r;
+    labs[target] = trueVals[r].toString();
+    const rowCells = cellsRow(dyn, {x:x0,y:y0+r*(ch+gap),n:cols,w:cw,h:ch,gap:gap,delay:r*60,stagger:8,labels:labs,fontSize:13});
+    rowCells[target].rect.setAttribute('stroke','var(--amber)');
+    rowCells[target].rect.setAttribute('fill','rgba(240,168,96,0.16)');
+    rowCells[target].text.setAttribute('fill','var(--amber)');
+    label(dyn, x0-34, y0+r*(ch+gap)+ch/2+5, 'h'+(r+1), {anchor:'middle', size:12, color:'var(--ink-faint)', mono:true, delay:r*60});
+    grid.push({cell:rowCells[target], val:trueVals[r]});
+  }
+  const minVal = Math.min.apply(null, trueVals);
+  popIn(dyn, 500, 300, function(g){
+    g.appendChild(svgEl('text',{x:0,y:0,'text-anchor':'middle','font-size':15,fill:'var(--ink)','font-family':'monospace'}, 'query("iPhone") \u2192 min(9, 7, 9, 15) = '));
+  }, 1100, 400);
+  const bigT = label(dyn, 730, 300, '', {anchor:'start', size:17, color:'var(--teal)', weight:700, mono:true, delay:1500});
+  countUp(bigT, 0, minVal, 1500, 500, function(v){ return String(Math.round(v)); });
+  label(dyn, 500, 335, 'true count is 7 — row 2 had no collision, so its cell was exact and dragged the minimum down to the truth', {anchor:'middle', size:12, color:'var(--ink-faint)', delay:2100});
+  
+};
+slideScripts['cms-3'] = function(svg, slideEl){
+
+  const dyn = svg.querySelector('.dyn');
+  label(dyn, 500, 90, 'estimate \u2264 true_count + \u03b5\u00b7N', {anchor:'middle', size:20, color:'var(--ink)', mono:true, weight:700, delay:200});
+  label(dyn, 500, 122, 'with probability \u2265 1 \u2212 \u03b4', {anchor:'middle', size:14, color:'var(--ink-dim)', mono:true, delay:500});
+  drawLine(dyn,{x1:160,y1:165,x2:840,y2:165,color:'#2a2a30',width:1,delay:800,dur:400});
+  const pairs = [
+    ['width  w', '\u2308 e / \u03b5 \u2309', 'controls the error size'],
+    ['depth  d', '\u2308 ln(1/\u03b4) \u2309', 'controls confidence']
+  ];
+  pairs.forEach(function(p,i){
+    const y=210+i*70;
+    label(dyn, 220, y, p[0], {size:16, color:'var(--amber)', weight:700, mono:true, delay:1000+i*300});
+    label(dyn, 420, y, p[1], {size:16, color:'var(--ink)', mono:true, delay:1150+i*300});
+    label(dyn, 620, y, p[2], {size:13, color:'var(--ink-faint)', delay:1300+i*300});
+  });
+  popIn(dyn, 500, 340, function(g){
+    g.appendChild(svgEl('rect',{x:-260,y:-20,width:520,height:34,fill:'rgba(240,168,96,0.08)',stroke:'var(--amber)',rx:6,'stroke-width':1.3}));
+    g.appendChild(svgEl('text',{x:0,y:4,'text-anchor':'middle','font-size':13.5,fill:'var(--amber)'}, '\u03b5=0.1%, \u03b4=1%  \u2192  w\u22482,719, d=5  \u2192  ~13.6K counters total'));
+  }, 1900, 450);
+  
+};
+slideScripts['minhash-1'] = function(svg, slideEl){
+
+  const dyn = svg.querySelector('.dyn');
+  const setA = ['the','fox','runs','fast','away'];
+  const setB = ['the','fox','jumps','fast','far'];
+  function drawSet(items, cx, color, delay0){
+    items.forEach(function(w,i){
+      const ang = (i/items.length)*2*Math.PI;
+      const r = 70;
+      const x = cx + r*Math.cos(ang), y = 190 + r*Math.sin(ang);
+      popIn(dyn, x, y, function(g){
+        g.appendChild(svgEl('circle',{r:24,fill:'#101014',stroke:color,'stroke-width':1.4}));
+        g.appendChild(svgEl('text',{x:0,y:4,'text-anchor':'middle','font-size':11,fill:color,'font-family':'monospace'}, w));
+      }, delay0+i*120, 350);
+    });
+  }
+  label(dyn, 280, 60, 'Document A', {anchor:'middle', size:14, weight:700, color:'var(--teal)', delay:0});
+  label(dyn, 720, 60, 'Document B', {anchor:'middle', size:14, weight:700, color:'var(--violet)', delay:100});
+  drawSet(setA, 280, 'var(--teal)', 400);
+  drawSet(setB, 720, 'var(--violet)', 900);
+  popIn(dyn, 500, 190, function(g){
+    g.appendChild(svgEl('text',{x:0,y:0,'text-anchor':'middle','font-size':13,fill:'var(--ink-faint)'}, 'shared: "the","fox","fast"'));
+  }, 1900, 400);
+  popIn(dyn, 500, 330, function(g){
+    g.appendChild(svgEl('text',{x:0,y:0,'text-anchor':'middle','font-size':16,fill:'var(--amber)','font-weight':700,'font-family':'monospace'}, 'Jaccard = |3| / |7| = 0.43'));
+  }, 2400, 400);
+  
+};
+slideScripts['minhash-2'] = function(svg, slideEl){
+
+  const dyn = svg.querySelector('.dyn');
+  const union = ['the','fox','runs','fast','away','jumps','far'];
+  const hashVals = [42,7,88,51,63,19,95];
+  const n=union.length, w=110, gap=8;
+  const x0=(1000-(n*w+(n-1)*gap))/2, y=140;
+  union.forEach(function(word,i){
+    const x = x0+i*(w+gap);
+    box(dyn, x, y, w, 60, {fill:'#0d0d11', stroke:'#33333c', sw:1.2, rx:6, delay:i*100, dur:300});
+    label(dyn, x+w/2, y+22, word, {anchor:'middle', size:12, color:'var(--ink)', mono:true, delay:i*100+150});
+    const isMin = hashVals[i]===Math.min.apply(null,hashVals);
+    label(dyn, x+w/2, y+44, 'h='+hashVals[i], {anchor:'middle', size:12, color: isMin?'var(--amber)':'var(--ink-faint)', weight: isMin?700:400, delay:i*100+300});
+  });
+  const minIdx = hashVals.indexOf(Math.min.apply(null,hashVals));
+  const mx = x0+minIdx*(w+gap)+w/2;
+  drawLine(dyn,{x1:mx,y1:y+70,x2:mx,y2:y+100,color:'var(--amber)',width:1.6,delay:1600,dur:400});
+  popIn(dyn, mx, 320, function(g){
+    g.appendChild(svgEl('text',{x:0,y:0,'text-anchor':'middle','font-size':13.5,fill:'var(--amber)','font-weight':700}, '"fox" wins the minimum — and "fox" \u2208 A\u2229B'));
+  }, 2000, 400);
+  label(dyn, 500, 355, 'this coin-flip repeats with ~100 independent hashes to build a robust signature', {anchor:'middle', size:12, color:'var(--ink-faint)', delay:2500});
+  
+};
+slideScripts['minhash-3'] = function(svg, slideEl){
+
+  const dyn = svg.querySelector('.dyn');
+  const sigA = [3,17,42,8,55,29,11,60];
+  const sigB = [3,90,42,8,12,29,77,60];
+  const n=sigA.length, w=88, gap=8;
+  const x0=(1000-(n*w+(n-1)*gap))/2;
+  label(dyn, x0-20, 105, 'sig(A)', {anchor:'end', size:13, color:'var(--teal)', weight:700, delay:0});
+  label(dyn, x0-20, 185, 'sig(B)', {anchor:'end', size:13, color:'var(--violet)', weight:700, delay:100});
+  let matches=0;
+  for(let i=0;i<n;i++){
+    const x=x0+i*(w+gap);
+    const match = sigA[i]===sigB[i];
+    if(match) matches++;
+    box(dyn, x, 80, w, 44, {fill: match?'rgba(240,168,96,0.14)':'#0d0d11', stroke: match?'var(--amber)':'#33333c', sw:1.3, rx:5, delay:i*90, dur:300});
+    label(dyn, x+w/2, 107, String(sigA[i]), {anchor:'middle', size:14, color: match?'var(--amber)':'var(--ink-dim)', mono:true, delay:i*90+150});
+    box(dyn, x, 160, w, 44, {fill: match?'rgba(240,168,96,0.14)':'#0d0d11', stroke: match?'var(--amber)':'#33333c', sw:1.3, rx:5, delay:i*90+80, dur:300});
+    label(dyn, x+w/2, 187, String(sigB[i]), {anchor:'middle', size:14, color: match?'var(--amber)':'var(--ink-dim)', mono:true, delay:i*90+230});
+  }
+  const tv = label(dyn, 500, 280, '0 / 8 match', {anchor:'middle', size:17, color:'var(--ink)', weight:700, mono:true, delay:1600});
+  setTimeout(function(){ tv.textContent = matches+' / '+n+' match  \u2192  estimated Jaccard \u2248 '+(matches/n).toFixed(2); }, 1900);
+  label(dyn, 500, 320, 'true Jaccard for this pair was 0.43 — more hash functions narrow the estimate further', {anchor:'middle', size:12, color:'var(--ink-faint)', delay:2400});
+  
+};
+slideScripts['reservoir-1'] = function(svg, slideEl){
+
+  const dyn = svg.querySelector('.dyn');
+  label(dyn, 500, 60, 'stream: item 1, item 2, item 3, ... item N  (N unknown)', {anchor:'middle', size:14, color:'var(--ink-dim)', mono:true, delay:0});
+  for(let i=0;i<9;i++){
+    popIn(dyn, 90+i*100, 160, function(g){
+      g.appendChild(svgEl('rect',{x:-30,y:-20,width:60,height:36,fill:'#101014',stroke:'#33333c',rx:5}));
+      g.appendChild(svgEl('text',{x:0,y:5,'text-anchor':'middle','font-size':13,fill:'var(--ink-dim)','font-family':'monospace'}, 'i'+(i+1)));
+    }, i*150, 350);
+  }
+  label(dyn, 950, 160, '\u2026', {anchor:'middle', size:22, color:'var(--ink-faint)', delay:1500});
+  const rw=90, rh=200, rx0=(1000-3*rw-2*20)/2, ry=240;
+  box(dyn, rx0, ry, 3*rw+2*20, 90, {fill:'#0d0d11', stroke:'var(--amber)', sw:1.5, rx:8, title:'RESERVOIR (size k=3)', titleY:ry+22, delay:1800});
+  label(dyn, 500, ry+140, 'each item must end up here with probability exactly k/N', {anchor:'middle', size:12.5, color:'var(--ink-faint)', delay:2300});
+  
+};
+slideScripts['reservoir-2'] = function(svg, slideEl){
+
+  const dyn = svg.querySelector('.dyn');
+  const slots=[{v:'A'},{v:'B'},{v:'C'}];
+  const rw=90, gap=20, rx0=(1000-3*rw-2*gap)/2, ry=70;
+  const cellRefs = [];
+  slots.forEach(function(s,i){
+    const x = rx0+i*(rw+gap);
+    box(dyn, x, ry, rw, 60, {fill:'#0d0d11', stroke:'var(--teal)', sw:1.4, rx:6, delay:i*150});
+    const t = svgEl('text',{x:x+rw/2,y:ry+38,'text-anchor':'middle','font-size':18,fill:'var(--teal)','font-weight':700,'font-family':'monospace',opacity:0});
+    t.textContent = s.v; dyn.appendChild(t); fadeIn(t, i*150+150, 300);
+    cellRefs.push({x:x,y:ry,w:rw,text:t});
+  });
+  label(dyn, 500, 40, 'reservoir after first 3 items: [A, B, C]', {anchor:'middle', size:13, color:'var(--ink-faint)', delay:600});
+
+  function roll(itemLabel, i, j, evicts, delay){
+    popIn(dyn, 500, 190, function(g){
+      g.appendChild(svgEl('text',{x:0,y:0,'text-anchor':'middle','font-size':14,fill:'var(--ink)','font-family':'monospace'}, 'item '+i+' = "'+itemLabel+'"\u2003random j = '+j+' (of '+i+')'));
+    }, delay, 400);
+    if(evicts!==null){
+      setTimeout(function(){
+        const target = cellRefs[evicts];
+        moveAlong(dyn, [[500,205],[target.x+target.w/2, target.y+35]], {color:'var(--amber)', r:6, dur:500, delay:0});
+        setTimeout(function(){
+          target.text.textContent = itemLabel;
+          target.text.setAttribute('fill','var(--amber)');
+        }, 520);
+        label(dyn, 500, 260, 'j \u2264 k \u2192 evicts slot '+(evicts+1), {anchor:'middle', size:12.5, color:'var(--amber)', delay:0});
+      }, delay+500);
+    } else {
+      setTimeout(function(){
+        label(dyn, 500, 260, 'j > k \u2192 item discarded, reservoir unchanged', {anchor:'middle', size:12.5, color:'var(--ink-faint)', delay:0});
+      }, delay+500);
+    }
+  }
+  roll('D', 4, 2, 1, 1300);
+  setTimeout(function(){ roll('E', 5, 5, null, 2900); }, 0);
+  setTimeout(function(){ roll('F', 6, 1, 0, 4500); }, 0);
+  label(dyn, 500, 335, 'after item 6: every one of the 6 items had exactly a 3/6 chance of being here', {anchor:'middle', size:12, color:'var(--ink-faint)', delay:5300});
+  
+};
+slideScripts['skip-1'] = function(svg, slideEl){
+
+  const dyn = svg.querySelector('.dyn');
+  const vals=[3,7,12,19,23,29,34,41,47,52,58,63];
+  const n=vals.length, w=70, gap=6;
+  const x0=(1000-(n*w+(n-1)*gap))/2, y=160;
+  const cells=[];
+  vals.forEach(function(v,i){
+    const x=x0+i*(w+gap);
+    box(dyn, x, y, w, 40, {fill:'#0d0d11', stroke:'#33333c', sw:1.2, rx:5, delay:i*60});
+    const t = svgEl('text',{x:x+w/2,y:y+25,'text-anchor':'middle','font-size':13,fill:'var(--ink-dim)','font-family':'monospace',opacity:0});
+    t.textContent=v; dyn.appendChild(t); fadeIn(t,i*60+100,250);
+    cells.push({x:x,y:y,w:w,text:t});
+  });
+  label(dyn, 500, 120, 'searching for 47 \u2014 walk one node at a time', {anchor:'middle', size:13.5, color:'var(--ink-dim)', delay:900});
+  const targetIdx = vals.indexOf(47);
+  for(let i=0;i<=targetIdx;i++){
+    setTimeout(function(){
+      cells[i].text.setAttribute('fill', i===targetIdx?'var(--amber)':'var(--rose)');
+      cells[i].text.setAttribute('font-weight', 700);
+    }, 1400+i*220);
+  }
+  label(dyn, 500, 330, targetIdx+1 + ' comparisons for 12 items \u2014 scales as O(n)', {anchor:'middle', size:13, color:'var(--rose)', delay:1400+(targetIdx+1)*220+300});
+  
+};
+slideScripts['skip-2'] = function(svg, slideEl){
+
+  const dyn = svg.querySelector('.dyn');
+  const vals=[3,7,12,19,23,29,34,41,47,52,58,63];
+  const levels=[1,3,1,2,1,1,2,1,3,1,2,1];
+  const n=vals.length, w=70, gap=6;
+  const x0=(1000-(n*w+(n-1)*gap))/2;
+  const rowY = [270, 200, 130];
+  for(let lvl=0; lvl<3; lvl++){
+    label(dyn, x0-40, rowY[lvl]+20, 'L'+(lvl+1), {anchor:'middle', size:11, color:'var(--ink-faint)', mono:true, delay:lvl*300});
+  }
+  vals.forEach(function(v,i){
+    const x=x0+i*(w+gap);
+    const maxL = levels[i];
+    for(let lvl=0; lvl<maxL; lvl++){
+      const delay = 300+lvl*500+i*40;
+      popIn(dyn, x, rowY[lvl]+18, function(g){
+        g.appendChild(svgEl('circle',{r:16,fill: lvl===maxL-1 && maxL>1 ? 'rgba(240,168,96,0.16)':'#101014', stroke: maxL>1?'var(--amber)':'#3a3a42','stroke-width':1.4}));
+        g.appendChild(svgEl('text',{x:0,y:4,'text-anchor':'middle','font-size':11,fill: maxL>1?'var(--amber)':'var(--ink-dim)','font-family':'monospace'}, v));
+      }, delay, 300);
+      if(lvl>0){
+        drawLine(dyn,{x1:x,y1:rowY[lvl]+34,x2:x,y2:rowY[lvl-1]+18,color:'#2c2c32',width:1,delay:delay,dur:1});
+      }
+    }
+  });
+  label(dyn, 500, 340, 'each level is a "express lane" — roughly half as many nodes as the level below', {anchor:'middle', size:12, color:'var(--ink-faint)', delay:3200});
+  
+};
+slideScripts['skip-3'] = function(svg, slideEl){
+
+  const dyn = svg.querySelector('.dyn');
+  const vals=[3,7,12,19,23,29,34,41,47,52,58,63];
+  const levels=[1,3,1,2,1,1,2,1,3,1,2,1];
+  const n=vals.length, w=70, gap=6;
+  const x0=(1000-(n*w+(n-1)*gap))/2;
+  const rowY=[270,200,130];
+  const nodePos = {};
+  vals.forEach(function(v,i){
+    const x=x0+i*(w+gap);
+    const maxL=levels[i];
+    for(let lvl=0;lvl<maxL;lvl++){
+      box(dyn, x-18, rowY[lvl], 36,36,{fill:'#0d0d11',stroke: maxL>1?'#4a4a54':'#2c2c32', sw:1.2, rx:18, delay:0, dur:1});
+      label(dyn, x, rowY[lvl]+23, String(v), {anchor:'middle', size:11.5, color:'var(--ink-dim)', mono:true, delay:0});
+      if(lvl>0) drawLine(dyn,{x1:x,y1:rowY[lvl]+36,x2:x,y2:rowY[lvl-1],color:'#22222a',width:1,delay:0,dur:1});
+    }
+    nodePos[v] = {x:x, tops:maxL};
+  });
+  label(dyn, 500, 60, 'search for 47 — trace the path (amber)', {anchor:'middle', size:13.5, color:'var(--amber)', weight:700, delay:400});
+  const path = [
+    {v:12, lvl:2}, {v:23, lvl:2}, {v:47, lvl:2},
+    {v:47, lvl:1},
+    {v:47, lvl:0}
+  ];
+  const pts = [[x0-40, rowY[2]+18]];
+  path.forEach(function(p){ pts.push([nodePos[p.v].x, rowY[p.lvl]+18]); });
+  let acc = 900;
+  for(let i=0;i<pts.length-1;i++){
+    drawLine(dyn,{x1:pts[i][0],y1:pts[i][1],x2:pts[i+1][0],y2:pts[i+1][1],color:'var(--amber)',width:2.4,delay:acc,dur:400});
+    acc += 450;
+  }
+  setTimeout(function(){
+    label(dyn, nodePos[47].x, rowY[0]+60, 'found', {anchor:'middle', size:12, color:'var(--amber)', weight:700, delay:0});
+  }, acc);
+  label(dyn, 500, 340, '3 hops instead of 9 — expected O(log n) with no tree rotations', {anchor:'middle', size:12.5, color:'var(--ink-faint)', delay:acc+400});
+  
+};
+slideScripts['lsm-1'] = function(svg, slideEl){
+
+  const dyn = svg.querySelector('.dyn');
+  label(dyn, 250, 60, 'B-TREE: random writes', {anchor:'middle', size:14, weight:700, color:'var(--rose)', delay:0});
+  label(dyn, 750, 60, 'LSM TREE: sequential writes', {anchor:'middle', size:14, weight:700, color:'var(--teal)', delay:150});
+  const diskY=200, diskW=360;
+  box(dyn, 70, diskY, diskW, 50, {fill:'#0d0d11', stroke:'#3a3a42', sw:1.3, rx:6, delay:400});
+  label(dyn, 70+diskW/2, diskY+30, 'DISK (pages)', {anchor:'middle', size:11, color:'var(--ink-faint)', delay:500});
+  const seekPos = [40,310,120,260,60,340,180];
+  seekPos.forEach(function(p,i){
+    setTimeout(function(){
+      moveAlong(dyn, [[250, 130],[70+p, diskY]], {color:'var(--rose)', r:5, dur:340, delay:0});
+    }, 900+i*380);
+  });
+  box(dyn, 570, diskY, diskW, 50, {fill:'#0d0d11', stroke:'#3a3a42', sw:1.3, rx:6, delay:400});
+  label(dyn, 570+diskW/2, diskY+30, 'DISK (append-only file)', {anchor:'middle', size:11, color:'var(--ink-faint)', delay:500});
+  const arrowStart = 590;
+  moveAlong(dyn, [[750,130],[arrowStart,diskY+25],[arrowStart+diskW-40,diskY+25]], {color:'var(--teal)', r:6, dur:2400, delay:900});
+  label(dyn, 250, 340, 'seeks all over the platter', {anchor:'middle', size:12, color:'var(--rose)', delay:3600});
+  label(dyn, 750, 340, 'one continuous sweep', {anchor:'middle', size:12, color:'var(--teal)', delay:3600});
+  
+};
+slideScripts['lsm-2'] = function(svg, slideEl){
+
+  const dyn = svg.querySelector('.dyn');
+  const boxes = [
+    {t:'WRITE', x:60, y:150, w:120, h:64, c:'var(--ink-dim)'},
+    {t:'MEMTABLE', x:280, y:150, w:150, h:64, c:'var(--teal)'},
+    {t:'SSTABLE (new)', x:530, y:150, w:170, h:64, c:'var(--amber)'},
+    {t:'compacted\nSSTables', x:800, y:150, w:150, h:64, c:'var(--violet)'}
+  ];
+  boxes.forEach(function(b,i){
+    box(dyn, b.x, b.y, b.w, b.h, {fill:'#0d0d11', stroke:b.c, sw:1.5, rx:8, title:b.t.split('\n')[0], titleY:b.y+30, delay:i*450, titleColor:b.c});
+    if(b.t.split('\n')[1]) label(dyn, b.x+b.w/2, b.y+48, b.t.split('\n')[1], {anchor:'middle', size:11, color:b.c, delay:i*450+150});
+  });
+  for(let i=0;i<boxes.length-1;i++){
+    arrow(dyn, boxes[i].x+boxes[i].w, boxes[i].y+32, boxes[i+1].x, boxes[i+1].y+32, {delay:i*450+300, dur:400, color:'var(--ink-faint)'});
+  }
+  label(dyn, 280+75, 240, 'in RAM, sorted\n(often a skip list)', {anchor:'middle', size:11, color:'var(--ink-faint)', delay:1200});
+  label(dyn, 530+85, 240, 'on disk, immutable,\nsorted + indexed', {anchor:'middle', size:11, color:'var(--ink-faint)', delay:1700});
+  label(dyn, 800+75, 240, 'merged in the\nbackground', {anchor:'middle', size:11, color:'var(--ink-faint)', delay:2200});
+  drawLine(dyn,{x1:590,y1:280,x2:590,y2:320,color:'#2c2c32',width:1,delay:2600,dur:1});
+  drawLine(dyn,{x1:670,y1:280,x2:670,y2:320,color:'#2c2c32',width:1,delay:2600,dur:1});
+  label(dyn, 630, 340, 'reads must check newest \u2192 oldest SSTable', {anchor:'middle', size:12, color:'var(--ink-faint)', delay:2900});
+  
+};
+slideScripts['lsm-3'] = function(svg, slideEl){
+
+  const dyn = svg.querySelector('.dyn');
+  const t1 = [['a',1],['c',5],['e',2]];
+  const t2 = [['b',3],['c',9],['f',1]];
+  function drawTable(items, x, y, color, label_){
+    box(dyn, x, y, 150, 30+items.length*26, {fill:'#0d0d11', stroke:color, sw:1.3, rx:6, delay:0});
+    label(dyn, x+75, y+18, label_, {anchor:'middle', size:11.5, color:color, weight:700, delay:100});
+    items.forEach(function(it,i){
+      label(dyn, x+16, y+42+i*26, it[0]+' = '+it[1], {anchor:'start', size:12.5, color:'var(--ink-dim)', mono:true, delay:200+i*100});
+    });
+  }
+  drawTable(t1, 90, 60, 'var(--amber)', 'SSTable (older)');
+  drawTable(t2, 90, 220, 'var(--teal)', 'SSTable (newer)');
+  arrow(dyn, 260, 170, 420, 170, {delay:1200, dur:500, color:'var(--ink-faint)'});
+  label(dyn, 340, 155, 'merge', {anchor:'middle', size:12, color:'var(--ink-faint)', delay:1300});
+  const merged = [['a',1,'amber'],['b',3,'teal'],['c',9,'teal'],['e',2,'amber'],['f',1,'teal']];
+  box(dyn, 460, 60, 200, 30+merged.length*26, {fill:'#0d0d11', stroke:'var(--violet)', sw:1.4, rx:6, delay:1700});
+  label(dyn, 560, 78, 'compacted SSTable', {anchor:'middle', size:12, color:'var(--violet)', weight:700, delay:1800});
+  merged.forEach(function(it,i){
+    const c = it[2]==='amber' ? 'var(--amber)' : 'var(--teal)';
+    popIn(dyn, 476, 102+i*26, function(g){
+      g.appendChild(svgEl('text',{x:0,y:0,'font-size':12.5,fill:c,'font-family':'monospace'}, it[0]+' = '+it[1]));
+    }, 2100+i*150, 300);
+  });
+  label(dyn, 560, 335, '"c" kept only its newest value (9) — the old c=5 is gone for good', {anchor:'middle', size:12, color:'var(--ink-faint)', delay:3100});
+  
+};
+slideScripts['memtable-1'] = function(svg, slideEl){
+
+  const dyn = svg.querySelector('.dyn');
+  box(dyn, 100, 200, 260, 60, {fill:'#0d0d11', stroke:'var(--ink-faint)', sw:1.3, rx:6, title:'incoming write: SET x=9', titleY:230, delay:0, titleColor:'var(--ink-dim)'});
+  arrow(dyn, 260, 260, 260, 320, {delay:600, dur:350, color:'var(--ink-faint)'});
+  arrow(dyn, 300, 220, 620, 100, {delay:900, dur:450, color:'var(--violet)'});
+  box(dyn, 620, 40, 260, 60, {fill:'#0d0d11', stroke:'var(--violet)', sw:1.5, rx:6, title:'WAL (disk, append-only)', titleY:70, delay:1400, titleColor:'var(--violet)'});
+  label(dyn, 750, 88, 'durable the instant it lands', {anchor:'middle', size:11, color:'var(--violet)', delay:1900});
+  box(dyn, 620, 190, 260, 60, {fill:'#0d0d11', stroke:'var(--teal)', sw:1.5, rx:6, title:'Memtable (RAM, sorted)', titleY:220, delay:1400, titleColor:'var(--teal)'});
+  label(dyn, 750, 238, 'fast to query, but volatile', {anchor:'middle', size:11, color:'var(--teal)', delay:1900});
+  arrow(dyn, 300, 220, 620, 220, {delay:1200, dur:450, color:'var(--teal)'});
+  popIn(dyn, 500, 320, function(g){
+    g.appendChild(svgEl('text',{x:0,y:0,'text-anchor':'middle','font-size':13,fill:'var(--rose)'}, 'crash before flush? \u2192 replay the WAL to rebuild the Memtable'));
+  }, 2500, 400);
+  
+};
+slideScripts['memtable-2'] = function(svg, slideEl){
+
+  const dyn = svg.querySelector('.dyn');
+  box(dyn, 90, 130, 260, 130, {fill:'#0d0d11', stroke:'var(--teal)', sw:1.5, rx:8, delay:0});
+  label(dyn, 220, 158, 'Memtable (active)', {anchor:'middle', size:13, color:'var(--teal)', weight:700, delay:200});
+  const fillRect = svgEl('rect',{x:106,y:210,width:0,height:26,fill:'rgba(240,168,96,0.25)',stroke:'var(--amber)',rx:3});
+  dyn.appendChild(fillRect);
+  animate(1800, function(p){ fillRect.setAttribute('width', 228*p); }, function(){
+    label(dyn, 220, 190, 'FULL (64 MB)', {anchor:'middle', size:12, color:'var(--rose)', weight:700, delay:0});
+    setTimeout(function(){
+      arrow(dyn, 350, 195, 470, 195, {delay:0, dur:400, color:'var(--ink-faint)'});
+      box(dyn, 490, 130, 220, 130, {fill:'#0d0d11', stroke:'var(--amber)', sw:1.5, rx:8, delay:200});
+      label(dyn, 600, 158, 'frozen \u2192 flushing', {anchor:'middle', size:13, color:'var(--amber)', weight:700, delay:400});
+      label(dyn, 600, 200, 'background thread\nwrites to disk as\na new SSTable', {anchor:'middle', size:11.5, color:'var(--ink-dim)', delay:600});
+    }, 300);
+    setTimeout(function(){
+      arrow(dyn, 730, 195, 820, 195, {delay:0, dur:400, color:'var(--ink-faint)'});
+      box(dyn, 840, 130, 130, 130, {fill:'#0d0d11', stroke:'var(--teal)', sw:1.5, rx:8, delay:1000});
+      label(dyn, 905, 195, 'new empty\nMemtable', {anchor:'middle', size:12.5, color:'var(--teal)', weight:700, delay:1200});
+    }, 300);
+  }, 400);
+  label(dyn, 500, 340, 'writes never stop — the swap is instantaneous from the client\'s point of view', {anchor:'middle', size:12, color:'var(--ink-faint)', delay:3400});
+  
+};
+slideScripts['sstable-1'] = function(svg, slideEl){
+
+  const dyn = svg.querySelector('.dyn');
+  const keys = ['apple','bag','cat','dog','egg','fig','gum','hat','ink','jam'];
+  const n=keys.length, w=88, gap=4;
+  const x0=(1000-(n*w+(n-1)*gap))/2, y=150;
+  keys.forEach(function(k,i){
+    const x=x0+i*(w+gap);
+    box(dyn, x, y, w, 34, {fill:'#0d0d11', stroke:'#33333c', sw:1.2, rx:4, delay:i*70});
+    label(dyn, x+w/2, y+22, k, {anchor:'middle', size:11.5, color:'var(--ink-dim)', mono:true, delay:i*70+120});
+  });
+  label(dyn, 500, 120, 'SSTable file: sorted key \u2192 value pairs', {anchor:'middle', size:13, color:'var(--ink-faint)', delay:800});
+  const idxKeys = [0,3,6,9];
+  idxKeys.forEach(function(ki,i){
+    const x = x0+ki*(w+gap);
+    popIn(dyn, x+w/2, 240, function(g){
+      g.appendChild(svgEl('rect',{x:-40,y:-15,width:80,height:24,fill:'rgba(79,209,197,0.14)',stroke:'var(--teal)',rx:4}));
+      g.appendChild(svgEl('text',{x:0,y:4,'text-anchor':'middle','font-size':11,fill:'var(--teal)','font-family':'monospace'}, keys[ki]+' @'+ (ki*40)));
+    }, 1300+i*220, 350);
+    drawLine(dyn,{x1:x+w/2,y1:225,x2:x+w/2,y2:y+34,color:'var(--teal)',width:1.3,delay:1300+i*220,dur:300,dash:'3,3'});
+  });
+  label(dyn, 500, 210, 'sparse index: only every 3rd key is remembered', {anchor:'middle', size:12, color:'var(--teal)', delay:2200});
+  popIn(dyn, 500, 300, function(g){
+    g.appendChild(svgEl('text',{x:0,y:0,'text-anchor':'middle','font-size':13,fill:'var(--ink)'}, 'lookup("fig") \u2192 binary-search index \u2192 land near "egg" \u2192 scan a few keys forward'));
+  }, 2900, 400);
+  
+};
+slideScripts['sstable-2'] = function(svg, slideEl){
+
+  const dyn = svg.querySelector('.dyn');
+  const files = ['SSTable 4 (newest)','SSTable 3','SSTable 2','SSTable 1 (oldest)'];
+  const results = ['maybe','definitely not','definitely not','maybe'];
+  files.forEach(function(f,i){
+    const y = 70+i*68;
+    box(dyn, 90, y, 230, 50, {fill:'#0d0d11', stroke:'#33333c', sw:1.3, rx:6, delay:i*250});
+    label(dyn, 205, y+30, f, {anchor:'middle', size:12.5, color:'var(--ink-dim)', delay:i*250+150});
+    popIn(dyn, 400, y+25, function(g){
+      g.appendChild(svgEl('text',{x:0,y:0,'font-size':13,fill:'var(--ink-faint)'}, 'bloom.mightContain("k17")?'));
+    }, i*250+500, 300);
+    const isMaybe = results[i]==='maybe';
+    popIn(dyn, 780, y+25, function(g){
+      g.appendChild(svgEl('rect',{x:-90,y:-17,width:180,height:28,fill: isMaybe?'rgba(240,168,96,0.14)':'rgba(224,128,128,0.1)', stroke: isMaybe?'var(--amber)':'var(--rose)', rx:6,'stroke-width':1.4}));
+      g.appendChild(svgEl('text',{x:0,y:5,'text-anchor':'middle','font-size':12.5,fill: isMaybe?'var(--amber)':'var(--rose)','font-weight':700}, results[i]===  'maybe' ? 'MAYBE \u2192 read file' : 'NO \u2192 skip file'));
+    }, i*250+900, 350);
+  });
+  label(dyn, 500, 350, 'only 2 of 4 files are ever touched on disk — the other 2 were ruled out in microseconds', {anchor:'middle', size:12.5, color:'var(--ink-faint)', delay:3200});
+  
+};
+slideScripts['bitmap-1'] = function(svg, slideEl){
+
+  const dyn = svg.querySelector('.dyn');
+  const n=16, w=44, gap=5;
+  const x0=(1000-(n*w+(n-1)*gap))/2;
+  const bitsA = [1,0,1,1,0,1,0,0,1,1,0,1,1,0,0,1];
+  const bitsB = [1,1,0,1,0,0,0,1,1,0,0,1,1,1,0,0];
+  function row(bits, y, color, lab){
+    label(dyn, 40, y+24, lab, {anchor:'start', size:13, color:color, weight:700, delay:0});
+    const cells = cellsRow(dyn,{x:x0,y:y,n:n,w:w,h:36,gap:gap,delay:0,stagger:12,labels:bits.map(String),fontSize:13});
+    cells.forEach(function(c,i){ if(bits[i]){ c.rect.setAttribute('fill','rgba(240,168,96,0.14)'); c.rect.setAttribute('stroke',color); c.text.setAttribute('fill',color);} });
+    return cells;
+  }
+  row(bitsA, 60, 'var(--teal)', 'premium');
+  row(bitsB, 110, 'var(--violet)', 'active');
+  setTimeout(function(){
+    const andBits = bitsA.map(function(b,i){ return b & bitsB[i]; });
+    label(dyn, 500, 190, 'AND', {anchor:'middle', size:14, color:'var(--ink-faint)', weight:700, delay:0});
+    const cells = row(andBits, 220, 'var(--amber)', 'result');
+  }, 2200);
+  label(dyn, 500, 340, 'one AND instruction per 64-bit word \u2014 millions of records per millisecond', {anchor:'middle', size:12.5, color:'var(--ink-faint)', delay:3400});
+  
+};
+slideScripts['roaring-1'] = function(svg, slideEl){
+
+  const dyn = svg.querySelector('.dyn');
+  const chunks = [
+    {t:'chunk 0\n(0–65535)', mode:'ARRAY', desc:'only 5 values set', size:'10 bytes', c:'var(--teal)', vals:['102','980','15043','40021','61200']},
+    {t:'chunk 1\n(65536–131071)', mode:'BITMAP', desc:'~32,000 values set (dense)', size:'8 KB', c:'var(--amber)'},
+    {t:'chunk 2\n(131072–196607)', mode:'RUN', desc:'one contiguous range', size:'4 bytes', c:'var(--violet)', vals:['[5000\u201395000]']}
+  ];
+  const bw=280, gap=30, x0=(1000-3*bw-2*gap)/2;
+  chunks.forEach(function(ch,i){
+    const x = x0+i*(bw+gap);
+    box(dyn, x, 60, bw, 258, {fill:'#0d0d11', stroke:ch.c, sw:1.5, rx:8, delay:i*300});
+    label(dyn, x+bw/2, 90, ch.t.split('\n')[0], {anchor:'middle', size:13, color:'var(--ink)', weight:700, delay:i*300+150});
+    label(dyn, x+bw/2, 108, ch.t.split('\n')[1], {anchor:'middle', size:11, color:'var(--ink-faint)', delay:i*300+150});
+    popIn(dyn, x+bw/2, 145, function(g){
+      g.appendChild(svgEl('rect',{x:-70,y:-15,width:140,height:26,fill:'rgba(255,255,255,0.03)',stroke:ch.c,rx:5}));
+      g.appendChild(svgEl('text',{x:0,y:4,'text-anchor':'middle','font-size':12.5,fill:ch.c,'font-weight':700}, ch.mode+' container'));
+    }, i*300+400, 350);
+    label(dyn, x+bw/2, 190, ch.desc, {anchor:'middle', size:11.5, color:'var(--ink-dim)', delay:i*300+700});
+    if(ch.vals){
+      ch.vals.forEach(function(v,vi){
+        label(dyn, x+bw/2, 210+vi*16, v, {anchor:'middle', size:10.5, color:ch.c, mono:true, delay:i*300+900+vi*80});
+      });
+    } else {
+      const gy=210;
+      for(let r=0;r<3;r++){ for(let c2=0;c2<12;c2++){
+        setTimeout(function(){
+          dyn.appendChild(svgEl('rect',{x:x+30+c2*18,y:gy+r*16,width:14,height:12,fill:'rgba(240,168,96,0.4)'}));
+        }, i*300+900+(r*12+c2)*8);
+      }}
+    }
+    label(dyn, x+bw/2, 300, ch.size, {anchor:'middle', size:13, color:ch.c, weight:700, mono:true, delay:i*300+1400});
+  });
+  
+};
+slideScripts['roaring-2'] = function(svg, slideEl){
+
+  const dyn = svg.querySelector('.dyn');
+  label(dyn, 500, 70, 'roaring(A)  AND  roaring(B)', {anchor:'middle', size:16, color:'var(--ink)', mono:true, weight:700, delay:0});
+  const rows = [
+    {label:'chunk 0', a:'ARRAY (5 vals)', b:'ARRAY (8 vals)', op:'merge-intersect \u2192 ARRAY', c:'var(--teal)'},
+    {label:'chunk 1', a:'BITMAP', b:'BITMAP', op:'native word-AND \u2192 BITMAP', c:'var(--amber)'},
+    {label:'chunk 2', a:'RUN [5k\u201395k]', b:'ARRAY (3 vals)', op:'range-test \u2192 ARRAY', c:'var(--violet)'}
+  ];
+  rows.forEach(function(r,i){
+    const y = 130+i*70;
+    label(dyn, 90, y, r.label, {size:13, color:r.c, weight:700, delay:i*400});
+    label(dyn, 240, y, r.a, {size:12.5, color:'var(--ink-dim)', mono:true, delay:i*400+200});
+    label(dyn, 430, y, r.b, {size:12.5, color:'var(--ink-dim)', mono:true, delay:i*400+350});
+    arrow(dyn, 560, y-5, 650, y-5, {delay:i*400+550, dur:350, color:'var(--ink-faint)'});
+    label(dyn, 680, y, r.op, {size:12.5, color:r.c, mono:true, delay:i*400+950});
+  });
+  label(dyn, 500, 350, 'no chunk is ever fully decompressed just to be combined', {anchor:'middle', size:12.5, color:'var(--ink-faint)', delay:2600});
+  
+};
+slideScripts['inverted-1'] = function(svg, slideEl){
+
+  const dyn = svg.querySelector('.dyn');
+  const docs = [
+    {id:'D1', words:['the','quick','fox']},
+    {id:'D2', words:['the','lazy','dog']},
+    {id:'D3', words:['quick','fox','runs']}
+  ];
+  docs.forEach(function(d,i){
+    const x=140+i*260, y=70;
+    box(dyn, x, y, 210, 70, {fill:'#0d0d11', stroke:'#33333c', sw:1.3, rx:6, delay:i*200});
+    label(dyn, x+105, y+22, d.id+':  '+d.words.join(', '), {anchor:'middle', size:12, color:'var(--ink-dim)', mono:true, delay:i*200+150});
+  });
+  arrow(dyn, 500, 155, 500, 195, {delay:900, dur:400, color:'var(--ink-faint)'});
+  label(dyn, 500, 190, 'invert', {anchor:'middle', size:12, color:'var(--ink-faint)', delay:1000});
+  const postings = [
+    {w:'the', ids:['D1','D2']},
+    {w:'quick', ids:['D1','D3']},
+    {w:'fox', ids:['D1','D3']},
+    {w:'lazy', ids:['D2']},
+    {w:'dog', ids:['D2']},
+    {w:'runs', ids:['D3']}
+  ];
+  const pw=155, gap=8, px0=(1000-(6*pw+5*gap))/2, py=230;
+  postings.forEach(function(p,i){
+    const x = px0+i*(pw+gap);
+    box(dyn, x, py, pw, 90, {fill:'#0d0d11', stroke:'var(--teal)', sw:1.3, rx:6, delay:1400+i*140});
+    label(dyn, x+pw/2, py+22, '"'+p.w+'"', {anchor:'middle', size:12.5, color:'var(--teal)', weight:700, delay:1400+i*140+150});
+    label(dyn, x+pw/2, py+50, '\u2192 ['+p.ids.join(', ')+']', {anchor:'middle', size:11.5, color:'var(--ink-dim)', mono:true, delay:1400+i*140+300});
+  });
+  
+};
+slideScripts['inverted-2'] = function(svg, slideEl){
+
+  const dyn = svg.querySelector('.dyn');
+  label(dyn, 500, 50, 'query: "quick" AND "fox"', {anchor:'middle', size:15, color:'var(--ink)', weight:700, delay:0});
+  const listA = ['D1','D3','D5','D8'];
+  const listB = ['D1','D2','D3','D8','D9'];
+  function drawList(items, y, color, lab){
+    label(dyn, 110, y+18, lab, {anchor:'end', size:13, color:color, weight:700, delay:0});
+    const w=90,gap=8,x0=150;
+    return items.map(function(it,i){
+      const x=x0+i*(w+gap);
+      box(dyn, x, y, w, 34, {fill:'#0d0d11', stroke:color, sw:1.2, rx:5, delay:i*100});
+      label(dyn, x+w/2, y+22, it, {anchor:'middle', size:12.5, color:color, mono:true, delay:i*100+150});
+      return {x:x,y:y,w:w,id:it};
+    });
+  }
+  const cellsA = drawList(listA, 110, 'var(--teal)', '"quick"');
+  const cellsB = drawList(listB, 180, 'var(--violet)', '"fox"');
+  const matchIds = listA.filter(function(x){ return listB.indexOf(x)>=0; });
+  setTimeout(function(){
+    matchIds.forEach(function(id){
+      const a = cellsA.find(function(c){ return c.id===id; });
+      const b = cellsB.find(function(c){ return c.id===id; });
+      drawLine(dyn,{x1:a.x+a.w/2,y1:a.y+34,x2:b.x+b.w/2,y2:b.y,color:'var(--amber)',width:1.8,delay:0,dur:350});
+      a.rect_glow = true;
+    });
+  }, 1500);
+  setTimeout(function(){
+    popIn(dyn, 500, 300, function(g){
+      g.appendChild(svgEl('rect',{x:-170,y:-18,width:340,height:32,fill:'rgba(240,168,96,0.12)',stroke:'var(--amber)',rx:6,'stroke-width':1.4}));
+      g.appendChild(svgEl('text',{x:0,y:5,'text-anchor':'middle','font-size':14,fill:'var(--amber)','font-weight':700}, 'result: ['+matchIds.join(', ')+']'));
+    }, 0, 400);
+  }, 2200);
+  label(dyn, 500, 345, 'merge two sorted lists once, in time proportional to their combined length', {anchor:'middle', size:12, color:'var(--ink-faint)', delay:2700});
+  
+};
+slideScripts['synth-1'] = function(svg, slideEl){
+
+  const dyn = svg.querySelector('.dyn');
+  const items = [
+    ['Bloom Filter','skip disk reads for missing keys'],
+    ['Counting Bloom','membership that also supports delete'],
+    ['Cuckoo Filter','fingerprint membership, less memory'],
+    ['Quotient Filter','cache-friendly, mergeable filter'],
+    ['HyperLogLog','count distinct in kilobytes'],
+    ['Count-Min Sketch','approximate frequency per key'],
+    ['MinHash','set-similarity at web scale'],
+    ['Reservoir Sampling','fair sample of an endless stream'],
+    ['Skip List','sorted search, no rebalancing'],
+    ['LSM Tree','fast writes via sequential IO'],
+    ['Memtable','the in-memory write buffer'],
+    ['SSTable','the immutable, indexed file on disk'],
+    ['Bitmap','flags combined at CPU speed'],
+    ['Roaring Bitmap','compressed, still bitwise-fast'],
+    ['Inverted Index','word \u2192 documents, instantly']
+  ];
+  const cols=3, rows=5, cw=300, ch=58, gapx=20, gapy=8;
+  const x0=(1000-cols*cw-(cols-1)*gapx)/2, y0=45;
+  items.forEach(function(it,i){
+    const c = i%cols, r = Math.floor(i/cols);
+    const x = x0+c*(cw+gapx), y = y0+r*(ch+gapy);
+    popIn(dyn, x, y, function(g){
+      g.appendChild(svgEl('rect',{x:0,y:0,width:cw,height:ch-8,fill:'#0c0c10',stroke:'#2a2a30',rx:6,'stroke-width':1.1}));
+      g.appendChild(svgEl('text',{x:14,y:22,'font-size':13,fill:'var(--amber)','font-weight':700}, it[0]));
+      g.appendChild(svgEl('text',{x:14,y:40,'font-size':11,fill:'var(--ink-faint)'}, it[1]));
+    }, i*90, 320);
+  });
+  
+};
+slideScripts['synth-2'] = function(svg, slideEl){
+
+  const dyn = svg.querySelector('.dyn');
+  const steps = [
+    {t:'INSERT arrives', c:'var(--ink-dim)'},
+    {t:'append to WAL', c:'var(--violet)'},
+    {t:'add to Memtable\n(skip list)', c:'var(--teal)'},
+    {t:'flush \u2192 SSTable\n+ Bloom filter', c:'var(--amber)'}
+  ];
+  const bw=210, gap=30, x0=(1000-4*bw-3*gap)/2, y=140;
+  steps.forEach(function(s,i){
+    const x = x0+i*(bw+gap);
+    box(dyn, x, y, bw, 90, {fill:'#0d0d11', stroke:s.c, sw:1.5, rx:8, delay:i*500});
+    const lines = s.t.split('\n');
+    lines.forEach(function(l,li){ label(dyn, x+bw/2, y+40+li*20, l, {anchor:'middle', size:13, color:s.c, weight:700, delay:i*500+250}); });
+    if(i<steps.length-1) arrow(dyn, x+bw, y+45, x+bw+gap, y+45, {delay:i*500+400, dur:350, color:'var(--ink-faint)'});
+  });
+  label(dyn, 500, 290, 'later reads check the Bloom filter first — most lookups never touch this SSTable at all', {anchor:'middle', size:13, color:'var(--ink-faint)', delay:2600});
+  
+};
+slideScripts['synth-3'] = function(svg, slideEl){
+
+  const dyn = svg.querySelector('.dyn');
+  const steps = [
+    {t:'query: "quick fox"', c:'var(--ink-dim)'},
+    {t:'Inverted Index\nlookup', c:'var(--teal)'},
+    {t:'posting lists as\nRoaring Bitmaps', c:'var(--amber)'},
+    {t:'bitwise AND \u2192\nranked results', c:'var(--violet)'}
+  ];
+  const bw=210, gap=30, x0=(1000-4*bw-3*gap)/2, y=110;
+  steps.forEach(function(s,i){
+    const x = x0+i*(bw+gap);
+    box(dyn, x, y, bw, 100, {fill:'#0d0d11', stroke:s.c, sw:1.5, rx:8, delay:i*500});
+    const lines = s.t.split('\n');
+    lines.forEach(function(l,li){ label(dyn, x+bw/2, y+42+li*20, l, {anchor:'middle', size:13, color:s.c, weight:700, delay:i*500+250}); });
+    if(i<steps.length-1) arrow(dyn, x+bw, y+50, x+bw+gap, y+50, {delay:i*500+400, dur:350, color:'var(--ink-faint)'});
+  });
+  popIn(dyn, 500, 270, function(g){
+    g.appendChild(svgEl('text',{x:0,y:0,'text-anchor':'middle','font-size':13,fill:'var(--ink-faint)'}, '+ MinHash signatures quietly filter out near-duplicate pages before you ever see them'));
+  }, 2600, 400);
+  label(dyn, 500, 330, 'the trade-off — a little certainty for a lot of speed and space — is the whole story', {anchor:'middle', size:13, color:'var(--amber)', weight:600, delay:3300});
+  
+};
+</script>
+
+<script>
+/* ============ SVG helpers ============ */
+const SVGNS = "http://www.w3.org/2000/svg";
+function svgEl(tag, attrs, text){
+  const e = document.createElementNS(SVGNS, tag);
+  if(attrs) for(const k in attrs) e.setAttribute(k, attrs[k]);
+  if(text!==undefined) e.textContent = text;
+  return e;
+}
+function clearDyn(svg){
+  const d = svg.querySelector('.dyn');
+  while(d.firstChild) d.removeChild(d.firstChild);
+  return d;
+}
+function easeOut(p){ return 1 - Math.pow(1-p, 3); }
+function easeInOut(p){ return p<0.5 ? 2*p*p : 1-Math.pow(-2*p+2,2)/2; }
+
+function animate(dur, update, done, delayMs){
+  delayMs = delayMs||0;
+  setTimeout(function(){
+    const t0 = performance.now();
+    function step(t){
+      let p = Math.min(1, (t-t0)/dur);
+      update(easeOut(p), p);
+      if(p<1) requestAnimationFrame(step); else if(done) done();
+    }
+    requestAnimationFrame(step);
+  }, delayMs);
+}
+
+/* fade an existing element's opacity 0->1 */
+function fadeIn(elm, delayMs, dur){
+  elm.setAttribute('opacity', 0);
+  animate(dur||400, function(p){ elm.setAttribute('opacity', p); }, null, delayMs||0);
+}
+
+/* vertical bar growing from a baseline upward */
+function growBarV(parent, opts){
+  const {x, yBase, w, targetH, color, delay, dur, rx} = opts;
+  const r = svgEl('rect', {x:x, y:yBase, width:w, height:0, fill:color, rx:rx||3, opacity:0.95});
+  parent.appendChild(r);
+  animate(dur||700, function(p){
+    const h = targetH*p;
+    r.setAttribute('y', yBase-h);
+    r.setAttribute('height', h);
+  }, null, delay||0);
+  return r;
+}
+/* horizontal bar growing rightward */
+function growBarH(parent, opts){
+  const {x, y, h, targetW, color, delay, dur, rx} = opts;
+  const r = svgEl('rect', {x:x, y:y, width:0, height:h, fill:color, rx:rx||3, opacity:0.95});
+  parent.appendChild(r);
+  animate(dur||700, function(p){ r.setAttribute('width', targetW*p); }, null, delay||0);
+  return r;
+}
+
+/* pop a group in at (x,y) with scale+fade, content built by buildFn(g) at local origin */
+function popIn(parent, x, y, buildFn, delay, dur){
+  const g = svgEl('g', {opacity:0});
+  buildFn(g);
+  parent.appendChild(g);
+  animate(dur||500, function(p){
+    const s = 0.55 + 0.45*p;
+    g.setAttribute('transform', 'translate('+x+','+y+') scale('+s+')');
+    g.setAttribute('opacity', p);
+  }, null, delay||0);
+  return g;
+}
+
+/* animate a text element's numeric content */
+function countUp(textEl, from, to, delay, dur, fmt){
+  animate(dur||800, function(p){
+    const v = from + (to-from)*p;
+    textEl.textContent = fmt ? fmt(v) : Math.round(v).toString();
+  }, null, delay||0);
+}
+
+/* draw a line/path with a stroke-dash reveal */
+function drawLine(parent, opts){
+  const {x1,y1,x2,y2,color,width,delay,dur,dash} = opts;
+  const len = Math.hypot(x2-x1, y2-y1);
+  const line = svgEl('line', {x1,y1,x2,y2,stroke:color,'stroke-width':width||2,
+    'stroke-dasharray': dash ? dash : len, 'stroke-dashoffset': len, opacity:0.9});
+  parent.appendChild(line);
+  animate(dur||500, function(p){ line.setAttribute('stroke-dashoffset', len*(1-p)); }, null, delay||0);
+  return line;
+}
+
+/* a small dot moving through a polyline of waypoints */
+function moveAlong(parent, points, opts){
+  opts = opts||{};
+  const dot = svgEl('circle', {r:opts.r||6, fill:opts.color||'var(--amber)', opacity:0});
+  parent.appendChild(dot);
+  const segs = [];
+  let total = 0;
+  for(let i=0;i<points.length-1;i++){
+    const d = Math.hypot(points[i+1][0]-points[i][0], points[i+1][1]-points[i][1]);
+    segs.push(d); total += d;
+  }
+  animate(opts.dur||900, function(p){
+    dot.setAttribute('opacity', 1);
+    let dist = total*p, i=0;
+    while(i<segs.length-1 && dist>segs[i]){ dist-=segs[i]; i++; }
+    const t = segs[i] ? dist/segs[i] : 0;
+    const x = points[i][0] + (points[i+1][0]-points[i][0])*t;
+    const y = points[i][1] + (points[i+1][1]-points[i][1])*t;
+    dot.setAttribute('cx', x); dot.setAttribute('cy', y);
+  }, function(){ if(opts.vanish!==false) fadeOut(dot, 60, 250); }, opts.delay||0);
+  return dot;
+}
+function fadeOut(elm, delay, dur){
+  animate(dur||300, function(p){ elm.setAttribute('opacity', 1-p); }, null, delay||0);
+}
+
+/* a row of cells (used for bit arrays / registers / buckets / bitmaps) */
+function cellsRow(parent, opts){
+  const {x, y, n, w, h, gap, fill, stroke, delay, stagger, labels, fontSize} = opts;
+  const cells = [];
+  for(let i=0;i<n;i++){
+    const cx = x + i*(w+gap);
+    const g = svgEl('g', {opacity:0});
+    const rect = svgEl('rect', {x:cx, y:y, width:w, height:h, fill:fill||'#141418',
+      stroke:stroke||'#3a3a42', 'stroke-width':1.3, rx:4});
+    g.appendChild(rect);
+    let txt = null;
+    if(labels){
+      txt = svgEl('text', {x:cx+w/2, y:y+h/2+ (fontSize||13)/3, 'text-anchor':'middle',
+        'font-size':fontSize||13, fill:'var(--ink-dim)', 'font-family':'monospace'}, labels[i]!==undefined?labels[i]:'');
+      g.appendChild(txt);
+    }
+    parent.appendChild(g);
+    fadeIn(g, (delay||0) + i*(stagger||0), 350);
+    cells.push({g:g, rect:rect, text:txt, x:cx, y:y, w:w, h:h});
+  }
+  return cells;
+}
+
+function setCell(cell, opts, delay, dur){
+  animate(dur||350, function(p){
+    if(opts.fill){
+      cell.rect.setAttribute('fill', opts.fill);
+    }
+    if(opts.stroke) cell.rect.setAttribute('stroke', opts.stroke);
+  }, null, delay||0);
+  if(opts.text!==undefined && cell.text){
+    setTimeout(function(){ cell.text.textContent = opts.text; }, delay||0);
+  }
+}
+
+function label(parent, x, y, text, opts){
+  opts = opts||{};
+  const t = svgEl('text', {x:x, y:y, 'text-anchor':opts.anchor||'start',
+    'font-size':opts.size||14, fill:opts.color||'var(--ink-dim)',
+    'font-weight':opts.weight||400, 'font-family':opts.mono?'monospace':'inherit',
+    opacity:0});
+  if(text && text.indexOf('\n')>=0){
+    const lines = text.split('\n');
+    const lh = opts.lineHeight || (opts.size||14)*1.35;
+    lines.forEach(function(ln, i){
+      t.appendChild(svgEl('tspan', {x:x, dy: i===0? 0 : lh}, ln));
+    });
+  } else {
+    t.textContent = text;
+  }
+  parent.appendChild(t);
+  fadeIn(t, opts.delay||0, opts.dur||400);
+  return t;
+}
+
+function arrow(parent, x1,y1,x2,y2, opts){
+  opts=opts||{};
+  const mid = svgEl('marker', {});
+  const line = drawLine(parent, {x1,y1,x2,y2,color:opts.color||'var(--ink-faint)',
+    width:opts.width||1.6, delay:opts.delay||0, dur:opts.dur||450});
+  const angle = Math.atan2(y2-y1, x2-x1);
+  const ah = 6;
+  const p1 = [x2 - ah*Math.cos(angle-0.4), y2 - ah*Math.sin(angle-0.4)];
+  const p2 = [x2 - ah*Math.cos(angle+0.4), y2 - ah*Math.sin(angle+0.4)];
+  const head = svgEl('polygon', {points:x2+','+y2+' '+p1[0]+','+p1[1]+' '+p2[0]+','+p2[1],
+    fill:opts.color||'var(--ink-faint)', opacity:0});
+  parent.appendChild(head);
+  fadeIn(head, (opts.delay||0)+ (opts.dur||450)*0.8, 200);
+  return line;
+}
+
+function box(parent, x,y,w,h, opts){
+  opts = opts||{};
+  const g = svgEl('g', {opacity:0});
+  const r = svgEl('rect', {x:x,y:y,width:w,height:h, fill:opts.fill||'#101014',
+    stroke:opts.stroke||'#3a3a42','stroke-width':opts.sw||1.5, rx:opts.rx!==undefined?opts.rx:8});
+  g.appendChild(r);
+  if(opts.title){
+    g.appendChild(svgEl('text', {x:x+w/2, y: opts.titleY? opts.titleY : y+h/2+5, 'text-anchor':'middle',
+      'font-size':opts.titleSize||15, fill:opts.titleColor||'var(--ink)', 'font-weight':600}, opts.title));
+  }
+  if(opts.sub){
+    g.appendChild(svgEl('text', {x:x+w/2, y:(opts.titleY? opts.titleY : y+h/2+5)+18, 'text-anchor':'middle',
+      'font-size':12, fill:'var(--ink-faint)'}, opts.sub));
+  }
+  parent.appendChild(g);
+  fadeIn(g, opts.delay||0, opts.dur||400);
+  return g;
+}
+
+/* ============ deck engine ============ */
+let slides, dotsWrap, progressEl, current=0;
+
+function buildDeck(){
+  slides = Array.from(document.querySelectorAll('.slide'));
+  dotsWrap = document.getElementById('dots');
+  progressEl = document.getElementById('nav-progress');
+  slides.forEach(function(s, i){
+    const eb = s.querySelector('.eyebrow-num');
+    if(eb) eb.textContent = String(i+1).padStart(2,'0') + ' / ' + String(slides.length).padStart(2,'0');
+    const dot = document.createElement('div');
+    dot.className = 'dot';
+    dot.addEventListener('click', function(){ goTo(i); });
+    dotsWrap.appendChild(dot);
+  });
+  goTo(0, true);
+  const hint = document.getElementById('hint');
+  hint.style.opacity = 1;
+  setTimeout(function(){ hint.style.opacity = 0; }, 3200);
+}
+
+function runSlide(idx){
+  const s = slides[idx];
+  const fn = slideScripts[s.id];
+  if(fn){
+    const svg = s.querySelector('.stage svg');
+    if(svg){ clearDyn(svg); }
+    try{ fn(svg, s); }catch(e){ console.error('slide error', s.id, e); }
+  }
+  // restart r-up text entrance animations
+  s.querySelectorAll('.r-up').forEach(function(el){
+    el.style.animation = 'none';
+    void el.offsetWidth;
+    el.style.animation = '';
+  });
+  if(s.classList.contains('bridge')){
+    const rows = s.querySelectorAll('.bridge-row');
+    rows.forEach(function(row, i){
+      row.style.transition = 'none';
+      row.style.opacity = 0;
+      row.style.transform = 'translateY(10px)';
+      void row.offsetWidth;
+      row.style.transition = 'opacity .6s ease, transform .6s ease';
+      setTimeout(function(){ row.style.opacity = 1; row.style.transform='translateY(0)'; }, 300 + i*450);
+    });
+  }
+}
+
+function goTo(idx, isInit){
+  if(idx<0 || idx>=slides.length) return;
+  current = idx;
+  slides.forEach(function(s,i){ s.classList.toggle('active', i===idx); });
+  Array.from(dotsWrap.children).forEach(function(d,i){ d.classList.toggle('active', i===idx); });
+  progressEl.style.width = (100*(idx+1)/slides.length) + '%';
+  runSlide(idx);
+}
+function next(){ goTo(current+1); }
+function prev(){ goTo(current-1); }
+
+document.addEventListener('keydown', function(e){
+  if(['ArrowRight','ArrowDown',' ','PageDown'].includes(e.key)){ e.preventDefault(); next(); }
+  else if(['ArrowLeft','ArrowUp','PageUp'].includes(e.key)){ e.preventDefault(); prev(); }
+});
+document.getElementById('arrow-right').addEventListener('click', next);
+document.getElementById('arrow-left').addEventListener('click', prev);
+document.getElementById('replay-btn').addEventListener('click', function(){ runSlide(current); });
+
+let touchX=null;
+document.getElementById('deck').addEventListener('touchstart', function(e){ touchX=e.touches[0].clientX; });
+document.getElementById('deck').addEventListener('touchend', function(e){
+  if(touchX===null) return;
+  const dx = e.changedTouches[0].clientX - touchX;
+  if(dx<-40) next(); else if(dx>40) prev();
+  touchX=null;
+});
+
+function fitScale(){
+  const wrap = document.getElementById('deck-wrap');
+  const scaler = document.getElementById('scaler');
+  const sx = wrap.clientWidth/1280, sy = wrap.clientHeight/720;
+  const s = Math.min(sx, sy) * 0.97;
+  scaler.style.transform = 'scale('+s+')';
+}
+window.addEventListener('resize', fitScale);
+fitScale();
+buildDeck();
+</script>
+</body>
+</html>

@@ -1,0 +1,1515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sliding Window · Prefix &amp; Difference · Greedy — A Deep Dive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#06070a;
+  --panel:#101319;
+  --panel2:#14171f;
+  --line:#242833;
+  --ink:#edf0f4;
+  --sub:#98a1b0;
+  --mono:#7c8494;
+  --teal:#5fb3aa;
+  --amber:#d7a25b;
+  --coral:#cd7d76;
+  --green:#74ad78;
+  --violet:#9089c9;
+  --blue:#6f96c9;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;height:100%;background:var(--bg);}
+body{
+  font-family:'Inter',sans-serif;color:var(--ink);
+  background-image:radial-gradient(circle, rgba(255,255,255,.045) 1px, transparent 1px);
+  background-size:26px 26px;
+  overflow:hidden;
+}
+#viewport{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding-bottom:92px;box-sizing:border-box;}
+#stage{width:1280px;height:720px;position:relative;transform-origin:center center;flex-shrink:0;}
+
+.slide{position:absolute;inset:0;display:flex;flex-direction:column;padding:46px 64px 30px;opacity:0;pointer-events:none;transform:translateY(14px);transition:opacity .5s ease, transform .5s ease;z-index:0;}
+.slide.active{opacity:1;pointer-events:auto;transform:translateY(0);z-index:1;}
+
+.eyebrow{font-family:'JetBrains Mono',monospace;font-size:12.5px;letter-spacing:.16em;color:var(--teal);text-transform:uppercase;}
+.eyebrow.e-prefix{color:var(--blue);}
+.eyebrow.e-greedy{color:var(--amber);}
+.title{font-family:'Space Grotesk',sans-serif;font-size:32px;font-weight:600;margin:6px 0 0;line-height:1.18;}
+.subtitle{font-size:15px;color:var(--sub);margin-top:9px;max-width:960px;line-height:1.55;}
+.content{flex:1;display:flex;flex-direction:column;justify-content:center;gap:16px;min-height:0;margin-top:12px;}
+.caption{font-size:13.5px;color:var(--sub);border-top:1px solid var(--line);padding-top:11px;margin-top:12px;line-height:1.5;}
+.caption b{color:var(--ink);font-weight:600;}
+.caption .gapline{color:var(--amber);}
+
+.rv{opacity:0;transform:translateY(10px);transition:opacity .5s ease,transform .5s ease;}
+.rv.in{opacity:1;transform:translateY(0);}
+.rv.pop{transform:scale(.92);}
+.rv.pop.in{transform:scale(1);}
+
+.cols{display:flex;gap:34px;align-items:flex-start;}
+.col{flex:1;min-width:0;}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 20px;}
+.card h4{margin:0 0 8px;font-family:'Space Grotesk';font-size:14.5px;color:var(--ink);font-weight:600;}
+.formula{font-family:'JetBrains Mono';background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:12px 16px;font-size:13.5px;color:var(--ink);display:block;white-space:pre;line-height:1.6;}
+.bullets{margin:0;padding-left:18px;color:var(--sub);font-size:13.8px;line-height:1.68;}
+.bullets li{margin-bottom:3px;}
+.bullets li b{color:var(--ink);}
+
+.pill{display:inline-flex;align-items:center;gap:6px;font-family:'JetBrains Mono';font-size:11.5px;padding:4px 10px;border-radius:999px;border:1px solid var(--line);color:var(--sub);margin:2px 6px 2px 0;}
+.pill.tag-teal{border-color:var(--teal);color:var(--teal);}
+.pill.tag-amber{border-color:var(--amber);color:var(--amber);}
+.pill.tag-coral{border-color:var(--coral);color:var(--coral);}
+.pill.tag-green{border-color:var(--green);color:var(--green);}
+.pill.tag-violet{border-color:var(--violet);color:var(--violet);}
+
+/* array component */
+.arr-wrap{position:relative;padding-top:26px;padding-bottom:6px;}
+.arr-row{position:relative;display:flex;gap:8px;z-index:2;}
+.cell{width:56px;height:56px;border:1.4px solid var(--line);border-radius:10px;background:var(--panel);display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono';font-size:17px;position:relative;flex-shrink:0;transition:border-color .3s,background .3s,opacity .3s;}
+.cell .idx{position:absolute;top:-21px;left:0;right:0;text-align:center;font-size:10px;color:var(--mono);}
+.cell.hl{border-color:var(--teal);background:rgba(95,179,170,.12);}
+.cell.best{border-color:var(--amber);background:rgba(215,162,91,.14);}
+.cell.good{border-color:var(--green);background:rgba(116,173,120,.14);}
+.cell.excl{opacity:.3;}
+.win{position:absolute;top:20px;height:60px;border:1.6px solid var(--teal);border-radius:12px;background:rgba(95,179,170,.07);transition:left .5s cubic-bezier(.4,0,.2,1), width .5s cubic-bezier(.4,0,.2,1);z-index:1;display:none;}
+.ptrs{position:relative;height:22px;margin-top:4px;}
+.ptr{position:absolute;top:0;width:56px;text-align:center;font-family:'JetBrains Mono';font-size:11px;color:var(--amber);transition:left .5s;font-weight:600;}
+.ptr.p-l{color:var(--teal);}
+
+/* chips */
+.chiprow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
+.chip{font-family:'JetBrains Mono';font-size:12.5px;padding:7px 12px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--sub);transition:border-color .3s,color .3s,background .3s;}
+.chip.pick{border-color:var(--amber);color:var(--amber);background:rgba(215,162,91,.1);}
+.chip.merged{border-color:var(--green);color:var(--green);background:rgba(116,173,120,.1);}
+
+/* timeline */
+.timeline{position:relative;margin-top:8px;}
+.tl-bar{position:absolute;height:28px;border-radius:8px;border:1.4px solid var(--line);background:var(--panel);display:flex;align-items:center;padding:0 10px;font-family:'JetBrains Mono';font-size:11.5px;color:var(--sub);transition:border-color .35s,background .35s,opacity .35s;white-space:nowrap;}
+.tl-bar.chosen{border-color:var(--green);background:rgba(116,173,120,.13);color:var(--green);}
+.tl-bar.rejected{border-color:var(--coral);opacity:.4;}
+.tl-bar.active{border-color:var(--amber);color:var(--amber);}
+.tl-axis{position:absolute;left:0;right:0;border-top:1px solid var(--line);}
+.tl-mark{position:absolute;top:4px;font-family:'JetBrains Mono';font-size:10px;color:var(--mono);}
+
+/* slot table (job sequencing) */
+.slotrow{display:flex;gap:8px;}
+.slot{width:64px;height:56px;border:1.4px solid var(--line);border-radius:10px;background:var(--panel);display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'JetBrains Mono';font-size:13px;color:var(--sub);transition:border-color .3s,background .3s;position:relative;}
+.slot .t{position:absolute;top:-20px;font-size:10px;color:var(--mono);}
+.slot.filled{border-color:var(--green);background:rgba(116,173,120,.12);color:var(--green);}
+
+/* stat row */
+.stat-row{display:flex;gap:24px;flex-wrap:wrap;font-family:'JetBrains Mono';font-size:13px;color:var(--sub);}
+.stat-row b{color:var(--ink);}
+.hl-amber{color:var(--amber) !important;}
+.hl-green{color:var(--green) !important;}
+.hl-teal{color:var(--teal) !important;}
+.hl-coral{color:var(--coral) !important;}
+
+/* nav */
+#nav{position:fixed;left:0;right:0;bottom:0;height:92px;display:flex;align-items:center;justify-content:center;gap:20px;background:linear-gradient(to top, rgba(6,7,10,1), rgba(6,7,10,.82));border-top:1px solid var(--line);z-index:10;}
+.navbtn{font-family:'JetBrains Mono';font-size:13px;padding:10px 18px;border-radius:9px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer;transition:border-color .2s;}
+.navbtn:hover:not(:disabled){border-color:var(--teal);}
+.navbtn:disabled{opacity:.28;cursor:default;}
+#progress{width:240px;height:4px;background:var(--panel2);border-radius:2px;overflow:hidden;}
+#progressFill{height:100%;background:var(--teal);width:0;transition:width .4s;}
+#counter{font-family:'JetBrains Mono';font-size:12px;color:var(--sub);width:60px;text-align:center;}
+.replay{font-family:'JetBrains Mono';font-size:11px;padding:5px 10px;border-radius:7px;border:1px solid var(--line);background:transparent;color:var(--mono);cursor:pointer;}
+.replay:hover{border-color:var(--teal);color:var(--teal);}
+
+/* pivot (recap/gap) slide */
+.pivot{display:flex;flex-direction:column;align-items:flex-start;gap:20px;max-width:940px;}
+.pivot .recap{font-family:'JetBrains Mono';font-size:13.5px;color:var(--sub);}
+.pivot .recap b{color:var(--green);}
+.pivot .gap{font-family:'Space Grotesk';font-size:27px;color:var(--amber);line-height:1.42;font-weight:600;}
+.pivot .fill{font-family:'JetBrains Mono';font-size:12.5px;color:var(--teal);}
+.bigdot{width:8px;height:8px;border-radius:50%;background:var(--amber);display:inline-block;margin-right:8px;}
+
+/* title slide */
+.hero{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;text-align:center;gap:26px;}
+.hero .maintitle{font-family:'Space Grotesk';font-size:52px;font-weight:700;line-height:1.15;}
+.hero .maintitle span{color:var(--teal);}
+.hero .mainsub{font-size:16px;color:var(--sub);max-width:760px;line-height:1.6;}
+.pillars{display:flex;gap:16px;margin-top:6px;}
+.pillar{border:1px solid var(--line);background:var(--panel);border-radius:12px;padding:16px 22px;font-family:'JetBrains Mono';font-size:13px;color:var(--sub);}
+.pillar b{display:block;font-family:'Space Grotesk';font-size:16px;color:var(--ink);margin-bottom:4px;font-weight:600;}
+.hint{font-family:'JetBrains Mono';font-size:12px;color:var(--mono);margin-top:10px;}
+
+/* section header rows */
+.sectag{display:flex;align-items:center;gap:10px;margin-bottom:2px;}
+.sectag .n{font-family:'JetBrains Mono';font-size:11px;color:var(--mono);border:1px solid var(--line);padding:2px 8px;border-radius:6px;}
+
+/* simple svg diagram box */
+.diagbox{border:1px solid var(--line);background:var(--panel);border-radius:12px;padding:16px;}
+
+/* recap table (final slide) */
+.rtable{width:100%;border-collapse:collapse;font-size:13px;}
+.rtable th{font-family:'JetBrains Mono';font-size:11px;color:var(--mono);text-align:left;padding:8px 12px;border-bottom:1px solid var(--line);text-transform:uppercase;letter-spacing:.06em;}
+.rtable td{padding:10px 12px;border-bottom:1px solid var(--line);color:var(--sub);vertical-align:top;}
+.rtable td b{color:var(--ink);}
+.rtable tr:last-child td{border-bottom:none;}
+</style>
+</head>
+<body>
+<div id="viewport"><div id="stage">
+
+<!-- S0 : TITLE -->
+<section class="slide active" id="s0">
+  <div class="hero">
+    <div class="pill tag-teal rv" data-d="0">A DEEP DIVE · WITH REAL RUNNING TRACES</div>
+    <div class="maintitle rv" data-d="1">Sliding Window, Prefix &amp; Difference,<br>and <span>Greedy</span> Algorithms</div>
+    <div class="mainsub rv" data-d="2">Three ways of looking at a sequence: a window that moves, a sum that remembers, and a choice that never looks back. We'll build each idea from one concrete example, then push it to real interview problems.</div>
+    <div class="pillars rv pop" data-d="3">
+      <div class="pillar"><b>Sliding Window</b>one pass, two pointers</div>
+      <div class="pillar"><b>Prefix / Difference</b>precompute once, answer instantly</div>
+      <div class="pillar"><b>Greedy</b>commit to the locally best move</div>
+    </div>
+    <div class="hint rv" data-d="4">→ press Next, or the arrow key, to begin</div>
+  </div>
+</section>
+
+<!-- S1: SLIDING WINDOW INTRO -->
+<section class="slide" id="s1">
+  <div class="eyebrow">SLIDING WINDOW · WARM-UP</div>
+  <div class="title">The idea, in one picture</div>
+  <div class="subtitle rv" data-d="0">Imagine looking at a train through a fixed gap in a fence — you don't re-look at the whole train each time it moves, you just drop what left your view and add what entered it.</div>
+  <div class="content">
+    <div class="cols">
+      <div class="col" style="flex:1.4">
+        <div id="s1-arr"></div>
+        <div class="ptrs" id="s1-ptrs"></div>
+      </div>
+      <div class="col card rv" data-d="1">
+        <h4>Why this beats brute force</h4>
+        <ul class="bullets">
+          <li>Brute force re-scans the window from scratch at every position → <b>O(n·k)</b> work.</li>
+          <li>A sliding window <b>reuses</b> the previous window's work: remove the piece that left, add the piece that entered.</li>
+          <li>That turns re-scanning into <b>O(1)</b> update per step → <b>O(n)</b> total.</li>
+          <li>Works whenever "window value" can be updated incrementally: a sum, a count, a max, a set of characters.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="caption rv" data-d="2">There are four flavors of this idea: <b>fixed-size</b>, <b>variable-size</b>, <b>frequency-map</b>, and <b>monotonic</b> windows. We'll meet all four, each through one worked example.</div>
+</section>
+
+<!-- S2: FIXED-SIZE WINDOW -->
+<section class="slide" id="s2">
+  <div class="eyebrow">SLIDING WINDOW · 01 / 06 — FIXED-SIZE WINDOW</div>
+  <div class="title">Max sum of any 3 consecutive elements</div>
+  <div class="subtitle rv" data-d="0">The window size <b>k</b> never changes — it just slides one step at a time. Watch the sum update without re-adding the whole window.</div>
+  <div class="content">
+    <div id="s2-arr"></div>
+    <div class="ptrs" id="s2-ptrs"></div>
+    <div class="cols" style="margin-top:6px;">
+      <div class="col">
+        <div class="stat-row" id="s2-stats"></div>
+      </div>
+      <div class="col card rv" data-d="1" style="flex:1.1">
+        <h4>Formula</h4>
+        <div class="formula">sum(i) = sum(i-1) − arr[i−k] + arr[i]
+
+Time  : O(n)
+Space : O(1)</div>
+      </div>
+    </div>
+  </div>
+  <div class="caption rv" data-d="2">Practical uses: <b>moving average</b> of stock prices, <b>k-day rainfall total</b>, rate-limiters checking "requests in the last k seconds." <span class="gapline">But what if we don't know the right window size in advance — how do we know when to grow it, and when to shrink it?</span></div>
+</section>
+
+<!-- S3: VARIABLE-SIZE WINDOW + FREQUENCY MAP -->
+<section class="slide" id="s3">
+  <div class="eyebrow">SLIDING WINDOW · 02 / 06 — VARIABLE-SIZE + FREQUENCY-MAP WINDOW</div>
+  <div class="title">Longest substring without repeating characters</div>
+  <div class="subtitle rv" data-d="0">String: <span class="pill tag-teal">"a b c a b c b b"</span>. Grow the right edge greedily; the moment a character repeats <i>inside</i> the window, jump the left edge past its last position. A frequency-map (last-seen index) is what makes the jump instant instead of a scan.</div>
+  <div class="content">
+    <div id="s3-arr"></div>
+    <div class="ptrs" id="s3-ptrs"></div>
+    <div class="cols" style="margin-top:6px;">
+      <div class="col">
+        <div class="stat-row" id="s3-stats"></div>
+        <div class="chiprow" id="s3-map" style="margin-top:10px;"></div>
+      </div>
+      <div class="col card rv" data-d="1" style="flex:.95">
+        <h4>Two-pointer rule</h4>
+        <div class="formula">while map[s[r]] exists
+      &amp;&amp; map[s[r]] >= l:
+  l = map[s[r]] + 1
+map[s[r]] = r
+maxLen = max(maxLen, r-l+1)</div>
+      </div>
+    </div>
+  </div>
+  <div class="caption rv" data-d="2"><b>Character-frequency problems</b> live right next door: "Find All Anagrams in a String" and "Permutation in String" use this exact same expand/shrink loop, but the map counts <i>characters needed</i> instead of last-seen index. <span class="gapline">Matching "no repeats" is easy — but what if the window must match a whole target string exactly?</span></div>
+</section>
+
+<!-- S4: MINIMUM WINDOW SUBSTRING -->
+<section class="slide" id="s4">
+  <div class="eyebrow">SLIDING WINDOW · 03 / 06 — VARIABLE WINDOW, HARDER CONSTRAINT</div>
+  <div class="title">Minimum Window Substring</div>
+  <div class="subtitle rv" data-d="0">s = <span class="pill tag-teal">"ADOBECODEBANC"</span>, t = <span class="pill tag-amber">"ABC"</span>. Grow right until the window <i>contains</i> every character of t (with enough copies) — then greedily shrink left while it still qualifies, recording the smallest window seen.</div>
+  <div class="content">
+    <div id="s4-arr"></div>
+    <div class="ptrs" id="s4-ptrs"></div>
+    <div class="cols" style="margin-top:4px;">
+      <div class="col">
+        <div class="stat-row" id="s4-stats"></div>
+      </div>
+      <div class="col card rv" data-d="1" style="flex:.95">
+        <h4>Formula</h4>
+        <div class="formula">expand r until formed==required
+while formed==required:
+  record window if smaller
+  shrink from l, l++
+Time  : O(|s|+|t|)
+Space : O(|s|+|t|)</div>
+      </div>
+    </div>
+  </div>
+  <div class="caption rv" data-d="2">Real use: browser "find in page with all keywords," DNA subsequence matching, log-scanning for the shortest span containing a set of required event types. <span class="gapline">Instead of chasing "best window," what if we just want to <i>count</i> windows under a limit — like "at most K distinct"?</span></div>
+</section>
+
+<!-- S5: AT-MOST-K CONSTRAINT -->
+<section class="slide" id="s5">
+  <div class="eyebrow">SLIDING WINDOW · 04 / 06 — AT-MOST-K CONSTRAINTS</div>
+  <div class="title">Longest substring with at most 2 distinct characters</div>
+  <div class="subtitle rv" data-d="0">String: <span class="pill tag-teal">"e c e b a a a c"</span>, K = 2. Expand right always; only shrink left when distinct count exceeds K. This same "at most K" window is also the building block for counting <i>exactly K</i>.</div>
+  <div class="content">
+    <div id="s5-arr"></div>
+    <div class="ptrs" id="s5-ptrs"></div>
+    <div class="stat-row" id="s5-stats" style="margin-top:6px;"></div>
+    <div class="cols" style="margin-top:4px;">
+      <div class="col card rv" data-d="1">
+        <h4>The "exactly K" trick</h4>
+        <div class="formula">countExactlyK(K) =
+   atMostK(K) − atMostK(K−1)</div>
+        <p class="bullets" style="margin-top:8px;">Counting "at most" is a clean sliding window. Counting "exactly" is not — so we build it by subtracting two "at most" windows instead.</p>
+      </div>
+      <div class="col card rv" data-d="2">
+        <h4>Practical uses</h4>
+        <ul class="bullets">
+          <li><b>Fruit into baskets</b>: at most 2 fruit types per basket.</li>
+          <li>Traffic analysis: sessions using <b>at most K</b> distinct IPs.</li>
+          <li>Autocomplete: longest query prefix touching ≤ K categories.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="caption rv" data-d="3">All four problems so far tracked a <i>sum</i> or a <i>set</i>. <span class="gapline">But what about the maximum value inside a moving window — recomputing that from scratch would cost O(k) per step. Is there a trick?</span></div>
+</section>
+
+<!-- S6: MONOTONIC WINDOW / DEQUE -->
+<section class="slide" id="s6">
+  <div class="eyebrow">SLIDING WINDOW · 05 / 06 — MONOTONIC-WINDOW TECHNIQUE</div>
+  <div class="title">Sliding Window Maximum (via a monotonic deque)</div>
+  <div class="subtitle rv" data-d="0">Keep a deque of <i>indices</i> whose values are strictly decreasing, front-to-back. The front is always the current window's maximum — no scanning needed.</div>
+  <div class="content">
+    <div id="s6-arr"></div>
+    <div class="ptrs" id="s6-ptrs"></div>
+    <div class="cols" style="margin-top:6px;">
+      <div class="col">
+        <div class="stat-row" id="s6-stats"></div>
+        <div style="margin-top:10px;">
+          <div class="pill tag-violet">Deque (front → back)</div>
+          <div class="chiprow" id="s6-deque" style="margin-top:6px;"></div>
+        </div>
+      </div>
+      <div class="col card rv" data-d="1" style="flex:.9">
+        <h4>Why it's O(n)</h4>
+        <ul class="bullets">
+          <li>Pop from the <b>back</b> any index whose value is ≤ the new value — it can never be the max again.</li>
+          <li>Pop from the <b>front</b> if it fell outside the window.</li>
+          <li>Each index is pushed once, popped once → amortized <b>O(1)</b> per step, <b>O(n)</b> total.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="caption rv" data-d="2">Same pattern powers <b>min-stack</b>, <b>stock span</b>, and <b>largest rectangle in histogram</b> — anywhere a moving max/min needs to update in O(1).</div>
+</section>
+
+<!-- S7: PIVOT 1 — RECAP / GAP -->
+<section class="slide" id="s7">
+  <div class="eyebrow">CHECKPOINT</div>
+  <div class="title">From windows to whole ranges</div>
+  <div class="content">
+    <div class="pivot">
+      <div class="recap rv" data-d="0"><span class="bigdot"></span><b>RECAP —</b> a sliding window keeps a running answer for whatever is <i>currently inside</i> a moving range, updating it in O(1) per step instead of rescanning.</div>
+      <div class="gap rv" data-d="1">But every window answer still only tells us about a range we already touched, one step at a time — what if someone asks for the sum of <i>any</i> arbitrary range, right now, with zero setup at query time?</div>
+      <div class="fill rv" data-d="2">FILL → precompute running totals once, and every range becomes one subtraction.</div>
+    </div>
+  </div>
+</section>
+
+<!-- S8: PREFIX SUM -->
+<section class="slide" id="s8">
+  <div class="eyebrow e-prefix">PREFIX / DIFFERENCE · 01 / 06 — PREFIX SUM</div>
+  <div class="title">Answer any range-sum query in O(1)</div>
+  <div class="subtitle rv" data-d="0">Build <b>prefix[i] = sum of arr[0..i-1]</b> once. Then sum of any range [l, r] is just <b>prefix[r+1] − prefix[l]</b> — no matter how wide the range is.</div>
+  <div class="content">
+    <div id="s8-arr"></div>
+    <div id="s8-pre" style="margin-top:2px;"></div>
+    <div class="cols" style="margin-top:6px;">
+      <div class="col">
+        <div class="stat-row" id="s8-stats"></div>
+      </div>
+      <div class="col card rv" data-d="1" style="flex:1;">
+        <h4>Formula</h4>
+        <div class="formula">prefix[0] = 0
+prefix[i] = prefix[i-1] + arr[i-1]
+
+sum(l..r) = prefix[r+1] - prefix[l]
+
+Build : O(n)   Query : O(1)</div>
+      </div>
+    </div>
+  </div>
+  <div class="caption rv" data-d="2">Trade-off vs. sliding window: prefix sums cost O(n) space but answer <b>any</b> range instantly and repeatedly — sliding windows answer only the <i>current</i> range, once, in a single pass.</div>
+</section>
+
+<!-- S9: PREFIX SUM APPLICATIONS -->
+<section class="slide" id="s9">
+  <div class="eyebrow e-prefix">PREFIX / DIFFERENCE · 02 / 06 — PREFIX SUM, APPLIED</div>
+  <div class="title">Subarray Sum Equals K (prefix sum + hashmap)</div>
+  <div class="subtitle rv" data-d="0">arr = <span class="pill tag-teal">[1, 2, 3, -2, 5]</span>, target K = 5. Key idea: if <b>prefix[r] − prefix[l] = K</b>, then some earlier prefix equals <b>prefix[r] − K</b>. Store every prefix sum seen so far in a hashmap.</div>
+  <div class="content">
+    <div id="s9-arr"></div>
+    <div class="stat-row" id="s9-stats" style="margin-top:8px;"></div>
+    <div class="chiprow" id="s9-map" style="margin-top:6px;"></div>
+    <div class="cols" style="margin-top:8px;">
+      <div class="col card rv" data-d="1">
+        <h4>Formula</h4>
+        <div class="formula">need = runningSum - K
+count += freq[need]
+freq[runningSum]++</div>
+      </div>
+      <div class="col card rv" data-d="2">
+        <h4>Other prefix-sum classics</h4>
+        <ul class="bullets">
+          <li><b>Equilibrium / pivot index</b>: find i where left-sum == right-sum.</li>
+          <li><b>Range update count</b>: "how many days had cumulative rainfall &gt; X?"</li>
+          <li>Product analytics: cumulative revenue between any two dates, O(1) per query.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="caption rv" data-d="3">This "target minus running value, look it up" shape reappears everywhere — remember it, it's not just for sums.</div>
+</section>
+
+<!-- S10: 2D PREFIX SUM -->
+<section class="slide" id="s10">
+  <div class="eyebrow e-prefix">PREFIX / DIFFERENCE · 03 / 06 — 2D PREFIX SUM</div>
+  <div class="title">Sum of any rectangle, in O(1)</div>
+  <div class="subtitle rv" data-d="0">Extend the same idea to a grid: <b>pre[i][j]</b> = sum of everything above-left of (i, j). Any submatrix sum is 4 lookups and 3 additions/subtractions — inclusion-exclusion, just like a Venn diagram.</div>
+  <div class="content">
+    <div class="cols">
+      <div class="col" id="s10-grid" style="flex:1.1"></div>
+      <div class="col card rv" data-d="1">
+        <h4>Formula</h4>
+        <div class="formula">pre[i][j] = grid[i][j]
+   + pre[i-1][j] + pre[i][j-1]
+   - pre[i-1][j-1]
+
+rectSum(r1,c1,r2,c2) =
+   pre[r2][c2] - pre[r1-1][c2]
+   - pre[r2][c1-1] + pre[r1-1][c1-1]</div>
+        <p class="bullets" style="margin-top:10px;">Build once: <b>O(rows·cols)</b>. Every rectangle query after that: <b>O(1)</b>.</p>
+      </div>
+    </div>
+  </div>
+  <div class="caption rv" data-d="2">Real applications: <b>image processing</b> (box-blur / integral images use exactly this), heatmap dashboards answering "total sales in this region," matrix-based grid games. <span class="gapline">Prefix sums are great at answering — but what if the same range needs to be <i>updated</i>, over and over, not just read?</span></div>
+</section>
+
+<!-- S11: DIFFERENCE ARRAY -->
+<section class="slide" id="s11">
+  <div class="eyebrow e-prefix">PREFIX / DIFFERENCE · 04 / 06 — DIFFERENCE ARRAY</div>
+  <div class="title">Apply many range updates, cheaply</div>
+  <div class="subtitle rv" data-d="0">Problem: apply <b>+3 to [1,4]</b>, <b>+2 to [3,5]</b>, and <b>-1 to [0,2]</b> to an array of 7 zeros — without touching every element in every range. Mark only the two <i>edges</i> of each range; recover the real array with one prefix-sum pass at the end.</div>
+  <div class="content">
+    <div id="s11-diff"></div>
+    <div id="s11-arr" style="margin-top:16px;"></div>
+    <div class="stat-row" id="s11-stats" style="margin-top:8px;"></div>
+  </div>
+  <div class="caption rv" data-d="2"><b>Formula:</b> <span style="font-family:'JetBrains Mono';color:var(--ink);">diff[l] += val; diff[r+1] -= val;</span> then rebuild with a running sum. <b>k updates, each O(1)</b>, then one O(n) rebuild — instead of O(n) per update. Uses: seat-booking calendars, "how many meetings overlap this minute," batch discount ranges on a price array.</div>
+</section>
+
+<!-- S12: DIFFERENCE MATRIX -->
+<section class="slide" id="s12">
+  <div class="eyebrow e-prefix">PREFIX / DIFFERENCE · 05 / 06 — DIFFERENCE MATRIX</div>
+  <div class="title">The same trick, in two dimensions</div>
+  <div class="subtitle rv" data-d="0">To add a value to every cell inside a rectangle, mark only its 4 corners in a difference matrix — then recover the grid with a 2D prefix-sum pass.</div>
+  <div class="content">
+    <div class="cols">
+      <div class="col card rv" data-d="0">
+        <h4>Formula</h4>
+        <div class="formula">diff[r1][c1]     += v
+diff[r1][c2+1]   -= v
+diff[r2+1][c1]   -= v
+diff[r2+1][c2+1] += v
+
+// then 2D-prefix-sum the diff
+// matrix to get final grid</div>
+      </div>
+      <div class="col card rv" data-d="1">
+        <h4>Practical uses</h4>
+        <ul class="bullets">
+          <li><b>Calendar / room-booking heatmaps</b>: mark occupied rectangles of (day × room), read final load once.</li>
+          <li><b>Image editing</b>: batch brightness adjustment over rectangular patches.</li>
+          <li>Game maps: apply many "area buff" rectangles, then bake the final tile grid once.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="card rv" data-d="2" style="margin-top:4px;">
+      <div class="stat-row"><span>Same shape as the 1D version: <b>mark corners → integrate once.</b> This "mark the boundary, integrate later" idea is the deepest reusable insight in this whole section.</span></div>
+    </div>
+  </div>
+  <div class="caption rv" data-d="3">Same complexity win as 1D: <b>k rectangle updates in O(k)</b>, one O(rows·cols) rebuild — instead of touching every cell of every rectangle directly.</div>
+</section>
+
+<!-- S13: PREFIX XOR + RUNNING SUM / CUMULATIVE FREQUENCY -->
+<section class="slide" id="s13">
+  <div class="eyebrow e-prefix">PREFIX / DIFFERENCE · 06 / 06 — PREFIX XOR &amp; CUMULATIVE FREQUENCY</div>
+  <div class="title">The same running-value trick, different operators</div>
+  <div class="subtitle rv" data-d="0">Prefix sum isn't really about "+" — it's about any operation with an inverse. XOR is its own inverse (<span style="font-family:'JetBrains Mono';">x ^ x = 0</span>), so the exact same "running value, hashmap lookup" shape from Subarray-Sum-K works for XOR too.</div>
+  <div class="content">
+    <div id="s13-arr"></div>
+    <div class="stat-row" id="s13-stats" style="margin-top:8px;"></div>
+    <div class="cols" style="margin-top:8px;">
+      <div class="col card rv" data-d="1">
+        <h4>Prefix XOR</h4>
+        <div class="formula">xorPre[i] = xorPre[i-1] ^ arr[i-1]
+xor(l..r) = xorPre[r+1] ^ xorPre[l]</div>
+        <p class="bullets" style="margin-top:8px;">Uses: "find subarray with XOR = K," single-number / parity puzzles, checksum verification over a byte range.</p>
+      </div>
+      <div class="col card rv" data-d="2">
+        <h4>Running sums &amp; cumulative frequency</h4>
+        <ul class="bullets">
+          <li><b>Running sum</b>: prefix sum used live, e.g. account balance after each transaction.</li>
+          <li><b>Cumulative frequency</b>: prefix sum over a <i>count</i> array — "how many scores ≤ X" in O(1), the backbone of percentile lookups and order statistics.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="caption rv" data-d="3">One mental model, four operators: <b>+</b> for totals, <b>−</b> to undo them, <b>^</b> for XOR ranges, and plain counts for cumulative frequency.</div>
+</section>
+
+<!-- S14: PIVOT 2 — RECAP / GAP -->
+<section class="slide" id="s14">
+  <div class="eyebrow">CHECKPOINT</div>
+  <div class="title">From reading data to deciding with it</div>
+  <div class="content">
+    <div class="pivot">
+      <div class="recap rv" data-d="0"><span class="bigdot"></span><b>RECAP —</b> prefix and difference techniques trade a little precomputation for instant, repeated answers about sums, updates, and counts over any range.</div>
+      <div class="gap rv" data-d="1">But knowing the data perfectly doesn't tell us what to <i>do</i>. When we have to make a sequence of choices — pick this meeting, skip that one — and we can't see the future, what rule tells us the locally best move is also the globally best one?</div>
+      <div class="fill rv" data-d="2">FILL → sometimes just being greedy — taking the best option right now — is provably optimal. Let's find out exactly when.</div>
+    </div>
+  </div>
+</section>
+
+<!-- S15: GREEDY INTRO -->
+<section class="slide" id="s15">
+  <div class="eyebrow e-greedy">GREEDY · CORE CONCEPT — GREEDY CHOICE PROPERTY</div>
+  <div class="title">Make the best move right now, never revisit it</div>
+  <div class="subtitle rv" data-d="0">A greedy algorithm builds a solution one decision at a time, always taking whatever looks best <i>at this instant</i>, and never undoing that choice later. It works only when a local best choice is guaranteed to fit inside <i>some</i> global best solution.</div>
+  <div class="content">
+    <div class="cols">
+      <div class="col card rv" data-d="1">
+        <h4>When greedy provably works</h4>
+        <ul class="bullets">
+          <li><b>Coin change with {1, 5, 10, 25}</b>: always take the biggest coin ≤ remaining amount → optimal. This is the classic "greedy works" example.</li>
+          <li>Greedy choice property: a locally optimal choice leads to a globally optimal solution.</li>
+          <li>Optimal substructure: the rest of the problem, after the choice, is a smaller version of the same problem.</li>
+        </ul>
+      </div>
+      <div class="col card rv" data-d="2">
+        <h4>When greedy quietly fails</h4>
+        <ul class="bullets">
+          <li><b>Coin change with {1, 3, 4}</b>, target 6: greedy picks 4+1+1 (3 coins) — optimal is 3+3 (2 coins). Greedy isn't always safe.</li>
+          <li>0/1 Knapsack (can't take fractions): greedy-by-ratio can miss the true optimum — needs dynamic programming instead.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="caption rv" data-d="3">The honest rule: greedy is a <b>hypothesis</b>, not a default. You must prove it — usually with an <b>exchange argument</b> — before trusting it.</div>
+</section>
+
+<!-- S16: EXCHANGE ARGUMENT -->
+<section class="slide" id="s16">
+  <div class="eyebrow e-greedy">GREEDY · PROOF TECHNIQUE — EXCHANGE ARGUMENT</div>
+  <div class="title">How you actually prove a greedy rule is correct</div>
+  <div class="subtitle rv" data-d="0">Take any optimal solution that <i>disagrees</i> with the greedy choice. Swap in the greedy choice instead. If the result is still valid and at least as good — the greedy choice was always safe.</div>
+  <div class="content">
+    <div class="cols">
+      <div class="col diagbox rv" data-d="1">
+        <div class="pill tag-coral">Assume optimal picks B first</div>
+        <div class="chiprow" style="margin-top:10px;">
+          <div class="chip">B (ends late)</div><div class="chip">then A</div>
+        </div>
+        <div class="pill tag-teal" style="margin-top:16px;">Greedy picks A first (ends earliest)</div>
+        <div class="chiprow" style="margin-top:10px;">
+          <div class="chip pick">A (ends early)</div><div class="chip">then B</div>
+        </div>
+        <p class="bullets" style="margin-top:14px;">A ends no later than B, so swapping A into B's slot never blocks anything B could reach — the swapped solution is still valid, and no worse.</p>
+      </div>
+      <div class="col card rv" data-d="2">
+        <h4>The three-step recipe</h4>
+        <ul class="bullets">
+          <li><b>1. Assume</b> an optimal solution that differs from greedy at some point.</li>
+          <li><b>2. Exchange</b> that point for the greedy choice.</li>
+          <li><b>3. Show</b> the new solution is still feasible and no worse — so greedy could have been optimal all along.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="caption rv" data-d="3">Every greedy algorithm in this deck — interval scheduling, knapsack, Huffman, job sequencing — is provable this same way. We'll apply it, not re-derive it, from here on.</div>
+</section>
+
+<!-- S17: ACTIVITY SELECTION -->
+<section class="slide" id="s17">
+  <div class="eyebrow e-greedy">GREEDY · 01 / 08 — ACTIVITY SELECTION / INTERVAL SCHEDULING</div>
+  <div class="title">Fit the most non-overlapping intervals</div>
+  <div class="subtitle rv" data-d="0">Sort by <b>end time</b>. Always take the next activity that starts at or after the last one you took ends. That one rule maximizes the count — proven by the exchange argument on the previous slide.</div>
+  <div class="content">
+    <div id="s17-tl" style="height:170px;"></div>
+    <div class="stat-row" id="s17-stats" style="margin-top:6px;"></div>
+  </div>
+  <div class="caption rv" data-d="2"><b>Formula:</b> sort by end time, O(n log n); scan once, O(n). Uses: CPU/job scheduling, booking one meeting room to fit max meetings, class-timetable conflict resolution.</div>
+</section>
+
+<!-- S18: MINIMUM PLATFORMS / MEETING SCHEDULING -->
+<section class="slide" id="s18">
+  <div class="eyebrow e-greedy">GREEDY · 02 / 08 — MINIMUM PLATFORMS / MEETING ROOMS</div>
+  <div class="title">How many resources do we need at once?</div>
+  <div class="subtitle rv" data-d="0">Different question from before: not "which to skip" but "what's the peak overlap." Sort arrivals and departures separately; sweep both with two pointers, counting how many are simultaneously active.</div>
+  <div class="content">
+    <div id="s18-tl" style="height:150px;"></div>
+    <div class="stat-row" id="s18-stats" style="margin-top:8px;"></div>
+    <div class="card rv" data-d="1" style="margin-top:4px;">
+      <div class="formula" style="display:inline-block;">sort(arrivals); sort(departures)
+i=j=0, platforms=0, best=0
+while i &lt; n:
+  if arr[i] &lt;= dep[j]: platforms++; i++
+  else:                 platforms--; j++
+  best = max(best, platforms)</div>
+    </div>
+  </div>
+  <div class="caption rv" data-d="2">This is exactly LeetCode's <b>"Meeting Rooms II"</b> and the classic "minimum train platforms" problem. Real use: how many support agents / servers / checkout counters are needed at peak load.</div>
+</section>
+
+<!-- S19: FRACTIONAL KNAPSACK -->
+<section class="slide" id="s19">
+  <div class="eyebrow e-greedy">GREEDY · 03 / 08 — FRACTIONAL KNAPSACK</div>
+  <div class="title">Fill the bag with the best value-per-weight first</div>
+  <div class="subtitle rv" data-d="0">Bag capacity = 15kg. Items can be split (fractions allowed), so simply rank by <b>value ÷ weight</b> and take greedily until the bag is full — the fraction of the last item makes it exactly optimal.</div>
+  <div class="content">
+    <div id="s19-items"></div>
+    <div class="stat-row" id="s19-stats" style="margin-top:10px;"></div>
+    <div class="card rv" data-d="1">
+      <h4>Formula</h4>
+      <div class="formula">sort items by value/weight, descending
+for each item:
+  take min(item.weight, remaining capacity)
+  add its proportional value
+  stop when capacity == 0</div>
+    </div>
+  </div>
+  <div class="caption rv" data-d="2">Why 0/1 Knapsack (no splitting) needs DP instead: once you can't take fractions, the greedy exchange argument breaks — a high-ratio item might not fit, forcing you to compare whole combinations. Uses: cargo loading, budget allocation across divisible investments, bandwidth allocation.</div>
+</section>
+
+<!-- S20: HUFFMAN CODING -->
+<section class="slide" id="s20">
+  <div class="eyebrow e-greedy">GREEDY · 04 / 08 — HUFFMAN CODING</div>
+  <div class="title">Shorter codes for more frequent symbols</div>
+  <div class="subtitle rv" data-d="0">Repeatedly merge the <b>two least-frequent</b> nodes into one, until a single tree remains. Frequent characters end up near the root (short code); rare ones end up deep (long code) — this greedy merge order is provably optimal.</div>
+  <div class="content">
+    <div class="chiprow" id="s20-chips"></div>
+    <div class="stat-row" id="s20-stats" style="margin-top:12px;"></div>
+    <div class="card rv" data-d="1">
+      <h4>Formula &amp; complexity</h4>
+      <div class="formula">use a min-heap of (symbol, frequency)
+while heap.size > 1:
+  a, b = pop two smallest
+  push merged(a, b, freq = a.f + b.f)
+Time: O(n log n)   — n symbols, heap ops</div>
+    </div>
+  </div>
+  <div class="caption rv" data-d="2">Real application: <b>.zip, .gzip, JPEG, MP3</b> all use Huffman or a close relative for entropy coding — this exact merge-the-two-smallest rule is running inside file compressors right now.</div>
+</section>
+
+<!-- S21: JOB SEQUENCING -->
+<section class="slide" id="s21">
+  <div class="eyebrow e-greedy">GREEDY · 05 / 08 — JOB SEQUENCING WITH DEADLINES</div>
+  <div class="title">Maximize profit, one job per time slot</div>
+  <div class="subtitle rv" data-d="0">Each job takes 1 unit of time and must finish by its deadline. Sort by <b>profit, descending</b>; for each job, greedily place it in the <i>latest free slot</i> at or before its deadline — that keeps early slots open for jobs with tighter deadlines.</div>
+  <div class="content">
+    <div id="s21-slots"></div>
+    <div class="stat-row" id="s21-stats" style="margin-top:12px;"></div>
+    <div class="card rv" data-d="1">
+      <h4>Formula</h4>
+      <div class="formula">sort jobs by profit, descending
+for each job (deadline d, profit p):
+  for t = d down to 1:
+    if slot[t] free: slot[t] = job; profit += p; break</div>
+    </div>
+  </div>
+  <div class="caption rv" data-d="2">Uses: single-server task scheduling with hard deadlines and per-job rewards, ad-slot allocation, exam-hall / interview-slot assignment maximizing total value.</div>
+</section>
+
+<!-- S22: GAS STATION -->
+<section class="slide" id="s22">
+  <div class="eyebrow e-greedy">GREEDY · 06 / 08 — GAS STATION (CIRCULAR TOUR)</div>
+  <div class="title">Find the one starting point that completes the loop</div>
+  <div class="subtitle rv" data-d="0">At each station, gas[i] is what you gain and cost[i] is what it takes to reach the next station. Key insight: if your tank ever goes negative, <b>no station you passed through could have been a valid start</b> — so jump the candidate start to the very next station.</div>
+  <div class="content">
+    <div id="s22-arr"></div>
+    <div class="stat-row" id="s22-stats" style="margin-top:8px;"></div>
+    <div class="card rv" data-d="1">
+      <h4>Formula</h4>
+      <div class="formula">total=0, tank=0, start=0
+for i in stations:
+  diff = gas[i]-cost[i]; total+=diff; tank+=diff
+  if tank &lt; 0: start = i+1; tank = 0
+answer = (total &gt;= 0) ? start : "no solution"</div>
+    </div>
+  </div>
+  <div class="caption rv" data-d="2">One pass, O(n), O(1) space — proof is another exchange argument: any station you fail at can never be the answer, so skipping past all of them together is safe. Uses: route planning with fuel constraints, resource-cycle feasibility checks.</div>
+</section>
+
+<!-- S23: JUMP GAME -->
+<section class="slide" id="s23">
+  <div class="eyebrow e-greedy">GREEDY · 07 / 08 — JUMP GAME</div>
+  <div class="title">Can you reach the last index?</div>
+  <div class="subtitle rv" data-d="0">nums[i] is the furthest you're <i>allowed</i> to jump from i. Track the furthest index reachable so far as you scan left to right — you never need to try every jump combination.</div>
+  <div class="content">
+    <div id="s23-arr"></div>
+    <div class="stat-row" id="s23-stats" style="margin-top:8px;"></div>
+    <div class="card rv" data-d="1">
+      <h4>Formula</h4>
+      <div class="formula">reach = 0
+for i in 0..n-1:
+  if i &gt; reach: return false   // stuck, can't get here
+  reach = max(reach, i + nums[i])
+return true</div>
+    </div>
+  </div>
+  <div class="caption rv" data-d="2">Greedy works here because reachability only ever <i>grows</i> — tracking the single best "furthest reach" summarizes every path that could have gotten you there. Uses: network reachability with hop limits, platform-game level solvability checks.</div>
+</section>
+
+<!-- S24: MATROID INTUITION -->
+<section class="slide" id="s24">
+  <div class="eyebrow e-greedy">GREEDY · 08 / 08 — WHY GREEDY WORKS AT ALL: MATROID INTUITION</div>
+  <div class="title">The structure that makes "always pick the best" safe</div>
+  <div class="subtitle rv" data-d="0">A <b>matroid</b> is just a name for structures where the greedy rule is guaranteed correct: a family of "allowed" combinations where (1) any subset of an allowed set is also allowed, and (2) you can always grow a smaller allowed set toward a bigger one, one element at a time.</div>
+  <div class="content">
+    <div class="cols">
+      <div class="col card rv" data-d="1">
+        <h4>In plain terms</h4>
+        <ul class="bullets">
+          <li>If picking fewer things is always still "valid" (like a subset of non-overlapping intervals), you have the first property.</li>
+          <li>If a smaller valid set can always be extended toward a larger one without breaking validity, you have the second.</li>
+          <li>When both hold, picking greedily by weight/value is <b>provably</b> optimal — this is why activity selection, minimum spanning trees, and job sequencing all admit a clean greedy proof.</li>
+        </ul>
+      </div>
+      <div class="col card rv" data-d="2">
+        <h4>Where it breaks</h4>
+        <ul class="bullets">
+          <li>0/1 Knapsack fails property (2): a "small valid set" can't always extend — capacity gets wasted differently by different orderings.</li>
+          <li>When a problem doesn't fit this shape, greedy needs a fresh, problem-specific exchange-argument proof — or it needs DP instead.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="caption rv" data-d="3">You don't need to name-drop "matroid" in an interview — but this is the deep reason the exchange argument keeps working, slide after slide, problem after problem.</div>
+</section>
+
+<!-- S25: FINAL RECAP -->
+<section class="slide" id="s25">
+  <div class="eyebrow">FINAL RECAP</div>
+  <div class="title">One decision framework, three tools</div>
+  <div class="content">
+    <table class="rtable rv" data-d="0">
+      <tr><th>Technique</th><th>Use it when…</th><th>Complexity</th><th>Signature example</th></tr>
+      <tr>
+        <td><b>Sliding Window</b></td>
+        <td>You need a running answer (sum / count / max / distinct set) over a <i>contiguous, moving</i> range, in one pass.</td>
+        <td>O(n) time, O(1)–O(k) space</td>
+        <td>Longest substring without repeats</td>
+      </tr>
+      <tr>
+        <td><b>Prefix / Difference</b></td>
+        <td>You need <i>repeated</i> range queries, or many range <i>updates</i>, on data that doesn't change between queries.</td>
+        <td>O(n) build, O(1) query/update</td>
+        <td>Range-sum queries; batch calendar updates</td>
+      </tr>
+      <tr>
+        <td><b>Greedy</b></td>
+        <td>You must commit to choices in sequence, and can prove a local-best rule never blocks a global-best outcome.</td>
+        <td>Usually O(n log n) (sorting) + O(n) scan</td>
+        <td>Activity selection; Huffman coding</td>
+      </tr>
+    </table>
+    <div class="card rv" data-d="1" style="margin-top:6px;">
+      <div class="stat-row"><span><b>The one thread through all three:</b> don't recompute what you can carry forward. A window carries its sum. A prefix array carries every range. A greedy proof carries the guarantee that today's best choice never needs to be undone tomorrow.</span></div>
+    </div>
+  </div>
+  <div class="caption rv" data-d="2">That's the deep dive — end of deck. Press ← to revisit any slide.</div>
+</section>
+
+</div></div>
+
+<div id="nav">
+  <button class="navbtn" id="prevBtn">← Prev</button>
+  <button class="replay" id="replayBtn" title="Replay this slide's animation">↻ replay</button>
+  <div id="progress"><div id="progressFill"></div></div>
+  <div id="counter">1 / 26</div>
+  <button class="navbtn" id="nextBtn">Next →</button>
+</div>
+
+<script>
+/* ---------- stage fit ---------- */
+const viewport = document.getElementById('viewport');
+const stage = document.getElementById('stage');
+function fitStage(){
+  const vw = window.innerWidth, vh = window.innerHeight - 92;
+  const scale = Math.min(vw/1280, vh/720) * 0.96;
+  stage.style.transform = 'scale('+scale+')';
+}
+window.addEventListener('resize', fitStage);
+fitStage();
+
+/* ---------- reveal system ---------- */
+function revealIn(slide, stepMs){
+  stepMs = stepMs || 90;
+  const els = slide.querySelectorAll('.rv');
+  els.forEach(function(e){ e.classList.remove('in'); });
+  els.forEach(function(e){
+    const d = parseInt(e.dataset.d || '0', 10);
+    setTimeout(function(){ e.classList.add('in'); }, d*stepMs);
+  });
+}
+
+/* ---------- nav ---------- */
+const slides = Array.from(document.querySelectorAll('.slide'));
+let current = 0;
+function showSlide(i){
+  if(i<0 || i>=slides.length) return;
+  slides[current].classList.remove('active');
+  current = i;
+  const s = slides[current];
+  s.classList.add('active');
+  document.getElementById('counter').textContent = (current+1)+' / '+slides.length;
+  document.getElementById('progressFill').style.width = ((current+1)/slides.length*100)+'%';
+  document.getElementById('prevBtn').disabled = current===0;
+  document.getElementById('nextBtn').disabled = current===slides.length-1;
+  revealIn(s);
+  runDemo(s.id);
+}
+document.getElementById('nextBtn').addEventListener('click', function(){ showSlide(current+1); });
+document.getElementById('prevBtn').addEventListener('click', function(){ showSlide(current-1); });
+document.getElementById('replayBtn').addEventListener('click', function(){ revealIn(slides[current]); runDemo(slides[current].id); });
+window.addEventListener('keydown', function(e){
+  if(e.key==='ArrowRight') showSlide(current+1);
+  if(e.key==='ArrowLeft') showSlide(current-1);
+});
+
+/* ---------- small dom helpers ---------- */
+function el(tag, cls, html){
+  const e = document.createElement('div');
+  e.className = cls || '';
+  if(html!=null) e.innerHTML = html;
+  return e;
+}
+const CELLW=56, GAP=8, STEP=CELLW+GAP;
+
+function renderArray(containerId, values, opts){
+  opts = opts || {};
+  const container = document.getElementById(containerId);
+  container.innerHTML='';
+  const wrap = el('div','arr-wrap');
+  const row = el('div','arr-row');
+  values.forEach(function(v,i){
+    const c = el('div','cell');
+    c.dataset.i = i;
+    c.innerHTML = '<span class="idx">'+ (opts.idx ? opts.idx[i] : i) +'</span><span class="val">'+v+'</span>';
+    row.appendChild(c);
+  });
+  wrap.appendChild(row);
+  const win = el('div','win');
+  wrap.appendChild(win);
+  container.appendChild(wrap);
+  container._row = row; container._win = win;
+  return container;
+}
+function setWin(container, start, end){
+  const win = container._win;
+  if(start==null || end==null || start>end){ win.style.display='none'; return; }
+  win.style.display='block';
+  win.style.left = (start*STEP - 6) + 'px';
+  win.style.width = ((end-start+1)*STEP - GAP + 12) + 'px';
+}
+function clearCellStates(container){
+  container.querySelectorAll('.cell').forEach(function(c){ c.classList.remove('hl','best','good','excl'); });
+}
+function markCells(container, indices, cls){
+  indices.forEach(function(i){
+    const c = container.querySelector('.cell[data-i="'+i+'"]');
+    if(c) c.classList.add(cls);
+  });
+}
+function renderPtrs(containerId, ptrs){
+  // ptrs: [{i, label, cls}]
+  const container = document.getElementById(containerId);
+  container.innerHTML='';
+  ptrs.forEach(function(p){
+    const d = el('div','ptr'+(p.cls?(' '+p.cls):''));
+    d.style.left = (p.i*STEP)+'px';
+    d.textContent = p.label;
+    container.appendChild(d);
+  });
+}
+function setStats(containerId, pairs){
+  const container = document.getElementById(containerId);
+  container.innerHTML = pairs.map(function(p){
+    return '<span>'+p[0]+': <b class="'+(p[2]||'')+'">'+p[1]+'</b></span>';
+  }).join('');
+}
+function renderChips(containerId, items, activeSet){
+  const container = document.getElementById(containerId);
+  container.innerHTML='';
+  items.forEach(function(it){
+    const c = el('div','chip'+(activeSet && activeSet.has(it.key)?' pick':''));
+    c.textContent = it.label;
+    container.appendChild(c);
+  });
+}
+function runSequence(steps, apply, delay){
+  delay = delay || 850;
+  let i = 0;
+  function step(){
+    apply(steps[i], i, steps.length);
+    i++;
+    if(i < steps.length){ setTimeout(step, delay); }
+  }
+  step();
+}
+
+/* ================= ALGORITHM TRACE COMPUTATIONS ================= */
+
+function fixedWindowTrace(arr,k){
+  const steps=[]; let sum=0;
+  for(let i=0;i<k;i++) sum+=arr[i];
+  let best=sum, bestStart=0;
+  steps.push({start:0,end:k-1,sum:sum,best:best,bestStart:bestStart});
+  for(let i=k;i<arr.length;i++){
+    sum += arr[i]-arr[i-k];
+    if(sum>best){ best=sum; bestStart=i-k+1; }
+    steps.push({start:i-k+1,end:i,sum:sum,best:best,bestStart:bestStart});
+  }
+  return steps;
+}
+
+function longestUniqueTrace(s){
+  const steps=[]; let l=0,maxLen=0,maxL=0,maxR=-1;
+  const seen = new Map();
+  for(let r=0;r<s.length;r++){
+    const ch=s[r];
+    if(seen.has(ch) && seen.get(ch)>=l){ l = seen.get(ch)+1; }
+    seen.set(ch,r);
+    if(r-l+1>maxLen){ maxLen=r-l+1; maxL=l; maxR=r; }
+    steps.push({l:l,r:r,maxLen:maxLen,maxL:maxL,maxR:maxR,map:new Map(seen)});
+  }
+  return steps;
+}
+
+function minWindowTrace(s,t){
+  const need={}; for(const c of t) need[c]=(need[c]||0)+1;
+  const required = Object.keys(need).length;
+  let l=0, formed=0; const windowCounts={};
+  let best=[Infinity,0,-1];
+  const steps=[];
+  for(let r=0;r<s.length;r++){
+    const c=s[r];
+    windowCounts[c]=(windowCounts[c]||0)+1;
+    if(need[c]!==undefined && windowCounts[c]===need[c]) formed++;
+    while(l<=r && formed===required){
+      if(r-l+1<best[0]) best=[r-l+1,l,r];
+      const lc=s[l];
+      windowCounts[lc]--;
+      if(need[lc]!==undefined && windowCounts[lc]<need[lc]) formed--;
+      l++;
+    }
+    steps.push({l:l,r:r,formed:formed,required:required,best:best.slice()});
+  }
+  return steps;
+}
+
+function atMostKTrace(s,k){
+  let l=0; const count={}; let distinct=0,maxLen=0,maxL=0,maxR=-1;
+  const steps=[];
+  for(let r=0;r<s.length;r++){
+    const c=s[r];
+    count[c]=(count[c]||0)+1;
+    if(count[c]===1) distinct++;
+    while(distinct>k){
+      const lc=s[l]; count[lc]--; if(count[lc]===0) distinct--; l++;
+    }
+    if(r-l+1>maxLen){ maxLen=r-l+1; maxL=l; maxR=r; }
+    steps.push({l:l,r:r,distinct:distinct,maxLen:maxLen,maxL:maxL,maxR:maxR});
+  }
+  return steps;
+}
+
+function slidingMaxTrace(arr,k){
+  const dq=[]; const steps=[]; const res=[];
+  for(let i=0;i<arr.length;i++){
+    while(dq.length && dq[0]<=i-k) dq.shift();
+    while(dq.length && arr[dq[dq.length-1]]<=arr[i]) dq.pop();
+    dq.push(i);
+    if(i>=k-1) res.push(arr[dq[0]]);
+    steps.push({i:i,deque:dq.slice(),res:res.slice(),k:k});
+  }
+  return steps;
+}
+
+function prefixSumTrace(arr){
+  const pre=[0]; const steps=[];
+  for(let i=0;i<arr.length;i++){ pre.push(pre[i]+arr[i]); steps.push({i:i,pre:pre.slice()}); }
+  return steps;
+}
+
+function subarraySumKTrace(arr,k){
+  let sum=0; const freq={0:1}; let count=0; const steps=[];
+  for(let i=0;i<arr.length;i++){
+    sum+=arr[i];
+    const need = sum-k;
+    const hit = freq[need]||0;
+    if(hit>0) count+=hit;
+    freq[sum]=(freq[sum]||0)+1;
+    steps.push({i:i,sum:sum,need:need,hit:hit,count:count,freq:Object.assign({},freq)});
+  }
+  return steps;
+}
+
+function prefixXorTrace(arr){
+  let x=0; const steps=[];
+  for(let i=0;i<arr.length;i++){ x^=arr[i]; steps.push({i:i,x:x}); }
+  return steps;
+}
+
+function diffArrayTrace(n, updates){
+  const diff = new Array(n+1).fill(0);
+  const steps=[];
+  updates.forEach(function(u){
+    diff[u[0]] += u[2]; diff[u[1]+1] -= u[2];
+    steps.push({type:'update', l:u[0], r:u[1], val:u[2], diff: diff.slice(0,n)});
+  });
+  const result=[]; let run=0;
+  for(let i=0;i<n;i++){ run+=diff[i]; result.push(run); }
+  return {steps:steps, result:result, finalDiff: diff.slice(0,n)};
+}
+
+function activityTrace(intervals){
+  const withIdx = intervals.map(function(iv,idx){ return {s:iv[0], e:iv[1], label:iv[2], idx:idx}; });
+  const sorted = withIdx.slice().sort(function(a,b){ return a.e-b.e; });
+  let lastEnd=-Infinity; const chosen=[]; const steps=[];
+  sorted.forEach(function(iv){
+    const ok = iv.s>=lastEnd;
+    if(ok){ chosen.push(iv.idx); lastEnd=iv.e; }
+    steps.push({iv:iv, ok:ok, chosen:chosen.slice(), lastEnd:lastEnd});
+  });
+  return {order:withIdx, steps:steps};
+}
+
+function minPlatformsTrace(intervals){
+  const arr = intervals.map(function(iv){ return iv[0]; }).sort(function(a,b){return a-b;});
+  const dep = intervals.map(function(iv){ return iv[1]; }).sort(function(a,b){return a-b;});
+  let i=0,j=0,platforms=0,maxPlatforms=0; const steps=[];
+  while(i<arr.length && j<dep.length){
+    if(arr[i]<=dep[j]){ platforms++; i++; } else { platforms--; j++; }
+    maxPlatforms=Math.max(maxPlatforms,platforms);
+    steps.push({i:i,j:j,platforms:platforms,maxPlatforms:maxPlatforms});
+  }
+  return steps;
+}
+
+function knapsackTrace(items, capacity){
+  const sorted = items.slice().sort(function(a,b){ return (b.v/b.w)-(a.v/a.w); });
+  let remaining=capacity, total=0; const steps=[];
+  sorted.forEach(function(it){
+    if(remaining<=0){ steps.push({item:it, taken:0, frac:0, total:total, remaining:remaining}); return; }
+    const take = Math.min(it.w, remaining);
+    const frac = take/it.w;
+    total += frac*it.v;
+    remaining -= take;
+    steps.push({item:it, taken:take, frac:frac, total:total, remaining:remaining});
+  });
+  return steps;
+}
+
+function huffmanTrace(freqs){
+  let nodes = freqs.map(function(f){ return {id:f.ch, f:f.f}; });
+  const steps=[];
+  while(nodes.length>1){
+    nodes.sort(function(a,b){ return a.f-b.f; });
+    const a=nodes.shift(), b=nodes.shift();
+    const merged = {id:'('+a.id+b.id+')', f:a.f+b.f};
+    steps.push({a:a, b:b, merged:merged, before: nodes.slice(), after: nodes.concat([merged])});
+    nodes.push(merged);
+  }
+  return steps;
+}
+
+function jobSequencingTrace(jobs){
+  const sorted = jobs.slice().sort(function(a,b){ return b.p-a.p; });
+  const maxD = Math.max.apply(null, jobs.map(function(j){ return j.d; }));
+  const slots = new Array(maxD+1).fill(null);
+  let totalProfit=0; const steps=[];
+  sorted.forEach(function(job){
+    let placed=false, slot=-1;
+    for(let t=job.d;t>=1;t--){
+      if(!slots[t]){ slots[t]=job.id; totalProfit+=job.p; placed=true; slot=t; break; }
+    }
+    steps.push({job:job, placed:placed, slot:slot, slots:slots.slice(), totalProfit:totalProfit});
+  });
+  return {steps:steps, maxD:maxD};
+}
+
+function gasStationTrace(gas,cost){
+  let total=0, tank=0, start=0; const steps=[];
+  for(let i=0;i<gas.length;i++){
+    const diff = gas[i]-cost[i];
+    total+=diff; tank+=diff;
+    let reset=false;
+    if(tank<0){ start=i+1; tank=0; reset=true; }
+    steps.push({i:i,diff:diff,tank:tank,start:start,reset:reset,total:total});
+  }
+  return {steps:steps, feasible: total>=0, start: total>=0?start:-1};
+}
+
+function jumpGameTrace(nums){
+  let reach=0; const steps=[]; let ok=true;
+  for(let i=0;i<nums.length;i++){
+    if(i>reach){ ok=false; steps.push({i:i,reach:reach,ok:false,stuck:true}); break; }
+    reach = Math.max(reach, i+nums[i]);
+    steps.push({i:i,reach:reach,ok:true,stuck:false});
+  }
+  return {steps:steps, ok:ok};
+}
+
+/* ================= PER-SLIDE DEMOS ================= */
+const demos = {};
+
+demos.s1 = function(){
+  const arr = [4,8,2,6,9,3,7,5,1,6];
+  renderArray('s1-arr', arr);
+  const c = document.getElementById('s1-arr');
+  const k=3;
+  runSequence(
+    Array.from({length:arr.length-k+1}, (_,i)=>i),
+    function(start){
+      setWin(c, start, start+k-1);
+      renderPtrs('s1-ptrs', [{i:start,label:'L',cls:'p-l'},{i:start+k-1,label:'R'}]);
+    }, 650
+  );
+};
+
+demos.s2 = function(){
+  const arr=[4,2,1,7,8,1,2,8,1,0];
+  const k=3;
+  const container = renderArray('s2-arr', arr);
+  const steps = fixedWindowTrace(arr,k);
+  runSequence(steps, function(st){
+    setWin(container, st.start, st.end);
+    clearCellStates(container);
+    markCells(container, [st.start,st.end], 'hl');
+    markCells(container, Array.from({length:st.bestEnd-st.bestStart+1||k},(_,x)=>st.bestStart+x).filter(i=>i>=st.bestStart&&i<=st.bestStart+k-1), 'best');
+    renderPtrs('s2-ptrs', [{i:st.start,label:'window start',cls:'p-l'},{i:st.end,label:'window end'}]);
+    setStats('s2-stats', [
+      ['k', k],
+      ['current sum', st.sum, 'hl-teal'],
+      ['best sum so far', st.best, 'hl-amber']
+    ]);
+  }, 750);
+};
+
+demos.s3 = function(){
+  const s = "abcabcbb".split('');
+  const container = renderArray('s3-arr', s);
+  const steps = longestUniqueTrace(s);
+  runSequence(steps, function(st){
+    setWin(container, st.l, st.r);
+    clearCellStates(container);
+    markCells(container, [st.l,st.r], 'hl');
+    markCells(container, Array.from({length:st.maxR-st.maxL+1},(_,x)=>st.maxL+x), 'best');
+    renderPtrs('s3-ptrs', [{i:st.l,label:'l',cls:'p-l'},{i:st.r,label:'r'}]);
+    setStats('s3-stats', [
+      ['window', '"'+s.slice(st.l,st.r+1).join('')+'"', 'hl-teal'],
+      ['best length', st.maxLen, 'hl-amber'],
+      ['best substring', '"'+s.slice(st.maxL,st.maxR+1).join('')+'"', 'hl-amber']
+    ]);
+    const mapItems=[]; st.map.forEach(function(v,k2){ mapItems.push({key:k2, label:k2+' → '+v}); });
+    renderChips('s3-map', mapItems);
+  }, 700);
+};
+
+demos.s4 = function(){
+  const s = "ADOBECODEBANC".split('');
+  const t = "ABC";
+  const container = renderArray('s4-arr', s);
+  const steps = minWindowTrace(s,t);
+  runSequence(steps, function(st){
+    setWin(container, st.l>st.r? null: st.l, st.r);
+    clearCellStates(container);
+    if(st.l<=st.r) markCells(container, [st.l,st.r], 'hl');
+    if(st.best[2]>=0) markCells(container, Array.from({length:st.best[0]},(_,x)=>st.best[1]+x), 'best');
+    renderPtrs('s4-ptrs', [{i:Math.min(st.l,s.length-1),label:'l',cls:'p-l'},{i:st.r,label:'r'}]);
+    setStats('s4-stats', [
+      ['have / need', st.formed+' / '+st.required, 'hl-teal'],
+      ['smallest window', st.best[2]>=0 ? '"'+s.slice(st.best[1],st.best[2]+1).join('')+'"' : '—', 'hl-amber'],
+      ['length', st.best[2]>=0 ? st.best[0] : '—', 'hl-amber']
+    ]);
+  }, 420);
+};
+
+demos.s5 = function(){
+  const s = "ecebaaac".split('');
+  const container = renderArray('s5-arr', s);
+  const steps = atMostKTrace(s,2);
+  runSequence(steps, function(st){
+    setWin(container, st.l, st.r);
+    clearCellStates(container);
+    markCells(container, [st.l,st.r], 'hl');
+    markCells(container, Array.from({length:st.maxR-st.maxL+1},(_,x)=>st.maxL+x), 'best');
+    renderPtrs('s5-ptrs', [{i:st.l,label:'l',cls:'p-l'},{i:st.r,label:'r'}]);
+    setStats('s5-stats', [
+      ['K', 2],
+      ['distinct in window', st.distinct, 'hl-teal'],
+      ['best length', st.maxLen, 'hl-amber'],
+      ['best window', '"'+s.slice(st.maxL,st.maxR+1).join('')+'"', 'hl-amber']
+    ]);
+  }, 650);
+};
+
+demos.s6 = function(){
+  const arr=[1,3,-1,-3,5,3,6,7];
+  const k=3;
+  const container = renderArray('s6-arr', arr);
+  const steps = slidingMaxTrace(arr,k);
+  runSequence(steps, function(st){
+    const start = Math.max(0, st.i-k+1);
+    setWin(container, st.i>=k-1?start:null, st.i);
+    clearCellStates(container);
+    if(st.i>=k-1) markCells(container, Array.from({length:st.i-start+1},(_,x)=>start+x), 'hl');
+    if(st.deque.length) markCells(container, [st.deque[0]], 'good');
+    renderPtrs('s6-ptrs', [{i:st.i,label:'i',cls:'p-l'}]);
+    setStats('s6-stats', [
+      ['current max', st.deque.length? arr[st.deque[0]] : '—', 'hl-green'],
+      ['results so far', '['+st.res.join(', ')+']', 'hl-amber']
+    ]);
+    const chipItems = st.deque.map(function(idx){ return {key:idx, label:'idx '+idx+' (val '+arr[idx]+')'}; });
+    renderChips('s6-deque', chipItems, new Set(st.deque.length?[st.deque[0]]:[]));
+    if(st.deque.length){
+      const container2 = document.getElementById('s6-deque');
+      const first = container2.firstChild;
+      if(first) first.classList.add('pick');
+    }
+  }, 750);
+};
+
+demos.s8 = function(){
+  const arr=[3,1,4,1,5,9,2,6];
+  const container = renderArray('s8-arr', arr);
+  const steps = prefixSumTrace(arr);
+  const preHost = document.getElementById('s8-pre');
+  preHost.innerHTML = '<div class="pill tag-teal" style="margin-bottom:6px;">prefix[]</div>';
+  const preArrHolder = el('div','','');
+  preArrHolder.id='s8-prewrap';
+  preHost.appendChild(preArrHolder);
+  runSequence(steps, function(st){
+    clearCellStates(container);
+    markCells(container, [st.i], 'hl');
+    renderArray('s8-prewrap', st.pre, {idx: st.pre.map(function(_,ix){return ix;})});
+    const l=0, r=st.i;
+    setStats('s8-stats', [
+      ['building prefix up to i='+st.i, '', ''],
+      ['sum(0..'+st.i+')', 'prefix['+(st.i+1)+'] − prefix[0] = '+ (st.pre[st.i+1]-st.pre[0]), 'hl-amber']
+    ]);
+  }, 650);
+};
+
+demos.s9 = function(){
+  const arr=[1,2,3,-2,5];
+  const K=5;
+  const container = renderArray('s9-arr', arr);
+  const steps = subarraySumKTrace(arr,K);
+  runSequence(steps, function(st){
+    clearCellStates(container);
+    markCells(container, [st.i], st.hit>0?'good':'hl');
+    setStats('s9-stats', [
+      ['running sum', st.sum, 'hl-teal'],
+      ['need (sum − K)', st.need],
+      ['matches found here', st.hit, st.hit>0?'hl-green':''],
+      ['total count', st.count, 'hl-amber']
+    ]);
+    const items = Object.keys(st.freq).map(function(k){ return {key:k, label:k+' → '+st.freq[k]}; });
+    renderChips('s9-map', items, new Set([String(st.need)]));
+  }, 900);
+};
+
+demos.s10 = function(){
+  const grid = [[1,2,3],[4,5,6],[7,8,9]];
+  const host = document.getElementById('s10-grid');
+  host.innerHTML='<div class="pill tag-teal" style="margin-bottom:8px;">grid</div>';
+  const rows = el('div','','');
+  grid.forEach(function(row,ri){
+    const rDiv = el('div','arr-row'); rDiv.style.marginBottom='8px';
+    row.forEach(function(v,ci){
+      const c = el('div','cell'); c.dataset.r=ri; c.dataset.c=ci;
+      c.innerHTML='<span class="val">'+v+'</span>';
+      rDiv.appendChild(c);
+    });
+    rows.appendChild(rDiv);
+  });
+  host.appendChild(rows);
+  // highlight a sample rectangle: rows 0-1, cols 1-2 => sum = 2+3+5+6=16
+  setTimeout(function(){
+    ['0-1','0-2','1-1','1-2'].forEach(function(rc){
+      const parts = rc.split('-');
+      const cell = rows.children[parts[0]].children[parts[1]];
+      cell.classList.add('hl');
+    });
+    const cap = el('div','caption'); cap.style.marginTop='10px'; cap.style.border='none'; cap.style.paddingTop='0';
+    cap.innerHTML = 'Highlighted rectangle sum = 2+3+5+6 = <b style="color:var(--amber)">16</b> — computed as 4 lookups once <b>pre[][]</b> exists, regardless of rectangle size.';
+    host.appendChild(cap);
+  }, 500);
+};
+
+demos.s11 = function(){
+  const n=7;
+  const updates=[[1,4,3],[3,5,2],[0,2,-1]];
+  const trace = diffArrayTrace(n, updates);
+  const diffHost = document.getElementById('s11-diff');
+  diffHost.innerHTML='<div class="pill tag-teal" style="margin-bottom:6px;">difference array (edges marked)</div><div id="s11-diffarr"></div>';
+  renderArray('s11-diffarr', new Array(n).fill(0));
+  const arrHost = document.getElementById('s11-arr');
+  arrHost.innerHTML='<div class="pill tag-amber" style="margin-bottom:6px;">reconstructed array (after prefix-sum pass)</div><div id="s11-final"></div>';
+  renderArray('s11-final', new Array(n).fill('·'));
+  const diffContainer = document.getElementById('s11-diffarr');
+  runSequence(trace.steps, function(st){
+    clearCellStates(diffContainer);
+    markCells(diffContainer, [st.l], 'good');
+    markCells(diffContainer, [Math.min(st.r+1,n-1)], 'excl');
+    const cells = diffContainer.querySelectorAll('.cell .val');
+    st.diff.forEach(function(v,i){ cells[i].textContent=v; });
+    setStats('s11-stats', [
+      ['applying', '+'+st.val+' on ['+st.l+', '+st.r+']', 'hl-teal'],
+      ['marks', 'diff['+st.l+']+='+st.val+',  diff['+(st.r+1)+']-='+st.val]
+    ]);
+  }, 900);
+  setTimeout(function(){
+    const finalContainer = document.getElementById('s11-final');
+    const cells = finalContainer.querySelectorAll('.cell .val');
+    trace.result.forEach(function(v,i){ cells[i].textContent=v; });
+    markCells(finalContainer, trace.result.map(function(_,i){return i;}), 'best');
+    setStats('s11-stats', [
+      ['all updates applied','O(1) each','hl-teal'],
+      ['final rebuild', 'one O(n) prefix-sum pass', 'hl-amber']
+    ]);
+  }, 900*updates.length + 700);
+};
+
+demos.s13 = function(){
+  const arr=[4,2,2,6,4];
+  const container = renderArray('s13-arr', arr);
+  const steps = prefixXorTrace(arr);
+  runSequence(steps, function(st){
+    clearCellStates(container);
+    markCells(container, [st.i], 'hl');
+    setStats('s13-stats', [
+      ['prefix XOR up to i='+st.i, st.x, 'hl-teal'],
+      ['meaning', 'xor(0..'+st.i+') = '+st.x]
+    ]);
+  }, 800);
+};
+
+demos.s17 = function(){
+  const intervals = [[1,4,'A'],[3,5,'B'],[0,6,'C'],[5,7,'D'],[3,9,'E'],[6,10,'F'],[8,11,'G'],[8,12,'H'],[2,14,'I'],[12,16,'J']];
+  const trace = activityTrace(intervals);
+  const host = document.getElementById('s17-tl');
+  host.innerHTML='';
+  const wrap = el('div','timeline'); wrap.style.height='160px'; wrap.style.position='relative';
+  const maxT = Math.max.apply(null, intervals.map(function(iv){return iv[1];}))+1;
+  const W = 1000, scale = W/maxT;
+  trace.order.forEach(function(iv,idx){
+    const bar = el('div','tl-bar');
+    bar.style.left = (iv.s*scale)+'px';
+    bar.style.width = Math.max(30,(iv.e-iv.s)*scale)+'px';
+    bar.style.top = (idx*15)+'px';
+    bar.dataset.idx = iv.idx;
+    bar.textContent = iv.label+'  ['+iv.s+'-'+iv.e+']';
+    wrap.appendChild(bar);
+  });
+  host.appendChild(wrap);
+  runSequence(trace.steps, function(st){
+    const bar = wrap.querySelector('.tl-bar[data-idx="'+st.iv.idx+'"]');
+    bar.classList.remove('active');
+    if(st.ok){ bar.classList.add('chosen'); } else { bar.classList.add('rejected'); }
+    setStats('s17-stats', [
+      ['considering', st.iv.label+' ['+st.iv.s+'-'+st.iv.e+']', 'hl-teal'],
+      ['decision', st.ok?'take it':'skip — overlaps', st.ok?'hl-green':'hl-coral'],
+      ['activities chosen', st.chosen.length, 'hl-amber']
+    ]);
+  }, 700);
+};
+
+demos.s18 = function(){
+  const intervals = [[9,10],[9,12],[9,13],[16,18],[16,17],[18,20],[13,15]];
+  const trace = minPlatformsTrace(intervals);
+  const host = document.getElementById('s18-tl');
+  host.innerHTML='';
+  const wrap = el('div','timeline'); wrap.style.height='150px'; wrap.style.position='relative';
+  const maxT = Math.max.apply(null, intervals.map(function(iv){return iv[1];}))+1;
+  const W=1000, scale=W/maxT;
+  intervals.forEach(function(iv,idx){
+    const bar = el('div','tl-bar');
+    bar.style.left=(iv[0]*scale)+'px';
+    bar.style.width=Math.max(30,(iv[1]-iv[0])*scale)+'px';
+    bar.style.top=(idx*20)+'px';
+    bar.dataset.idx=idx;
+    bar.textContent='train '+(idx+1)+' ['+iv[0]+'-'+iv[1]+']';
+    wrap.appendChild(bar);
+  });
+  host.appendChild(wrap);
+  runSequence(trace, function(st){
+    setStats('s18-stats', [
+      ['platforms in use right now', st.platforms, 'hl-teal'],
+      ['peak so far', st.maxPlatforms, 'hl-amber']
+    ]);
+  }, 550);
+};
+
+demos.s19 = function(){
+  const items = [{label:'Gold (v=60,w=10)', v:60, w:10},{label:'Silver (v=100,w=20)', v:100, w:20},{label:'Gems (v=120,w=30)', v:120, w:30}];
+  const capacity=50;
+  const host = document.getElementById('s19-items');
+  host.innerHTML='<div class="pill tag-teal">capacity = 50 kg</div>';
+  const row = el('div','chiprow'); row.style.marginTop='10px';
+  items.forEach(function(it){ const c=el('div','chip'); c.dataset.label=it.label; c.textContent=it.label+'  ratio='+(it.v/it.w).toFixed(1); row.appendChild(c); });
+  host.appendChild(row);
+  const steps = knapsackTrace(items, capacity);
+  runSequence(steps, function(st){
+    const chip = row.querySelector('.chip[data-label="'+st.item.label+'"]');
+    row.querySelectorAll('.chip').forEach(function(c){c.classList.remove('pick');});
+    chip.classList.add(st.frac>0?'pick':'');
+    setStats('s19-stats', [
+      ['taking', st.item.label, 'hl-teal'],
+      ['fraction taken', (st.frac*100).toFixed(0)+'%', st.frac<1&&st.frac>0?'hl-amber':''],
+      ['capacity remaining', st.remaining.toFixed(1)+' kg'],
+      ['total value so far', st.total.toFixed(1), 'hl-green']
+    ]);
+  }, 1100);
+};
+
+demos.s20 = function(){
+  const freqs=[{ch:'a',f:5},{ch:'b',f:9},{ch:'c',f:12},{ch:'d',f:13},{ch:'e',f:16},{ch:'f',f:45}];
+  const steps = huffmanTrace(freqs);
+  runSequence(steps, function(st,idx){
+    const items = st.before.concat([st.a,st.b]).sort(function(a,b){return a.f-b.f;}).map(function(n){ return {key:n.id, label:n.id+':'+n.f}; });
+    renderChips('s20-chips', items, new Set([st.a.id, st.b.id]));
+    setStats('s20-stats', [
+      ['merging two smallest', st.a.id+':'+st.a.f+'  +  '+st.b.id+':'+st.b.f, 'hl-teal'],
+      ['new node', st.merged.id+':'+st.merged.f, 'hl-amber'],
+      ['merges done', (idx+1)+' / '+steps.length]
+    ]);
+    setTimeout(function(){
+      const items2 = st.after.map(function(n){ return {key:n.id, label:n.id+':'+n.f}; });
+      renderChips('s20-chips', items2, new Set([st.merged.id]));
+    }, 550);
+  }, 1300);
+};
+
+demos.s21 = function(){
+  const jobs=[{id:'J1',d:2,p:100},{id:'J2',d:1,p:19},{id:'J3',d:2,p:27},{id:'J4',d:1,p:25},{id:'J5',d:3,p:15}];
+  const trace = jobSequencingTrace(jobs);
+  const host = document.getElementById('s21-slots');
+  host.innerHTML='<div class="pill tag-teal" style="margin-bottom:8px;">jobs sorted by profit: '+jobs.slice().sort(function(a,b){return b.p-a.p;}).map(function(j){return j.id+'('+j.p+')';}).join(' → ')+'</div>';
+  const row = el('div','slotrow');
+  for(let t=1;t<=trace.maxD;t++){
+    const s = el('div','slot'); s.dataset.t=t;
+    s.innerHTML='<span class="t">slot '+t+'</span><span>empty</span>';
+    row.appendChild(s);
+  }
+  host.appendChild(row);
+  runSequence(trace.steps, function(st){
+    if(st.placed){
+      const slotEl = row.querySelector('.slot[data-t="'+st.slot+'"]');
+      slotEl.classList.add('filled');
+      slotEl.querySelector('span:last-child').textContent = st.job.id;
+    }
+    setStats('s21-stats', [
+      ['job', st.job.id+' (deadline '+st.job.d+', profit '+st.job.p+')', 'hl-teal'],
+      ['result', st.placed? 'placed in slot '+st.slot : 'no free slot — dropped', st.placed?'hl-green':'hl-coral'],
+      ['total profit', st.totalProfit, 'hl-amber']
+    ]);
+  }, 1000);
+};
+
+demos.s22 = function(){
+  const gas =[1,2,3,4,5];
+  const cost=[3,4,5,1,2];
+  const container = renderArray('s22-arr', gas.map(function(g,i){ return g+'/'+cost[i]; }));
+  const trace = gasStationTrace(gas,cost);
+  runSequence(trace.steps, function(st){
+    clearCellStates(container);
+    markCells(container, [st.i], st.reset?'excl':'hl');
+    markCells(container, [Math.min(st.start,gas.length-1)], 'good');
+    setStats('s22-stats', [
+      ['station', st.i+'  (gas '+gas[st.i]+', cost '+cost[st.i]+')', 'hl-teal'],
+      ['tank after this station', st.tank, st.tank<0?'hl-coral':'hl-green'],
+      ['candidate start', st.start, 'hl-amber'],
+      ['reset happened?', st.reset?'yes — tank went negative':'no']
+    ]);
+  }, 950);
+  setTimeout(function(){
+    setStats('s22-stats', [
+      ['final answer', trace.feasible? 'start at station '+trace.start : 'no valid start exists', 'hl-amber'],
+      ['why it works', 'total gas − total cost = '+trace.steps[trace.steps.length-1].total+' ≥ 0 → a solution exists']
+    ]);
+  }, 950*gas.length + 500);
+};
+
+demos.s23 = function(){
+  const nums=[2,3,1,1,4];
+  const container = renderArray('s23-arr', nums);
+  const trace = jumpGameTrace(nums);
+  runSequence(trace.steps, function(st){
+    clearCellStates(container);
+    markCells(container, [st.i], st.stuck?'excl':'hl');
+    markCells(container, Array.from({length:Math.min(st.reach,nums.length-1)+1},(_,x)=>x), 'good');
+    renderPtrs('s23-ptrs', [{i:st.i,label:'i',cls:'p-l'}]);
+    setStats('s23-stats', [
+      ['at index', st.i, 'hl-teal'],
+      ['furthest reach so far', st.reach, 'hl-amber'],
+      ['status', st.stuck? 'stuck — unreachable' : 'still reachable', st.stuck?'hl-coral':'hl-green']
+    ]);
+  }, 850);
+  setTimeout(function(){
+    setStats('s23-stats', [
+      ['final answer', trace.ok? 'YES — last index is reachable' : 'NO — cannot reach the end', trace.ok?'hl-green':'hl-coral']
+    ]);
+  }, 850*trace.steps.length + 400);
+};
+
+function runDemo(id){
+  if(demos[id]) setTimeout(demos[id], 260);
+}
+
+/* ---------- init ---------- */
+showSlide(0);
+</script>
+</body>
+</html>

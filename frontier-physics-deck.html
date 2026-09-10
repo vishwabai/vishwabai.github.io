@@ -1,0 +1,1362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Frontier Physics — Visual Deck</title>
+<style>
+  :root{
+    --bg:#060708; --panel:#0c0e11; --ink:#e7eaef; --dim:#8b93a1; --faint:#5b636f;
+    --blue:#6f9fd8; --teal:#57b8ab; --gold:#d8b46a; --coral:#d98a7f;
+    --green:#7fbf8a; --violet:#a08fce; --line:#232830;
+  }
+  *{box-sizing:border-box; margin:0; padding:0}
+  html,body{height:100%;background:var(--bg);color:var(--ink);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    overflow:hidden;}
+  #app{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:14px}
+  #stage{position:relative;aspect-ratio:16/9;width:min(95vw,calc((100vh - 120px)*16/9));
+    background:radial-gradient(120% 120% at 50% 30%, #0a0c0f 0%, var(--bg) 70%);
+    border:1px solid var(--line);border-radius:12px;overflow:hidden;
+    box-shadow:0 20px 60px rgba(0,0,0,.55);}
+  canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+  .ov{position:absolute;pointer-events:none;left:0;right:0;text-align:center;
+    transition:opacity .5s ease}
+  #phase{top:3.2%;left:3.2%;right:auto;text-align:left;font-size:clamp(9px,1.15vw,13px);
+    letter-spacing:.14em;font-weight:600;padding:4px 10px;border-radius:20px;
+    border:1px solid var(--line);background:rgba(255,255,255,.02);display:inline-block;width:auto}
+  #sec{top:3.4%;right:3.2%;left:auto;text-align:right;font-size:clamp(9px,1.05vw,12px);
+    color:var(--faint);letter-spacing:.06em}
+  #title{top:8.5%;font-family:Georgia,'Times New Roman',serif;
+    font-size:clamp(18px,3.1vw,40px);line-height:1.08;font-weight:600;
+    padding:0 6%;letter-spacing:.2px}
+  #sub{top:calc(8.5% + clamp(24px,3.6vw,50px));font-size:clamp(11px,1.5vw,18px);
+    color:var(--dim);padding:0 10%;font-style:italic}
+  #cap{bottom:5.5%;font-size:clamp(11px,1.55vw,18px);color:var(--ink);
+    padding:0 8%;line-height:1.4;font-weight:400}
+  #eq{bottom:calc(5.5% + clamp(22px,3vw,40px));font-size:clamp(12px,1.6vw,20px);
+    color:var(--gold);padding:0 8%;font-family:Georgia,serif}
+  #eq sub,#eq sup{font-size:.68em}
+  #nav{display:flex;align-items:center;gap:14px;width:min(95vw,calc((100vh - 120px)*16/9))}
+  .btn{background:var(--panel);border:1px solid var(--line);color:var(--ink);
+    font-size:14px;padding:9px 16px;border-radius:9px;cursor:pointer;
+    transition:border-color .2s,transform .05s;user-select:none;white-space:nowrap}
+  .btn:hover{border-color:var(--dim)}
+  .btn:active{transform:translateY(1px)}
+  .btn.small{padding:8px 11px}
+  #dots{flex:1;display:flex;align-items:center;gap:5px;flex-wrap:wrap;justify-content:center}
+  .dot{width:9px;height:9px;border-radius:50%;background:#20242b;cursor:pointer;
+    border:1px solid #2c323b;transition:transform .15s}
+  .dot:hover{transform:scale(1.35)}
+  .dot.on{transform:scale(1.35)}
+  #count{color:var(--faint);font-size:12px;min-width:52px;text-align:center}
+  #hint{color:var(--faint);font-size:11px;text-align:center;margin-top:-4px}
+  @media (max-width:640px){ #hint{display:none} .btn{font-size:12px;padding:8px 11px} }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="stage">
+    <canvas id="cv"></canvas>
+    <div class="ov" id="phase"></div>
+    <div class="ov" id="sec"></div>
+    <div class="ov" id="title"></div>
+    <div class="ov" id="sub"></div>
+    <div class="ov" id="eq"></div>
+    <div class="ov" id="cap"></div>
+  </div>
+  <div id="nav">
+    <button class="btn" id="prev">‹ Prev</button>
+    <button class="btn small" id="replay" title="Replay animation">↻</button>
+    <div id="dots"></div>
+    <span id="count"></span>
+    <button class="btn" id="next">Next ›</button>
+  </div>
+  <div id="hint">← → or Space to move · ↻ to replay · click a dot to jump</div>
+</div>
+
+<script>
+"use strict";
+/* ===================== engine ===================== */
+const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+let W=0,H=0,DPR=1;
+function resize(){
+  const r=cv.getBoundingClientRect();
+  DPR=Math.min(2,window.devicePixelRatio||1);
+  W=r.width; H=r.height;
+  cv.width=Math.round(W*DPR); cv.height=Math.round(H*DPR);
+}
+window.addEventListener('resize',resize);
+
+const C={bg:'#060708',ink:'#e7eaef',dim:'#8b93a1',faint:'#5b636f',
+  blue:'#6f9fd8',teal:'#57b8ab',gold:'#d8b46a',coral:'#d98a7f',
+  green:'#7fbf8a',violet:'#a08fce',line:'#232830',grid:'#1a1e24'};
+
+const clamp=(v,a,b)=>v<a?a:(v>b?b:v);
+const lerp=(a,b,t)=>a+(b-a)*t;
+const eio=t=>t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
+const eo=t=>1-Math.pow(1-t,3);
+const beat=(t,s,d)=>clamp((t-s)/d,0,1);
+const eb=(t,s,d)=>eio(beat(t,s,d));
+const TAU=Math.PI*2;
+
+/* safe art region (keeps drawings away from title/caption bands) */
+function safe(){ return {x:W*0.055,y:H*0.18,w:W*0.89,h:H*0.62}; }
+function SC(){ const s=safe(); return {cx:s.x+s.w/2, cy:s.y+s.h/2, ...s}; }
+
+/* primitives */
+function line(x1,y1,x2,y2,col,w=2,prog=1,dash){
+  ctx.save();ctx.strokeStyle=col;ctx.lineWidth=w;ctx.lineCap='round';
+  if(dash)ctx.setLineDash(dash);
+  ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(lerp(x1,x2,prog),lerp(y1,y2,prog));
+  ctx.stroke();ctx.restore();
+}
+function arrow(x1,y1,x2,y2,col,w=2,prog=1,head=10){
+  const ex=lerp(x1,x2,prog),ey=lerp(y1,y2,prog);
+  ctx.save();ctx.strokeStyle=col;ctx.fillStyle=col;ctx.lineWidth=w;ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(ex,ey);ctx.stroke();
+  if(prog>0.02){
+    const a=Math.atan2(ey-y1,ex-x1);
+    ctx.beginPath();ctx.moveTo(ex,ey);
+    ctx.lineTo(ex-head*Math.cos(a-0.4),ey-head*Math.sin(a-0.4));
+    ctx.lineTo(ex-head*Math.cos(a+0.4),ey-head*Math.sin(a+0.4));
+    ctx.closePath();ctx.fill();
+  }
+  ctx.restore();
+}
+function dot(x,y,r,col,glow=0){
+  ctx.save();
+  if(glow>0){ctx.shadowColor=col;ctx.shadowBlur=glow;}
+  ctx.fillStyle=col;ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.fill();ctx.restore();
+}
+function ring(x,y,r,col,w=2,a0=0,a1=TAU){
+  ctx.save();ctx.strokeStyle=col;ctx.lineWidth=w;
+  ctx.beginPath();ctx.arc(x,y,r,a0,a1);ctx.stroke();ctx.restore();
+}
+function txt(s,x,y,col,size,align='center',alpha=1,weight=400,font){
+  if(alpha<=0)return;
+  ctx.save();ctx.globalAlpha=alpha;ctx.fillStyle=col;
+  ctx.textAlign=align;ctx.textBaseline='middle';
+  ctx.font=`${weight} ${size}px ${font||'system-ui,sans-serif'}`;
+  ctx.fillText(s,x,y);ctx.restore();
+}
+function poly(pts,col,w,prog=1,fill){
+  ctx.save();ctx.strokeStyle=col;ctx.lineWidth=w;ctx.lineJoin='round';ctx.lineCap='round';
+  const n=Math.max(2,Math.floor(pts.length*prog));
+  ctx.beginPath();ctx.moveTo(pts[0][0],pts[0][1]);
+  for(let i=1;i<n;i++)ctx.lineTo(pts[i][0],pts[i][1]);
+  if(fill){ctx.fillStyle=fill;ctx.fill();}
+  if(col)ctx.stroke();ctx.restore();
+}
+function hexA(hex,a){ // #rrggbb + alpha -> rgba
+  const n=parseInt(hex.slice(1),16);
+  return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`;
+}
+
+/* spring (zigzag) between two points */
+function spring(x1,y1,x2,y2,col,coils=8,amp=6){
+  const dx=x2-x1,dy=y2-y1,len=Math.hypot(dx,dy),ux=dx/len,uy=dy/len,nx=-uy,ny=ux;
+  ctx.save();ctx.strokeStyle=col;ctx.lineWidth=1.6;ctx.beginPath();ctx.moveTo(x1,y1);
+  const seg=coils*2;
+  for(let i=1;i<seg;i++){const f=i/seg;const off=(i%2?1:-1)*amp;
+    ctx.lineTo(x1+ux*len*f+nx*off, y1+uy*len*f+ny*off);}
+  ctx.lineTo(x2,y2);ctx.stroke();ctx.restore();
+}
+
+/* warped grid displacement field (rubber-sheet, top view) */
+function warpField(px,py,mx,my,strength,soft){
+  const dx=px-mx,dy=py-my,d=Math.hypot(dx,dy)+0.001;
+  const pull=strength/(1+ (d*d)/(soft*soft));
+  return [px-dx/d*pull, py-dy/d*pull];
+}
+function drawWarpGrid(mx,my,strength,soft,col,step,region){
+  const s=region||safe();
+  ctx.save();ctx.strokeStyle=col;ctx.lineWidth=1;
+  for(let gx=s.x;gx<=s.x+s.w+1;gx+=step){
+    ctx.beginPath();
+    for(let gy=s.y;gy<=s.y+s.h;gy+=6){
+      const p=warpField(gx,gy,mx,my,strength,soft);
+      gy===s.y?ctx.moveTo(p[0],p[1]):ctx.lineTo(p[0],p[1]);
+    }ctx.stroke();
+  }
+  for(let gy=s.y;gy<=s.y+s.h+1;gy+=step){
+    ctx.beginPath();
+    for(let gx=s.x;gx<=s.x+s.w;gx+=6){
+      const p=warpField(gx,gy,mx,my,strength,soft);
+      gx===s.x?ctx.moveTo(p[0],p[1]):ctx.lineTo(p[0],p[1]);
+    }ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/* =============== reusable scene templates =============== */
+function sectionIntro(t,d){
+  const s=SC();
+  // emblem motif
+  ctx.save();ctx.globalAlpha=eb(t,0.1,0.8);
+  d.motif(t,s.cx,s.cy+H*0.02,Math.min(s.w,s.h)*0.5);
+  ctx.restore();
+}
+function drawRecap(t,items){
+  const s=SC(); const n=items.length;
+  const startY=s.y+s.h*0.16, gap=s.h*0.72/n;
+  for(let i=0;i<n;i++){
+    const b=eb(t,0.3+i*0.55,0.7);
+    if(b<=0)continue;
+    const y=startY+i*gap, x=s.x+s.w*0.18;
+    // check mark
+    ctx.save();ctx.globalAlpha=b;
+    ring(x,y,H*0.018,items[i].c,2.2);
+    const cb=beat(t,0.5+i*0.55,0.4);
+    if(cb>0){ctx.strokeStyle=items[i].c;ctx.lineWidth=2.4;ctx.lineCap='round';
+      ctx.beginPath();ctx.moveTo(x-H*0.008,y);
+      ctx.lineTo(lerp(x-H*0.008,x-H*0.001,clamp(cb*2,0,1)),lerp(y,y+H*0.008,clamp(cb*2,0,1)));
+      if(cb>0.5)ctx.lineTo(x+H*0.011,y-H*0.009);ctx.stroke();}
+    txt(items[i].t,x+H*0.04,y,C.ink,Math.min(H*0.033,22),'left',b,500);
+    ctx.restore();
+  }
+}
+function drawGap(t,q){
+  const s=SC();
+  const pulse=0.5+0.5*Math.sin(t*2.2);
+  // big question emblem
+  const r=Math.min(s.w,s.h)*0.24, cx=s.cx, cy=s.cy;
+  ring(cx,cy,r,hexA(C.coral,0.25+0.2*pulse),2);
+  ring(cx,cy,r*0.7,hexA(C.coral,0.15+0.15*pulse),1.5);
+  // orbiting unknown fragments
+  for(let i=0;i<5;i++){
+    const a=t*0.6+i*TAU/5;
+    const rr=r*lerp(0.72,1.0,0.5+0.5*Math.sin(t+i));
+    dot(cx+Math.cos(a)*rr, cy+Math.sin(a)*rr, 3, hexA(C.dim,0.5));
+  }
+  txt('?',cx,cy,C.coral,r*1.1,'center',eb(t,0,0.6)*(0.7+0.3*pulse),700,'Georgia,serif');
+  // forward-pull arrow
+  const ax=cx+r*1.5;
+  arrow(ax,cy,ax+s.w*0.12,cy,hexA(C.gold,eb(t,0.8,0.8)),2.4,eb(t,0.8,1.2),12);
+}
+function drawApps(t,apps){
+  const s=SC(); const n=apps.length;
+  const cols=n<=2?n:(n<=4?2:3);
+  const rows=Math.ceil(n/cols);
+  const cw=s.w/cols, ch=s.h/rows;
+  for(let i=0;i<n;i++){
+    const b=eb(t,0.2+i*0.4,0.7); if(b<=0)continue;
+    const r=Math.floor(i/cols), c=i%cols;
+    const x=s.x+cw*(c+0.5), y=s.y+ch*(r+0.5);
+    ctx.save();ctx.globalAlpha=b;
+    // card
+    ctx.strokeStyle=hexA(apps[i].c,0.5);ctx.lineWidth=1.4;
+    rr(x-cw*0.42,y-ch*0.4,cw*0.84,ch*0.8,12);ctx.stroke();
+    // icon
+    apps[i].icon(x,y-ch*0.12,Math.min(cw,ch)*0.16,apps[i].c,t);
+    txt(apps[i].t,x,y+ch*0.22,C.ink,Math.min(H*0.028,19),'center',1,600);
+    txt(apps[i].d,x,y+ch*0.32,C.dim,Math.min(H*0.021,14),'center',0.9,400);
+    ctx.restore();
+  }
+}
+function rr(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+
+/* small icon library for application cards */
+const ICON={
+  gps:(x,y,r,c)=>{ring(x,y,r,c,2);dot(x,y,r*0.25,c);
+    for(let i=0;i<3;i++)ring(x,y,r*(1.3+i*0.35),hexA(c,0.35-i*0.1),1.5);},
+  wave:(x,y,r,c,t)=>{ctx.save();ctx.strokeStyle=c;ctx.lineWidth=2;ctx.beginPath();
+    for(let i=-r;i<=r;i+=2){ctx.lineTo(x+i,y+Math.sin(i*0.25+ (t||0)*2)*r*0.4);}
+    ctx.stroke();ctx.restore();},
+  chip:(x,y,r,c)=>{ctx.strokeStyle=c;ctx.lineWidth=2;rr(x-r,y-r,2*r,2*r,4);ctx.stroke();
+    for(let i=-1;i<=1;i++){line(x+i*r*0.6,y-r,x+i*r*0.6,y-r*1.4,c,2);
+      line(x+i*r*0.6,y+r,x+i*r*0.6,y+r*1.4,c,2);
+      line(x-r,y+i*r*0.6,x-r*1.4,y+i*r*0.6,c,2);line(x+r,y+i*r*0.6,x+r*1.4,y+i*r*0.6,c,2);}
+    dot(x,y,r*0.35,hexA(c,0.6));},
+  atom:(x,y,r,c,t)=>{dot(x,y,r*0.28,c);for(let i=0;i<3;i++){ctx.save();
+    ctx.translate(x,y);ctx.rotate(i*Math.PI/3);ctx.scale(1,0.38);ring(0,0,r,hexA(c,0.6),1.5);
+    ctx.restore();}
+    const a=(t||0)*3;dot(x+Math.cos(a)*r,y+Math.sin(a)*r*0.38,r*0.14,c);},
+  crystal:(x,y,r,c)=>{for(let i=-1;i<=1;i++)for(let j=-1;j<=1;j++)dot(x+i*r*0.7,y+j*r*0.7,r*0.16,c);
+    ctx.strokeStyle=hexA(c,0.35);ctx.lineWidth=1;
+    for(let i=-1;i<=1;i++){line(x-r*0.7,y+i*r*0.7,x+r*0.7,y+i*r*0.7,hexA(c,0.35),1);
+      line(x+i*r*0.7,y-r*0.7,x+i*r*0.7,y+r*0.7,hexA(c,0.35),1);}},
+  reactor:(x,y,r,c)=>{ring(x,y,r,c,2);dot(x,y,r*0.3,c);
+    for(let i=0;i<6;i++){const a=i*TAU/6;line(x+Math.cos(a)*r*0.4,y+Math.sin(a)*r*0.4,
+      x+Math.cos(a)*r*0.9,y+Math.sin(a)*r*0.9,hexA(c,0.7),2);}},
+  star:(x,y,r,c)=>{ctx.save();ctx.fillStyle=c;ctx.beginPath();
+    for(let i=0;i<10;i++){const a=-Math.PI/2+i*Math.PI/5;const rr2=i%2?r*0.42:r;
+      ctx.lineTo(x+Math.cos(a)*rr2,y+Math.sin(a)*rr2);}ctx.closePath();ctx.fill();ctx.restore();},
+  weather:(x,y,r,c)=>{ctx.save();ctx.strokeStyle=c;ctx.lineWidth=2;
+    ctx.beginPath();ctx.arc(x-r*0.2,y-r*0.1,r*0.55,0,TAU);ctx.stroke();
+    for(let i=-1;i<=1;i++)line(x-r*0.4+i*r*0.4,y+r*0.5,x-r*0.6+i*r*0.4,y+r,c,2);ctx.restore();},
+  cool:(x,y,r,c)=>{for(let i=0;i<6;i++){const a=i*TAU/6;
+    line(x,y,x+Math.cos(a)*r,y+Math.sin(a)*r,c,2);
+    line(x+Math.cos(a)*r,y+Math.sin(a)*r,x+Math.cos(a)*r*0.75+Math.cos(a+0.4)*r*0.2,
+      y+Math.sin(a)*r*0.75+Math.sin(a+0.4)*r*0.2,c,1.5);}},
+  battery:(x,y,r,c)=>{ctx.strokeStyle=c;ctx.lineWidth=2;rr(x-r,y-r*0.6,r*1.8,r*1.2,3);ctx.stroke();
+    line(x+r*0.8,y-r*0.25,x+r*0.8,y+r*0.25,c,3);
+    ctx.fillStyle=hexA(c,0.5);rr(x-r*0.85,y-r*0.45,r*1.1,r*0.9,2);ctx.fill();},
+  scan:(x,y,r,c)=>{ctx.strokeStyle=c;ctx.lineWidth=2;rr(x-r,y-r,2*r,2*r,4);ctx.stroke();
+    line(x-r,y,x+r,y,hexA(c,0.8),1.5);dot(x-r*0.3,y-r*0.3,r*0.2,c);},
+  brain:(x,y,r,c)=>{ring(x,y,r*0.9,c,2);for(let i=0;i<5;i++){const a=i*TAU/5;
+    dot(x+Math.cos(a)*r*0.5,y+Math.sin(a)*r*0.5,r*0.12,c);
+    line(x,y,x+Math.cos(a)*r*0.5,y+Math.sin(a)*r*0.5,hexA(c,0.5),1);}dot(x,y,r*0.14,c);}
+};
+
+/* ===================== SLIDES ===================== */
+const S=[];
+function add(o){S.push(o);}
+
+/* ---------- COVER ---------- */
+add({sec:0,phase:'',secLabel:'',title:'The Frontier',
+  sub:'Graduate physics, seen — not just written',
+  cap:'Five worlds where the everyday rules break. We build each one from a single question.',
+  draw(t){
+    const s=SC();
+    // a slow morph: grid -> lattice -> orbit, as a teaser
+    ctx.save();ctx.globalAlpha=0.9;
+    drawWarpGrid(s.cx,s.cy+H*0.03,H*0.11*eb(t,0.3,2), s.w*0.16, hexA(C.blue,0.28),Math.max(26,s.w*0.05));
+    // orbiting emblem
+    for(let i=0;i<5;i++){
+      const a=t*0.4+i*TAU/5, r=s.h*0.30;
+      const col=[C.blue,C.teal,C.gold,C.coral,C.violet][i];
+      dot(s.cx+Math.cos(a)*r*1.35, s.cy+Math.sin(a)*r*0.55+H*0.03, 4, col, 6);
+    }
+    dot(s.cx,s.cy+H*0.03,7,C.ink,8);
+    ctx.restore();
+  }});
+
+add({sec:0,phase:'HOW TO READ THIS',secLabel:'Guide',
+  title:'One rhythm, five worlds',
+  sub:'',
+  cap:'Each idea is built, then stress-tested by a missing piece — and the missing piece is the next idea.',
+  draw(t){
+    const s=SC();
+    const items=[
+      ['TEACH',C.blue,'build the picture with motion'],
+      ['RECAP',C.teal,'“here\u2019s what we have so far.”'],
+      ['GAP',C.coral,'“but we\u2019re still missing ___ — why?”'],
+      ['FILL',C.gold,'the answer to that exact gap']
+    ];
+    const x=s.x+s.w*0.14, y0=s.y+s.h*0.2, gap=s.h*0.62/4;
+    for(let i=0;i<4;i++){
+      const b=eb(t,0.3+i*0.5,0.7); if(b<=0)continue;
+      const y=y0+i*gap;
+      ctx.save();ctx.globalAlpha=b;
+      dot(x,y,H*0.012,items[i][1]);
+      if(i<3)line(x,y,x,y+gap,hexA(items[i][1],0.3*eb(t,0.6+i*0.5,0.5)),2);
+      txt(items[i][0],x+H*0.03,y,items[i][1],Math.min(H*0.03,20),'left',1,700);
+      txt(items[i][2],x+H*0.16,y,C.dim,Math.min(H*0.025,16),'left',1,400);
+      ctx.restore();
+    }
+    // arrow loop hint
+    arrow(x+s.w*0.62,y0,x+s.w*0.62,y0+gap*3,hexA(C.violet,eb(t,2.4,1)),2,eb(t,2.4,1.2),10);
+  }});
+
+/* ============================================================
+   SECTION 1 — GENERAL RELATIVITY
+   ============================================================ */
+const grMotif=(t,cx,cy,r)=>drawWarpGrid(cx,cy,r*0.5*eb(t,0.2,1.5),r*0.35,hexA(C.blue,0.4),r*0.22,
+  {x:cx-r,y:cy-r*0.7,w:2*r,h:1.4*r});
+
+add({sec:1,phase:'SECTION 1',secLabel:'General Relativity',
+  title:'Gravity is not a force',
+  sub:'It is the shape of spacetime',
+  cap:'Newton said masses pull. Einstein asked a sharper question — and answered it with geometry.',
+  draw(t){ sectionIntro(t,{motif:grMotif}); }});
+
+add({sec:1,phase:'TEACH · equivalence',secLabel:'General Relativity',
+  title:'The falling elevator',
+  sub:'Feynman\u2019s test: can you tell which box you\u2019re in?',
+  cap:'Free-fall on Earth and a rocket accelerating in deep space give identical physics. Gravity = acceleration.',
+  eq:'a<sub>gravity</sub> &nbsp;≡&nbsp; a<sub>rocket</sub>',
+  draw(t){
+    const s=SC();
+    const bw=s.w*0.26, bh=s.h*0.7, gap=s.w*0.18;
+    const drawBox=(bx,label,arrowUp,ballDropT)=>{
+      const by=s.y+s.h*0.14;
+      ctx.save();ctx.strokeStyle=C.dim;ctx.lineWidth=1.6;rr(bx,by,bw,bh,8);ctx.stroke();
+      // person (stick)
+      const px=bx+bw*0.3, py=by+bh*0.62;
+      dot(px,py-bh*0.14,bw*0.05,C.ink);
+      line(px,py-bh*0.09,px,py+bh*0.02,C.ink,2);
+      line(px,py+bh*0.02,px-bw*0.06,py+bh*0.14,C.ink,2);
+      line(px,py+bh*0.02,px+bw*0.06,py+bh*0.14,C.ink,2);
+      // ball dropping (loops)
+      const dt=(ballDropT%2)/2;
+      const ballY=by+bh*0.18 + eio(dt)*bh*0.5;
+      dot(bx+bw*0.68, ballY, bw*0.06, C.gold, 4);
+      // downward motion streak
+      if(dt>0.05)line(bx+bw*0.68,by+bh*0.18,bx+bw*0.68,ballY-bw*0.06,hexA(C.gold,0.3),2);
+      // context arrow
+      if(arrowUp){ // rocket thrust up
+        for(let i=0;i<3;i++)arrow(bx+bw*(0.25+i*0.25),by+bh+H*0.02,bx+bw*(0.25+i*0.25),by+bh+H*0.07,hexA(C.coral,0.8),2,1,7);
+      }else{ // earth
+        line(bx-bw*0.1,by+bh+2,bx+bw*1.1,by+bh+2,C.teal,2);
+        for(let i=0;i<6;i++)line(bx+bw*(i/6),by+bh+2,bx+bw*(i/6)-8,by+bh+12,hexA(C.teal,0.6),1.5);
+      }
+      txt(label,bx+bw/2,by+bh+H*0.11,C.dim,Math.min(H*0.024,15),'center',1,500);
+      ctx.restore();
+    };
+    const cxL=s.cx-gap/2-bw, cxR=s.cx+gap/2;
+    drawBox(cxL,'on Earth · at rest',false,t);
+    drawBox(cxR,'in space · accelerating',true,t);
+    // equivalence bracket
+    const eqA=eb(t,2,1);
+    txt('=',s.cx,s.y+s.h*0.5,hexA(C.gold,eqA),H*0.06,'center',1,700,'Georgia,serif');
+  }});
+
+add({sec:1,phase:'TEACH · the metric',secLabel:'General Relativity',
+  title:'Mass warps the grid',
+  sub:'Spacetime has a shape you can measure — the metric',
+  cap:'Place a mass and the coordinate grid stretches. The metric g<sub>μν</sub> stores how distances bend at every point.',
+  eq:'ds² = g<sub>μν</sub> dx<sup>μ</sup> dx<sup>ν</sup>',
+  draw(t){
+    const s=SC();
+    const mx=s.cx, my=s.cy;
+    const str=eb(t,0.3,1.6)*H*0.14;
+    drawWarpGrid(mx,my,str,s.w*0.14,hexA(C.blue,0.5),Math.max(24,s.w*0.045));
+    dot(mx,my,H*0.02*eb(t,0.1,0.6),C.gold,10);
+    txt('M',mx,my-H*0.045,C.gold,H*0.03,'center',eb(t,0.6,0.5),700);
+  }});
+
+add({sec:1,phase:'TEACH · geodesics',secLabel:'General Relativity',
+  title:'“Straight” in a curved world',
+  sub:'No force pulls the ball — it just goes straight',
+  cap:'A free particle follows a geodesic: the straightest possible path. On warped spacetime, straight looks curved.',
+  eq:'d²x<sup>μ</sup>/dτ² + Γ<sup>μ</sup><sub>αβ</sub> (dx<sup>α</sup>/dτ)(dx<sup>β</sup>/dτ) = 0',
+  draw(t){
+    const s=SC();
+    const mx=s.cx+s.w*0.06, my=s.cy;
+    drawWarpGrid(mx,my,H*0.13,s.w*0.13,hexA(C.blue,0.35),Math.max(26,s.w*0.055));
+    dot(mx,my,H*0.017,C.gold,8);
+    // geodesic path deflected by the same field
+    const p=[]; const x0=s.x+s.w*0.02, y0=s.cy-s.h*0.28;
+    for(let i=0;i<=120;i++){
+      const f=i/120;
+      let px=lerp(x0,x0+s.w*0.92,f);
+      let py=lerp(y0,y0+s.h*0.34,f*0.15); // gentle base incline
+      const w=warpField(px,py,mx,my,H*0.16,s.w*0.13);
+      p.push([w[0],w[1]]);
+    }
+    poly(p,C.teal,2.6,eb(t,0.4,2));
+    // moving particle
+    const idx=Math.floor(eb(t,0.4,2)*(p.length-1));
+    if(idx>0)dot(p[idx][0],p[idx][1],H*0.013,C.coral,6);
+    // "would-be straight" ghost line
+    line(x0,y0,x0+s.w*0.92,y0+s.h*0.34*0.15,hexA(C.faint,0.4*eb(t,1.6,1)),1.5,1,[6,6]);
+    txt('straight in flat space',x0+s.w*0.3,y0-H*0.02,hexA(C.faint,0.8*eb(t,1.8,1)),Math.min(H*0.02,13),'left',1,400);
+  }});
+
+add({sec:1,phase:'RECAP',secLabel:'General Relativity',
+  title:'Here\u2019s what we have so far',
+  sub:'',
+  cap:'Three moving parts, all geometry — no forces anywhere.',
+  draw(t){ drawRecap(t,[
+    {t:'Free-fall is indistinguishable from acceleration',c:C.coral},
+    {t:'Mass warps the spacetime grid (the metric g\u03BC\u03BD)',c:C.blue},
+    {t:'Free bodies follow geodesics — straightest paths',c:C.teal},
+  ]); }});
+
+add({sec:1,phase:'GAP',secLabel:'General Relativity',
+  title:'But we\u2019re still missing the rule',
+  sub:'We can bend the grid — but what decides how much?',
+  cap:'Why exactly this curvature and not more, or less? Something must link matter to geometry.',
+  draw(t){ drawGap(t); }});
+
+add({sec:1,phase:'FILL · Einstein equations',secLabel:'General Relativity',
+  title:'Matter tells spacetime how to curve',
+  sub:'And curved spacetime tells matter how to move',
+  cap:'The Einstein field equations are the exact bookkeeping: curvature on the left, energy-momentum on the right.',
+  eq:'G<sub>μν</sub> = (8πG / c<sup>4</sup>) T<sub>μν</sub>',
+  draw(t){
+    const s=SC();
+    const lx=s.x+s.w*0.22, rx=s.x+s.w*0.78, cy=s.cy;
+    // left: curvature (warped mini grid)
+    ctx.save();ctx.globalAlpha=eb(t,0.2,0.8);
+    drawWarpGrid(lx,cy,H*0.07,s.w*0.06,hexA(C.blue,0.55),Math.max(16,s.w*0.028),
+      {x:lx-s.w*0.13,y:cy-s.h*0.22,w:s.w*0.26,h:s.h*0.44});
+    txt('curvature',lx,cy+s.h*0.3,C.blue,Math.min(H*0.026,17),'center',1,600);
+    ctx.restore();
+    // right: matter-energy
+    ctx.save();ctx.globalAlpha=eb(t,0.5,0.8);
+    for(let i=0;i<7;i++){const a=i*TAU/7+t*0.3;
+      dot(rx+Math.cos(a)*s.w*0.05,cy+Math.sin(a)*s.w*0.05,H*0.01,C.gold,4);}
+    dot(rx,cy,H*0.02,C.coral,8);
+    txt('matter · energy',rx,cy+s.h*0.3,C.gold,Math.min(H*0.026,17),'center',1,600);
+    ctx.restore();
+    // the equals / feedback arrows
+    arrow(lx+s.w*0.16,cy-H*0.03,rx-s.w*0.16,cy-H*0.03,hexA(C.violet,eb(t,1.2,0.8)),2,eb(t,1.2,1),10);
+    arrow(rx-s.w*0.16,cy+H*0.03,lx+s.w*0.16,cy+H*0.03,hexA(C.teal,eb(t,1.6,0.8)),2,eb(t,1.6,1),10);
+    txt('=',s.cx,cy,hexA(C.ink,eb(t,0.9,0.5)),H*0.05,'center',1,600,'Georgia,serif');
+  }});
+
+add({sec:1,phase:'USES',secLabel:'General Relativity',
+  title:'Where curved spacetime pays off',
+  sub:'',
+  cap:'The same equations run your phone\u2019s location and describe the birth of the universe.',
+  draw(t){ drawApps(t,[
+    {t:'GPS',d:'clocks corrected for curvature',c:C.blue,icon:ICON.gps},
+    {t:'Gravitational waves',d:'LIGO hears merging black holes',c:C.teal,icon:ICON.wave},
+    {t:'Black holes',d:'imaging the event horizon',c:C.coral,icon:(x,y,r,c)=>{dot(x,y,r*0.6,c);ring(x,y,r,hexA(c,0.6),2);}},
+    {t:'Cosmology',d:'expansion, dark energy, the CMB',c:C.gold,icon:ICON.star},
+  ]); }});
+
+/* ============================================================
+   SECTION 2 — QUANTUM FIELD THEORY
+   ============================================================ */
+const qftMotif=(t,cx,cy,r)=>{
+  ctx.save();ctx.strokeStyle=hexA(C.violet,0.6);ctx.lineWidth=2;
+  for(let row=-2;row<=2;row++){ctx.beginPath();
+    for(let i=-r;i<=r;i+=3){
+      const d=Math.hypot(i,row*r*0.3);
+      const y=cy+row*r*0.3+Math.sin(i*0.06-t*2)*r*0.12*Math.exp(-d/r*1.5);
+      i===-r?ctx.moveTo(cx+i,y):ctx.lineTo(cx+i,y);}
+    ctx.stroke();}
+  ctx.restore();
+  dot(cx,cy,r*0.06,C.gold,8);
+};
+
+add({sec:2,phase:'SECTION 2',secLabel:'Quantum Field Theory',
+  title:'Particles are ripples',
+  sub:'The universe is fields; particles are what they do',
+  cap:'Forget tiny balls. The real objects are fields filling all of space — and a “particle” is a wave in one.',
+  draw(t){ sectionIntro(t,{motif:qftMotif}); }});
+
+add({sec:2,phase:'TEACH · fields',secLabel:'Quantum Field Theory',
+  title:'The field is fundamental',
+  sub:'A number (or arrow) at every point in space',
+  cap:'Excite a field locally and the bump propagates — that travelling packet is a particle. Electrons ride the electron field.',
+  eq:'φ(x, t) &nbsp;→&nbsp; a quantum = one particle',
+  draw(t){
+    const s=SC();
+    ctx.save();
+    const rows=7, spread=s.h*0.5;
+    // a moving ripple
+    const rip=(s.x+s.w*0.1)+((t*s.w*0.12)% (s.w*0.85));
+    for(let r=0;r<rows;r++){
+      const y0=s.y+s.h*0.1+ r*spread/(rows-1);
+      ctx.strokeStyle=hexA(C.violet,0.55);ctx.lineWidth=1.6;ctx.beginPath();
+      for(let x=s.x;x<=s.x+s.w;x+=3){
+        const d=Math.abs(x-rip);
+        const env=Math.exp(-(d*d)/(2*Math.pow(s.w*0.05,2)));
+        const y=y0+Math.sin((x-rip)*0.05)*env*s.h*0.05 - env*s.h*0.03;
+        x===s.x?ctx.moveTo(x,y):ctx.lineTo(x,y);
+      }
+      ctx.stroke();
+    }
+    // particle marker at the ripple
+    dot(rip,s.y+s.h*0.5,H*0.012,C.gold,8);
+    txt('one excitation = one particle',rip,s.y+s.h*0.02,hexA(C.gold,0.9),Math.min(H*0.022,14),'center',1,500);
+    ctx.restore();
+  }});
+
+add({sec:2,phase:'TEACH · second quantization',secLabel:'Quantum Field Theory',
+  title:'Counting quanta',
+  sub:'Creation and annihilation — particles appear and vanish',
+  cap:'Each field mode is a quantum oscillator. Operators â† add a quantum, â remove one. Particle number is not fixed.',
+  eq:'â<sup>†</sup> |n⟩ = √(n+1) |n+1⟩ &nbsp;·&nbsp; â |n⟩ = √n |n−1⟩',
+  draw(t){
+    const s=SC();
+    // energy ladder
+    const lx=s.x+s.w*0.5, rungs=5, bw=s.w*0.24;
+    const bottom=s.y+s.h*0.82, gap=s.h*0.62/rungs;
+    for(let i=0;i<rungs;i++){
+      const y=bottom-i*gap;
+      line(lx-bw/2,y,lx+bw/2,y,hexA(C.teal,0.7),2, eb(t,0.2+i*0.15,0.5));
+      txt('n='+i,lx-bw/2-H*0.03,y,C.dim,Math.min(H*0.022,14),'right',eb(t,0.3+i*0.15,0.5),500);
+    }
+    // occupied quantum climbing with a+ then dropping with a-
+    const cyc=(t*0.6)%2; // 0..2
+    let level, opLabel, opCol;
+    if(cyc<1){level=1+eio(cyc)*3; opLabel='â†  create'; opCol=C.gold;}
+    else{level=4-eio(cyc-1)*3; opLabel='â  annihilate'; opCol=C.coral;}
+    const y=bottom-level*gap;
+    dot(lx,y,H*0.016,opCol,8);
+    arrow(lx+bw*0.4,bottom-1.5*gap, lx+bw*0.4, bottom-3.5*gap, hexA(opCol,0.8), 2, 1, 9);
+    txt(opLabel,lx+bw*0.5,bottom-2.5*gap,opCol,Math.min(H*0.024,15),'left',1,600);
+  }});
+
+add({sec:2,phase:'RECAP',secLabel:'Quantum Field Theory',
+  title:'Here\u2019s what we have so far',
+  sub:'',
+  cap:'Fields everywhere, and a way to add or remove their quanta.',
+  draw(t){ drawRecap(t,[
+    {t:'Fields fill all space; particles are their ripples',c:C.violet},
+    {t:'Each mode behaves like a quantum oscillator',c:C.teal},
+    {t:'â† creates, â annihilates — particle count can change',c:C.gold},
+  ]); }});
+
+add({sec:2,phase:'GAP',secLabel:'Quantum Field Theory',
+  title:'But how do two particles push?',
+  sub:'Ripples exist — yet what carries the force between them?',
+  cap:'Two electrons repel across empty space. If there\u2019s no action-at-a-distance, what passes between them?',
+  draw(t){ drawGap(t); }});
+
+add({sec:2,phase:'FILL · Feynman diagrams',secLabel:'Quantum Field Theory',
+  title:'Forces are exchanged particles',
+  sub:'Feynman\u2019s picture: repulsion by passing a photon',
+  cap:'Two electrons swap a virtual photon. The diagram is a calculation: each line and vertex is a term in the amplitude.',
+  eq:'e⁻ + e⁻ → e⁻ + e⁻ &nbsp; via &nbsp; γ exchange',
+  draw(t){
+    const s=SC();
+    const ax=s.x+s.w*0.2, bx=s.x+s.w*0.8, top=s.y+s.h*0.12, bot=s.y+s.h*0.88;
+    const vy1=s.cy-s.h*0.12, vy2=s.cy+s.h*0.12;
+    const v1=[s.cx, vy1], v2=[s.cx, vy2];
+    // incoming/outgoing electron lines
+    const p1=eb(t,0.2,0.9);
+    arrow(ax,bot,v1[0],v1[1],C.blue,2.4,p1,10);
+    arrow(ax,top,v2[0],v2[1],C.blue,2.4,p1,10);
+    const p2=eb(t,1.5,0.9);
+    arrow(v1[0],v1[1],bx,bot,C.blue,2.4,p2,10);
+    arrow(v2[0],v2[1],bx,top,C.blue,2.4,p2,10);
+    // vertices
+    dot(v1[0],v1[1],H*0.01,C.ink);dot(v2[0],v2[1],H*0.01,C.ink);
+    // wavy photon between vertices
+    const pw=eb(t,0.9,0.8);
+    ctx.save();ctx.strokeStyle=hexA(C.gold,pw);ctx.lineWidth=2;ctx.beginPath();
+    const segs=40;
+    for(let i=0;i<=segs*pw;i++){const f=i/segs;
+      const y=lerp(vy1,vy2,f);const x=s.cx+Math.sin(f*Math.PI*7)*s.w*0.02;
+      i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);}
+    ctx.stroke();ctx.restore();
+    txt('γ (photon)',s.cx+s.w*0.05,s.cy,hexA(C.gold,pw),Math.min(H*0.024,15),'left',1,600);
+    // labels
+    txt('e⁻',ax-H*0.02,bot,C.blue,Math.min(H*0.026,16),'right',p1,600);
+    txt('e⁻',ax-H*0.02,top,C.blue,Math.min(H*0.026,16),'right',p1,600);
+    txt('time →',s.x+s.w*0.02,s.y+s.h*0.02,C.faint,Math.min(H*0.02,13),'left',eb(t,0.1,0.6),400);
+  }});
+
+add({sec:2,phase:'USES',secLabel:'Quantum Field Theory',
+  title:'The most tested theory ever',
+  sub:'',
+  cap:'QED predicts the electron\u2019s magnetism to 12 digits — and underpins the tech that measures it.',
+  draw(t){ drawApps(t,[
+    {t:'Precision QED',d:'g−2: theory meets experiment',c:C.violet,icon:ICON.scan},
+    {t:'Particle colliders',d:'diagrams predict what detectors see',c:C.blue,icon:ICON.atom},
+    {t:'Quantum tech',d:'qubits, quantum optics, sensing',c:C.teal,icon:ICON.chip},
+    {t:'Lasers & photonics',d:'light–matter interaction',c:C.gold,icon:ICON.wave},
+  ]); }});
+
+/* ============================================================
+   SECTION 3 — CONDENSED MATTER / SOLID STATE
+   ============================================================ */
+const cmMotif=(t,cx,cy,r)=>{
+  for(let i=-2;i<=2;i++)for(let j=-2;j<=2;j++){
+    const jitter=Math.sin(t*2+i+j)*r*0.02;
+    dot(cx+i*r*0.4,cy+j*r*0.4+jitter,r*0.05,C.green,3);}
+};
+
+add({sec:3,phase:'SECTION 3',secLabel:'Condensed Matter',
+  title:'The physics of stuff',
+  sub:'Why solids conduct, insulate, glow, or levitate',
+  cap:'Take 10²³ atoms, lock them in a pattern, and entirely new laws emerge. This is where quantum mechanics builds a world.',
+  draw(t){ sectionIntro(t,{motif:cmMotif}); }});
+
+add({sec:3,phase:'TEACH · lattice',secLabel:'Condensed Matter',
+  title:'Order in real space and its echo',
+  sub:'The crystal lattice — and its reciprocal twin',
+  cap:'Atoms repeat on a lattice. Its Fourier image, the reciprocal lattice, is where waves and diffraction live.',
+  eq:'real lattice (a) &nbsp;⇌&nbsp; reciprocal lattice (b = 2π/a)',
+  draw(t){
+    const s=SC();
+    const b=eb(t,0.2,1);
+    const splitX=eb(t,1.2,1.2);
+    const lx=lerp(s.cx,s.x+s.w*0.26,splitX), rx=s.x+s.w*0.74;
+    // real lattice (left)
+    const step=Math.min(s.w,s.h)*0.09;
+    for(let i=-2;i<=2;i++)for(let j=-2;j<=2;j++){
+      dot(lx+i*step,s.cy+j*step,H*0.008,C.green,3);}
+    // connecting cell
+    ctx.save();ctx.strokeStyle=hexA(C.green,0.4*b);ctx.lineWidth=1;
+    ctx.strokeRect(lx-step/2,s.cy-step/2,step,step);ctx.restore();
+    txt('real space  ·  spacing a',lx,s.cy+s.h*0.34,C.green,Math.min(H*0.024,15),'center',b,600);
+    // reciprocal (right) appears after split
+    if(splitX>0.1){
+      const rstep=step*0.9;
+      for(let i=-2;i<=2;i++)for(let j=-2;j<=2;j++){
+        dot(rx+i*rstep,s.cy+j*rstep,H*0.007,C.gold,3);}
+      txt('reciprocal space  ·  2π/a',rx,s.cy+s.h*0.34,C.gold,Math.min(H*0.024,15),'center',splitX,600);
+      // Bragg wave scattering hint
+      const wob=eb(t,2.2,1.5);
+      if(wob>0){
+        arrow(rx-s.w*0.16,s.cy-s.h*0.28,rx,s.cy,hexA(C.blue,wob),2,1,8);
+        arrow(rx,s.cy,rx+s.w*0.16,s.cy-s.h*0.28,hexA(C.blue,wob),2,1,8);
+        txt('diffraction',rx+s.w*0.04,s.cy-s.h*0.22,hexA(C.blue,wob),Math.min(H*0.02,13),'left',1,500);
+      }
+      // FT arrow
+      arrow(lx+step*2.4,s.cy,rx-rstep*2.6,s.cy,hexA(C.violet,splitX),2,splitX,10);
+      txt('Fourier',lerp(lx,rx,0.5),s.cy-H*0.03,hexA(C.violet,splitX),Math.min(H*0.02,13),'center',1,500);
+    }
+  }});
+
+add({sec:3,phase:'TEACH · Bloch',secLabel:'Condensed Matter',
+  title:'Electrons flow through order',
+  sub:'Bloch\u2019s theorem — a wave dressed by the lattice',
+  cap:'In a periodic potential the electron is a plane wave times a lattice-periodic function. Order lets electrons travel freely.',
+  eq:'ψ<sub>k</sub>(x) = e<sup>ikx</sup> · u<sub>k</sub>(x),&nbsp; u periodic',
+  draw(t){
+    const s=SC();
+    // periodic potential (bumps)
+    const y0=s.cy+s.h*0.22, per=s.w*0.09, x0=s.x+s.w*0.05, xe=s.x+s.w*0.95;
+    ctx.save();ctx.strokeStyle=hexA(C.faint,0.7);ctx.lineWidth=1.5;ctx.beginPath();
+    for(let x=x0;x<=xe;x+=3){const y=y0+Math.cos((x-x0)/per*TAU)*s.h*0.05;
+      x===x0?ctx.moveTo(x,y):ctx.lineTo(x,y);}ctx.stroke();ctx.restore();
+    for(let x=x0;x<=xe;x+=per)dot(x,y0+s.h*0.05,H*0.006,C.green,2);
+    // Bloch wave: plane wave modulated by periodic envelope, drifting
+    const ph=t*1.4;
+    ctx.save();ctx.strokeStyle=C.blue;ctx.lineWidth=2.2;ctx.beginPath();
+    for(let x=x0;x<=xe;x+=2){
+      const u=1+0.5*Math.cos((x-x0)/per*TAU);           // periodic u_k(x)
+      const y=s.cy-s.h*0.08 + Math.sin((x-x0)*0.05-ph)*u*s.h*0.06;
+      x===x0?ctx.moveTo(x,y):ctx.lineTo(x,y);}
+    ctx.stroke();ctx.restore();
+    // travelling packet marker
+    const px=x0+((t*s.w*0.14)%(xe-x0));
+    dot(px,s.cy-s.h*0.08,H*0.011,C.gold,6);
+    txt('free-flowing electron',s.cx,s.y+s.h*0.02,hexA(C.blue,0.9),Math.min(H*0.024,15),'center',eb(t,0.4,0.8),500);
+  }});
+
+add({sec:3,phase:'TEACH · phonons',secLabel:'Condensed Matter',
+  title:'The lattice sings',
+  sub:'Phonons — quantized vibrations that carry heat & sound',
+  cap:'Atoms on springs; a wave of displacement is a phonon. Its dispersion ω(k) sets thermal and acoustic behaviour.',
+  eq:'ω(k) = ω<sub>max</sub> |sin(ka/2)|',
+  draw(t){
+    const s=SC();
+    // chain of masses on springs
+    const N=10, x0=s.x+s.w*0.06, sp=s.w*0.88/(N-1), y=s.cy-s.h*0.06;
+    const k=TAU/(s.w*0.4), w=2.2, amp=s.w*0.03;
+    // walls
+    line(x0-sp*0.5,y-H*0.05,x0-sp*0.5,y+H*0.05,C.faint,2);
+    line(x0+sp*(N-1)+sp*0.5,y-H*0.05,x0+sp*(N-1)+sp*0.5,y+H*0.05,C.faint,2);
+    let prev=null, prevBase=x0-sp*0.5, prevY=y;
+    const pos=[];
+    for(let i=0;i<N;i++){
+      const base=x0+i*sp;
+      const dx=Math.sin(k*base - w*t)*amp;
+      const px=base+dx;
+      pos.push([px,y,base]);
+    }
+    // springs
+    spring(prevBase,prevY,pos[0][0],pos[0][1],hexA(C.faint,0.6),4,4);
+    for(let i=0;i<N-1;i++)spring(pos[i][0],pos[i][1],pos[i+1][0],pos[i+1][1],hexA(C.faint,0.6),4,4);
+    spring(pos[N-1][0],pos[N-1][1],x0+sp*(N-1)+sp*0.5,y,hexA(C.faint,0.6),4,4);
+    // masses colored by displacement
+    for(let i=0;i<N;i++){
+      const d=pos[i][0]-pos[i][2];
+      const col=d>0?C.coral:C.blue;
+      dot(pos[i][0],pos[i][1],H*0.014,col,4);
+    }
+    // dispersion curve inset
+    const ix=s.x+s.w*0.62, iy=s.cy+s.h*0.34, iw=s.w*0.3, ih=s.h*0.2;
+    line(ix,iy,ix+iw,iy,C.faint,1.2);line(ix,iy,ix,iy-ih,C.faint,1.2);
+    const dc=[];for(let i=0;i<=40;i++){const f=i/40;
+      dc.push([ix+f*iw, iy-Math.abs(Math.sin(f*Math.PI/1))*ih]);}
+    poly(dc,C.teal,2,eb(t,0.5,1.5));
+    txt('ω',ix-H*0.02,iy-ih,C.dim,Math.min(H*0.02,13),'center',1);
+    txt('k',ix+iw,iy+H*0.025,C.dim,Math.min(H*0.02,13),'center',1);
+  }});
+
+add({sec:3,phase:'RECAP',secLabel:'Condensed Matter',
+  title:'Here\u2019s what we have so far',
+  sub:'',
+  cap:'A crystal, waves that flow through it, and waves that shake it.',
+  draw(t){ drawRecap(t,[
+    {t:'Atoms sit on a lattice (with a reciprocal twin)',c:C.green},
+    {t:'Bloch: electrons glide as lattice-dressed waves',c:C.blue},
+    {t:'Phonons: quantized lattice vibrations move heat',c:C.teal},
+  ]); }});
+
+add({sec:3,phase:'GAP',secLabel:'Condensed Matter',
+  title:'So why is copper a metal and glass an insulator?',
+  sub:'Electrons are waves in every solid — yet only some conduct',
+  cap:'Same ingredients, wildly different behaviour. What separates a conductor from an insulator?',
+  draw(t){ drawGap(t); }});
+
+add({sec:3,phase:'FILL · bands',secLabel:'Condensed Matter',
+  title:'Levels broaden into bands',
+  sub:'And the gaps between them decide everything',
+  cap:'Bring atoms together and sharp levels spread into bands. A filled band + a big gap = insulator; a partly-filled band = metal.',
+  eq:'band gap E<sub>g</sub>: &nbsp;metal (0) · semiconductor (small) · insulator (large)',
+  draw(t){
+    const s=SC();
+    const spread=eb(t,0.4,1.8);
+    const cx=s.x+s.w*0.32, top=s.y+s.h*0.12, bot=s.y+s.h*0.84;
+    // atomic levels splitting into two bands separated by a gap
+    const bandY=[lerp((top+bot)/2-s.h*0.02,top+s.h*0.08,spread),
+                 lerp((top+bot)/2+s.h*0.02,bot-s.h*0.08,spread)];
+    const bandH=s.h*0.16*spread;
+    const nLines=9;
+    for(let bnd=0;bnd<2;bnd++){
+      for(let i=0;i<nLines;i++){
+        const y=bandY[bnd]-bandH/2 + i*bandH/(nLines-1);
+        const col=bnd===0?C.blue:C.green;
+        line(cx-s.w*0.13,y,cx+s.w*0.13,y,hexA(col,0.55),1.4);
+      }
+      // band label
+      txt(bnd===0?'conduction band':'valence band',cx, bandY[bnd]+ (bnd?bandH*0.75:-bandH*0.75),
+        bnd===0?C.blue:C.green,Math.min(H*0.022,14),'center',spread,600);
+    }
+    // gap bracket
+    const gy1=bandY[0]+bandH/2, gy2=bandY[1]-bandH/2;
+    if(spread>0.4){
+      line(cx+s.w*0.16,gy1,cx+s.w*0.16,gy2,hexA(C.coral,spread),2);
+      txt('E_g',cx+s.w*0.19,(gy1+gy2)/2,C.coral,Math.min(H*0.024,15),'left',spread,600);
+    }
+    // three material types on the right
+    const rx=s.x+s.w*0.74, types=[['metal',0,C.gold],['semicond.',s.h*0.06,C.teal],['insulator',s.h*0.2,C.coral]];
+    const by=s.y+s.h*0.16;
+    types.forEach((ty,i)=>{
+      const yb=by+i*s.h*0.22, appear=eb(t,2+i*0.4,0.6);
+      const bh2=s.h*0.06;
+      ctx.save();ctx.globalAlpha=appear;
+      ctx.fillStyle=hexA(C.green,0.5);ctx.fillRect(rx-s.w*0.05,yb+ty[1]+bh2*0.5,s.w*0.1,bh2*0.5);//valence filled
+      ctx.strokeStyle=hexA(C.blue,0.6);ctx.strokeRect(rx-s.w*0.05,yb-ty[1],s.w*0.1,bh2*0.5);
+      if(i===0){ctx.fillStyle=hexA(C.gold,0.5);ctx.fillRect(rx-s.w*0.05,yb,s.w*0.1,bh2*0.5);} // metal overlaps
+      txt(ty[0],rx+s.w*0.08,yb,ty[2],Math.min(H*0.022,14),'left',1,600);
+      ctx.restore();
+    });
+  }});
+
+add({sec:3,phase:'TEACH · Fermi surface',secLabel:'Condensed Matter',
+  title:'The edge of the electron sea',
+  sub:'Fermi surface — only electrons here do anything',
+  cap:'Electrons fill states up to the Fermi level. The surface in k-space is what responds to fields, heat, and light.',
+  eq:'occupied up to E<sub>F</sub> &nbsp;→&nbsp; Fermi surface in k-space',
+  draw(t){
+    const s=SC();
+    const cx=s.cx, cy=s.cy, R=Math.min(s.w,s.h)*0.34;
+    // fill states (dots) inside a circle, up to a growing radius = Fermi sphere
+    const fillR=eb(t,0.3,2)*R;
+    ctx.save();
+    for(let i=0;i<260;i++){
+      const a=i*2.399963, rr2=Math.sqrt(i/260)*R; // sunflower
+      const x=cx+Math.cos(a)*rr2, y=cy+Math.sin(a)*rr2;
+      const inside=rr2<fillR;
+      dot(x,y,H*0.006,inside?C.blue:hexA(C.faint,0.3),0);
+    }
+    ctx.restore();
+    // Fermi surface
+    ring(cx,cy,fillR,C.gold,2.4);
+    txt('E_F',cx+fillR*0.72,cy-fillR*0.72,C.gold,Math.min(H*0.026,16),'left',eb(t,1,0.6),600);
+    // axes
+    line(cx-R*1.2,cy,cx+R*1.2,cy,hexA(C.faint,0.5),1);
+    line(cx,cy-R*1.2,cx,cy+R*1.2,hexA(C.faint,0.5),1);
+    txt('k-space',cx+R*1.1,cy+H*0.03,C.dim,Math.min(H*0.02,13),'left',1);
+  }});
+
+add({sec:3,phase:'FILL · devices',secLabel:'Condensed Matter',
+  title:'Doping builds the transistor',
+  sub:'A p–n junction, then a switch',
+  cap:'Add impurities to tune carriers. Join p and n: a depletion zone forms — a diode. Gate it, and you have the transistor.',
+  eq:'n-type (e⁻) + p-type (holes) → junction → switch',
+  draw(t){
+    const s=SC();
+    const y=s.cy, blockH=s.h*0.34, jw=s.w*0.7, x0=s.cx-jw/2;
+    const merge=eb(t,0.6,1.2);
+    // n block (left), p block (right)
+    ctx.save();
+    ctx.fillStyle=hexA(C.blue,0.16);ctx.fillRect(x0,y-blockH/2,jw/2,blockH);
+    ctx.fillStyle=hexA(C.coral,0.16);ctx.fillRect(x0+jw/2,y-blockH/2,jw/2,blockH);
+    ctx.strokeStyle=C.faint;ctx.lineWidth=1.4;ctx.strokeRect(x0,y-blockH/2,jw,blockH);
+    // carriers
+    for(let i=0;i<9;i++){const rx=x0+jw*0.06+i*jw*0.045;
+      dot(rx,y-blockH*0.2+Math.sin(t+i)*4,H*0.006,C.blue,2);}
+    for(let i=0;i<9;i++){const rx=x0+jw*0.55+i*jw*0.045;
+      ring(rx,y+blockH*0.2+Math.cos(t+i)*4,H*0.007,C.coral,1.5);}
+    // depletion region
+    const dw=jw*0.14*merge;
+    ctx.fillStyle=hexA(C.gold,0.12*merge);ctx.fillRect(s.cx-dw/2,y-blockH/2,dw,blockH);
+    line(s.cx,y-blockH/2,s.cx,y+blockH/2,hexA(C.gold,0.6*merge),1.5,1,[4,4]);
+    txt('n',x0+jw*0.25,y-blockH*0.62,C.blue,Math.min(H*0.028,18),'center',1,700);
+    txt('p',x0+jw*0.75,y-blockH*0.62,C.coral,Math.min(H*0.028,18),'center',1,700);
+    if(merge>0.5)txt('depletion',s.cx,y+blockH*0.62,C.gold,Math.min(H*0.022,14),'center',merge,600);
+    ctx.restore();
+    // transistor "switch" reveal
+    const sw=eb(t,2.2,1);
+    if(sw>0){
+      const gx=s.cx, gy=y-blockH*0.5-H*0.02;
+      arrow(gx,gy-s.h*0.16,gx,gy,hexA(C.teal,sw),2.4,1,9);
+      txt('gate → channel opens',gx+s.w*0.04,gy-s.h*0.1,hexA(C.teal,sw),Math.min(H*0.022,14),'left',1,600);
+      // on/off pulse
+      const on=Math.sin(t*3)>0;
+      dot(x0-H*0.03,y,H*0.012,on?C.green:hexA(C.faint,0.4),on?6:0);
+    }
+  }});
+
+add({sec:3,phase:'TEACH · superconductivity',secLabel:'Condensed Matter',
+  title:'Resistance vanishes',
+  sub:'Cooper pairs glide; magnets float',
+  cap:'Below T_c electrons pair up via the lattice and flow with zero resistance. Expelled fields (Meissner) levitate a magnet.',
+  eq:'2 e⁻ + lattice → Cooper pair → R = 0',
+  draw(t){
+    const s=SC();
+    // left: normal metal (scattering) vs right: superconductor (pairs glide)
+    const midY=s.cy-s.h*0.02;
+    const laneY=midY, x0=s.x+s.w*0.05, xe=s.x+s.w*0.95;
+    // ion lattice row
+    for(let x=x0;x<=xe;x+=s.w*0.08)dot(x,laneY,H*0.008,hexA(C.faint,0.7),2);
+    // normal electron (top) scattering
+    const ny=laneY-s.h*0.16;
+    let nx=x0+((t*s.w*0.12)%(xe-x0));
+    const scatter=Math.sin(nx*0.1)*s.h*0.03;
+    dot(nx,ny+scatter,H*0.011,C.coral,4);
+    txt('normal: scatters → resistance',s.cx,ny-s.h*0.09,hexA(C.coral,0.9),Math.min(H*0.023,15),'center',1,600);
+    // zigzag trail
+    ctx.save();ctx.strokeStyle=hexA(C.coral,0.3);ctx.lineWidth=1.2;ctx.beginPath();
+    for(let x=x0;x<nx;x+=4)ctx.lineTo(x,ny+Math.sin(x*0.1)*s.h*0.03);ctx.stroke();ctx.restore();
+    // Cooper pair (bottom) gliding straight
+    const py=laneY+s.h*0.16;
+    let px=x0+((t*s.w*0.16)%(xe-x0));
+    dot(px-H*0.012,py,H*0.011,C.blue,5);dot(px+H*0.012,py,H*0.011,C.blue,5);
+    line(px-H*0.012,py,px+H*0.012,py,hexA(C.teal,0.7),2);
+    txt('Cooper pair: glides → R = 0',s.cx,py+s.h*0.09,hexA(C.teal,0.9),Math.min(H*0.023,15),'center',1,600);
+    // Meissner levitation hint (right side small magnet)
+    const lev=eb(t,1.5,1)*Math.abs(Math.sin(t))*H*0.02;
+    ctx.save();ctx.fillStyle=hexA(C.gold,0.6);
+    ctx.fillRect(xe-s.w*0.08,laneY-s.h*0.02-lev-H*0.05, s.w*0.06,H*0.04);ctx.restore();
+  }});
+
+add({sec:3,phase:'USES',secLabel:'Condensed Matter',
+  title:'The material world, engineered',
+  sub:'',
+  cap:'Everything with a chip in it, plus MRI magnets and the next generation of materials.',
+  draw(t){ drawApps(t,[
+    {t:'Semiconductors',d:'CPUs, memory, sensors',c:C.green,icon:ICON.chip},
+    {t:'Superconductors',d:'MRI, maglev, fusion magnets',c:C.teal,icon:(x,y,r,c)=>{ring(x,y,r,c,2);dot(x,y-r*1.3,r*0.3,c);}},
+    {t:'Photovoltaics / LEDs',d:'band gaps tuned for light',c:C.gold,icon:ICON.wave},
+    {t:'Quantum materials',d:'topological & 2D materials',c:C.violet,icon:ICON.crystal},
+  ]); }});
+
+/* ============================================================
+   SECTION 4 — NUCLEAR & PARTICLE
+   ============================================================ */
+const nucMotif=(t,cx,cy,r)=>ICON.atom(cx,cy,r*0.6,C.coral,t);
+
+add({sec:4,phase:'SECTION 4',secLabel:'Nuclear & Particle',
+  title:'Inside the nucleus',
+  sub:'Cross-sections, decays, chain reactions, and the particle zoo',
+  cap:'A million times smaller than an atom, a billion times more energetic. The rules here power stars and reactors.',
+  draw(t){ sectionIntro(t,{motif:nucMotif}); }});
+
+add({sec:4,phase:'TEACH · cross-section',secLabel:'Nuclear & Particle',
+  title:'How big is a target you can\u2019t see?',
+  sub:'Cross-section σ — an effective area for “hitting”',
+  cap:'Fire particles at nuclei. The fraction that interact defines σ: not the real size, but the probability of a reaction.',
+  eq:'reaction rate = flux × σ × N<sub>targets</sub>',
+  draw(t){
+    const s=SC();
+    const tx=s.cx+s.w*0.18, ty=s.cy;
+    // target with effective area
+    ring(tx,ty,H*0.11,hexA(C.gold,0.35),1.5,0,TAU); // effective σ area
+    dot(tx,ty,H*0.03,C.coral,6); // actual nucleus
+    txt('σ',tx,ty-H*0.14,C.gold,Math.min(H*0.03,20),'center',eb(t,0.5,0.6),700,'Georgia,serif');
+    // incoming beam of particles
+    const beamY0=s.cy-s.h*0.28, beamY1=s.cy+s.h*0.28, n=9;
+    for(let i=0;i<n;i++){
+      const y=lerp(beamY0,beamY1,i/(n-1));
+      const phase=(t*0.7 + i*0.13)%1;
+      let px=lerp(s.x+s.w*0.02, tx, phase);
+      const d=Math.abs(y-ty);
+      const hit=d<H*0.11 && phase>0.85;
+      // deflect if within cross-section
+      if(hit){
+        const scat=(phase-0.85)/0.15;
+        const dy=(y-ty)*scat*1.5;
+        dot(px,y+dy,H*0.008,C.blue,3);
+        if(scat>0.1)line(tx,ty,px,y+dy,hexA(C.blue,0.3),1);
+      }else{
+        dot(px,y,H*0.008,hexA(C.blue,0.8),2);
+      }
+    }
+    txt('beam',s.x+s.w*0.04,s.cy-s.h*0.33,C.dim,Math.min(H*0.022,14),'left',1,500);
+  }});
+
+add({sec:4,phase:'TEACH · decay',secLabel:'Nuclear & Particle',
+  title:'Half of what\u2019s left, every time',
+  sub:'Decay chains and half-life',
+  cap:'Unstable nuclei transform step by step. Each isotope halves in a fixed time — an exponential no memory can beat.',
+  eq:'N(t) = N₀ · (½)<sup>t/t½</sup>',
+  draw(t){
+    const s=SC();
+    // decay curve building
+    const gx=s.x+s.w*0.08, gy=s.cy+s.h*0.28, gw=s.w*0.5, gh=s.h*0.5;
+    line(gx,gy,gx+gw,gy,C.faint,1.4);line(gx,gy,gx,gy-gh,C.faint,1.4);
+    const pts=[];const prog=eb(t,0.3,3);
+    for(let i=0;i<=60*prog;i++){const f=i/60; const val=Math.pow(0.5,f*4);
+      pts.push([gx+f*gw, gy-val*gh]);}
+    poly(pts,C.teal,2.4,1);
+    // half-life ticks
+    for(let k=1;k<=3;k++){const f=k/4;const val=Math.pow(0.5,k);
+      const x=gx+f*gw, yv=gy-val*gh;
+      if(prog>f){line(x,gy,x,yv,hexA(C.gold,0.4),1,1,[3,3]);
+        line(gx,yv,x,yv,hexA(C.gold,0.4),1,1,[3,3]);
+        txt('t½',x,gy+H*0.028,C.gold,Math.min(H*0.02,13),'center',1);}
+    }
+    txt('N',gx-H*0.02,gy-gh,C.dim,Math.min(H*0.02,13),'center',1);
+    txt('time',gx+gw,gy+H*0.03,C.dim,Math.min(H*0.02,13),'center',1);
+    // decay chain on the right
+    const chain=['U','Th','Ra','...','Pb'];
+    const colc=[C.coral,C.gold,C.violet,C.dim,C.green];
+    const cx0=s.x+s.w*0.68, cy0=s.y+s.h*0.14, dy=s.h*0.16;
+    for(let i=0;i<chain.length;i++){
+      const b=eb(t,0.5+i*0.5,0.5); if(b<=0)continue;
+      const y=cy0+i*dy;
+      dot(cx0,y,H*0.016,colc[i],4);
+      txt(chain[i],cx0,y,C.bg,Math.min(H*0.02,13),'center',b,700);
+      if(i<chain.length-1)arrow(cx0,y+H*0.02,cx0,cy0+(i+1)*dy-H*0.02,hexA(colc[i],b),1.6,eb(t,0.8+i*0.5,0.4),7);
+      txt(['α','β','α','','stable'][i],cx0+H*0.03,y+dy/2,C.dim,Math.min(H*0.018,12),'left',b,400);
+    }
+    txt('decay chain',cx0,cy0-H*0.05,C.dim,Math.min(H*0.022,14),'center',eb(t,0.4,0.5),600);
+  }});
+
+add({sec:4,phase:'RECAP',secLabel:'Nuclear & Particle',
+  title:'Here\u2019s what we have so far',
+  sub:'',
+  cap:'A way to score interactions, and a clock for instability.',
+  draw(t){ drawRecap(t,[
+    {t:'Cross-section σ = probability of a reaction',c:C.gold},
+    {t:'Unstable nuclei decay along chains',c:C.violet},
+    {t:'Half-life sets the exponential timing',c:C.teal},
+  ]); }});
+
+add({sec:4,phase:'GAP',secLabel:'Nuclear & Particle',
+  title:'One fission makes 2–3 neutrons — why no instant blast?',
+  sub:'If each split triggers more splits, what holds it steady?',
+  cap:'A runaway is possible in principle. What lets a reactor hum along instead of exploding?',
+  draw(t){ drawGap(t); }});
+
+add({sec:4,phase:'FILL · reactor',secLabel:'Nuclear & Particle',
+  title:'Criticality is a knife-edge',
+  sub:'Control rods hold k = 1',
+  cap:'Each fission must cause exactly one more (k=1). Control rods absorb spare neutrons — steady power, not a bomb.',
+  eq:'k < 1 subcritical · k = 1 steady · k > 1 runaway',
+  draw(t){
+    const s=SC();
+    const cx=s.cx, top=s.y+s.h*0.06;
+    // branching neutron tree, then rods clamp it
+    const clamp2=0.5+0.5*Math.sin(t*0.8); // rods in/out
+    const levels=4;
+    let nodes=[[cx,top]];
+    for(let L=0;L<levels;L++){
+      const next=[];
+      const dy=s.h*0.2;
+      const b=eb(t,0.3+L*0.4,0.5);
+      nodes.forEach((nd)=>{
+        // number of children reduced by control rods
+        const kids=(L>=1 && clamp2>0.5)?1:2;
+        for(let c=0;c<kids;c++){
+          const spread=s.w*0.42/Math.pow(2,L)* (kids>1? (c===0?-1:1):0);
+          const nx=nd[0]+spread*0.9, ny=nd[1]+dy;
+          if(b>0){
+            line(nd[0],nd[1],nx,ny,hexA(C.gold,0.5*b),1.6,b);
+            dot(nx,ny,H*0.01*b,C.coral,3);
+          }
+          next.push([nx,ny]);
+        }
+      });
+      nodes=next;
+    }
+    dot(cx,top,H*0.014,C.blue,6);
+    txt('n',cx,top-H*0.03,C.blue,Math.min(H*0.022,14),'center',1,600);
+    // control rods
+    const rodIn=clamp2>0.5;
+    ctx.save();ctx.globalAlpha=eb(t,1.2,0.8);
+    for(let i=-1;i<=1;i+=2){
+      const rx=cx+i*s.w*0.14;
+      const ry=rodIn? s.y+s.h*0.2 : s.y+s.h*0.02;
+      ctx.fillStyle=hexA(C.teal,0.8);ctx.fillRect(rx-6,s.y,12,ry-s.y);
+    }
+    txt(rodIn?'rods in → k ≈ 1 (steady)':'rods out → k > 1 (rising)',
+      cx,s.y+s.h*0.9,rodIn?C.teal:C.coral,Math.min(H*0.024,15),'center',eb(t,1.4,0.6),600);
+    ctx.restore();
+  }});
+
+add({sec:4,phase:'TEACH · Standard Model',secLabel:'Nuclear & Particle',
+  title:'The particle catalogue',
+  sub:'Matter, forces, and the Higgs — organized',
+  cap:'Quarks and leptons build matter; gauge bosons carry forces; the Higgs gives mass. Every known particle fits this chart.',
+  eq:'6 quarks · 6 leptons · 4 force carriers · 1 Higgs',
+  draw(t){
+    const s=SC();
+    const cols=4, gx=s.x+s.w*0.06, gw=s.w*0.62/cols, gy=s.y+s.h*0.06, gh=s.h*0.22;
+    const quarks=['u','d','c','s','t','b'], leptons=['e','νe','μ','νμ','τ','ντ'];
+    const drawTile=(x,y,label,col,i,base)=>{
+      const b=eb(t,base+i*0.08,0.4); if(b<=0)return;
+      ctx.save();ctx.globalAlpha=b;
+      ctx.strokeStyle=hexA(col,0.7);ctx.lineWidth=1.4;rr(x,y,gw*0.86,gh*0.86,6);ctx.stroke();
+      ctx.fillStyle=hexA(col,0.1);ctx.fill();
+      txt(label,x+gw*0.43,y+gh*0.43,C.ink,Math.min(H*0.03,20),'center',1,600);
+      ctx.restore();
+    };
+    // quarks grid 3x2
+    for(let i=0;i<6;i++){const c=i%3,r=Math.floor(i/3);
+      drawTile(gx+c*gw,gy+r*gh,quarks[i],C.gold,i,0.2);}
+    txt('quarks',gx+gw*1.3,gy+gh*2.1,C.gold,Math.min(H*0.022,14),'center',eb(t,0.3,0.5),600);
+    // leptons grid 3x2 below
+    for(let i=0;i<6;i++){const c=i%3,r=Math.floor(i/3);
+      drawTile(gx+c*gw,gy+gh*2.4+r*gh,leptons[i],C.teal,i,0.7);}
+    txt('leptons',gx+gw*1.3,gy+gh*4.5,C.teal,Math.min(H*0.022,14),'center',eb(t,0.8,0.5),600);
+    // bosons column on right
+    const bx=gx+gw*3.3, bosons=[['g',C.violet],['γ',C.gold],['W/Z',C.blue],['H',C.coral]];
+    bosons.forEach((bo,i)=>{drawTile(bx,gy+i*gh*1.15,bo[0],bo[1],i,1.2);});
+    txt('force carriers + Higgs',bx+gw*0.4,gy+gh*4.8,C.dim,Math.min(H*0.02,13),'center',eb(t,1.4,0.5),500);
+  }});
+
+add({sec:4,phase:'USES',secLabel:'Nuclear & Particle',
+  title:'Energy, medicine, and cosmic tools',
+  sub:'',
+  cap:'From carbon-free power to cancer therapy to dating the age of rocks and stars.',
+  draw(t){ drawApps(t,[
+    {t:'Nuclear power',d:'reactors, and fusion research',c:C.coral,icon:ICON.reactor},
+    {t:'Medical physics',d:'PET, radiotherapy, isotopes',c:C.teal,icon:ICON.scan},
+    {t:'Radiodating',d:'geology & archaeology clocks',c:C.gold,icon:ICON.gps},
+    {t:'Astrophysics',d:'stellar fusion, nucleosynthesis',c:C.violet,icon:ICON.star},
+  ]); }});
+
+/* ============================================================
+   SECTION 5 — NONLINEAR DYNAMICS & CHAOS
+   ============================================================ */
+let lorenzTrail=[], lorenzTrail2=[], lorenzState=null;
+const chaosMotif=(t,cx,cy,r)=>{
+  // small lorenz swirl
+  ctx.save();ctx.strokeStyle=hexA(C.violet,0.6);ctx.lineWidth=1.5;
+  ctx.beginPath();
+  let x=1,y=1,z=1;const dt=0.008;
+  ctx.moveTo(cx,cy);
+  for(let i=0;i<400;i++){
+    const dx=10*(y-x),dy=x*(28-z)-y,dz=x*y-8/3*z;
+    x+=dx*dt;y+=dy*dt;z+=dz*dt;
+    ctx.lineTo(cx+x*r*0.05, cy+(z-25)*r*0.05);
+  }
+  ctx.stroke();ctx.restore();
+};
+
+add({sec:5,phase:'SECTION 5',secLabel:'Nonlinear & Chaos',
+  title:'When simple rules go wild',
+  sub:'Nonlinearity, chaos, and emergence',
+  cap:'Deterministic laws don\u2019t guarantee predictability. Tiny causes can grow into totally different outcomes.',
+  draw(t){ sectionIntro(t,{motif:chaosMotif}); }});
+
+add({sec:5,phase:'TEACH · nonlinearity',secLabel:'Nonlinear & Chaos',
+  title:'Feedback that folds back on itself',
+  sub:'A driven pendulum — order, then complexity',
+  cap:'Push a pendulum gently and it repeats. Drive it harder and the response stops being proportional — motion turns intricate.',
+  eq:'θ̈ + γθ̇ + sin θ = A cos(ω t)',
+  draw(t){
+    const s=SC();
+    // pendulum on left, phase-space on right
+    const px=s.x+s.w*0.24, py=s.y+s.h*0.1, L=s.h*0.42;
+    const drive=eb(t,0.5,2);
+    const ang=Math.sin(t*1.6)*(0.4+drive*1.3)+Math.sin(t*3.1)*drive*0.5;
+    const bx=px+Math.sin(ang)*L, by=py+Math.cos(ang)*L;
+    line(px-s.w*0.06,py,px+s.w*0.06,py,C.faint,2);
+    line(px,py,bx,by,C.dim,2);
+    dot(bx,by,H*0.02,drive>0.6?C.coral:C.blue,5);
+    txt(drive>0.6?'hard drive → complex':'gentle → periodic',px,s.y+s.h*0.62,
+      drive>0.6?C.coral:C.blue,Math.min(H*0.023,15),'center',1,600);
+    // phase space (theta, omega)
+    const ax=s.x+s.w*0.62, ay=s.cy, aw=s.w*0.32, ah=s.h*0.5;
+    line(ax,ay,ax+aw,ay,C.faint,1);line(ax+aw/2,ay-ah/2,ax+aw/2,ay+ah/2,C.faint,1);
+    // trace last positions
+    ctx.save();ctx.strokeStyle=hexA(C.violet,0.6);ctx.lineWidth=1.4;ctx.beginPath();
+    for(let i=0;i<120;i++){const tt=t-i*0.03;
+      const a=Math.sin(tt*1.6)*(0.4+drive*1.3)+Math.sin(tt*3.1)*drive*0.5;
+      const w=Math.cos(tt*1.6)*1.6*(0.4+drive*1.3);
+      const X=ax+aw/2+a*aw*0.22, Y=ay-w*ah*0.22;
+      i===0?ctx.moveTo(X,Y):ctx.lineTo(X,Y);}
+    ctx.stroke();ctx.restore();
+    txt('phase space',ax+aw/2,ay+ah*0.62,C.dim,Math.min(H*0.02,13),'center',1);
+  }});
+
+add({sec:5,phase:'RECAP',secLabel:'Nonlinear & Chaos',
+  title:'Here\u2019s what we have so far',
+  sub:'',
+  cap:'The equations are exact and deterministic — nothing random inside them.',
+  draw(t){ drawRecap(t,[
+    {t:'Nonlinear feedback can fold simple motion',c:C.blue},
+    {t:'Driving harder shifts periodic → intricate',c:C.coral},
+    {t:'The laws stay fully deterministic',c:C.teal},
+  ]); }});
+
+add({sec:5,phase:'GAP',secLabel:'Nonlinear & Chaos',
+  title:'So why can\u2019t we predict the weather?',
+  sub:'The equations are known exactly — the future should follow',
+  cap:'If it\u2019s deterministic, prediction should be possible. What quietly destroys it?',
+  draw(t){ drawGap(t); }});
+
+add({sec:5,phase:'FILL · chaos',secLabel:'Nonlinear & Chaos',
+  title:'Sensitive dependence — the butterfly',
+  sub:'The Lorenz attractor: bounded, ordered, unpredictable',
+  cap:'Two nearly identical starts diverge exponentially. The trajectory is structured yet never repeats — deterministic chaos.',
+  eq:'ẋ=σ(y−x) · ẏ=x(ρ−z)−y · ż=xy−βz',
+  draw(t){
+    const s=SC();
+    if(!lorenzState){ lorenzState={a:{x:1,y:1,z:1},b:{x:1.001,y:1,z:1}}; lorenzTrail=[];lorenzTrail2=[]; }
+    const dt=0.006, steps=6, sc=Math.min(s.w,s.h)*0.026, cx=s.cx, cy=s.cy+s.h*0.06;
+    const step=(st)=>{const dx=10*(st.y-st.x),dy=st.x*(28-st.z)-st.y,dz=st.x*st.y-8/3*st.z;
+      st.x+=dx*dt;st.y+=dy*dt;st.z+=dz*dt;};
+    for(let i=0;i<steps;i++){step(lorenzState.a);step(lorenzState.b);
+      lorenzTrail.push([cx+lorenzState.a.x*sc, cy+(lorenzState.a.z-27)*sc]);
+      lorenzTrail2.push([cx+lorenzState.b.x*sc, cy+(lorenzState.b.z-27)*sc]);}
+    if(lorenzTrail.length>1600){lorenzTrail.splice(0,steps);lorenzTrail2.splice(0,steps);}
+    // draw trails with fading tail
+    const drawTrail=(arr,col)=>{ctx.save();ctx.lineWidth=1.4;
+      for(let i=1;i<arr.length;i++){ctx.strokeStyle=hexA(col,i/arr.length*0.8);
+        ctx.beginPath();ctx.moveTo(arr[i-1][0],arr[i-1][1]);ctx.lineTo(arr[i][0],arr[i][1]);ctx.stroke();}
+      ctx.restore();};
+    drawTrail(lorenzTrail,C.blue);
+    drawTrail(lorenzTrail2,C.coral);
+    // heads
+    const h1=lorenzTrail[lorenzTrail.length-1], h2=lorenzTrail2[lorenzTrail2.length-1];
+    if(h1)dot(h1[0],h1[1],H*0.01,C.blue,6);
+    if(h2)dot(h2[0],h2[1],H*0.01,C.coral,6);
+    txt('two starts, differ by 0.001',s.x+s.w*0.5,s.y+s.h*0.02,C.dim,Math.min(H*0.022,14),'center',1,500);
+  }});
+
+add({sec:5,phase:'TEACH · emergence',secLabel:'Nonlinear & Chaos',
+  title:'Local rules, global order',
+  sub:'Complexity: the whole is a new thing',
+  cap:'No leader, no blueprint — each agent follows neighbours, and coherent patterns emerge. Life, markets, and turbulence rhyme.',
+  eq:'simple interactions × many parts → emergent structure',
+  draw(t){
+    const s=SC();
+    // boids-lite flocking
+    if(!S._boids){S._boids=[];for(let i=0;i<42;i++)S._boids.push({
+      x:s.x+Math.random()*s.w,y:s.y+Math.random()*s.h,
+      a:Math.random()*TAU});}
+    const B=S._boids;
+    // compute average heading (alignment) toward center-ish
+    let mA=0;B.forEach(b=>mA+=b.a);mA/=B.length;
+    const cx=s.cx,cy=s.cy;
+    B.forEach(b=>{
+      // align to mean + slight cohesion to center
+      const toC=Math.atan2(cy-b.y,cx-b.x);
+      let target=mA*0.7+toC*0.3;
+      // steer
+      let d=((target-b.a+Math.PI*3)%TAU)-Math.PI;
+      b.a+=d*0.05+ (Math.random()-0.5)*0.05;
+      b.x+=Math.cos(b.a)*s.w*0.004;
+      b.y+=Math.sin(b.a)*s.w*0.004;
+      // wrap
+      if(b.x<s.x)b.x=s.x+s.w;if(b.x>s.x+s.w)b.x=s.x;
+      if(b.y<s.y)b.y=s.y+s.h;if(b.y>s.y+s.h)b.y=s.y;
+      // draw as little triangle
+      ctx.save();ctx.translate(b.x,b.y);ctx.rotate(b.a);
+      ctx.fillStyle=hexA(C.teal,0.85);ctx.beginPath();
+      ctx.moveTo(H*0.012,0);ctx.lineTo(-H*0.008,H*0.006);ctx.lineTo(-H*0.008,-H*0.006);
+      ctx.closePath();ctx.fill();ctx.restore();
+    });
+    txt('each follows its neighbours → the flock appears',s.cx,s.y+s.h*0.02,
+      hexA(C.teal,0.9),Math.min(H*0.022,14),'center',eb(t,0.4,0.8),500);
+  }});
+
+add({sec:5,phase:'USES',secLabel:'Nonlinear & Chaos',
+  title:'Where chaos and complexity live',
+  sub:'',
+  cap:'From forecasting limits to turbulence, ecosystems, and the machinery of the brain.',
+  draw(t){ drawApps(t,[
+    {t:'Weather & climate',d:'ensemble forecasting',c:C.blue,icon:ICON.weather},
+    {t:'Turbulence',d:'flow, mixing, engineering',c:C.teal,icon:ICON.cool},
+    {t:'Networks & markets',d:'cascades, tipping points',c:C.gold,icon:ICON.brain},
+    {t:'Biology',d:'heartbeats, neurons, ecosystems',c:C.coral,icon:ICON.brain},
+  ]); }});
+
+/* ---------- SYNTHESIS ---------- */
+add({sec:6,phase:'THE WHOLE PICTURE',secLabel:'Synthesis',
+  title:'One method, every frontier',
+  sub:'Build · recap · find the gap · fill it',
+  cap:'Geometry, fields, lattices, nuclei, chaos — each grew from one honest question about a missing piece.',
+  draw(t){
+    const s=SC();
+    const nodes=[
+      ['Relativity',C.blue,grMotif],
+      ['Fields',C.violet,qftMotif],
+      ['Matter',C.green,cmMotif],
+      ['Nucleus',C.coral,nucMotif],
+      ['Chaos',C.teal,chaosMotif],
+    ];
+    const R=Math.min(s.w,s.h)*0.36, cx=s.cx, cy=s.cy;
+    // central node
+    dot(cx,cy,H*0.02,C.gold,10);
+    txt('physics',cx,cy+H*0.05,C.gold,Math.min(H*0.024,15),'center',eb(t,0.2,0.6),600);
+    nodes.forEach((nd,i)=>{
+      const b=eb(t,0.3+i*0.35,0.6); if(b<=0)return;
+      const a=-Math.PI/2+i*TAU/5;
+      const x=cx+Math.cos(a)*R, y=cy+Math.sin(a)*R*0.8;
+      line(cx,cy,x,y,hexA(nd[1],0.35*b),1.6,b);
+      ctx.save();ctx.globalAlpha=b;
+      nd[2](t,x,y,H*0.06);
+      ctx.restore();
+      txt(nd[0],x,y+H*0.09,nd[1],Math.min(H*0.024,15),'center',b,600);
+    });
+  }});
+
+/* ===================== driver ===================== */
+let idx=0, slideStart=performance.now();
+const elPhase=document.getElementById('phase'),
+      elSec=document.getElementById('sec'),
+      elTitle=document.getElementById('title'),
+      elSub=document.getElementById('sub'),
+      elCap=document.getElementById('cap'),
+      elEq=document.getElementById('eq'),
+      elCount=document.getElementById('count'),
+      dotsWrap=document.getElementById('dots');
+
+const secColors=[C.dim,C.blue,C.violet,C.green,C.coral,C.teal,C.gold];
+
+// build dots
+S.forEach((sl,i)=>{
+  const d=document.createElement('div');d.className='dot';
+  d.style.background=hexA(secColors[sl.sec]||C.dim,0.5);
+  d.title=(sl.secLabel||'')+' — '+sl.title;
+  d.addEventListener('click',()=>go(i));
+  dotsWrap.appendChild(d);
+});
+const dotEls=[...dotsWrap.children];
+
+function setMeta(sl){
+  elPhase.textContent=sl.phase||'';
+  elPhase.style.display=sl.phase?'inline-block':'none';
+  elPhase.style.color=secColors[sl.sec]||C.dim;
+  elPhase.style.borderColor=hexA(secColors[sl.sec]||C.dim,0.4);
+  elSec.textContent= sl.secLabel? (sl.sec>0&&sl.sec<6? 'Section '+sl.sec+' · '+sl.secLabel : sl.secLabel) : '';
+  elTitle.innerHTML=sl.title||'';
+  elSub.innerHTML=sl.sub||''; elSub.style.opacity=sl.sub?1:0;
+  elCap.innerHTML=sl.cap||'';
+  elEq.innerHTML=sl.eq||''; elEq.style.opacity=sl.eq?1:0;
+  elCount.textContent=(idx+1)+' / '+S.length;
+  dotEls.forEach((d,i)=>{d.classList.toggle('on',i===idx);
+    d.style.background= i===idx? (secColors[S[i].sec]||C.ink) : hexA(secColors[S[i].sec]||C.dim,0.45);});
+}
+function go(i){
+  idx=clamp(i,0,S.length-1);
+  slideStart=performance.now();
+  // reset stateful scenes
+  lorenzState=null; S._boids=null;
+  // fade overlays
+  [elTitle,elSub,elCap,elEq,elPhase,elSec].forEach(e=>{e.style.opacity=0;});
+  setTimeout(()=>{setMeta(S[idx]);
+    [elTitle,elCap,elPhase,elSec].forEach(e=>e.style.opacity=1);
+    if(S[idx].sub)elSub.style.opacity=1; if(S[idx].eq)elEq.style.opacity=1;},140);
+}
+document.getElementById('next').addEventListener('click',()=>go(idx+1));
+document.getElementById('prev').addEventListener('click',()=>go(idx-1));
+document.getElementById('replay').addEventListener('click',()=>{slideStart=performance.now();lorenzState=null;S._boids=null;});
+window.addEventListener('keydown',e=>{
+  if(e.key==='ArrowRight'||e.key===' '){e.preventDefault();go(idx+1);}
+  else if(e.key==='ArrowLeft'){go(idx-1);}
+  else if(e.key==='r'||e.key==='R'){slideStart=performance.now();lorenzState=null;S._boids=null;}
+});
+
+function frame(now){
+  resize();
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  ctx.clearRect(0,0,W,H);
+  const t=(now-slideStart)/1000;
+  try{ S[idx].draw(t); }catch(err){ /* keep the loop alive */ }
+  requestAnimationFrame(frame);
+}
+resize(); setMeta(S[0]); requestAnimationFrame(frame);
+</script>
+</body>
+</html>

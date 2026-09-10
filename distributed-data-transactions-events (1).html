@@ -1,0 +1,1613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Distributed Data, Transactions &amp; Events</title>
+<style>
+  :root{
+    --bg:#07090a;
+    --panel:#0d1315;
+    --grid:#1a2124;
+    --text:#e8ecec;
+    --muted:#8a9598;
+    --teal:#4fb3a6;
+    --amber:#c9a24d;
+    --rose:#c96a6a;
+    --violet:#8f7fc9;
+    --blue:#5b8fc9;
+    --green:#79b57a;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;background:#000;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+    color:var(--text);
+    -webkit-font-smoothing:antialiased;
+    overflow:hidden;
+  }
+  #app{
+    width:100vw;height:100vh;
+    display:flex;align-items:center;justify-content:center;
+    background:#000;
+  }
+  #stage{
+    position:relative;
+    width:min(96vw, 170.6vh);
+    height:min(96vh, 54vw);
+    aspect-ratio:16/9;
+    background:radial-gradient(ellipse at 30% 0%, #0b1012 0%, var(--bg) 55%);
+    border-radius:8px;
+    overflow:hidden;
+    box-shadow:0 0 0 1px #16191a, 0 30px 80px rgba(0,0,0,.6);
+  }
+  #deck{position:absolute;inset:0;}
+  .slide{
+    position:absolute;inset:0;
+    display:flex;flex-direction:column;
+    padding:44px 64px 70px 64px;
+    opacity:0;
+    animation:slideIn .35s ease forwards;
+  }
+  @keyframes slideIn{from{opacity:0;}to{opacity:1;}}
+  .slide.leaving{animation:slideOut .15s ease forwards;}
+  @keyframes slideOut{from{opacity:1;}to{opacity:0;}}
+
+  .eyebrow{
+    font-size:12.5px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--section,var(--teal));font-weight:600;
+  }
+  .title{
+    font-size:30px;font-weight:650;color:var(--text);
+    margin:8px 0 0 0;letter-spacing:-.01em;
+  }
+  .subtitle{
+    font-size:15.5px;color:var(--muted);margin:8px 0 0 0;max-width:900px;line-height:1.5;
+  }
+  .fade-up{opacity:0;transform:translateY(10px);animation:fadeUp .55s cubic-bezier(.2,.7,.3,1) forwards;}
+  @keyframes fadeUp{to{opacity:1;transform:translateY(0);}}
+  .pop{opacity:0;transform:scale(.55);transform-box:fill-box;transform-origin:center;
+       animation:popIn .5s cubic-bezier(.25,.9,.3,1.25) forwards;}
+  @keyframes popIn{to{opacity:1;transform:scale(1);}}
+  .pulse{animation:pulseSoft 2s ease-in-out infinite;}
+  @keyframes pulseSoft{0%,100%{opacity:.5;}50%{opacity:1;}}
+  .bob{animation:bobY 2.6s ease-in-out infinite;}
+  @keyframes bobY{0%,100%{transform:translateY(0);}50%{transform:translateY(-5px);}}
+
+  .canvas-wrap{flex:1;position:relative;margin-top:14px;min-height:0;}
+  svg.diagram{width:100%;height:100%;display:block;overflow:visible;}
+  .node{fill:var(--panel);stroke:var(--teal);stroke-width:2;}
+  .node.amber{stroke:var(--amber);} .node.rose{stroke:var(--rose);}
+  .node.violet{stroke:var(--violet);} .node.blue{stroke:var(--blue);}
+  .node.green{stroke:var(--green);}
+  .node.dim{stroke:var(--muted);opacity:.45;}
+  .node.filled-teal{fill:var(--teal);fill-opacity:.18;}
+  .node.filled-amber{fill:var(--amber);fill-opacity:.18;}
+  .node.filled-rose{fill:var(--rose);fill-opacity:.18;}
+  .node-label{fill:var(--text);font-size:13px;text-anchor:middle;font-family:inherit;}
+  .lbl{fill:var(--muted);font-size:12.5px;text-anchor:middle;}
+  .lbl.left{text-anchor:start;} .lbl.right{text-anchor:end;}
+  .lbl-strong{fill:var(--text);font-size:14px;text-anchor:middle;font-weight:600;}
+  .mono{font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace;}
+  .edge{stroke:var(--grid);stroke-width:1.6;fill:none;}
+  .edge.teal{stroke:var(--teal);} .edge.amber{stroke:var(--amber);}
+  .edge.rose{stroke:var(--rose);} .edge.violet{stroke:var(--violet);}
+  .edge.dashed{stroke-dasharray:5 5;}
+  .box{fill:var(--panel);stroke:var(--grid);stroke-width:1.6;rx:8;}
+  .box.teal{stroke:var(--teal);} .box.amber{stroke:var(--amber);}
+  .box.rose{stroke:var(--rose);} .box.violet{stroke:var(--violet);}
+  .box.blue{stroke:var(--blue);}
+  .bubble{fill:var(--panel);stroke:var(--grid);stroke-width:1.6;}
+  .bubble.teal{stroke:var(--teal);} .bubble.amber{stroke:var(--amber);}
+  .bubble.violet{stroke:var(--violet);} .bubble.rose{stroke:var(--rose);}
+  .arrowhead{fill:var(--muted);}
+  marker.teal-head path{fill:var(--teal);}
+
+  .formula-box{
+    margin-top:14px;display:inline-block;padding:9px 16px;border-radius:6px;
+    background:rgba(255,255,255,.03);border:1px solid var(--grid);
+    color:var(--amber);font-size:14.5px;letter-spacing:.01em;
+  }
+  .note-box{
+    margin-top:12px;font-size:13.5px;color:var(--muted);max-width:900px;
+  }
+
+  .chip{
+    display:inline-flex;flex-direction:column;gap:2px;
+    padding:10px 14px;border-radius:8px;background:var(--panel);
+    border:1px solid var(--grid);font-size:13px;
+  }
+  .chip b{color:var(--text);font-size:13.5px;}
+  .chip span{color:var(--muted);font-size:12px;}
+  .chip-row{display:flex;flex-wrap:wrap;gap:12px;margin-top:16px;}
+
+  /* GAP / cliffhanger slides */
+  .gapslide{align-items:center;justify-content:center;text-align:center;}
+  .recap-chip{
+    color:var(--section,var(--teal));font-size:14.5px;letter-spacing:.02em;
+    padding:6px 14px;border:1px solid var(--grid);border-radius:20px;
+  }
+  .qmark-wrap{margin-top:26px;width:130px;height:130px;}
+  .qcircle{fill:none;stroke:var(--section,var(--amber));stroke-width:2.2;}
+  .qtext{fill:var(--section,var(--amber));font-size:64px;text-anchor:middle;font-weight:600;}
+  .gap-q{
+    color:var(--text);font-size:23px;font-weight:600;margin-top:22px;
+    max-width:820px;line-height:1.45;
+  }
+  .gap-q em{color:var(--amber);font-style:normal;}
+  .hint{margin-top:26px;color:var(--muted);font-size:12.5px;letter-spacing:.05em;}
+
+  /* nav */
+  .nav-bar{
+    position:absolute;bottom:0;left:0;right:0;height:56px;
+    display:flex;align-items:center;gap:14px;padding:0 22px;
+    background:linear-gradient(to top, rgba(0,0,0,.55), transparent);
+    z-index:5;
+  }
+  .nav-btn{
+    width:32px;height:32px;border-radius:50%;border:1px solid var(--grid);
+    background:rgba(255,255,255,.03);color:var(--text);font-size:15px;
+    display:flex;align-items:center;justify-content:center;cursor:pointer;
+    transition:background .15s ease, border-color .15s ease;
+  }
+  .nav-btn:hover{background:rgba(255,255,255,.08);border-color:#2a3336;}
+  .progress-track{flex:1;height:3px;background:var(--grid);border-radius:2px;overflow:hidden;}
+  .progress-fill{height:100%;width:0%;background:var(--teal);transition:width .3s ease;}
+  .counter{font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums;min-width:56px;text-align:right;}
+  .section-dot{width:6px;height:6px;border-radius:50%;background:var(--grid);}
+  .section-dot.on{background:var(--teal);}
+  .section-dots{display:flex;gap:5px;margin-right:4px;}
+
+  .title-hero{
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;height:100%;
+  }
+  .title-hero .eyebrow{color:var(--muted);}
+  .title-hero h1{font-size:44px;font-weight:700;margin:14px 0 0 0;letter-spacing:-.01em;}
+  .title-hero p{font-size:16px;color:var(--muted);margin-top:14px;max-width:640px;line-height:1.55;}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="stage">
+    <div id="deck"></div>
+    <div class="nav-bar">
+      <button class="nav-btn" id="prevBtn">&#8249;</button>
+      <div class="section-dots" id="sectionDots"></div>
+      <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+      <div class="counter" id="counter">1 / 1</div>
+      <button class="nav-btn" id="nextBtn">&#8250;</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================= SVG helpers ============================= */
+const NS = "http://www.w3.org/2000/svg";
+function el(tag, attrs){
+  const e = document.createElementNS(NS, tag);
+  if(attrs) for(const k in attrs) e.setAttribute(k, attrs[k]);
+  return e;
+}
+function txt(x,y,str,cls){
+  const t = el('text',{x:x,y:y,class:cls||'lbl'});
+  t.textContent = str;
+  return t;
+}
+function grp(cls){ return el('g', cls?{class:cls}:null); }
+function line(x1,y1,x2,y2,cls){ return el('line',{x1:x1,y1:y1,x2:x2,y2:y2,class:'edge '+(cls||'')}); }
+function pathEl(d,cls){ return el('path',{d:d,class:'edge '+(cls||'')}); }
+function circ(x,y,r,cls){ return el('circle',{cx:x,cy:y,r:r,class:'node '+(cls||'')}); }
+function rect(x,y,w,h,cls,rx){ return el('rect',{x:x,y:y,width:w,height:h,rx:rx||8,class:'box '+(cls||'')}); }
+function ring(cx,cy,r,n,start){
+  start = (start===undefined)?-90:start;
+  const pts=[];
+  for(let i=0;i<n;i++){
+    const a = (start + i*360/n) * Math.PI/180;
+    pts.push({x: cx + r*Math.cos(a), y: cy + r*Math.sin(a)});
+  }
+  return pts;
+}
+function delayIt(node,i,base){ node.style.animationDelay = ((i||0)*(base||0.12)).toFixed(2)+'s'; return node; }
+function addDefs(svg){
+  const defs = el('defs');
+  const marker = el('marker',{id:'arrow',viewBox:'0 0 10 10',refX:'8.5',refY:'5',markerWidth:'6.5',markerHeight:'6.5',orient:'auto-start-reverse'});
+  const mp = el('path',{d:'M0,0 L10,5 L0,10 z',class:'arrowhead'});
+  marker.appendChild(mp); defs.appendChild(marker);
+
+  const markerT = el('marker',{id:'arrowTeal',viewBox:'0 0 10 10',refX:'8.5',refY:'5',markerWidth:'6.5',markerHeight:'6.5',orient:'auto-start-reverse'});
+  const mpt = el('path',{d:'M0,0 L10,5 L0,10 z',fill:'var(--teal)'});
+  markerT.appendChild(mpt); defs.appendChild(markerT);
+
+  const markerA = el('marker',{id:'arrowAmber',viewBox:'0 0 10 10',refX:'8.5',refY:'5',markerWidth:'6.5',markerHeight:'6.5',orient:'auto-start-reverse'});
+  const mpa = el('path',{d:'M0,0 L10,5 L0,10 z',fill:'var(--amber)'});
+  markerA.appendChild(mpa); defs.appendChild(markerA);
+
+  const markerR = el('marker',{id:'arrowRose',viewBox:'0 0 10 10',refX:'8.5',refY:'5',markerWidth:'6.5',markerHeight:'6.5',orient:'auto-start-reverse'});
+  const mpr = el('path',{d:'M0,0 L10,5 L0,10 z',fill:'var(--rose)'});
+  markerR.appendChild(mpr); defs.appendChild(markerR);
+
+  svg.appendChild(defs);
+}
+function arrow(x1,y1,x2,y2,cls,markerId){
+  return el('line',{x1:x1,y1:y1,x2:x2,y2:y2,class:'edge '+(cls||''),'marker-end':'url(#'+(markerId||'arrow')+')'});
+}
+function curve(x1,y1,x2,y2,bend,cls,markerId){
+  const mx=(x1+x2)/2, my=(y1+y2)/2 - (bend||40);
+  const d = 'M '+x1+' '+y1+' Q '+mx+' '+my+' '+x2+' '+y2;
+  const attrs = {d:d, class:'edge '+(cls||'')};
+  if(markerId) attrs['marker-end']='url(#'+markerId+')';
+  return el('path', attrs);
+}
+
+/* ============================= slide scaffolding ============================= */
+const SECTION_VAR = {A:'var(--teal)', B:'var(--amber)', C:'var(--violet)'};
+function canvas(root, vb){
+  const wrap = document.createElement('div'); wrap.className='canvas-wrap';
+  const svg = el('svg',{viewBox: vb||'0 0 1200 560', class:'diagram'});
+  addDefs(svg);
+  wrap.appendChild(svg);
+  root.appendChild(wrap);
+  return svg;
+}
+function header(root, cfg){
+  if(cfg.section) root.style.setProperty('--section', SECTION_VAR[cfg.section]);
+  const e1 = document.createElement('div'); e1.className='eyebrow fade-up'; e1.textContent = cfg.eyebrow;
+  root.appendChild(e1);
+  const h = document.createElement('h2'); h.className='title fade-up'; h.style.animationDelay='.07s'; h.textContent = cfg.title;
+  root.appendChild(h);
+  if(cfg.sub){
+    const p = document.createElement('p'); p.className='subtitle fade-up'; p.style.animationDelay='.14s'; p.textContent = cfg.sub;
+    root.appendChild(p);
+  }
+}
+function formulaBox(root, str, delay){
+  const d = document.createElement('div'); d.className='formula-box mono fade-up';
+  d.style.animationDelay=(delay||0.32)+'s'; d.textContent = str;
+  root.appendChild(d);
+  return d;
+}
+function noteBox(root, str, delay){
+  const d = document.createElement('div'); d.className='note-box fade-up';
+  d.style.animationDelay=(delay||0.32)+'s'; d.textContent = str;
+  root.appendChild(d);
+  return d;
+}
+function chipRow(root, items, delay){
+  const wrap = document.createElement('div'); wrap.className='chip-row fade-up';
+  wrap.style.animationDelay=(delay||0.3)+'s';
+  items.forEach(function(it, i){
+    const c = document.createElement('div'); c.className='chip fade-up';
+    c.style.animationDelay=((delay||0.3)+ i*0.08)+'s';
+    const b = document.createElement('b'); b.textContent = it.t;
+    const s = document.createElement('span'); s.textContent = it.d;
+    c.appendChild(b); c.appendChild(s);
+    wrap.appendChild(c);
+  });
+  root.appendChild(wrap);
+}
+function gapSlide(root, cfg){
+  root.classList.add('gapslide');
+  root.style.setProperty('--section', SECTION_VAR[cfg.section]);
+  const chip = document.createElement('div'); chip.className='recap-chip fade-up';
+  chip.textContent = 'RECAP — ' + cfg.recap;
+  root.appendChild(chip);
+
+  const qwrap = document.createElement('div'); qwrap.className='qmark-wrap pop';
+  const svg = el('svg',{viewBox:'0 0 200 200'});
+  svg.style.width='100%'; svg.style.height='100%'; svg.style.overflow='visible';
+  const c = el('circle',{cx:100,cy:100,r:66,class:'qcircle pulse'});
+  svg.appendChild(c);
+  svg.appendChild(txt(100,124,'?','qtext'));
+  qwrap.appendChild(svg);
+  root.appendChild(qwrap);
+
+  const q = document.createElement('div'); q.className='gap-q fade-up'; q.style.animationDelay='.22s';
+  q.textContent = cfg.gap;
+  root.appendChild(q);
+
+  const hint = document.createElement('div'); hint.className='hint pulse';
+  hint.textContent = 'keep going \u2192';
+  root.appendChild(hint);
+}
+
+/* ============================= deck engine ============================= */
+const slides = [];
+function addSlide(section, fn){ fn.section = section; slides.push(fn); }
+
+let current = -1;
+const timers = [];
+function clearTimers(){ timers.forEach(function(id){ clearInterval(id); clearTimeout(id); }); timers.length = 0; }
+const deckEl = document.getElementById('deck');
+
+function prepDraw(root){
+  const els = root.querySelectorAll('.draw');
+  els.forEach(function(p, i){
+    let len = 120;
+    try { len = p.getTotalLength(); } catch(e){}
+    p.style.strokeDasharray = len;
+    p.style.strokeDashoffset = len;
+    p.style.transition = 'none';
+    void p.getBoundingClientRect();
+    p.style.transition = 'stroke-dashoffset 0.9s ease ' + (i*0.1).toFixed(2) + 's';
+    requestAnimationFrame(function(){ p.style.strokeDashoffset = 0; });
+  });
+}
+
+const SECTIONS = ['A','A','A','A','A','A','A','A','A','A','A','A','A','A','A','A','A','A','A','A','A','A','A','A','A','A','A','A','A'];
+function showSlide(i){
+  i = Math.max(0, Math.min(slides.length-1, i));
+  if(i === current) return;
+  clearTimers();
+  current = i;
+  deckEl.innerHTML = '';
+  const root = document.createElement('section');
+  root.className = 'slide';
+  deckEl.appendChild(root);
+  slides[i](root, timers);
+  requestAnimationFrame(function(){ requestAnimationFrame(function(){ prepDraw(root); }); });
+  updateChrome();
+}
+function updateChrome(){
+  document.getElementById('counter').textContent = (current+1) + ' / ' + slides.length;
+  document.getElementById('progressFill').style.width = (((current+1)/slides.length)*100).toFixed(1) + '%';
+  const dotsWrap = document.getElementById('sectionDots');
+  const sec = slides[current].section;
+  const order = ['A','B','C'];
+  dotsWrap.innerHTML = '';
+  order.forEach(function(s){
+    const d = document.createElement('div');
+    d.className = 'section-dot' + (s===sec ? ' on' : '');
+    dotsWrap.appendChild(d);
+  });
+}
+
+/* ===================================================================== */
+/*                                 SLIDE 0                                */
+/* ===================================================================== */
+addSlide('A', function(root){
+  root.classList.add('title-hero');
+  root.style.setProperty('--section','var(--teal)');
+  const e = document.createElement('div'); e.className='eyebrow fade-up'; e.textContent='SYSTEM DESIGN \u00b7 DISTRIBUTED PATTERNS';
+  root.appendChild(e);
+  const h = document.createElement('h1'); h.className='fade-up'; h.style.animationDelay='.08s';
+  h.textContent = 'Distributed Data, Transactions & Events';
+  root.appendChild(h);
+  const p = document.createElement('p'); p.className='fade-up'; p.style.animationDelay='.16s';
+  p.textContent = "What happens after replicas disagree, a write spans five services, and everyone downstream needs to find out \u2014 without asking.";
+  root.appendChild(p);
+
+  const wrap = document.createElement('div'); wrap.style.marginTop='34px'; wrap.style.width='560px'; wrap.style.height='190px';
+  root.appendChild(wrap);
+  const svg = el('svg',{viewBox:'0 0 560 190'}); svg.style.width='100%'; svg.style.height='100%'; svg.style.overflow='visible';
+  wrap.appendChild(svg);
+  const pts = [{x:100,y:150,l:'Data',c:'teal'},{x:460,y:150,l:'Events',c:'violet'},{x:280,y:30,l:'Transactions',c:'amber'}];
+  svg.appendChild(el('line',Object.assign({x1:pts[0].x,y1:pts[0].y,x2:pts[1].x,y2:pts[1].y},{class:'edge pulse'})));
+  svg.appendChild(el('line',Object.assign({x1:pts[0].x,y1:pts[0].y,x2:pts[2].x,y2:pts[2].y},{class:'edge pulse'})));
+  svg.appendChild(el('line',Object.assign({x1:pts[1].x,y1:pts[1].y,x2:pts[2].x,y2:pts[2].y},{class:'edge pulse'})));
+  pts.forEach(function(p2,i){
+    const g = grp('pop'); delayIt(g,i,0.15);
+    g.appendChild(circ(p2.x,p2.y,34,p2.c));
+    g.appendChild(txt(p2.x,p2.y+50,p2.l,'lbl-strong'));
+    svg.appendChild(g);
+  });
+});
+
+/* ===================================================================== */
+addSlide('A', function(root){
+  gapSlide(root,{
+    section:'A',
+    recap:'replicating data across nodes means no single failure loses it.',
+    gap:"but replicas drift out of sync \u2014 when two of them disagree, "+"how many need to agree before you trust the answer?"
+  });
+});
+
+/* ===================================================================== */
+addSlide('A', function(root){
+  header(root,{section:'A', eyebrow:'DISTRIBUTED DATA \u00b7 QUORUMS',
+    title:'Quorums: Agreement by the Numbers',
+    sub:"Feynman's question: if I keep N copies of a fact, how many of them do I actually need to check before I believe the answer?"});
+  const svg = canvas(root);
+  const pts = ring(360,290,150,5);
+  const wpts = ring(840,290,150,5);
+  // left: write set W
+  svg.appendChild(txt(360,110,'writes reach W = 3 of N = 5','lbl-strong'));
+  pts.forEach(function(p,i){
+    const inW = i<3;
+    const g = grp('pop'); delayIt(g,i,0.1);
+    g.appendChild(circ(p.x,p.y,28, inW ? 'amber filled-amber' : 'dim'));
+    g.appendChild(txt(p.x,p.y+5,'N'+(i+1),'node-label'));
+    svg.appendChild(g);
+  });
+  // right: read set R
+  svg.appendChild(txt(840,110,'reads check R = 3 of N = 5','lbl-strong'));
+  const readIdx = [1,2,3];
+  wpts.forEach(function(p,i){
+    const inR = readIdx.indexOf(i) !== -1;
+    const g = grp('pop'); delayIt(g,i,0.1+0.5);
+    g.appendChild(circ(p.x,p.y,28, inR ? 'teal filled-teal' : 'dim'));
+    g.appendChild(txt(p.x,p.y+5,'N'+(i+1),'node-label'));
+    svg.appendChild(g);
+  });
+  // overlap emphasis text
+  const overlap = grp('pop'); delayIt(overlap,0,1.3);
+  overlap.appendChild(txt(600,300,'W + R > N','lbl-strong'));
+  overlap.appendChild(txt(600,326,'guarantees they always','lbl'));
+  overlap.appendChild(txt(600,346,'share at least one node','lbl'));
+  svg.appendChild(overlap);
+  formulaBox(root,'R + W > N  \u2192  every read set overlaps every write set by \u2265 1 replica', 1.5);
+});
+
+/* ===================================================================== */
+addSlide('A', function(root){
+  header(root,{section:'A', eyebrow:'DISTRIBUTED DATA \u00b7 QUORUMS',
+    title:'Quorum Reads',
+    sub:"A read doesn't trust one replica \u2014 it asks R of them and returns the freshest reply."});
+  const svg = canvas(root);
+  const client = {x:140,y:280};
+  const nodes = [{x:560,y:120,l:'N1',v:'v3 (t=10)'},{x:560,y:280,l:'N2',v:'v3 (t=10)'},{x:560,y:440,l:'N3',v:'v4 (t=14)'}];
+  const cg = grp('pop'); cg.appendChild(rect(client.x-55,client.y-30,110,60,'blue')); cg.appendChild(txt(client.x,client.y+6,'client','lbl-strong'));
+  svg.appendChild(cg);
+  const askIdx = [1,2]; // asks N2, N3 (R=2)
+  nodes.forEach(function(n,i){
+    const asked = askIdx.indexOf(i)!==-1;
+    const g = grp('pop'); delayIt(g,i,0.15);
+    g.appendChild(circ(n.x,n.y,30, asked ? 'teal filled-teal':'dim'));
+    g.appendChild(txt(n.x,n.y+5,n.l,'node-label'));
+    g.appendChild(txt(n.x,n.y+52,n.v, asked ? 'lbl-strong':'lbl'));
+    svg.appendChild(g);
+    if(asked){
+      const a = arrow(client.x+55,client.y-10+i*8,n.x-34,n.y,'teal draw','arrowTeal');
+      delayIt(a,i,0.4); svg.appendChild(a);
+    }
+  });
+  const winner = grp('pop'); delayIt(winner,0,1.3);
+  winner.appendChild(txt(860,280,'freshest timestamp wins:','lbl'));
+  winner.appendChild(txt(860,306,'v4 (t=14) returned to client','lbl-strong'));
+  svg.appendChild(winner);
+  formulaBox(root,'N = 3, R = 2  \u2192  tolerates 1 stale or unreachable replica per read', 1.5);
+});
+
+/* ===================================================================== */
+addSlide('A', function(root){
+  header(root,{section:'A', eyebrow:'DISTRIBUTED DATA \u00b7 QUORUMS',
+    title:'Quorum Writes',
+    sub:'A write is not "done" when one node saves it \u2014 it is done once W nodes acknowledge it.'});
+  const svg = canvas(root);
+  const client = {x:140,y:280};
+  const nodes = [{x:560,y:120,l:'N1'},{x:560,y:280,l:'N2'},{x:560,y:440,l:'N3'}];
+  const cg = grp('pop'); cg.appendChild(rect(client.x-55,client.y-30,110,60,'blue')); cg.appendChild(txt(client.x,client.y+6,'client','lbl-strong'));
+  svg.appendChild(cg);
+  const ackIdx = [0,1]; // W=2 acks from N1,N2 ; N3 lags
+  nodes.forEach(function(n,i){
+    const acked = ackIdx.indexOf(i)!==-1;
+    const g = grp('pop'); delayIt(g,i,0.15);
+    g.appendChild(circ(n.x,n.y,30, acked ? 'amber filled-amber':'rose dim'));
+    g.appendChild(txt(n.x,n.y+5,n.l,'node-label'));
+    g.appendChild(txt(n.x,n.y+52, acked?'ack':'still catching up', acked?'lbl-strong':'lbl'));
+    svg.appendChild(g);
+    const a = arrow(client.x+55,client.y-14+i*14,n.x-34,n.y, acked?'amber draw':'dashed draw', acked?'arrowAmber':'arrow');
+    delayIt(a,i,0.4); svg.appendChild(a);
+  });
+  const res = grp('pop'); delayIt(res,0,1.3);
+  res.appendChild(txt(900,280,'W = 2 acks received \u2192','lbl'));
+  res.appendChild(txt(900,306,'write succeeds anyway','lbl-strong'));
+  svg.appendChild(res);
+  formulaBox(root,'N = 3, W = 2  \u2192  tolerates 1 slow or unreachable replica per write', 1.5);
+});
+
+/* ===================================================================== */
+addSlide('A', function(root){
+  header(root,{section:'A', eyebrow:'DISTRIBUTED DATA \u00b7 QUORUMS',
+    title:'Tuning the Dial: Consistency vs. Latency',
+    sub:'Every choice of R and W trades freshness for speed. There is no free option \u2014 only where you want the cost to land.'});
+  const svg = canvas(root, '0 0 1200 480');
+  const rows = [
+    {l:'R=1, W=N', a:'fast reads', b:'slow, fragile writes', c:'strong (if all healthy)', wA:70, wB:340, wC:260},
+    {l:'R=N, W=1', a:'slow, fragile reads', b:'fast writes', c:'strong (if all healthy)', wA:340, wB:70, wC:260},
+    {l:'R=W=\u2308(N+1)/2\u2309', a:'balanced reads', b:'balanced writes', c:'strong, tolerates failures', wA:180, wB:180, wC:340}
+  ];
+  rows.forEach(function(r,i){
+    const y = 60 + i*140;
+    const g = grp('pop'); delayIt(g,i,0.18);
+    g.appendChild(txt(70,y,r.l,'lbl-strong')).setAttribute('text-anchor','start');
+    const barY = y+18;
+    g.appendChild(rect(70,barY,r.wA,16,'teal')); g.appendChild(txt(70+r.wA+8,barY+13,r.a,'lbl left'));
+    g.appendChild(rect(70,barY+30,r.wB,16,'amber')); g.appendChild(txt(70+r.wB+8,barY+43,r.b,'lbl left'));
+    g.appendChild(rect(70,barY+60,r.wC,16,'violet')); g.appendChild(txt(70+r.wC+8,barY+73,r.c,'lbl left'));
+    svg.appendChild(g);
+  });
+  noteBox(root,'Teal = read speed \u00b7 Amber = write speed \u00b7 Violet = consistency guarantee under failures. Longer bar = more of that quality.', 0.7);
+});
+
+/* ===================================================================== */
+addSlide('A', function(root){
+  gapSlide(root,{section:'A',
+    recap:'quorums make each single read or write agree with enough replicas, right now.',
+    gap:"but the replica that missed a write stays wrong until someone actually tells it \u2014 who fixes it, and when?"});
+});
+
+/* ===================================================================== */
+addSlide('A', function(root){
+  header(root,{section:'A', eyebrow:'DISTRIBUTED DATA \u00b7 REPAIR',
+    title:'Read Repair',
+    sub:"While answering a quorum read, the coordinator notices a stale reply \u2014 and quietly patches that replica on the spot."});
+  const svg = canvas(root);
+  const client = {x:140,y:280};
+  const nodes = [{x:600,y:120,l:'N1',v:'v2 (t=12)',fresh:true},{x:600,y:280,l:'N2',v:'v2 (t=12)',fresh:true},{x:600,y:440,l:'N3',v:'v1 (t=9)',fresh:false}];
+  const cg = grp('pop'); cg.appendChild(rect(client.x-55,client.y-30,110,60,'blue')); cg.appendChild(txt(client.x,client.y+6,'client','lbl-strong'));
+  svg.appendChild(cg);
+  nodes.forEach(function(n,i){
+    const g = grp('pop'); delayIt(g,i,0.15);
+    g.appendChild(circ(n.x,n.y,30, n.fresh?'teal filled-teal':'rose filled-rose'));
+    g.appendChild(txt(n.x,n.y+5,n.l,'node-label'));
+    g.appendChild(txt(n.x,n.y+52,n.v,'lbl'));
+    svg.appendChild(g);
+    const a = arrow(client.x+55,client.y-14+i*14,n.x-34,n.y,'teal draw','arrowTeal');
+    delayIt(a,i,0.35); svg.appendChild(a);
+  });
+  const rep = grp('pop'); delayIt(rep,0,1.4);
+  const repairArrow = curve(1000,280,660,440,-90,'amber draw','arrowAmber');
+  rep.appendChild(repairArrow);
+  rep.appendChild(txt(1010,260,'repair: v2 (t=12)','lbl-strong'));
+  rep.appendChild(txt(1010,300,'written back to N3','lbl'));
+  svg.appendChild(rep);
+  noteBox(root,'The client still only waits for R replies \u2014 the repair write to the stale node happens in the background, off the critical path.', 1.7);
+});
+
+/* ===================================================================== */
+addSlide('A', function(root){
+  gapSlide(root,{section:'A',
+    recap:'read repair fixes staleness exactly where a read happens to shine a light on it.',
+    gap:'but cold, rarely-read data that nobody asks for \u2014 does it just stay wrong forever?'});
+});
+
+/* ===================================================================== */
+addSlide('A', function(root){
+  header(root,{section:'A', eyebrow:'DISTRIBUTED DATA \u00b7 REPAIR',
+    title:'Anti-Entropy',
+    sub:'A background process periodically compares entire datasets between replicas and syncs whatever differs \u2014 read or not.'});
+  const svg = canvas(root);
+  const A = {x:340,y:280}, B = {x:860,y:280};
+  svg.appendChild(rect(A.x-110,A.y-90,220,180,'teal'));
+  svg.appendChild(txt(A.x,A.y-100,'Replica A','lbl-strong'));
+  svg.appendChild(rect(B.x-110,B.y-90,220,180,'violet'));
+  svg.appendChild(txt(B.x,B.y-100,'Replica B','lbl-strong'));
+  ['k1: v9','k2: v3','k3: v7'].forEach(function(s,i){
+    svg.appendChild(txt(A.x, A.y-30+i*40, s, i===2 ? 'lbl-strong':'lbl'));
+    svg.appendChild(txt(B.x, B.y-30+i*40, i===2 ? 'k3: v5' : s, i===2 ? 'lbl-strong':'lbl'));
+  });
+  const sync = grp('pop pulse'); delayIt(sync,0,0.8);
+  const a1 = arrow(A.x+112,A.y+10,B.x-112,B.y+10,'amber draw','arrowAmber');
+  const a2 = arrow(B.x-112,B.y-10,A.x+112,A.y-10,'amber draw','arrowAmber');
+  sync.appendChild(a1); sync.appendChild(a2);
+  sync.appendChild(txt(600,220,'periodic sync (every T seconds)','lbl'));
+  svg.appendChild(sync);
+  const res = grp('pop'); delayIt(res,0,1.4);
+  res.appendChild(txt(600,420,'k3 differs \u2192 merged / repaired on both sides','lbl-strong'));
+  svg.appendChild(res);
+  noteBox(root,'Anti-entropy does not need anyone to read the data \u2014 it runs on a timer, guaranteeing eventual convergence for everything, not just hot keys.', 1.7);
+});
+
+/* ===================================================================== */
+addSlide('A', function(root){
+  gapSlide(root,{section:'A',
+    recap:'anti-entropy needs replicas to periodically pair up and compare notes.',
+    gap:'in a cluster of hundreds of nodes, how does any single node even know who else exists \u2014 or who just went down?'});
+});
+
+/* ===================================================================== */
+addSlide('A', function(root){
+  header(root,{section:'A', eyebrow:'DISTRIBUTED DATA \u00b7 MEMBERSHIP',
+    title:'Gossip Protocol',
+    sub:"Like a rumor spreading at a party: each round, every node that knows something tells a few random peers. Information spreads exponentially."});
+  const svg = canvas(root);
+  const pts = ring(600,280,220,10);
+  const rounds = [[0],[0,1,9],[0,1,9,2,8,5],[0,1,2,3,4,5,6,7,8,9]];
+  const nodesG = [];
+  pts.forEach(function(p,i){
+    const g = grp('pop'); delayIt(g,i,0.05);
+    const c = circ(p.x,p.y,22,'dim');
+    g.appendChild(c);
+    g.appendChild(txt(p.x,p.y+5,'n'+i,'node-label'));
+    svg.appendChild(g);
+    nodesG.push(c);
+  });
+  const label = txt(600,60,'round 1','lbl-strong'); label.id='gossipRound';
+  svg.appendChild(label);
+  let r = 0;
+  function paint(){
+    const activeSet = rounds[r];
+    nodesG.forEach(function(c,i){
+      c.setAttribute('class', activeSet.indexOf(i)!==-1 ? 'node teal filled-teal' : 'node dim');
+    });
+    document.getElementById('gossipRound').textContent = (r < rounds.length-1) ? ('round ' + (r+1)) : 'converged \u2014 all nodes informed';
+    r = (r+1) % rounds.length;
+  }
+  paint();
+  const id = setInterval(paint, 1100);
+  timers.push(id);
+  formulaBox(root,'\u2248 log\u2082(N) rounds for a rumor to reach all N nodes', 0.5);
+});
+
+/* ===================================================================== */
+addSlide('A', function(root){
+  gapSlide(root,{section:'A',
+    recap:'gossip is great at spreading small facts cheaply \u2014 "I exist", "here is my latest version".',
+    gap:'but anti-entropy needs to compare ENTIRE datasets between nodes \u2014 do we really resend everything just to find one different row?'});
+});
+
+/* ===================================================================== */
+addSlide('A', function(root){
+  header(root,{section:'A', eyebrow:'DISTRIBUTED DATA \u00b7 MEMBERSHIP',
+    title:'Merkle-Tree Synchronization',
+    sub:'Hash the data into a tree. Compare the root hash first \u2014 only walk down the branch where hashes actually differ.'});
+  const svg = canvas(root);
+  function tree(cx, mismatchLeaf){
+    const g = grp('');
+    const L0 = {x:cx,y:70};
+    const L1 = [{x:cx-90,y:180},{x:cx+90,y:180}];
+    const L2 = [{x:cx-140,y:300},{x:cx-40,y:300},{x:cx+40,y:300},{x:cx+140,y:300}];
+    L1.forEach(function(p){ g.appendChild(line(L0.x,L0.y+22,p.x,p.y-22,'edge')); });
+    L2.forEach(function(p,i){ const parent = L1[i<2?0:1]; g.appendChild(line(parent.x,parent.y+22,p.x,p.y-22,'edge')); });
+    const mismatchPath = [0, mismatchLeaf<2?0:1, mismatchLeaf];
+    g.appendChild(circ(L0.x,L0.y,26, mismatchLeaf!==null ? 'rose filled-rose':'teal filled-teal'));
+    g.appendChild(txt(L0.x,L0.y+5,'H','node-label'));
+    L1.forEach(function(p,i){
+      const bad = mismatchLeaf!==null && (mismatchLeaf<2?0:1)===i;
+      g.appendChild(circ(p.x,p.y,22, bad?'rose filled-rose':'teal filled-teal'));
+      g.appendChild(txt(p.x,p.y+5,'H'+i,'node-label'));
+    });
+    L2.forEach(function(p,i){
+      const bad = mismatchLeaf===i;
+      g.appendChild(circ(p.x,p.y,18, bad?'rose filled-rose':'dim'));
+      g.appendChild(txt(p.x,p.y+4,'d'+i,'node-label'));
+    });
+    return g;
+  }
+  const gA = grp('pop'); delayIt(gA,0,0.1); gA.appendChild(tree(320, 2));
+  svg.appendChild(txt(320,40,'Replica A','lbl-strong'));
+  svg.appendChild(gA);
+  const gB = grp('pop'); delayIt(gB,1,0.1); gB.appendChild(tree(880, null));
+  svg.appendChild(txt(880,40,'Replica B','lbl-strong'));
+  svg.appendChild(gB);
+  const note = grp('pop'); delayIt(note,0,1.1);
+  note.appendChild(txt(600,420,'root differs \u2192 descend right \u2192 leaf differs','lbl-strong'));
+  note.appendChild(txt(600,446,'only that one record needs to be transferred','lbl'));
+  svg.appendChild(note);
+  formulaBox(root,'O(log n) hash comparisons to find the exact divergent record, instead of O(n) full transfer', 1.3);
+});
+
+/* ===================================================================== */
+addSlide('A', function(root){
+  gapSlide(root,{section:'A',
+    recap:'Merkle trees find exactly which record two replicas disagree on, in a handful of comparisons.',
+    gap:'but finding a disagreement is only half the problem \u2014 when two clients wrote different values at nearly the same time, which one is truth?'});
+});
+
+/* ===================================================================== */
+addSlide('A', function(root){
+  header(root,{section:'A', eyebrow:'DISTRIBUTED DATA \u00b7 CONFLICTS',
+    title:'Conflict Resolution',
+    sub:'Two writers, no coordination between them, concurrent edits to the same key. Something has to decide what happens next.'});
+  const svg = canvas(root);
+  const key = {x:600,y:200};
+  svg.appendChild(circ(key.x,key.y,34,'rose filled-rose pulse'));
+  svg.appendChild(txt(key.x,key.y+6,'?','qtext'));
+  const c1 = {x:300,y:80}, c2 = {x:900,y:80};
+  [c1,c2].forEach(function(c,i){
+    const g = grp('pop'); delayIt(g,i,0.15);
+    g.appendChild(rect(c.x-70,c.y-30,140,60,'blue'));
+    g.appendChild(txt(c.x,c.y+6,'client '+(i+1),'lbl-strong'));
+    svg.appendChild(g);
+    const a = arrow(c.x + (i===0?70:-70), c.y+20, key.x + (i===0?-30:30), key.y-24,'blue draw','arrow');
+    delayIt(a,i,0.4); svg.appendChild(a);
+  });
+  const forkY = 380;
+  const opts = [{x:400,y:forkY,l:'pick one value',s:'Last-Write-Wins'},{x:800,y:forkY,l:'keep the structure',s:'Vector Clocks / CRDTs'}];
+  opts.forEach(function(o,i){
+    const g = grp('pop'); delayIt(g,i,1.1);
+    g.appendChild(line(key.x,key.y+34,o.x,o.y-30,'edge dashed'));
+    g.appendChild(rect(o.x-110,o.y-30,220,60,i===0?'amber':'teal'));
+    g.appendChild(txt(o.x,o.y-4,o.l,'lbl-strong'));
+    g.appendChild(txt(o.x,o.y+18,o.s,'lbl'));
+    svg.appendChild(g);
+  });
+});
+
+/* ===================================================================== */
+addSlide('A', function(root){
+  header(root,{section:'A', eyebrow:'DISTRIBUTED DATA \u00b7 CONFLICTS',
+    title:'Last-Write-Wins (LWW)',
+    sub:'Attach a timestamp to every write. On conflict, keep the highest timestamp. The loser is discarded, not merged.'});
+  const svg = canvas(root);
+  const key = {x:600,y:180};
+  const w1 = {x:340,y:60,t:'t = 101'}, w2 = {x:860,y:60,t:'t = 104'};
+  [w1,w2].forEach(function(w,i){
+    const g = grp('pop'); delayIt(g,i,0.15);
+    g.appendChild(rect(w.x-90,w.y-28,180,56, i===1?'amber':'rose'));
+    g.appendChild(txt(w.x,w.y-2,'write '+w.t,'lbl-strong'));
+    svg.appendChild(g);
+    const a = arrow(w.x, w.y+28, key.x+(i===0?-40:40), key.y-30,'edge draw','arrow');
+    delayIt(a,i,0.4); svg.appendChild(a);
+  });
+  svg.appendChild(circ(key.x,key.y,30,'amber filled-amber'));
+  svg.appendChild(txt(key.x,key.y+5,'k','node-label'));
+  const fade = grp('pop'); delayIt(fade,0,0.9);
+  fade.appendChild(txt(340,180,'t=101 silently','lbl'));
+  fade.appendChild(txt(340,204,'dropped','lbl'));
+  svg.appendChild(fade);
+
+  const warn = grp('pop'); delayIt(warn,0,1.4);
+  warn.appendChild(rect(430,320,340,150,'rose'));
+  warn.appendChild(txt(600,352,'clock skew risk','lbl-strong'));
+  warn.appendChild(txt(600,382,'Node X clock: 12:00:03.1','lbl'));
+  warn.appendChild(txt(600,406,'Node Y clock: 12:00:02.8','lbl'));
+  warn.appendChild(txt(600,436,'the "later" write may not really be later','lbl'));
+  svg.appendChild(warn);
+  formulaBox(root,'cheap & fast, but destructive: the losing write is gone, not merged', 1.7);
+});
+
+/* ===================================================================== */
+addSlide('A', function(root){
+  gapSlide(root,{section:'A',
+    recap:'LWW resolves conflicts instantly \u2014 by throwing data away, trusting wall clocks that can be wrong.',
+    gap:'what if we want to know whether two writes truly happened one after another, or genuinely at the same moment \u2014 without trusting any clock at all?'});
+});
+
+/* ===================================================================== */
+addSlide('A', function(root){
+  header(root,{section:'A', eyebrow:'DISTRIBUTED DATA \u00b7 CAUSALITY',
+    title:'Vector Clocks',
+    sub:'Each replica keeps a counter for itself, and for every other replica it has heard from. Compare the vectors, not the wall clock.'});
+  const svg = canvas(root, '0 0 1200 560');
+  svg.appendChild(txt(300,50,'Scenario 1: concurrent','lbl-strong'));
+  svg.appendChild(txt(300,80,'A writes: [A:1, B:0]      B writes: [A:0, B:1]','mono lbl'));
+  const g1 = grp('pop'); delayIt(g1,0,0.2);
+  g1.appendChild(circ(180,180,26,'teal filled-teal')); g1.appendChild(txt(180,186,'A','node-label'));
+  g1.appendChild(circ(420,180,26,'violet filled-teal')); g1.appendChild(circ(420,180,26,'violet'));
+  g1.appendChild(txt(420,186,'B','node-label'));
+  g1.appendChild(txt(300,150,'neither vector \u2264 the other','lbl'));
+  g1.appendChild(rect(240,220,120,50,'rose'));
+  g1.appendChild(txt(300,250,'CONCURRENT','lbl-strong'));
+  svg.appendChild(g1);
+
+  svg.appendChild(line(600,50,600,510,'edge dashed'));
+
+  svg.appendChild(txt(900,50,'Scenario 2: causal','lbl-strong'));
+  svg.appendChild(txt(900,80,'A writes [A:1,B:0] \u2192 B receives it, writes [A:1,B:1]','mono lbl'));
+  const g2 = grp('pop'); delayIt(g2,1,0.2);
+  g2.appendChild(circ(780,180,26,'teal filled-teal')); g2.appendChild(txt(780,186,'A','node-label'));
+  const a2 = arrow(806,180,994,180,'teal draw','arrowTeal'); delayIt(a2,0,0.7); g2.appendChild(a2);
+  g2.appendChild(circ(1020,180,26,'teal filled-teal')); g2.appendChild(txt(1020,186,'B','node-label'));
+  g2.appendChild(rect(840,220,240,50,'teal'));
+  g2.appendChild(txt(960,250,'A happened-before B','lbl-strong'));
+  svg.appendChild(g2);
+
+  const note = grp('pop'); delayIt(note,0,1.3);
+  note.appendChild(txt(600,470,'A \u2192 B  iff every counter in A \u2264 same in B, with at least one strictly less. Otherwise: concurrent.','mono lbl'));
+  svg.appendChild(note);
+});
+
+/* ===================================================================== */
+addSlide('A', function(root){
+  gapSlide(root,{section:'A',
+    recap:'vector clocks tell us exactly when writes are truly concurrent, versus causally ordered.',
+    gap:'knowing there IS a real conflict is progress \u2014 but must a human, or app code, untangle every concurrent counter, set and list by hand?'});
+});
+
+/* ===================================================================== */
+addSlide('A', function(root){
+  header(root,{section:'A', eyebrow:'DISTRIBUTED DATA \u00b7 CRDTs',
+    title:'CRDTs: Conflicts That Resolve Themselves',
+    sub:'Design the data type so ANY merge order produces the SAME final answer \u2014 guaranteed by math, not by luck.'});
+  const svg = canvas(root, '0 0 1200 540');
+  const seqs = [
+    {y:80, ops:['+3','+1','+2'], color:'teal'},
+    {y:230, ops:['+1','+2','+3'], color:'amber'},
+    {y:380, ops:['+2','+3','+1'], color:'violet'}
+  ];
+  seqs.forEach(function(s,r){
+    s.ops.forEach(function(op,i){
+      const x = 140 + i*130;
+      const g = grp('pop'); delayIt(g,r*3+i,0.12);
+      g.appendChild(rect(x-40,s.y-24,80,48,s.color));
+      g.appendChild(txt(x,s.y+6,op,'lbl-strong'));
+      svg.appendChild(g);
+      if(i>0){ svg.appendChild(arrow(x-130+40,s.y,x-40,s.y,'edge draw','arrow')); }
+    });
+    const arrowDown = arrow(140+2*130+40, s.y, 980, 260, s.color+' draw', 'arrow'+ (s.color.charAt(0).toUpperCase()+s.color.slice(1)));
+    delayIt(arrowDown, r, 1.0);
+    svg.appendChild(arrowDown);
+  });
+  const conv = grp('pop'); delayIt(conv,0,1.6);
+  conv.appendChild(rect(980,222,190,76,'teal'));
+  conv.appendChild(txt(1075,254,'same result:','lbl'));
+  conv.appendChild(txt(1075,280,'6, every time','lbl-strong'));
+  svg.appendChild(conv);
+  formulaBox(root,'merge must be commutative + associative + idempotent \u2192 replicas always converge', 1.9);
+});
+
+/* ===================================================================== */
+addSlide('A', function(root){
+  header(root,{section:'A', eyebrow:'DISTRIBUTED DATA \u00b7 CRDTs',
+    title:'A Toolbox of Convergent Types',
+    sub:'Different data shapes need different merge rules. Six of the most common building blocks:'});
+  chipRow(root,[
+    {t:'G-Counter', d:'grow-only counter'},
+    {t:'PN-Counter', d:'increment & decrement'},
+    {t:'OR-Set', d:'add/remove set, adds win'},
+    {t:'LWW-Register', d:'single value, latest wins'},
+    {t:'State-based (CvRDT)', d:'ship whole state, merge'},
+    {t:'Operation-based (CmRDT)', d:'ship the operation'}
+  ], 0.15);
+  const svg = canvas(root, '0 0 1200 260');
+  const note = grp('pop'); delayIt(note,0,0.9);
+  note.appendChild(txt(600,90,'next: how each one actually merges concurrent updates','lbl'));
+  svg.appendChild(note);
+});
+
+/* ===================================================================== */
+addSlide('A', function(root){
+  header(root,{section:'A', eyebrow:'DISTRIBUTED DATA \u00b7 CRDT TYPES',
+    title:'G-Counter (Grow-only Counter)',
+    sub:'Each replica owns one slot in a vector and only ever increments its OWN slot. Merge = take the max of every slot.'});
+  const svg = canvas(root);
+  const reps = [{x:260,y:180,v:3,l:'R1'},{x:600,y:180,v:1,l:'R2'},{x:940,y:180,v:2,l:'R3'}];
+  reps.forEach(function(r,i){
+    const g = grp('pop'); delayIt(g,i,0.15);
+    g.appendChild(rect(r.x-70,r.y-40,140,80,'teal'));
+    g.appendChild(txt(r.x,r.y-8,r.l,'lbl-strong'));
+    g.appendChild(txt(r.x,r.y+22,'slot = '+r.v,'lbl'));
+    svg.appendChild(g);
+  });
+  const mergeArrows = reps.map(function(r,i){ const a = arrow(r.x, r.y+40, 600, 380,'teal draw','arrowTeal'); delayIt(a,i,0.7); return a; });
+  mergeArrows.forEach(function(a){ svg.appendChild(a); });
+  const res = grp('pop'); delayIt(res,0,1.3);
+  res.appendChild(rect(500,390,200,70,'amber'));
+  res.appendChild(txt(600,420,'merged vector','lbl'));
+  res.appendChild(txt(600,446,'[3,1,2] \u2192 total 6','lbl-strong'));
+  svg.appendChild(res);
+  formulaBox(root,'value = \u03a3 max(slot\u1d62) across all replicas \u2014 never double-counts, never loses an increment', 1.6);
+});
+
+/* ===================================================================== */
+addSlide('A', function(root){
+  header(root,{section:'A', eyebrow:'DISTRIBUTED DATA \u00b7 CRDT TYPES',
+    title:'PN-Counter (Increment & Decrement)',
+    sub:'A G-Counter can only grow. To allow decrements too, keep TWO G-Counters side by side \u2014 one for increments, one for decrements.'});
+  const svg = canvas(root, '0 0 1200 480');
+  const reps = ['R1','R2','R3'];
+  reps.forEach(function(l,i){
+    const x = 260 + i*340;
+    const g = grp('pop'); delayIt(g,i,0.15);
+    g.appendChild(txt(x,60,l,'lbl-strong'));
+    g.appendChild(rect(x-90,80,180,60,'teal'));
+    g.appendChild(txt(x,116,'P (incr) = '+(i+1),'lbl'));
+    g.appendChild(rect(x-90,160,180,60,'rose'));
+    g.appendChild(txt(x,196,'N (decr) = '+(i===1?2:0),'lbl'));
+    svg.appendChild(g);
+  });
+  const res = grp('pop'); delayIt(res,0,1.1);
+  res.appendChild(rect(410,300,380,90,'amber'));
+  res.appendChild(txt(600,330,'value = \u03a3P \u2212 \u03a3N','lbl'));
+  res.appendChild(txt(600,360,'(1+2+3) \u2212 (0+2+0) = 4','lbl-strong'));
+  svg.appendChild(res);
+  formulaBox(root,'decrementing never subtracts from P \u2014 it increments N instead, so merge stays a simple element-wise max', 1.5);
+});
+
+/* ===================================================================== */
+addSlide('A', function(root){
+  header(root,{section:'A', eyebrow:'DISTRIBUTED DATA \u00b7 CRDT TYPES',
+    title:'OR-Set (Observed-Remove Set)',
+    sub:'Every add gets a unique tag. A remove only removes tags you have actually seen \u2014 so a concurrent add always survives.'});
+  const svg = canvas(root);
+  const A = {x:340,y:160}, B = {x:860,y:160};
+  svg.appendChild(txt(A.x,A.y-40,'Replica A','lbl-strong'));
+  svg.appendChild(txt(B.x,B.y-40,'Replica B','lbl-strong'));
+  const g1 = grp('pop'); delayIt(g1,0,0.2);
+  g1.appendChild(rect(A.x-110,A.y-10,220,60,'teal'));
+  g1.appendChild(txt(A.x,A.y+24,'add("apple", #a1)','lbl-strong'));
+  svg.appendChild(g1);
+  const g2 = grp('pop'); delayIt(g2,1,0.2);
+  g2.appendChild(rect(B.x-140,B.y-10,280,60,'rose'));
+  g2.appendChild(txt(B.x,B.y+24,'remove("apple", #a0) \u2014 stale tag','lbl-strong'));
+  svg.appendChild(g2);
+  const arrows = grp('pop'); delayIt(arrows,0,0.9);
+  arrows.appendChild(arrow(A.x,A.y+50,600,320,'teal draw','arrowTeal'));
+  arrows.appendChild(arrow(B.x,B.y+50,600,320,'rose draw','arrowRose'));
+  svg.appendChild(arrows);
+  const res = grp('pop'); delayIt(res,0,1.5);
+  res.appendChild(rect(430,330,340,90,'amber'));
+  res.appendChild(txt(600,362,'#a1 was never observed by B\u2019s remove','lbl'));
+  res.appendChild(txt(600,392,'\u2192 "apple" survives the merge','lbl-strong'));
+  svg.appendChild(res);
+});
+
+/* ===================================================================== */
+addSlide('A', function(root){
+  header(root,{section:'A', eyebrow:'DISTRIBUTED DATA \u00b7 CRDT TYPES',
+    title:'LWW-Register',
+    sub:'A single mutable slot for one value. On merge, the write with the higher timestamp wins \u2014 the CRDT cousin of plain last-write-wins.'});
+  const svg = canvas(root, '0 0 1200 440');
+  const reg = {x:600,y:120};
+  svg.appendChild(circ(reg.x,reg.y,34,'amber filled-amber'));
+  svg.appendChild(txt(reg.x,reg.y+6,'k','node-label'));
+  const w1 = {x:320,y:280,t:'t=5, "red"'}, w2 = {x:880,y:280,t:'t=8, "blue"'};
+  [w1,w2].forEach(function(w,i){
+    const g = grp('pop'); delayIt(g,i,0.15);
+    g.appendChild(rect(w.x-100,w.y-28,200,56, i===1?'teal':'rose'));
+    g.appendChild(txt(w.x,w.y+6,w.t,'lbl-strong'));
+    svg.appendChild(g);
+    const a = arrow(w.x, w.y-28, reg.x+(i===0?-30:30), reg.y+34,'edge draw','arrow');
+    delayIt(a,i,0.5); svg.appendChild(a);
+  });
+  noteBox(root,'This IS a CRDT \u2014 merge is commutative and deterministic \u2014 but it still discards the losing write entirely, exactly like plain LWW.', 1.2);
+});
+
+/* ===================================================================== */
+addSlide('A', function(root){
+  header(root,{section:'A', eyebrow:'DISTRIBUTED DATA \u00b7 CRDT DESIGN',
+    title:'Two Ways to Ship a Change: CvRDT vs. CmRDT',
+    sub:'State-based: send your whole state, merge with a join function. Operation-based: send just the operation, and every replica applies it.'});
+  const svg = canvas(root, '0 0 1200 480');
+  svg.appendChild(txt(300,50,'State-based (CvRDT)','lbl-strong'));
+  const g1 = grp('pop'); delayIt(g1,0,0.15);
+  g1.appendChild(rect(150,90,300,90,'teal'));
+  g1.appendChild(txt(300,130,'full state: {a:3,b:1,c:2}','lbl'));
+  g1.appendChild(txt(300,155,'(large payload)','lbl'));
+  const a1 = arrow(300,180,300,260,'teal draw','arrowTeal'); delayIt(a1,0,0.6); g1.appendChild(a1);
+  g1.appendChild(rect(150,270,300,70,'teal'));
+  g1.appendChild(txt(300,308,'peer: merge(local, received)','lbl'));
+  svg.appendChild(g1);
+
+  svg.appendChild(line(600,50,600,420,'edge dashed'));
+
+  svg.appendChild(txt(900,50,'Operation-based (CmRDT)','lbl-strong'));
+  const g2 = grp('pop'); delayIt(g2,1,0.15);
+  g2.appendChild(rect(750,90,300,90,'amber'));
+  g2.appendChild(txt(900,130,'op: increment(a)','lbl'));
+  g2.appendChild(txt(900,155,'(tiny payload)','lbl'));
+  const a2 = arrow(900,180,900,260,'amber draw','arrowAmber'); delayIt(a2,0,0.6); g2.appendChild(a2);
+  g2.appendChild(rect(750,270,300,70,'amber'));
+  g2.appendChild(txt(900,308,'peer: apply(op) directly','lbl'));
+  svg.appendChild(g2);
+
+  const note = grp('pop'); delayIt(note,0,1.3);
+  note.appendChild(txt(600,400,'CmRDT needs reliable, exactly-once-ish delivery \u2014 CvRDT tolerates duplicates and reordering for free','lbl'));
+  svg.appendChild(note);
+});
+
+/* ===================================================================== */
+addSlide('A', function(root){
+  header(root,{section:'A', eyebrow:'DISTRIBUTED DATA \u00b7 IN PRACTICE',
+    title:'Where This Actually Runs',
+    sub:'The same handful of ideas, running under systems you already use every day.'});
+  chipRow(root,[
+    {t:'Amazon DynamoDB', d:'sloppy quorums + vector clocks'},
+    {t:'Apache Cassandra', d:'tunable quorum, read repair, Merkle-tree anti-entropy'},
+    {t:'Riak', d:'vector clocks & CRDTs built into the database'},
+    {t:'Redis CRDTs', d:'active-active geo-replication'},
+    {t:'Figma / Notion', d:'OR-Sets & CRDTs for live collaborative editing'},
+    {t:'Shopping carts', d:'PN-Counters that never lose an item during a network partition'}
+  ], 0.2);
+});
+
+/* ===================================================================== */
+addSlide('A', function(root){
+  gapSlide(root,{section:'A',
+    recap:'we\u2019ve made a SINGLE piece of data converge correctly, even across unreliable replicas.',
+    gap:'but real operations rarely touch one record \u2014 placing an order updates inventory, payment AND shipping. What happens if it fails halfway through?'});
+});
+
+/* ===================================================================== */
+/* SECTION B: TRANSACTIONS */
+/* ===================================================================== */
+addSlide('B', function(root){
+  header(root,{section:'B', eyebrow:'TRANSACTIONS \u00b7 FOUNDATIONS',
+    title:'ACID: The Contract for a Single Transaction',
+    sub:"A database's promise that a transaction is all-or-nothing, leaves data valid, hides concurrent chaos, and survives a crash."});
+  const svg = canvas(root, '0 0 1200 380');
+  const items = [
+    {l:'Atomicity', d:'all steps commit, or none do'},
+    {l:'Consistency', d:'every commit leaves valid data'},
+    {l:'Isolation', d:'concurrent transactions don\u2019t see half-done work'},
+    {l:'Durability', d:'once committed, survives a crash'}
+  ];
+  items.forEach(function(it,i){
+    const x = 160 + i*250;
+    const g = grp('pop'); delayIt(g,i,0.15);
+    g.appendChild(rect(x-105,60,210,220,'teal'));
+    g.appendChild(txt(x,110,it.l.charAt(0),'qtext'));
+    g.appendChild(txt(x,180,it.l,'lbl-strong'));
+    const words = it.d.split(' ');
+    let line1 = words.slice(0,Math.ceil(words.length/2)).join(' ');
+    let line2 = words.slice(Math.ceil(words.length/2)).join(' ');
+    g.appendChild(txt(x,220,line1,'lbl'));
+    g.appendChild(txt(x,242,line2,'lbl'));
+    svg.appendChild(g);
+  });
+});
+
+/* ===================================================================== */
+addSlide('B', function(root){
+  header(root,{section:'B', eyebrow:'TRANSACTIONS \u00b7 FOUNDATIONS',
+    title:'Local vs. Distributed Transactions',
+    sub:'ACID is straightforward inside ONE database. It gets hard the moment a transaction has to span several services.'});
+  const svg = canvas(root);
+  const g1 = grp('pop'); delayIt(g1,0,0.15);
+  g1.appendChild(rect(120,180,340,200,'teal'));
+  g1.appendChild(txt(290,150,'Local transaction','lbl-strong'));
+  g1.appendChild(txt(290,240,'single database','lbl'));
+  g1.appendChild(txt(290,270,'BEGIN \u2026 COMMIT','lbl mono'));
+  g1.appendChild(txt(290,320,'\u2713 contained fully inside','lbl-strong'));
+  svg.appendChild(g1);
+
+  const services = [{x:760,y:180,l:'Orders DB'},{x:960,y:180,l:'Payments DB'},{x:860,y:340,l:'Inventory DB'}];
+  svg.appendChild(txt(860,150,'Distributed transaction','lbl-strong'));
+  services.forEach(function(s,i){
+    const g = grp('pop'); delayIt(g,i,0.5);
+    g.appendChild(rect(s.x-90,s.y-30,180,60,'amber'));
+    g.appendChild(txt(s.x,s.y+6,s.l,'lbl-strong'));
+    svg.appendChild(g);
+  });
+  const e1 = line(services[0].x+90,services[0].y,services[1].x-90,services[1].y,'edge dashed');
+  const e2 = line(services[0].x,services[0].y+30,services[2].x-40,services[2].y-30,'edge dashed');
+  const e3 = line(services[1].x,services[1].y+30,services[2].x+40,services[2].y-30,'edge dashed');
+  svg.appendChild(e1); svg.appendChild(e2); svg.appendChild(e3);
+  const q = grp('pop'); delayIt(q,0,1.2);
+  q.appendChild(txt(860,440,'network can fail between ANY of these \u2014 who coordinates?','lbl'));
+  svg.appendChild(q);
+});
+
+/* ===================================================================== */
+addSlide('B', function(root){
+  header(root,{section:'B', eyebrow:'TRANSACTIONS \u00b7 COORDINATION',
+    title:'Two-Phase Commit (2PC)',
+    sub:'A coordinator asks everyone to PREPARE, waits for every yes, then tells everyone to COMMIT.'});
+  const svg = canvas(root);
+  const coord = {x:600,y:280};
+  const parts = ring(600,280,220,3, -90);
+  svg.appendChild(circ(coord.x,coord.y,34,'blue filled-teal'));
+  svg.appendChild(txt(coord.x,coord.y+6,'coordinator','node-label'));
+  parts.forEach(function(p,i){
+    const g = grp('pop'); delayIt(g,i,0.1);
+    g.appendChild(circ(p.x,p.y,30,'amber'));
+    g.appendChild(txt(p.x,p.y+5,'P'+(i+1),'node-label'));
+    svg.appendChild(g);
+    const out = arrow(coord.x,coord.y,p.x,p.y,'amber dashed draw','arrowAmber');
+    delayIt(out,i,0.5); svg.appendChild(out);
+  });
+  const phase1 = grp('pop'); delayIt(phase1,0,0.9);
+  phase1.appendChild(txt(600,90,'Phase 1: "prepare?" \u2192 all reply "yes"','lbl-strong'));
+  svg.appendChild(phase1);
+  const phase2 = grp('pop'); delayIt(phase2,0,1.7);
+  parts.forEach(function(p,i){
+    const back = arrow(p.x,p.y,coord.x,coord.y,'teal draw','arrowTeal');
+    delayIt(back,i,1.9); svg.appendChild(back);
+  });
+  phase2.appendChild(txt(600,500,'Phase 2: coordinator says "commit!" \u2014 all commit together','lbl-strong'));
+  svg.appendChild(phase2);
+});
+
+/* ===================================================================== */
+addSlide('B', function(root){
+  gapSlide(root,{section:'B',
+    recap:'2PC gets everyone to vote before anyone commits \u2014 true atomicity across services.',
+    gap:'but if the coordinator crashes right after the votes come in, every participant is stuck holding its locks, waiting forever. What if we can\u2019t afford to block?'});
+});
+
+/* ===================================================================== */
+addSlide('B', function(root){
+  header(root,{section:'B', eyebrow:'TRANSACTIONS \u00b7 SAGA',
+    title:'The Saga Pattern',
+    sub:'Break one big transaction into a chain of small LOCAL transactions. If a later step fails, undo the earlier ones with compensations.'});
+  const svg = canvas(root, '0 0 1200 460');
+  const steps = ['Order','Payment','Inventory','Shipping'];
+  const xs = [150,450,750,1050];
+  steps.forEach(function(s,i){
+    const fail = i===2;
+    const g = grp('pop'); delayIt(g,i,0.15);
+    g.appendChild(rect(xs[i]-90,120,180,70, fail?'rose':'teal'));
+    g.appendChild(txt(xs[i],160,s, 'lbl-strong'));
+    g.appendChild(txt(xs[i],200,fail?'FAILS':'commits ok', fail?'lbl-strong':'lbl'));
+    svg.appendChild(g);
+    if(i>0){ const a = arrow(xs[i-1]+90,155,xs[i]-90,155,'edge draw','arrow'); delayIt(a,i,0.5); svg.appendChild(a); }
+  });
+  const comps = [1,0];
+  comps.forEach(function(idx,j){
+    const from = xs[idx+1], to = xs[idx];
+    const a = curve(from-90, 260, to+90, 260, -60, 'amber draw','arrowAmber');
+    delayIt(a, j, 1.3);
+    svg.appendChild(a);
+  });
+  const compLabels = grp('pop'); delayIt(compLabels,0,1.9);
+  compLabels.appendChild(txt(450,340,'compensate Payment','lbl'));
+  compLabels.appendChild(txt(150,340,'compensate Order','lbl'));
+  svg.appendChild(compLabels);
+  noteBox(root,'Inventory fails \u2192 saga runs compensations backward through Payment and Order. Shipping never starts.', 2.3);
+});
+
+/* ===================================================================== */
+addSlide('B', function(root){
+  header(root,{section:'B', eyebrow:'TRANSACTIONS \u00b7 SAGA',
+    title:'Compensating Transactions',
+    sub:"You can't roll back a database that already committed and told the world \u2014 so you run a NEW transaction that semantically undoes it."});
+  const svg = canvas(root, '0 0 1200 380');
+  const t1 = {x:300,y:180}, t2 = {x:900,y:180};
+  const g1 = grp('pop'); delayIt(g1,0,0.15);
+  g1.appendChild(rect(t1.x-140,t1.y-40,280,80,'teal'));
+  g1.appendChild(txt(t1.x,t1.y-6,'Charge card $50','lbl-strong'));
+  g1.appendChild(txt(t1.x,t1.y+20,'committed at t=1','lbl'));
+  svg.appendChild(g1);
+  const g2 = grp('pop'); delayIt(g2,1,0.15);
+  g2.appendChild(rect(t2.x-140,t2.y-40,280,80,'amber'));
+  g2.appendChild(txt(t2.x,t2.y-6,'Refund $50','lbl-strong'));
+  g2.appendChild(txt(t2.x,t2.y+20,'a NEW commit at t=2','lbl'));
+  svg.appendChild(g2);
+  const c1 = curve(t1.x+140,t1.y,t2.x-140,t2.y,-70,'amber draw','arrowAmber');
+  delayIt(c1,0,0.8);
+  svg.appendChild(c1);
+  const lbl = grp('pop'); delayIt(lbl,0,1.4);
+  lbl.appendChild(txt(600,80,'compensates \u2014 does not erase history','lbl-strong'));
+  svg.appendChild(lbl);
+  noteBox(root,'Compensations are semantic opposites, not database rollbacks: "cancel the reservation", "restock the item", "void the shipment".', 1.7);
+});
+
+/* ===================================================================== */
+addSlide('B', function(root){
+  header(root,{section:'B', eyebrow:'TRANSACTIONS \u00b7 SAGA STYLES',
+    title:'Saga Style: Choreography',
+    sub:'No boss. Each service reacts to the previous event and publishes its own \u2014 fully decentralized.'});
+  const svg = canvas(root);
+  const services = ['Order','Payment','Inventory','Shipping'];
+  const xs = [150,450,750,1050];
+  const events = ['OrderCreated','PaymentCompleted','InventoryReserved'];
+  services.forEach(function(s,i){
+    const g = grp('pop'); delayIt(g,i,0.15);
+    g.appendChild(rect(xs[i]-85,200,170,80,'amber'));
+    g.appendChild(txt(xs[i],246,s+' svc','lbl-strong'));
+    svg.appendChild(g);
+  });
+  events.forEach(function(ev,i){
+    const g = grp('pop'); delayIt(g,i,0.6);
+    const midx = (xs[i]+xs[i+1])/2;
+    g.appendChild(el('ellipse',{cx:midx,cy:120,rx:80,ry:26,class:'bubble teal'}));
+    g.appendChild(txt(midx,126,ev,'lbl'));
+    const a1 = arrow(xs[i]+30,200,midx-40,146,'teal draw','arrowTeal'); delayIt(a1,i,0.9);
+    const a2 = arrow(midx+40,146,xs[i+1]-30,200,'teal draw','arrowTeal'); delayIt(a2,i,1.15);
+    g.appendChild(a1); g.appendChild(a2);
+    svg.appendChild(g);
+  });
+  noteBox(root,'Nobody is "in charge" \u2014 the chain of events itself defines the workflow. Great for loose coupling, harder to see the whole flow in one place.', 1.9);
+});
+
+/* ===================================================================== */
+addSlide('B', function(root){
+  header(root,{section:'B', eyebrow:'TRANSACTIONS \u00b7 SAGA STYLES',
+    title:'Saga Style: Orchestration',
+    sub:'One orchestrator explicitly commands each step and handles failures centrally.'});
+  const svg = canvas(root);
+  const orch = {x:600,y:280};
+  const parts = [{x:600,y:100,l:'Payment'},{x:900,y:400,l:'Inventory'},{x:300,y:400,l:'Shipping'}];
+  const g0 = grp('pop'); delayIt(g0,0,0.1);
+  g0.appendChild(rect(orch.x-100,orch.y-40,200,80,'violet'));
+  g0.appendChild(txt(orch.x,orch.y+6,'Orchestrator','lbl-strong'));
+  svg.appendChild(g0);
+  parts.forEach(function(p,i){
+    const g = grp('pop'); delayIt(g,i,0.3);
+    g.appendChild(rect(p.x-80,p.y-35,160,70,'amber'));
+    g.appendChild(txt(p.x,p.y+6,p.l,'lbl-strong'));
+    svg.appendChild(g);
+    const out = arrow(orch.x,orch.y,p.x,p.y,'amber draw','arrowAmber'); delayIt(out,i,0.7);
+    svg.appendChild(out);
+    const back = curve(p.x,p.y,orch.x,orch.y,-30,'teal draw','arrowTeal'); delayIt(back,i,1.3);
+    svg.appendChild(back);
+  });
+  noteBox(root,'The orchestrator holds the workflow state explicitly, decides what runs next, and triggers compensations from one place \u2014 easier to observe, but a more central dependency.', 1.9);
+});
+
+/* ===================================================================== */
+addSlide('B', function(root){
+  gapSlide(root,{section:'B',
+    recap:'sagas move forward through events or commands, and compensate backward on failure.',
+    gap:'but each step must BOTH save its own data AND reliably tell the next step \u2014 what if it crashes after saving, but before sending the message?'});
+});
+
+/* ===================================================================== */
+addSlide('B', function(root){
+  header(root,{section:'B', eyebrow:'TRANSACTIONS \u00b7 RELIABLE MESSAGING',
+    title:'The Outbox Pattern',
+    sub:'Write your data change AND the event into an "outbox" table \u2014 in the SAME local transaction. A separate relay reads it and publishes.'});
+  const svg = canvas(root);
+  const g1 = grp('pop'); delayIt(g1,0,0.15);
+  g1.appendChild(rect(140,140,420,220,'teal'));
+  g1.appendChild(txt(350,110,'ONE local transaction','lbl-strong'));
+  g1.appendChild(rect(180,180,340,60,'teal'));
+  g1.appendChild(txt(350,216,'orders row: status=paid','lbl'));
+  g1.appendChild(rect(180,260,340,60,'amber'));
+  g1.appendChild(txt(350,296,'outbox row: "OrderPaid" event','lbl'));
+  svg.appendChild(g1);
+
+  const a = arrow(560,270,760,270,'amber draw','arrowAmber'); delayIt(a,0,0.8);
+  svg.appendChild(a);
+
+  const g2 = grp('pop'); delayIt(g2,1,1.1);
+  g2.appendChild(rect(780,220,300,100,'violet'));
+  g2.appendChild(txt(930,256,'relay process','lbl-strong'));
+  g2.appendChild(txt(930,284,'polls outbox \u2192 publishes \u2192 marks sent','lbl'));
+  svg.appendChild(g2);
+
+  noteBox(root,'The event can never be lost (it\u2019s committed with the data) and never sent without the data (same transaction) \u2014 no distributed transaction required.', 1.7);
+});
+
+/* ===================================================================== */
+addSlide('B', function(root){
+  header(root,{section:'B', eyebrow:'TRANSACTIONS \u00b7 RELIABLE MESSAGING',
+    title:'The Inbox Pattern',
+    sub:'On the receiving side, record every incoming message id BEFORE processing \u2014 so a redelivered message is recognized and skipped.'});
+  const svg = canvas(root);
+  const msg = {x:200,y:260};
+  const g0 = grp('pop'); delayIt(g0,0,0.1);
+  g0.appendChild(rect(msg.x-90,msg.y-35,180,70,'violet'));
+  g0.appendChild(txt(msg.x,msg.y+6,'incoming msg #77','lbl-strong'));
+  svg.appendChild(g0);
+  const a = arrow(msg.x+90,msg.y,470,msg.y,'edge draw','arrow'); delayIt(a,0,0.5);
+  svg.appendChild(a);
+  const check = grp('pop'); delayIt(check,0,0.9);
+  check.appendChild(rect(490,220,240,80,'amber'));
+  check.appendChild(txt(610,256,'seen #77 in inbox?','lbl-strong'));
+  check.appendChild(txt(610,282,'table lookup','lbl'));
+  svg.appendChild(check);
+
+  const yesA = arrow(730,240,940,140,'rose draw','arrowRose'); delayIt(yesA,0,1.4);
+  svg.appendChild(yesA);
+  const yesG = grp('pop'); delayIt(yesG,0,1.7);
+  yesG.appendChild(rect(940,100,220,70,'rose'));
+  yesG.appendChild(txt(1050,140,'yes \u2192 discard silently','lbl-strong'));
+  svg.appendChild(yesG);
+
+  const noA = arrow(730,280,940,400,'teal draw','arrowTeal'); delayIt(noA,0,1.4);
+  svg.appendChild(noA);
+  const noG = grp('pop'); delayIt(noG,0,1.7);
+  noG.appendChild(rect(940,360,240,90,'teal'));
+  noG.appendChild(txt(1060,392,'no \u2192 process +','lbl-strong'));
+  noG.appendChild(txt(1060,418,'record in inbox, same txn','lbl'));
+  svg.appendChild(noG);
+});
+
+/* ===================================================================== */
+addSlide('B', function(root){
+  header(root,{section:'B', eyebrow:'TRANSACTIONS \u00b7 RELIABLE MESSAGING',
+    title:'Transactional Messaging & Idempotent Consumers',
+    sub:'Outbox/Inbox guarantee a message is sent and received reliably. Idempotency guarantees processing it TWICE causes no harm.'});
+  const svg = canvas(root, '0 0 1200 480');
+  const g1 = grp('pop'); delayIt(g1,0,0.15);
+  g1.appendChild(txt(300,50,'at-least-once delivery','lbl-strong'));
+  g1.appendChild(rect(180,90,240,60,'violet'));
+  g1.appendChild(txt(300,126,'msg delivered (1st time)','lbl'));
+  g1.appendChild(rect(180,170,240,60,'violet'));
+  g1.appendChild(txt(300,206,'msg delivered again (retry)','lbl'));
+  svg.appendChild(g1);
+
+  svg.appendChild(line(600,50,600,440,'edge dashed'));
+
+  const g2 = grp('pop'); delayIt(g2,1,0.2);
+  g2.appendChild(txt(900,50,'idempotent handling','lbl-strong'));
+  g2.appendChild(rect(760,90,280,60,'rose'));
+  g2.appendChild(txt(900,126,'balance += 10  \u2014 unsafe on retry','lbl'));
+  g2.appendChild(rect(760,170,280,60,'teal'));
+  g2.appendChild(txt(900,206,'set balance = 100  \u2014 safe on retry','lbl'));
+  g2.appendChild(rect(760,250,280,70,'teal'));
+  g2.appendChild(txt(900,282,'or: check idempotency key','lbl'));
+  g2.appendChild(txt(900,306,'before applying any effect','lbl'));
+  svg.appendChild(g2);
+});
+
+/* ===================================================================== */
+addSlide('B', function(root){
+  header(root,{section:'B', eyebrow:'TRANSACTIONS \u00b7 IN PRACTICE',
+    title:'Where This Actually Runs',
+    sub:'The same safety nets, under checkout flows and ledgers you rely on.'});
+  chipRow(root,[
+    {t:'Ride-hailing / food delivery', d:'sagas coordinating driver, restaurant, payment'},
+    {t:'Bank transfers', d:'outbox pattern for reliable ledger events'},
+    {t:'E-commerce checkout', d:'saga + compensations for stock/payment failures'},
+    {t:'Payment gateways', d:'idempotent consumers survive network retries safely'}
+  ], 0.2);
+});
+
+/* ===================================================================== */
+addSlide('B', function(root){
+  gapSlide(root,{section:'B',
+    recap:'we\u2019ve learned to keep multi-service WRITES safe and consistent without locking the whole system.',
+    gap:'but how do OTHER, unrelated services find out that something changed \u2014 without constantly asking "anything new yet?"'});
+});
+
+/* ===================================================================== */
+/* SECTION C: EVENT-DRIVEN */
+/* ===================================================================== */
+addSlide('C', function(root){
+  header(root,{section:'C', eyebrow:'EVENT-DRIVEN \u00b7 FOUNDATIONS',
+    title:'Event Notification vs. Event-Carried State Transfer',
+    sub:'A thin event says "something happened, go look it up." A fat event carries the data itself \u2014 no callback needed.'});
+  const svg = canvas(root, '0 0 1200 480');
+  const g1 = grp('pop'); delayIt(g1,0,0.15);
+  g1.appendChild(txt(600,50,'Event Notification (thin)','lbl-strong'));
+  g1.appendChild(rect(120,80,260,60,'amber'));
+  g1.appendChild(txt(250,116,'Publisher','lbl-strong'));
+  g1.appendChild(rect(480,80,260,60,'violet'));
+  g1.appendChild(txt(610,116,'OrderUpdated{id:42}','lbl'));
+  g1.appendChild(rect(840,80,260,60,'teal'));
+  g1.appendChild(txt(970,116,'Subscriber','lbl-strong'));
+  g1.appendChild(arrow(380,110,480,110,'edge draw','arrow'));
+  g1.appendChild(arrow(740,110,840,110,'edge draw','arrow'));
+  const back = curve(970,80,250,80,-40,'rose dashed draw','arrowRose');
+  g1.appendChild(back);
+  g1.appendChild(txt(610,20,'extra round trip: "fetch order 42"','lbl'));
+  svg.appendChild(g1);
+
+  const g2 = grp('pop'); delayIt(g2,1,0.5);
+  g2.appendChild(txt(600,260,'Event-Carried State Transfer (fat)','lbl-strong'));
+  g2.appendChild(rect(120,300,260,80,'amber'));
+  g2.appendChild(txt(250,336,'Publisher','lbl-strong'));
+  g2.appendChild(rect(480,300,260,80,'violet'));
+  g2.appendChild(txt(610,336,'OrderUpdated{id:42,','lbl'));
+  g2.appendChild(txt(610,360,'items:[..], total:..}','lbl'));
+  g2.appendChild(rect(840,300,260,80,'teal'));
+  g2.appendChild(txt(970,336,'Subscriber','lbl-strong'));
+  g2.appendChild(txt(970,362,'uses it directly','lbl'));
+  g2.appendChild(arrow(380,340,480,340,'teal draw','arrowTeal'));
+  g2.appendChild(arrow(740,340,840,340,'teal draw','arrowTeal'));
+  svg.appendChild(g2);
+});
+
+/* ===================================================================== */
+addSlide('C', function(root){
+  header(root,{section:'C', eyebrow:'EVENT-DRIVEN \u00b7 STORAGE MODEL',
+    title:'Event Sourcing',
+    sub:"Instead of storing current state, store every event that ever happened. Current state is just... replaying the log."});
+  const svg = canvas(root);
+  const events = ['Created','ItemAdded','ItemAdded','Discounted','Shipped'];
+  const xs = events.map(function(_,i){ return 150 + i*220; });
+  events.forEach(function(ev,i){
+    const g = grp('pop'); delayIt(g,i,0.15);
+    g.appendChild(rect(xs[i]-85,140,170,60,'violet'));
+    g.appendChild(txt(xs[i],176,ev,'lbl-strong'));
+    svg.appendChild(g);
+    if(i>0){ const a = arrow(xs[i-1]+85,170,xs[i]-85,170,'edge draw','arrow'); delayIt(a,i,0.4); svg.appendChild(a); }
+  });
+  const foldArrows = xs.map(function(x,i){ const a = arrow(x,200,600,340,'violet draw','arrowTeal'); delayIt(a,i,1.2); return a; });
+  foldArrows.forEach(function(a){ svg.appendChild(a); });
+  const res = grp('pop'); delayIt(res,0,1.9);
+  res.appendChild(rect(440,350,320,90,'amber'));
+  res.appendChild(txt(600,382,'current state','lbl'));
+  res.appendChild(txt(600,410,'2 items, discount applied, shipped','lbl-strong'));
+  svg.appendChild(res);
+  formulaBox(root,'state = fold(events, reducer, initialState)', 2.2);
+});
+
+/* ===================================================================== */
+addSlide('C', function(root){
+  header(root,{section:'C', eyebrow:'EVENT-DRIVEN \u00b7 STORAGE MODEL',
+    title:'CQRS: Command Query Responsibility Segregation',
+    sub:"Split the model that handles WRITES from the model built for READS. They don't have to share a shape, or even a database."});
+  const svg = canvas(root);
+  const g1 = grp('pop'); delayIt(g1,0,0.1);
+  g1.appendChild(txt(200,70,'command','lbl'));
+  g1.appendChild(rect(120,90,200,60,'amber'));
+  g1.appendChild(txt(220,126,'Write model','lbl-strong'));
+  g1.appendChild(arrow(320,120,460,120,'amber draw','arrowAmber'));
+  g1.appendChild(rect(470,90,220,60,'amber'));
+  g1.appendChild(txt(580,126,'Event store','lbl-strong'));
+  svg.appendChild(g1);
+
+  const down = arrow(580,150,580,260,'violet draw','arrowTeal'); delayIt(down,0,0.7);
+  svg.appendChild(down);
+  const proj = grp('pop'); delayIt(proj,0,1.0);
+  proj.appendChild(rect(470,270,220,60,'violet'));
+  proj.appendChild(txt(580,306,'projector','lbl-strong'));
+  svg.appendChild(proj);
+
+  const g2 = grp('pop'); delayIt(g2,1,1.3);
+  g2.appendChild(arrow(690,300,830,300,'teal draw','arrowTeal'));
+  g2.appendChild(rect(840,270,220,60,'teal'));
+  g2.appendChild(txt(950,306,'Read model','lbl-strong'));
+  g2.appendChild(txt(950,360,'(denormalized, fast queries)','lbl'));
+  svg.appendChild(g2);
+
+  const g3 = grp('pop'); delayIt(g3,1,1.6);
+  g3.appendChild(txt(950,420,'clients query this side directly \u2014 never the write model','lbl'));
+  svg.appendChild(g3);
+});
+
+/* ===================================================================== */
+addSlide('C', function(root){
+  header(root,{section:'C', eyebrow:'EVENT-DRIVEN \u00b7 DELIVERY',
+    title:'Publish / Subscribe',
+    sub:"Publishers don't know who's listening. Subscribers don't know who published. A broker decouples them completely."});
+  const svg = canvas(root);
+  const pub = {x:220,y:280};
+  const topic = {x:560,y:280};
+  const subs = [{x:920,y:120},{x:1020,y:280},{x:920,y:440}];
+  svg.appendChild(rect(pub.x-90,pub.y-35,180,70,'amber'));
+  svg.appendChild(txt(pub.x,pub.y+6,'Publisher','lbl-strong'));
+  const a0 = arrow(pub.x+90,pub.y,topic.x-70,topic.y,'amber draw','arrowAmber'); delayIt(a0,0,0.3);
+  svg.appendChild(a0);
+  svg.appendChild(el('ellipse',{cx:topic.x,cy:topic.y,rx:70,ry:40,class:'bubble violet'}));
+  svg.appendChild(txt(topic.x,topic.y+6,'topic','lbl-strong'));
+  subs.forEach(function(s,i){
+    const g = grp('pop'); delayIt(g,i,0.8);
+    g.appendChild(rect(s.x-80,s.y-32,160,64,'teal'));
+    g.appendChild(txt(s.x,s.y+6,'Subscriber '+(i+1),'lbl-strong'));
+    svg.appendChild(g);
+    const a = arrow(topic.x+70,topic.y,s.x-80,s.y,'teal draw','arrowTeal'); delayIt(a,i,1.1);
+    svg.appendChild(a);
+  });
+  noteBox(root,'Add a fourth subscriber tomorrow and nothing about the publisher, the topic, or the other subscribers needs to change.', 1.9);
+});
+
+/* ===================================================================== */
+addSlide('C', function(root){
+  header(root,{section:'C', eyebrow:'EVENT-DRIVEN \u00b7 DELIVERY',
+    title:'Event Streaming',
+    sub:"Events don't vanish after delivery \u2014 they live in an ordered, replayable log, split into partitions, read by consumer groups at their own pace."});
+  const svg = canvas(root, '0 0 1200 480');
+  const partY = [120,240,360];
+  partY.forEach(function(y,p){
+    svg.appendChild(txt(80,y+6,'P'+p,'lbl-strong'));
+    for(let k=0;k<7;k++){
+      const g = grp('pop'); delayIt(g,p*7+k,0.05);
+      g.appendChild(rect(140+k*130,y-24,110,48,'violet'));
+      g.appendChild(txt(140+k*130+55,y+6,'e'+k,'lbl'));
+      svg.appendChild(g);
+    }
+    const offsetX = 140 + [3,5,2][p]*130 + 55;
+    const ptr = grp('pop'); delayIt(ptr,p,1.0);
+    ptr.appendChild(el('polygon',{points:(offsetX-10)+','+(y-40)+' '+(offsetX+10)+','+(y-40)+' '+offsetX+','+(y-24),class:'node teal filled-teal'}));
+    svg.appendChild(ptr);
+    const consLbl = grp('pop'); delayIt(consLbl,p,1.2);
+    consLbl.appendChild(txt(offsetX,y-50,'consumer '+(p+1)+' offset','lbl'));
+    svg.appendChild(consLbl);
+  });
+  noteBox(root,'Each consumer in the group owns a partition and tracks its own offset \u2014 independent progress, guaranteed order within a partition.', 1.6);
+});
+
+/* ===================================================================== */
+addSlide('C', function(root){
+  header(root,{section:'C', eyebrow:'EVENT-DRIVEN \u00b7 DELIVERY',
+    title:'Event Replay',
+    sub:'Because the log is never deleted after reading, you can rewind a consumer\u2019s offset and rebuild state, backfill a new service, or recover from a bug.'});
+  const svg = canvas(root, '0 0 1200 420');
+  const y = 200;
+  for(let k=0;k<8;k++){
+    const g = grp('pop'); delayIt(g,k,0.05);
+    g.appendChild(rect(80+k*130,y-24,110,48,'violet'));
+    g.appendChild(txt(80+k*130+55,y+6,'e'+k,'lbl'));
+    svg.appendChild(g);
+  }
+  const ptr = el('polygon',{points:'','class':'node amber filled-amber'});
+  svg.appendChild(ptr);
+  const label = txt(0,0,'','lbl-strong'); label.id='replayLabel';
+  svg.appendChild(label);
+  const positions = [7,2,7];
+  let idx = 0;
+  function place(){
+    const k = positions[idx];
+    const cx = 80+k*130+55;
+    ptr.setAttribute('points', (cx-12)+','+(y-50)+' '+(cx+12)+','+(y-50)+' '+cx+','+(y-30));
+    label.setAttribute('x',cx); label.setAttribute('y',y-60);
+    label.textContent = idx===1 ? 'rewind to offset 2' : (idx===0 ? 'reading live (offset 7)' : 're-processing forward again');
+    idx = (idx+1)%positions.length;
+  }
+  place();
+  const id = setInterval(place, 1400);
+  timers.push(id);
+  noteBox(root,'Replay works because the log is immutable and ordered \u2014 the same mechanism event sourcing relies on to rebuild state.', 1.2);
+});
+
+/* ===================================================================== */
+addSlide('C', function(root){
+  header(root,{section:'C', eyebrow:'EVENT-DRIVEN \u00b7 EVOLUTION',
+    title:'Event Versioning & Schema Evolution',
+    sub:'Events live forever in the log. Old consumers and new event shapes must coexist \u2014 add fields as optional, never remove or repurpose one.'});
+  const svg = canvas(root, '0 0 1200 460');
+  const versions = [
+    {l:'v1', f:'{id, total}'},
+    {l:'v2', f:'{id, total, currency}'},
+    {l:'v3', f:'{id, total, currency, taxBreakdown}'}
+  ];
+  versions.forEach(function(v,i){
+    const x = 220 + i*350;
+    const g = grp('pop'); delayIt(g,i,0.15);
+    g.appendChild(rect(x-140,90,280,70,'violet'));
+    g.appendChild(txt(x,120,v.l,'lbl-strong'));
+    g.appendChild(txt(x,146,v.f,'lbl mono'));
+    svg.appendChild(g);
+    if(i>0){ const a = arrow(x-350+140,125,x-140,125,'edge draw','arrow'); delayIt(a,i,0.5); svg.appendChild(a); }
+  });
+  const up = grp('pop'); delayIt(up,0,1.2);
+  up.appendChild(arrow(220,160,720,300,'amber draw','arrowAmber'));
+  up.appendChild(rect(560,310,320,90,'amber'));
+  up.appendChild(txt(720,342,'upcaster','lbl-strong'));
+  up.appendChild(txt(720,370,'v1 event \u2192 shaped as v3 on read','lbl'));
+  svg.appendChild(up);
+  noteBox(root,'Consumers written against v3 never need to know a v1 event even existed \u2014 the upcaster bridges the gap.', 1.7);
+});
+
+/* ===================================================================== */
+addSlide('C', function(root){
+  header(root,{section:'C', eyebrow:'EVENT-DRIVEN \u00b7 FAILURE HANDLING',
+    title:'Dead-Letter Processing',
+    sub:"A message that keeps failing shouldn't be retried forever, blocking everything behind it. After N attempts, set it aside."});
+  const svg = canvas(root);
+  const q = {x:180,y:280};
+  svg.appendChild(rect(q.x-90,q.y-40,180,80,'violet'));
+  svg.appendChild(txt(q.x,q.y+6,'main queue','lbl-strong'));
+  const handler = {x:520,y:280};
+  const hg = grp('pop'); delayIt(hg,0,0.3);
+  hg.appendChild(rect(handler.x-100,handler.y-40,200,80,'amber'));
+  hg.appendChild(txt(handler.x,handler.y-2,'handler','lbl-strong'));
+  const retryLbl = txt(handler.x,handler.y+22,'attempt 1','lbl'); retryLbl.id='retryLbl';
+  hg.appendChild(retryLbl);
+  svg.appendChild(hg);
+  svg.appendChild(arrow(q.x+90,q.y,handler.x-100,handler.y,'edge draw','arrow'));
+  const loop = el('path',{d:'M '+(handler.x+90)+' '+(handler.y-25)+' Q '+(handler.x+170)+' '+(handler.y-95)+' '+(handler.x+10)+' '+(handler.y-42), class:'edge rose draw', 'marker-end':'url(#arrowRose)'});
+  svg.appendChild(loop);
+  svg.appendChild(txt(handler.x+150,handler.y-100,'retry','lbl'));
+  const dlq = {x:920,y:280};
+  const dg = grp('pop'); delayIt(dg,0,0.3);
+  dg.appendChild(rect(dlq.x-100,dlq.y-40,200,80,'rose'));
+  dg.appendChild(txt(dlq.x,dlq.y+6,'dead-letter queue','lbl-strong'));
+  svg.appendChild(dg);
+  const dArrow = arrow(handler.x+100,handler.y,dlq.x-100,dlq.y,'rose draw','arrowRose');
+  svg.appendChild(dArrow);
+  let attempt = 1;
+  function step(){
+    attempt = attempt>=3 ? 1 : attempt+1;
+    document.getElementById('retryLbl').textContent = attempt<=3 ? ('attempt '+attempt) : 'sent to DLQ';
+  }
+  const id = setInterval(step, 1000);
+  timers.push(id);
+  const note = grp('pop'); delayIt(note,0,1.0);
+  note.appendChild(txt(520,420,'after 3 failed attempts \u2192 routed to DLQ, main queue keeps flowing','lbl'));
+  svg.appendChild(note);
+});
+
+/* ===================================================================== */
+addSlide('C', function(root){
+  header(root,{section:'C', eyebrow:'EVENT-DRIVEN \u00b7 IN PRACTICE',
+    title:'Where This Actually Runs \u2014 and What\u2019s Next',
+    sub:'The same handful of shapes power ledgers, search indexes, and every notification you get.'});
+  chipRow(root,[
+    {t:'Bank ledgers & audit trails', d:'event sourcing as the system of record'},
+    {t:'E-commerce search & read APIs', d:'CQRS read models, denormalized for speed'},
+    {t:'Notifications & analytics', d:'pub/sub and streaming: Kafka, SNS/SQS, Pub/Sub'},
+    {t:'Payment retries', d:'dead-letter queues catching poison messages'}
+  ], 0.15);
+  const svg = canvas(root, '0 0 1200 160');
+  const note = grp('pop'); delayIt(note,0,0.9);
+  note.appendChild(txt(600,60,'DATA \u2192 made a single record converge under conflicting replicas.','lbl'));
+  note.appendChild(txt(600,88,'TRANSACTIONS \u2192 made multi-service writes safe without global locks.','lbl'));
+  note.appendChild(txt(600,116,'EVENTS \u2192 let every other service find out, without asking.','lbl'));
+  svg.appendChild(note);
+  formulaBox(root,'Next up: what happens when the network itself lies \u2014 partitions, timeouts, CAP & PACELC.', 1.6);
+});
+
+/* ============================= wire up nav ============================= */
+document.getElementById('nextBtn').addEventListener('click', function(){ showSlide(current+1); });
+document.getElementById('prevBtn').addEventListener('click', function(){ showSlide(current-1); });
+window.addEventListener('keydown', function(e){
+  if(e.key==='ArrowRight' || e.key==='PageDown' || e.key===' '){ e.preventDefault(); showSlide(current+1); }
+  else if(e.key==='ArrowLeft' || e.key==='PageUp'){ e.preventDefault(); showSlide(current-1); }
+});
+document.getElementById('stage').addEventListener('click', function(e){
+  if(e.target.closest('.nav-bar')) return;
+  const rect = document.getElementById('stage').getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  if(x > rect.width*0.55) showSlide(current+1);
+  else if(x < rect.width*0.45) showSlide(current-1);
+});
+showSlide(0);
+</script>
+</body>
+</html>

@@ -1,0 +1,1098 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Advanced Distributed Architecture Patterns</title>
+<style>
+  :root{
+    --bg:#07080c;
+    --panel:#0d1017;
+    --ink:#e9ebf1;
+    --ink-dim:#93a0b4;
+    --ink-faint:#4b5568;
+    --teal:#3ec9b0;
+    --amber:#e8b64f;
+    --rose:#e0647a;
+    --violet:#9b8cf2;
+    --line:#232a38;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);
+    font-family:'Segoe UI',Helvetica,Arial,sans-serif;overflow:hidden;height:100%;}
+  #deck{position:relative;width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;}
+  .frame{position:relative;width:100%;max-width:1600px;aspect-ratio:16/9;max-height:100vh;background:var(--bg);
+    box-shadow:0 0 0 1px var(--line) inset;overflow:hidden;}
+  .slide{position:absolute;inset:0;display:none;flex-direction:column;padding:3.4% 5% 2.6%;}
+  .slide.active{display:flex;}
+  .slide-eyebrow{font-size:0.72rem;letter-spacing:.22em;color:var(--teal);font-weight:600;text-transform:uppercase;
+    opacity:0;animation:fadeUp .5s ease forwards;}
+  .eyebrow-num{color:var(--ink-faint);letter-spacing:.05em;margin-left:8px;}
+  .slide-title{font-size:2.05rem;font-weight:700;margin:0.35em 0 0.15em;line-height:1.2;color:var(--ink);
+    opacity:0;animation:fadeUp .55s ease forwards;animation-delay:.08s;}
+  .slide-title .hl{color:var(--amber);}
+  .slide-sub{font-size:1rem;color:var(--ink-dim);margin:0 0 0.4em;max-width:920px;line-height:1.5;
+    opacity:0;animation:fadeUp .55s ease forwards;animation-delay:.16s;}
+  .stage{flex:1;position:relative;min-height:0;}
+  .stage svg{width:100%;height:100%;display:block;}
+  .caption{font-size:0.98rem;color:var(--ink-dim);border-top:1px solid var(--line);padding-top:0.55em;margin-top:0.4em;
+    opacity:0;animation:fadeUp .55s ease forwards;animation-delay:.24s;min-height:1.4em;}
+  .caption .hl{color:var(--amber);font-weight:600;}
+  .caption .hl2{color:var(--rose);font-weight:600;}
+  .caption .hl3{color:var(--teal);font-weight:600;}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
+
+  /* nav */
+  .navbar{position:absolute;bottom:10px;left:0;right:0;display:flex;align-items:center;justify-content:center;
+    gap:14px;z-index:20;}
+  .navbtn{background:transparent;border:1px solid var(--line);color:var(--ink-dim);width:34px;height:34px;border-radius:50%;
+    cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;transition:.2s;}
+  .navbtn:hover{border-color:var(--teal);color:var(--teal);}
+  .dots{display:flex;gap:6px;flex-wrap:wrap;max-width:520px;justify-content:center;}
+  .dot{width:6px;height:6px;border-radius:50%;background:var(--ink-faint);cursor:pointer;transition:.2s;}
+  .dot.active{background:var(--teal);width:16px;border-radius:3px;}
+  .progress{position:absolute;top:0;left:0;height:2px;background:var(--teal);z-index:20;transition:width .3s ease;}
+  .replay{position:absolute;top:14px;right:5%;border:1px solid var(--line);background:transparent;color:var(--ink-faint);
+    width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:0.85rem;z-index:5;}
+  .replay:hover{color:var(--teal);border-color:var(--teal);}
+  .sectiontag{position:absolute;top:14px;left:5%;font-size:0.68rem;color:var(--ink-faint);letter-spacing:.15em;z-index:5;}
+
+  /* svg helpers */
+  .lbl{font-size:15px;fill:var(--ink);font-family:inherit;}
+  .lbl-dim{font-size:13px;fill:var(--ink-dim);}
+  .lbl-faint{font-size:11px;fill:var(--ink-faint);}
+  .lbl-big{font-size:26px;font-weight:700;fill:var(--amber);}
+  .mono{font-family:'Consolas','Menlo',monospace;}
+  .box{fill:var(--panel);stroke:var(--line);stroke-width:1.5;}
+  .box-amber{stroke:var(--amber);}
+  .box-teal{stroke:var(--teal);}
+  .box-rose{stroke:var(--rose);}
+  .box-violet{stroke:var(--violet);}
+  .pop{opacity:0;transform:scale(.85);transform-box:fill-box;transform-origin:center;
+    transition:opacity .45s ease, transform .45s ease;}
+  .pop.show{opacity:1;transform:scale(1);}
+  .grow-line{stroke-dasharray:600;stroke-dashoffset:600;transition:stroke-dashoffset .6s ease;}
+  .grow-line.show{stroke-dashoffset:0;}
+
+  /* bridge slide (recap/gap/fill) */
+  .bridge-wrap{flex:1;display:flex;flex-direction:column;justify-content:center;gap:26px;max-width:1000px;margin:0 auto;width:100%;}
+  .bridge-row{display:flex;align-items:baseline;gap:16px;opacity:0;transform:translateY(14px);
+    transition:opacity .5s ease, transform .5s ease;}
+  .bridge-row.show{opacity:1;transform:translateY(0);}
+  .bridge-tag{font-size:.68rem;letter-spacing:.2em;font-weight:700;width:90px;flex-shrink:0;}
+  .tag-recap{color:var(--teal);}
+  .tag-gap{color:var(--rose);}
+  .tag-fill{color:var(--amber);}
+  .bridge-text{font-size:1.25rem;color:var(--ink);line-height:1.45;}
+  .bridge-text.q{font-style:italic;color:var(--ink-dim);}
+  .bridge-text .hl{color:var(--amber);font-weight:700;}
+</style>
+</head>
+<body>
+<div id="deck">
+<div class="frame" id="frame">
+  <div class="progress" id="progress" style="width:0%"></div>
+  <div class="sectiontag" id="sectiontag"></div>
+  <button class="replay" id="replayBtn" title="Replay">&#8635;</button>
+
+  <!--SLIDES_START-->
+
+  <section class="slide" id="s-title">
+    <div class="stage">
+      <svg viewBox="0 0 1200 520">
+        <g id="g-title"></g>
+      </svg>
+    </div>
+  </section>
+
+  <!-- ===================== SECTION 1: FOUNDATIONS ===================== -->
+
+  <section class="slide" id="s-cpdp">
+    <div class="slide-eyebrow">FOUNDATIONS <span class="eyebrow-num"></span></div>
+    <h1 class="slide-title">Every system runs <span class="hl">two</span> different jobs at once</h1>
+    <p class="slide-sub">Deciding what should happen, and actually moving the data. They fail differently, so we build them differently.</p>
+    <div class="stage"><svg viewBox="0 0 1200 480" id="svg-cpdp"></svg></div>
+    <div class="caption">The <span class="hl3">control plane</span> is small, slow, and smart. The <span class="hl">data plane</span> is huge, fast, and dumb on purpose.</div>
+  </section>
+
+  <section class="slide" id="s-cpdp2">
+    <div class="slide-eyebrow">FOUNDATIONS <span class="eyebrow-num"></span></div>
+    <h1 class="slide-title">Formula: the data plane must <span class="hl">survive</span> without the control plane</h1>
+    <p class="slide-sub">Control plane pushes routes/config → data plane caches them → data plane keeps working even if control plane is down.</p>
+    <div class="stage"><svg viewBox="0 0 1200 480" id="svg-cpdp2"></svg></div>
+    <div class="caption">Practical: Kubernetes API server (<span class="hl3">control</span>) vs kube-proxy forwarding packets (<span class="hl">data</span>); Istiod (<span class="hl3">control</span>) vs Envoy sidecars (<span class="hl">data</span>).</div>
+  </section>
+
+  <section class="slide" id="s-bridge1">
+    <div class="stage bridge-wrap">
+      <div class="bridge-row" data-b><span class="bridge-tag tag-recap">RECAP</span><span class="bridge-text">A system splits <span class="hl">decisions</span> from <span class="hl">data movement</span>.</span></div>
+      <div class="bridge-row" data-b><span class="bridge-tag tag-gap">GAP</span><span class="bridge-text q">But who holds the actual data inside the data plane — and can we just copy that box to scale it?</span></div>
+      <div class="bridge-row" data-b><span class="bridge-tag tag-fill">FILL</span><span class="bridge-text">Depends if the service is <span class="hl">stateless</span> or <span class="hl">stateful</span>.</span></div>
+    </div>
+  </section>
+
+  <section class="slide" id="s-stateless">
+    <div class="slide-eyebrow">FOUNDATIONS <span class="eyebrow-num"></span></div>
+    <h1 class="slide-title">Stateless: clone it <span class="hl">infinitely</span>, nothing to synchronize</h1>
+    <p class="slide-sub">No memory between requests. Any instance can answer any request.</p>
+    <div class="stage"><svg viewBox="0 0 1200 480" id="svg-stateless"></svg></div>
+    <div class="caption">Throughput scales <span class="hl">linearly</span>: N identical instances ≈ N × capacity. Practical: stateless REST APIs, static web/CDN edges, pure functions/Lambda.</div>
+  </section>
+
+  <section class="slide" id="s-stateful">
+    <div class="slide-eyebrow">FOUNDATIONS <span class="eyebrow-num"></span></div>
+    <h1 class="slide-title">Stateful: the box <span class="hl2">remembers</span> — so cloning isn't free</h1>
+    <p class="slide-sub">Each instance owns a slice of data. Route the wrong request there and it doesn't have the answer.</p>
+    <div class="stage"><svg viewBox="0 0 1200 480" id="svg-stateful"></svg></div>
+    <div class="caption">Needs <span class="hl">sticky routing</span> + <span class="hl">replication</span> to survive a node dying. Practical: databases, session stores, stateful stream operators (windows/aggregations).</div>
+  </section>
+
+  <section class="slide" id="s-bridge2">
+    <div class="stage bridge-wrap">
+      <div class="bridge-row" data-b><span class="bridge-tag tag-recap">RECAP</span><span class="bridge-text">State either lives <span class="hl">inside</span> the service or <span class="hl">outside</span> it.</span></div>
+      <div class="bridge-row" data-b><span class="bridge-tag tag-gap">GAP</span><span class="bridge-text q">Once the data is too big for one machine, how do many machines share it — CPU, disk, or memory?</span></div>
+      <div class="bridge-row" data-b><span class="bridge-tag tag-fill">FILL</span><span class="bridge-text">Three sharing models: <span class="hl">shared-nothing</span>, <span class="hl">shared-disk</span>, <span class="hl">shared-memory</span>.</span></div>
+    </div>
+  </section>
+
+  <section class="slide" id="s-shared">
+    <div class="slide-eyebrow">FOUNDATIONS <span class="eyebrow-num"></span></div>
+    <h1 class="slide-title">Three ways to let machines <span class="hl">share a workload</span></h1>
+    <p class="slide-sub">The difference is what's shared: nothing, the disk, or the memory itself.</p>
+    <div class="stage"><svg viewBox="0 0 1200 500" id="svg-shared"></svg></div>
+    <div class="caption"><span class="hl3">Shared-nothing</span> scales best (Cassandra, DynamoDB) · <span class="hl">shared-disk</span> keeps one copy of data (Oracle RAC) · <span class="hl2">shared-memory</span> is fastest but caps out at one box (HPC, single big DB).</div>
+  </section>
+
+  <!-- ===================== SECTION 2: ISOLATION ===================== -->
+
+  <section class="slide" id="s-bulkhead">
+    <div class="slide-eyebrow">ISOLATION &amp; BLAST RADIUS <span class="eyebrow-num"></span></div>
+    <h1 class="slide-title">Bulkhead: let one compartment <span class="hl2">flood</span> without sinking the ship</h1>
+    <p class="slide-sub">Partition resources — thread pools, connections, queues — per dependency, so one slow caller can't starve the rest.</p>
+    <div class="stage"><svg viewBox="0 0 1200 480" id="svg-bulkhead"></svg></div>
+    <div class="caption">Formula: blast radius ≈ <span class="hl mono">1 / N</span> compartments. Practical: separate thread pools per downstream API (Hystrix/Resilience4j), per-tenant connection pools.</div>
+  </section>
+
+  <section class="slide" id="s-cell">
+    <div class="slide-eyebrow">ISOLATION &amp; BLAST RADIUS <span class="eyebrow-num"></span></div>
+    <h1 class="slide-title">Cell-based: replicate the <span class="hl">whole stack</span>, not just a pool</h1>
+    <p class="slide-sub">Each cell = compute + queue + database, fully independent. A user is pinned to exactly one cell.</p>
+    <div class="stage"><svg viewBox="0 0 1200 480" id="svg-cell"></svg></div>
+    <div class="caption">If Cell 3 fails, only <span class="hl">its</span> slice of users feels it — never 100% of traffic. Practical: AWS's own cell-based services, sharded SaaS backends.</div>
+  </section>
+
+  <section class="slide" id="s-bridge3">
+    <div class="stage bridge-wrap">
+      <div class="bridge-row" data-b><span class="bridge-tag tag-recap">RECAP</span><span class="bridge-text">Bulkheads isolate <span class="hl">resources</span>; cells isolate <span class="hl">whole stacks</span>.</span></div>
+      <div class="bridge-row" data-b><span class="bridge-tag tag-gap">GAP</span><span class="bridge-text q">What if the boundary isn't infra at all — it's which team owns which piece?</span></div>
+      <div class="bridge-row" data-b><span class="bridge-tag tag-fill">FILL</span><span class="bridge-text">Isolate at the <span class="hl">organizational</span> boundary: federated architecture.</span></div>
+    </div>
+  </section>
+
+  <section class="slide" id="s-federated">
+    <div class="slide-eyebrow">ISOLATION &amp; BLAST RADIUS <span class="eyebrow-num"></span></div>
+    <h1 class="slide-title">Federated: independent domains, joined by a <span class="hl">shared contract</span></h1>
+    <p class="slide-sub">Each domain owns its data and deploys on its own schedule. A gateway composes them for the caller.</p>
+    <div class="stage"><svg viewBox="0 0 1200 480" id="svg-federated"></svg></div>
+    <div class="caption">Practical: GraphQL Federation (each team owns a subgraph), federated identity/SSO across companies, federated learning (models trained locally, only updates shared).</div>
+  </section>
+
+  <!-- ===================== SECTION 3: GEOGRAPHIC RESILIENCE ===================== -->
+
+  <section class="slide" id="s-multiregion">
+    <div class="slide-eyebrow">GEOGRAPHIC RESILIENCE <span class="eyebrow-num"></span></div>
+    <h1 class="slide-title">A single region is one blast radius: the <span class="hl2">whole planet</span> is your target</h1>
+    <p class="slide-sub">Spread the same system across regions so a data-center, power, or network failure isn't global.</p>
+    <div class="stage"><svg viewBox="0 0 1200 480" id="svg-multiregion"></svg></div>
+    <div class="caption">Cost: cross-region replication latency (often <span class="hl">50–150ms</span>) and real infrastructure spend. You buy resilience with latency and money.</div>
+  </section>
+
+  <section class="slide" id="s-activepassive">
+    <div class="slide-eyebrow">GEOGRAPHIC RESILIENCE <span class="eyebrow-num"></span></div>
+    <h1 class="slide-title">Active-Passive: one region works, the other <span class="hl">waits</span></h1>
+    <p class="slide-sub">Standby region stays warm, replicating data, until a failover promotes it.</p>
+    <div class="stage"><svg viewBox="0 0 1200 480" id="svg-activepassive"></svg></div>
+    <div class="caption">Simple to reason about, consistent — but <span class="hl mono">RTO</span> (recovery time) is the failover duration. Practical: primary-DB + warm standby, DR sites.</div>
+  </section>
+
+  <section class="slide" id="s-activeactive">
+    <div class="slide-eyebrow">GEOGRAPHIC RESILIENCE <span class="eyebrow-num"></span></div>
+    <h1 class="slide-title">Active-Active: <span class="hl">both</span> regions serve traffic, all the time</h1>
+    <p class="slide-sub">No idle standby — but now two regions can accept conflicting writes at once.</p>
+    <div class="stage"><svg viewBox="0 0 1200 480" id="svg-activeactive"></svg></div>
+    <div class="caption">Near-zero <span class="hl mono">RTO</span>, near-zero <span class="hl mono">RPO</span> — you pay for it with <span class="hl2">conflict resolution</span> (last-write-wins, CRDTs, vector clocks). Practical: multi-region DynamoDB global tables, CDNs.</div>
+  </section>
+
+  <!-- ===================== SECTION 4: DATA FLOW / TIMING ===================== -->
+
+  <section class="slide" id="s-bridge4">
+    <div class="stage bridge-wrap">
+      <div class="bridge-row" data-b><span class="bridge-tag tag-recap">RECAP</span><span class="bridge-text">Regions trade <span class="hl">latency/cost</span> for survival against total outages.</span></div>
+      <div class="bridge-row" data-b><span class="bridge-tag tag-gap">GAP</span><span class="bridge-text q">Inside one region, a single request also has a choice: answer fast and rough, or slow and exact — why not both?</span></div>
+      <div class="bridge-row" data-b><span class="bridge-tag tag-fill">FILL</span><span class="bridge-text">Split the <span class="hl">hot path</span> from the <span class="hl">cold path</span>.</span></div>
+    </div>
+  </section>
+
+  <section class="slide" id="s-hotcold">
+    <div class="slide-eyebrow">DATA FLOW &amp; TIMING <span class="eyebrow-num"></span></div>
+    <h1 class="slide-title">Hot path = fast &amp; approximate. Cold path = slow &amp; exact.</h1>
+    <p class="slide-sub">Serve the user from the hot path immediately; let the cold path correct the record later.</p>
+    <div class="stage"><svg viewBox="0 0 1200 480" id="svg-hotcold"></svg></div>
+    <div class="caption">Practical: a live view-counter shown instantly (<span class="hl">hot</span>) is reconciled overnight by an exact batch job (<span class="hl3">cold</span>) for billing/analytics.</div>
+  </section>
+
+  <section class="slide" id="s-lambda">
+    <div class="slide-eyebrow">DATA FLOW &amp; TIMING <span class="eyebrow-num"></span></div>
+    <h1 class="slide-title">Lambda architecture: run <span class="hl">both</span> paths, merge at the end</h1>
+    <p class="slide-sub">Batch layer computes the accurate view; speed layer fills the gap until batch catches up.</p>
+    <div class="stage"><svg viewBox="0 0 1200 480" id="svg-lambda"></svg></div>
+    <div class="caption">Formula: <span class="mono hl">answer = batch_view ⊕ realtime_view</span> at the serving layer. Trade-off: you now maintain <span class="hl2">two</span> codebases doing the same logic.</div>
+  </section>
+
+  <section class="slide" id="s-kappa">
+    <div class="slide-eyebrow">DATA FLOW &amp; TIMING <span class="eyebrow-num"></span></div>
+    <h1 class="slide-title">Kappa: delete the batch layer, <span class="hl">replay the log</span> instead</h1>
+    <p class="slide-sub">One stream pipeline only. To "reprocess," rewind the log and run it again with new logic.</p>
+    <div class="stage"><svg viewBox="0 0 1200 480" id="svg-kappa"></svg></div>
+    <div class="caption">One codebase, one mental model. Practical: Apache Kafka's long-retention log + stream processors (Kafka Streams, Flink) — proposed by Jay Kreps as Lambda's simpler sibling.</div>
+  </section>
+
+  <!-- ===================== SECTION 5: STATE & HISTORY ===================== -->
+
+  <section class="slide" id="s-bridge5">
+    <div class="stage bridge-wrap">
+      <div class="bridge-row" data-b><span class="bridge-tag tag-recap">RECAP</span><span class="bridge-text">Kappa treats the event <span class="hl">log</span> as the one source of truth.</span></div>
+      <div class="bridge-row" data-b><span class="bridge-tag tag-gap">GAP</span><span class="bridge-text q">If events are the real truth, why do most apps still model "current state" as the thing they read and write?</span></div>
+      <div class="bridge-row" data-b><span class="bridge-tag tag-fill">FILL</span><span class="bridge-text">Separate them: <span class="hl">CQRS</span> and <span class="hl">Event Sourcing</span>.</span></div>
+    </div>
+  </section>
+
+  <section class="slide" id="s-cqrs">
+    <div class="slide-eyebrow">STATE &amp; HISTORY <span class="eyebrow-num"></span></div>
+    <h1 class="slide-title">CQRS: writing and reading are <span class="hl">different jobs</span> — stop forcing one model to do both</h1>
+    <p class="slide-sub">Commands go to a write model optimized for validation. Queries go to a read model optimized for shape and speed.</p>
+    <div class="stage"><svg viewBox="0 0 1200 480" id="svg-cqrs"></svg></div>
+    <div class="caption">Read model is often <span class="hl2">eventually consistent</span> — updated a moment after the write. Practical: write to normalized SQL, project into denormalized Elasticsearch/Redis for reads.</div>
+  </section>
+
+  <section class="slide" id="s-eventsourcing">
+    <div class="slide-eyebrow">STATE &amp; HISTORY <span class="eyebrow-num"></span></div>
+    <h1 class="slide-title">Event Sourcing: don't store the state — store <span class="hl">every change</span></h1>
+    <p class="slide-sub">Current state is just a replay of history. Nothing is ever overwritten or lost.</p>
+    <div class="stage"><svg viewBox="0 0 1200 480" id="svg-eventsourcing"></svg></div>
+    <div class="caption">Formula: <span class="mono hl">state = reduce(events, apply, initial)</span>. Practical: bank ledgers, audit trails, "what was the balance last Tuesday" time-travel queries.</div>
+  </section>
+
+  <!-- ===================== SECTION 6: PROCESSING MODELS ===================== -->
+
+  <section class="slide" id="s-bridge6">
+    <div class="stage bridge-wrap">
+      <div class="bridge-row" data-b><span class="bridge-tag tag-recap">RECAP</span><span class="bridge-text">Events pile up as an ever-growing, ordered history.</span></div>
+      <div class="bridge-row" data-b><span class="bridge-tag tag-gap">GAP</span><span class="bridge-text q">Do we process that history the instant it arrives, or wait and process it in chunks?</span></div>
+      <div class="bridge-row" data-b><span class="bridge-tag tag-fill">FILL</span><span class="bridge-text"><span class="hl">Stream</span> vs <span class="hl">batch</span> processing.</span></div>
+    </div>
+  </section>
+
+  <section class="slide" id="s-stream">
+    <div class="slide-eyebrow">PROCESSING MODELS <span class="eyebrow-num"></span></div>
+    <h1 class="slide-title">Stream processing: the data never <span class="hl">stops</span> arriving</h1>
+    <p class="slide-sub">Each event is handled the instant it shows up — often within a sliding time window.</p>
+    <div class="stage"><svg viewBox="0 0 1200 480" id="svg-stream"></svg></div>
+    <div class="caption">Latency: <span class="hl">milliseconds</span>. Practical: fraud detection, live dashboards, Flink/Kafka Streams windowed aggregation.</div>
+  </section>
+
+  <section class="slide" id="s-batch">
+    <div class="slide-eyebrow">PROCESSING MODELS <span class="eyebrow-num"></span></div>
+    <h1 class="slide-title">Batch processing: let it <span class="hl2">pile up</span>, then crunch it all at once</h1>
+    <p class="slide-sub">Bounded chunks, run on a schedule — trading latency for throughput and simplicity.</p>
+    <div class="stage"><svg viewBox="0 0 1200 480" id="svg-batch"></svg></div>
+    <div class="caption">Latency: <span class="hl2">hours</span>, throughput: <span class="hl">huge</span>. Practical: nightly billing runs, data-warehouse ETL, Spark batch jobs.</div>
+  </section>
+
+  <section class="slide" id="s-mapreduce">
+    <div class="slide-eyebrow">PROCESSING MODELS <span class="eyebrow-num"></span></div>
+    <h1 class="slide-title">MapReduce: the recipe behind most <span class="hl">big batch</span> jobs</h1>
+    <p class="slide-sub">Split the data, map it in parallel, shuffle by key, reduce each key's group.</p>
+    <div class="stage"><svg viewBox="0 0 1200 500" id="svg-mapreduce"></svg></div>
+    <div class="caption">Formula: <span class="mono hl">map(k1,v1)→list(k2,v2)</span> then <span class="mono hl">reduce(k2,list(v2))→v3</span>. Practical: classic word-count, log aggregation, Hadoop/Spark jobs.</div>
+  </section>
+
+  <!-- ===================== SECTION 7: WORK DISTRIBUTION ===================== -->
+
+  <section class="slide" id="s-bridge7">
+    <div class="stage bridge-wrap">
+      <div class="bridge-row" data-b><span class="bridge-tag tag-recap">RECAP</span><span class="bridge-text">MapReduce splits one big job into parallel pieces.</span></div>
+      <div class="bridge-row" data-b><span class="bridge-tag tag-gap">GAP</span><span class="bridge-text q">Beyond one framework — how does any request or event actually fan out to many workers and come back together?</span></div>
+      <div class="bridge-row" data-b><span class="bridge-tag tag-fill">FILL</span><span class="bridge-text">Scatter-gather, fan-out/fan-in, work stealing, and the scheduler that assigns it all.</span></div>
+    </div>
+  </section>
+
+  <section class="slide" id="s-scattergather">
+    <div class="slide-eyebrow">WORK DISTRIBUTION <span class="eyebrow-num"></span></div>
+    <h1 class="slide-title">Scatter-Gather: <span class="hl">one</span> request in, <span class="hl">one</span> merged answer out</h1>
+    <p class="slide-sub">A coordinator scatters the same query to many workers, then gathers and combines their partial results.</p>
+    <div class="stage"><svg viewBox="0 0 1200 480" id="svg-scattergather"></svg></div>
+    <div class="caption">Latency = <span class="hl2">slowest worker</span> (the "straggler" problem). Practical: search engines querying many shards, price-comparison aggregators.</div>
+  </section>
+
+  <section class="slide" id="s-fanoutin">
+    <div class="slide-eyebrow">WORK DISTRIBUTION <span class="eyebrow-num"></span></div>
+    <h1 class="slide-title">Fan-out feeds many; fan-in <span class="hl">collects</span> from many</h1>
+    <p class="slide-sub">Fan-out: one event copied to every interested consumer. Fan-in: many producers write into one stream.</p>
+    <div class="stage"><svg viewBox="0 0 1200 480" id="svg-fanoutin"></svg></div>
+    <div class="caption">Practical: fan-out = pub/sub topic to many services (order placed → email, inventory, analytics); fan-in = many microservices logging into one Kafka topic.</div>
+  </section>
+
+  <section class="slide" id="s-workstealing">
+    <div class="slide-eyebrow">WORK DISTRIBUTION <span class="eyebrow-num"></span></div>
+    <h1 class="slide-title">Work Stealing: idle workers <span class="hl">steal</span> from busy ones</h1>
+    <p class="slide-sub">Each worker has its own queue. An empty worker steals a task off the tail of someone else's queue instead of sitting idle.</p>
+    <div class="stage"><svg viewBox="0 0 1200 480" id="svg-workstealing"></svg></div>
+    <div class="caption">Self-balancing — no central coordinator needed. Practical: Java's ForkJoinPool, Go runtime scheduler, Rust's Tokio executor.</div>
+  </section>
+
+  <section class="slide" id="s-scheduler">
+    <div class="slide-eyebrow">WORK DISTRIBUTION <span class="eyebrow-num"></span></div>
+    <h1 class="slide-title">Distributed Scheduler: someone still has to <span class="hl">place</span> the work</h1>
+    <p class="slide-sub">Matches pending jobs to nodes based on capacity, constraints, and priority — before any stealing or scattering can happen.</p>
+    <div class="stage"><svg viewBox="0 0 1200 480" id="svg-scheduler"></svg></div>
+    <div class="caption">Practical: Kubernetes scheduler (bin-packs pods onto nodes by CPU/memory requests), YARN, Mesos, Borg (Google's original inspiration for Kubernetes).</div>
+  </section>
+
+  <!-- ===================== SECTION 8: TOPOLOGY ===================== -->
+
+  <section class="slide" id="s-bridge8">
+    <div class="stage bridge-wrap">
+      <div class="bridge-row" data-b><span class="bridge-tag tag-recap">RECAP</span><span class="bridge-text">Active-active needed every region to accept writes — with conflict resolution.</span></div>
+      <div class="bridge-row" data-b><span class="bridge-tag tag-gap">GAP</span><span class="bridge-text q">What if there isn't even a "leader" node to coordinate those writes in the first place?</span></div>
+      <div class="bridge-row" data-b><span class="bridge-tag tag-fill">FILL</span><span class="bridge-text"><span class="hl">Leaderless architecture</span> — any replica can accept a write.</span></div>
+    </div>
+  </section>
+
+  <section class="slide" id="s-leaderless">
+    <div class="slide-eyebrow">TOPOLOGY <span class="eyebrow-num"></span></div>
+    <h1 class="slide-title">Leaderless: no single node decides — <span class="hl">quorums</span> do</h1>
+    <p class="slide-sub">Any replica accepts reads and writes. Correctness comes from overlapping quorums, not from asking one boss.</p>
+    <div class="stage"><svg viewBox="0 0 1200 480" id="svg-leaderless"></svg></div>
+    <div class="caption">Formula: <span class="mono hl">R + W &gt; N</span> guarantees a read overlaps a prior write. Practical: Amazon Dynamo, Cassandra, Riak — the engine behind true active-active.</div>
+  </section>
+
+  <!-- ===================== FINAL RECAP ===================== -->
+
+  <section class="slide" id="s-final">
+    <div class="slide-eyebrow">RECAP <span class="eyebrow-num"></span></div>
+    <h1 class="slide-title">Every pattern answers <span class="hl">one</span> of four questions</h1>
+    <p class="slide-sub">Twenty-five names, four underlying axes.</p>
+    <div class="stage"><svg viewBox="0 0 1200 520" id="svg-final"></svg></div>
+    <div class="caption">Isolation → bulkhead/cell/federated · Geography → multi-region/active-active/passive · Timing → hot-cold/lambda/kappa/stream/batch · Coordination → CQRS/ES/scatter-gather/fan-out-in/work-stealing/scheduler/leaderless.</div>
+  </section>
+
+  <!--SLIDES_END-->
+
+</div>
+<div class="navbar">
+  <button class="navbtn" id="prevBtn">&#8592;</button>
+  <div class="dots" id="dots"></div>
+  <button class="navbtn" id="nextBtn">&#8594;</button>
+</div>
+</div>
+
+<script>
+(function(){
+  const NS = "http://www.w3.org/2000/svg";
+  function E(tag, attrs, parent){
+    const e = document.createElementNS(NS, tag);
+    for(const k in attrs){ e.setAttribute(k, attrs[k]); }
+    if(parent) parent.appendChild(e);
+    return e;
+  }
+  function T(x,y,text,cls,parent,anchor){
+    const t = E('text',{x:x,y:y,class:cls||'lbl','text-anchor':anchor||'middle'},parent);
+    t.textContent = text;
+    return t;
+  }
+  function popShow(node, delay){ setTimeout(()=>node.classList.add('show'), delay); }
+  function lineShow(node, delay){ setTimeout(()=>node.classList.add('show'), delay); }
+  function box(x,y,w,h,cls,parent){ return E('rect',{x:x,y:y,width:w,height:h,rx:8,class:'box pop '+(cls||''), }, parent); }
+  function grow(node, prop, from, to, delay, dur){
+    node.setAttribute(prop, from);
+    node.style.transition = prop+' '+(dur||700)+'ms ease';
+    setTimeout(()=>{ node.setAttribute(prop, to); }, delay);
+  }
+  function moveDot(pathD, delay, dur, color, group){
+    const dot = E('circle',{r:5,fill:color},group);
+    const anim = E('animateMotion',{dur:(dur||1200)+'ms', begin:(delay||0)+'ms', fill:'freeze', path:pathD},dot);
+    dot.style.opacity=0;
+    setTimeout(()=>{dot.style.opacity=1;}, delay);
+    return dot;
+  }
+  function conn(x1,y1,x2,y2,delay,color,parent){
+    const l = E('line',{x1:x1,y1:y1,x2:x2,y2:y2,stroke:color||'var(--line)','stroke-width':1.5,class:'grow-line'},parent);
+    lineShow(l, delay);
+    return l;
+  }
+
+  /* ===================== SLIDE SCRIPTS ===================== */
+  const slideScripts = {};
+
+  slideScripts['s-title'] = function(){
+    const g = document.getElementById('g-title'); g.innerHTML='';
+    const t1 = T(600,190,'ADVANCED DISTRIBUTED','lbl-faint',g); t1.setAttribute('font-size','16'); t1.setAttribute('letter-spacing','6');
+    const t2 = T(600,260,'ARCHITECTURE PATTERNS','lbl',g); t2.setAttribute('font-size','46'); t2.setAttribute('font-weight','800'); t2.setAttribute('fill','var(--ink)');
+    const t3 = T(600,300,'From cell-based isolation to leaderless replication','lbl-dim',g); t3.setAttribute('font-size','16');
+    [t1,t2,t3].forEach((el,i)=>{ el.style.opacity=0; el.style.transition='opacity .6s ease'; setTimeout(()=>el.style.opacity=1, 200+i*220); });
+    const items = ['Cell','Bulkhead','Federated','Multi-Region','CQRS','Event Sourcing','Stream','Batch','MapReduce','Leaderless'];
+    items.forEach((it,i)=>{
+      const cx = 190 + (i%5)*205, cy = 380 + Math.floor(i/5)*55;
+      const c = T(cx,cy,it,'lbl-faint',g); c.setAttribute('font-size','13');
+      c.style.opacity=0; c.style.transition='opacity .4s ease';
+      setTimeout(()=>c.style.opacity=1, 900+i*70);
+    });
+  };
+
+  slideScripts['s-cpdp'] = function(){
+    const svg = document.getElementById('svg-cpdp'); svg.innerHTML='';
+    T(600,40,'Control Plane','lbl-dim',svg).setAttribute('fill','var(--teal)');
+    const cp = box(430,55,340,70,'box-teal',svg); popShow(cp,100);
+    T(600,95,'route table / config','lbl-dim',svg);
+    for(let i=0;i<4;i++){
+      const x = 165+i*245;
+      const dl = conn(x+50,125,x+50,190,300+i*80,'var(--ink-faint)',svg);
+    }
+    T(600,225,'Data Plane','lbl-dim',svg).setAttribute('fill','var(--amber)');
+    for(let i=0;i<4;i++){
+      const x = 140+i*245;
+      const nb = box(x,240,220,70,'box-amber',svg); popShow(nb,500+i*90);
+      T(x+110,280,'node '+(i+1),'lbl-dim',svg);
+    }
+    for(let i=0;i<3;i++){
+      const path = 'M '+(220+i*245)+' 380 C '+(260+i*245)+' 420, '+(340+i*245)+' 420, '+(380+i*245)+' 380';
+    }
+    // flowing particles across data plane at the bottom row to show live traffic
+    const flowY=400;
+    for(let i=0;i<5;i++){
+      moveDot('M 100 '+flowY+' L 1080 '+flowY, 900+i*260, 1600, 'var(--amber)', svg);
+    }
+    conn(120,flowY,1080,flowY,850,'var(--line)',svg);
+    T(600,455,'control plane pushes decisions down; data plane keeps moving even if it stalls','lbl-faint',svg);
+  };
+
+  slideScripts['s-cpdp2'] = function(){
+    const svg = document.getElementById('svg-cpdp2'); svg.innerHTML='';
+    const cp = box(70,60,260,80,'box-teal',svg); popShow(cp,100);
+    T(200,95,'Control Plane','lbl',svg); T(200,120,'(istiod / API server)','lbl-faint',svg);
+    const cache = box(470,60,260,80,'box-violet',svg); popShow(cache,400);
+    T(600,95,'Cached Config','lbl',svg); T(600,120,'(local snapshot)','lbl-faint',svg);
+    const dp = box(870,60,260,80,'box-amber',svg); popShow(dp,700);
+    T(1000,95,'Data Plane','lbl',svg); T(1000,120,'(envoy / kube-proxy)','lbl-faint',svg);
+    conn(330,100,470,100,300,'var(--teal)',svg);
+    conn(730,100,870,100,600,'var(--amber)',svg);
+    // crash icon on control plane after config delivered
+    setTimeout(()=>{
+      const xline1=E('line',{x1:150,y1:170,x2:250,y2:250,stroke:'var(--rose)','stroke-width':4},svg);
+      const xline2=E('line',{x1:250,y1:170,x2:150,y2:250,stroke:'var(--rose)','stroke-width':4},svg);
+      [xline1,xline2].forEach(l=>{l.style.opacity=0;l.style.transition='opacity .3s ease';});
+      setTimeout(()=>{xline1.style.opacity=1;xline2.style.opacity=1;},50);
+      T(200,300,'control plane down','lbl-dim',svg).setAttribute('fill','var(--rose)');
+    }, 1300);
+    setTimeout(()=>{
+      T(1000,180,'still forwarding','lbl-dim',svg).setAttribute('fill','var(--amber)');
+      for(let i=0;i<3;i++){ moveDot('M 780 220 L 1180 220', 1900+i*250, 1000, 'var(--amber)', svg); }
+      conn(780,220,1180,220,1850,'var(--line)',svg);
+    }, 1700);
+  };
+
+  slideScripts['s-stateless'] = function(){
+    const svg = document.getElementById('svg-stateless'); svg.innerHTML='';
+    T(600,40,'requests →','lbl-dim',svg);
+    for(let i=0;i<4;i++){
+      const x = 140+i*245;
+      const b = box(x,80,220,140,'box-teal',svg); popShow(b,150+i*120);
+      T(x+110,150,'instance '+(i+1),'lbl',svg);
+      T(x+110,180,'no memory','lbl-faint',svg);
+      moveDot('M '+(x+110)+' 30 L '+(x+110)+' 80', 150+i*120, 500, 'var(--teal)', svg);
+    }
+    T(600,260,'any instance answers any request — identical clones','lbl-faint',svg);
+    // scale demonstration: bars showing throughput growing with N
+    const baseY=420, baseX=300;
+    const counts=[1,2,4,8];
+    counts.forEach((n,i)=>{
+      const w=60, x= baseX + i*160;
+      const bh = n*18;
+      const r = E('rect',{x:x,y:baseY,width:w,height:0,fill:'var(--amber)',rx:4},svg);
+      grow(r,'height',0,bh,900+i*150,600);
+      grow(r,'y',baseY,baseY-bh,900+i*150,600);
+      T(x+30,baseY+20,n+'x','lbl-dim',svg);
+    });
+    T(600,470,'throughput scales linearly with instance count','lbl-faint',svg);
+  };
+
+  slideScripts['s-stateful'] = function(){
+    const svg = document.getElementById('svg-stateful'); svg.innerHTML='';
+    T(600,40,'requests for user "A", "B", "C" →','lbl-dim',svg);
+    const users=['A','B','C'];
+    for(let i=0;i<3;i++){
+      const x=220+i*320;
+      const b = box(x,90,240,160,'box-rose',svg); popShow(b,200+i*150);
+      T(x+120,140,'instance '+(i+1),'lbl',svg);
+      T(x+120,175,'owns data: "'+users[i]+'"','lbl-dim',svg).setAttribute('fill','var(--rose)');
+      moveDot('M '+(x+120)+' 30 L '+(x+120)+' 90', 200+i*150, 500, 'var(--rose)', svg);
+      T(x+120,215,'💾','lbl',svg);
+    }
+    setTimeout(()=>{
+      T(600,300,'a request for "A" reaching instance 3 finds nothing there','lbl-dim',svg).setAttribute('fill','var(--rose)');
+    }, 1100);
+    setTimeout(()=>{
+      T(600,360,'fix: sticky routing (always send "A" to instance 1)','lbl-faint',svg);
+      T(600,390,'+ replication (a standby copy of "A" elsewhere)','lbl-faint',svg);
+    }, 1500);
+  };
+
+  function sharedPanel(svg, x, title, mode, delay){
+    const w=340;
+    T(x+w/2,30,title,'lbl',svg).setAttribute('font-weight','700');
+    if(mode==='nothing'){
+      for(let i=0;i<3;i++){
+        const nx = x+20+i*110;
+        const c = box(nx,60,90,90,'box-teal',svg); popShow(c,delay+i*150);
+        T(nx+45,95,'CPU','lbl-faint',svg); T(nx+45,115,'disk','lbl-faint',svg);
+        const d = box(nx+15,160,60,50,'box-teal',svg); popShow(d,delay+i*150+80);
+        T(nx+45,190,'data','lbl-faint',svg);
+      }
+    } else if(mode==='disk'){
+      for(let i=0;i<3;i++){
+        const nx = x+40+i*100;
+        const c = box(nx,60,80,70,'box-violet',svg); popShow(c,delay+i*150);
+        T(nx+40,90,'CPU','lbl-faint',svg);
+      }
+      const disk = box(x+70,220,200,55,'box-violet',svg); popShow(disk,delay+500);
+      T(x+170,252,'shared disk','lbl-dim',svg);
+      for(let i=0;i<3;i++){
+        const nx = x+80+i*100;
+        conn(nx,130,x+170,220,delay+550+i*80,'var(--violet)',svg);
+      }
+    } else {
+      const mem = box(x+80,190,180,60,'box-amber',svg); popShow(mem,delay+400);
+      T(x+170,225,'shared memory','lbl-dim',svg);
+      for(let i=0;i<3;i++){
+        const nx = x+60+i*90;
+        const c = box(nx,60,70,60,'box-amber',svg); popShow(c,delay+i*150);
+        T(nx+35,90,'core '+(i+1),'lbl-faint',svg);
+        conn(nx+35,120,x+170,190,delay+500+i*80,'var(--amber)',svg);
+      }
+    }
+  }
+  slideScripts['s-shared'] = function(){
+    const svg = document.getElementById('svg-shared'); svg.innerHTML='';
+    sharedPanel(svg, 20, 'Shared-Nothing', 'nothing', 200);
+    sharedPanel(svg, 420, 'Shared-Disk', 'disk', 700);
+    sharedPanel(svg, 820, 'Shared-Memory', 'memory', 1200);
+    T(220,300,'no shared resource — coordinate via network','lbl-faint',svg);
+    T(620,300,'independent CPUs, one storage layer','lbl-faint',svg);
+    T(1020,300,'tightly coupled — one machine, many cores','lbl-faint',svg);
+  };
+
+  slideScripts['s-bulkhead'] = function(){
+    const svg = document.getElementById('svg-bulkhead'); svg.innerHTML='';
+    const shipX=150, shipY=60, shipW=900, shipH=220;
+    const hull = E('rect',{x:shipX,y:shipY,width:shipW,height:shipH,rx:14,class:'box'},svg);
+    for(let i=0;i<5;i++){
+      const wx = shipX + (i+1)*(shipW/5);
+      E('line',{x1:wx,y1:shipY,x2:wx,y2:shipY+shipH,stroke:'var(--line)','stroke-width':3},svg);
+    }
+    const labels=['Payments','Search','Recs','Auth','Media'];
+    labels.forEach((l,i)=>{ T(shipX+(shipW/5)*(i+0.5), shipY+30, l, 'lbl-dim', svg); });
+    setTimeout(()=>{
+      const fx = shipX+shipW/5*0, fy=shipY+40;
+      const flood = E('rect',{x:fx+8,y:fy,width:shipW/5-16,height:0,fill:'var(--rose)',opacity:.35,rx:4},svg);
+      grow(flood,'height',0,shipH-50,300,900);
+      T(shipX+shipW/10, shipY+shipH+30, 'Payments API is down', 'lbl-dim', svg).setAttribute('fill','var(--rose)');
+    }, 500);
+    setTimeout(()=>{
+      T(shipX+shipW/2+40, shipY+shipH+30, 'Search, Recs, Auth, Media keep serving normally', 'lbl-dim', svg).setAttribute('fill','var(--teal)');
+    }, 1500);
+    T(600,shipY-20,'independent thread-pools / connection-pools per compartment','lbl-faint',svg);
+  };
+
+  slideScripts['s-cell'] = function(){
+    const svg = document.getElementById('svg-cell'); svg.innerHTML='';
+    T(600,30,'Router','lbl-dim',svg);
+    const router = box(520,45,160,45,'box-teal',svg); popShow(router,100);
+    for(let i=0;i<4;i++){
+      const x = 90+i*270;
+      const cell = box(x,150,230,260,i===2?'box-rose':'box-violet',svg); popShow(cell,300+i*150);
+      T(x+115,185,'Cell '+(i+1),'lbl',svg);
+      const compute = box(x+25,205,180,50,'box',svg); popShow(compute,350+i*150); T(x+115,235,'compute','lbl-faint',svg);
+      const queue = box(x+25,270,180,45,'box',svg); popShow(queue,400+i*150); T(x+115,297,'queue','lbl-faint',svg);
+      const data = box(x+25,330,180,55,'box',svg); popShow(data,450+i*150); T(x+115,362,'database','lbl-faint',svg);
+      conn(600,90,x+115,150,250+i*40,'var(--ink-faint)',svg);
+    }
+    setTimeout(()=>{
+      const cellx = 90+2*270;
+      const xm = E('line',{x1:cellx+30,y1:180,x2:cellx+200,y2:400,stroke:'var(--rose)','stroke-width':4},svg);
+      const xm2 = E('line',{x1:cellx+200,y1:180,x2:cellx+30,y2:400,stroke:'var(--rose)','stroke-width':4},svg);
+      [xm,xm2].forEach(l=>{l.style.opacity=0;l.style.transition='opacity .3s';});
+      setTimeout(()=>{xm.style.opacity=1;xm2.style.opacity=1;},30);
+      T(cellx+115,435,'Cell 3 fails — its users only','lbl-dim',svg).setAttribute('fill','var(--rose)');
+    }, 1300);
+  };
+
+  slideScripts['s-federated'] = function(){
+    const svg = document.getElementById('svg-federated'); svg.innerHTML='';
+    const gw = box(510,210,180,60,'box-teal',svg); popShow(gw,150);
+    T(600,245,'Gateway','lbl',svg);
+    const domains = [['Users','Team A',150,80],['Orders','Team B',150,320],['Catalog','Team C',900,80],['Payments','Team D',900,320]];
+    domains.forEach((d,i)=>{
+      const [name,team,x,y]=d;
+      const b = box(x,y,220,110,'box-violet',svg); popShow(b,400+i*180);
+      T(x+110,y+45,name,'lbl',svg); T(x+110,y+72,team+' owns this','lbl-faint',svg);
+      conn(x + (x<400?220:0), y+55, 600, 240, 550+i*180, 'var(--violet)', svg);
+    });
+    T(600,460,'each domain deploys independently — the gateway composes the contract','lbl-faint',svg);
+  };
+
+  slideScripts['s-multiregion'] = function(){
+    const svg = document.getElementById('svg-multiregion'); svg.innerHTML='';
+    const regions=[['US-East',150],['EU-West',600],['AP-South',1050]];
+    regions.forEach((r,i)=>{
+      const [name,x]=r;
+      const b = box(x-110,80,220,160,'box-teal',svg); popShow(b,200+i*250);
+      T(x,120,name,'lbl',svg);
+      T(x,150,'compute + data','lbl-faint',svg);
+      T(x,175,'👥 users nearby','lbl-faint',svg);
+    });
+    setTimeout(()=>{ conn(260,160,490,160,700,'var(--ink-faint)',svg); T(375,145,'~90ms','lbl-faint',svg); },700);
+    setTimeout(()=>{ conn(710,160,940,160,900,'var(--ink-faint)',svg); T(825,145,'~140ms','lbl-faint',svg); },900);
+    setTimeout(()=>{
+      const xm = E('line',{x1:80,y1:100,x2:220,y2:220,stroke:'var(--rose)','stroke-width':4},svg);
+      const xm2 = E('line',{x1:220,y1:100,x2:80,y2:220,stroke:'var(--rose)','stroke-width':4},svg);
+      [xm,xm2].forEach(l=>{l.style.opacity=0;l.style.transition='opacity .3s';});
+      setTimeout(()=>{xm.style.opacity=1;xm2.style.opacity=1;},30);
+      T(150,300,'US-East outage','lbl-dim',svg).setAttribute('fill','var(--rose)');
+      T(600,350,'EU-West and AP-South keep serving the rest of the world','lbl-faint',svg);
+    }, 1500);
+  };
+
+  slideScripts['s-activepassive'] = function(){
+    const svg = document.getElementById('svg-activepassive'); svg.innerHTML='';
+    const active = box(150,120,340,160,'box-teal',svg); popShow(active,150);
+    T(320,160,'ACTIVE (Region A)','lbl',svg);
+    T(320,195,'serving 100% traffic','lbl-faint',svg);
+    const passive = box(710,120,340,160,'box',svg); popShow(passive,400);
+    T(880,160,'PASSIVE (Region B)','lbl-dim',svg);
+    T(880,195,'warm standby, replicating','lbl-faint',svg);
+    conn(490,200,710,200,700,'var(--teal)',svg);
+    for(let i=0;i<3;i++){ moveDot('M 490 200 L 710 200', 900+i*400, 900, 'var(--teal)', svg); }
+    setTimeout(()=>{
+      const xm=E('line',{x1:190,y1:150,x2:460,y2:270,stroke:'var(--rose)','stroke-width':4},svg);
+      const xm2=E('line',{x1:460,y1:150,x2:190,y2:270,stroke:'var(--rose)','stroke-width':4},svg);
+      [xm,xm2].forEach(l=>{l.style.opacity=0;l.style.transition='opacity .3s';});
+      setTimeout(()=>{xm.style.opacity=1;xm2.style.opacity=1;},30);
+    }, 2200);
+    setTimeout(()=>{
+      passive.classList.remove('box'); passive.setAttribute('class','box pop show box-teal');
+      T(880,240,'PROMOTED — now active','lbl-dim',svg).setAttribute('fill','var(--amber)');
+      T(600,400,'failover took time = RTO','lbl-faint',svg);
+    }, 2700);
+  };
+
+  slideScripts['s-activeactive'] = function(){
+    const svg = document.getElementById('svg-activeactive'); svg.innerHTML='';
+    const a = box(150,110,340,150,'box-teal',svg); popShow(a,150);
+    T(320,150,'Region A — ACTIVE','lbl',svg);
+    const b = box(710,110,340,150,'box-teal',svg); popShow(b,150);
+    T(880,150,'Region B — ACTIVE','lbl',svg);
+    for(let i=0;i<3;i++){ moveDot('M 260 220 L 260 320',300+i*260,600,'var(--teal)',svg); }
+    for(let i=0;i<3;i++){ moveDot('M 940 220 L 940 320',350+i*260,600,'var(--teal)',svg); }
+    conn(490,180,710,180,800,'var(--violet)',svg);
+    conn(710,220,490,220,800,'var(--violet)',svg);
+    setTimeout(()=>{
+      T(600,300,'write x=5 (A) and x=7 (B) at the same instant','lbl-dim',svg);
+    }, 1200);
+    setTimeout(()=>{
+      T(600,340,'conflict! → resolve with last-write-wins or a CRDT merge','lbl-dim',svg).setAttribute('fill','var(--rose)');
+    }, 2000);
+    setTimeout(()=>{
+      T(600,400,'both regions converge to the same final value','lbl-faint',svg);
+    }, 2700);
+  };
+
+  slideScripts['s-hotcold'] = function(){
+    const svg = document.getElementById('svg-hotcold'); svg.innerHTML='';
+    T(150,60,'Event','lbl-dim',svg);
+    const src = box(90,80,120,50,'box',svg); popShow(src,100);
+    // hot path
+    const hotBox = box(330,50,280,70,'box-amber',svg); popShow(hotBox,300);
+    T(470,80,'HOT PATH','lbl',svg); T(470,105,'approximate, in-memory','lbl-faint',svg);
+    const uiBox = box(700,50,260,70,'box-amber',svg); popShow(uiBox,700);
+    T(830,80,'shown to user','lbl',svg); T(830,105,'instantly','lbl-faint',svg);
+    for(let i=0;i<3;i++){ moveDot('M 210 105 L 330 85',400+i*260,500,'var(--amber)',svg); }
+    for(let i=0;i<3;i++){ moveDot('M 610 85 L 700 85',900+i*260,500,'var(--amber)',svg); }
+    // cold path
+    const coldBox = box(330,220,280,70,'box-teal',svg); popShow(coldBox,500);
+    T(470,250,'COLD PATH','lbl',svg); T(470,275,'exact, batched','lbl-faint',svg);
+    const truthBox = box(700,220,260,70,'box-teal',svg); popShow(truthBox,900);
+    T(830,250,'source of truth','lbl',svg); T(830,275,'reconciled later','lbl-faint',svg);
+    for(let i=0;i<2;i++){ moveDot('M 210 115 L 330 255',600+i*400,700,'var(--teal)',svg); }
+    for(let i=0;i<2;i++){ moveDot('M 610 255 L 700 255',1100+i*400,700,'var(--teal)',svg); }
+    T(600,340,'same event, two speeds — hot answers now, cold corrects later','lbl-faint',svg);
+  };
+
+  slideScripts['s-lambda'] = function(){
+    const svg = document.getElementById('svg-lambda'); svg.innerHTML='';
+    const src = box(60,190,150,60,'box',svg); popShow(src,100);
+    T(135,225,'raw data','lbl-dim',svg);
+    const batch = box(320,70,300,80,'box-teal',svg); popShow(batch,350);
+    T(470,105,'BATCH LAYER','lbl',svg); T(470,130,'accurate, hours-old','lbl-faint',svg);
+    const speed = box(320,300,300,80,'box-amber',svg); popShow(speed,600);
+    T(470,335,'SPEED LAYER','lbl',svg); T(470,360,'approximate, seconds-old','lbl-faint',svg);
+    conn(210,210,320,110,300,'var(--teal)',svg);
+    conn(210,230,320,340,550,'var(--amber)',svg);
+    const serve = box(760,180,340,100,'box-violet',svg); popShow(serve,1000);
+    T(930,215,'SERVING LAYER','lbl',svg); T(930,245,'merges both views','lbl-faint',svg);
+    for(let i=0;i<2;i++){ moveDot('M 620 110 L 760 220',1200+i*300,600,'var(--teal)',svg); }
+    for(let i=0;i<2;i++){ moveDot('M 620 340 L 760 240',1400+i*300,600,'var(--amber)',svg); }
+    T(930,420,'query gets an instant approx. answer, corrected once batch catches up','lbl-faint',svg);
+  };
+
+  slideScripts['s-kappa'] = function(){
+    const svg = document.getElementById('svg-kappa'); svg.innerHTML='';
+    const log = box(90,180,320,90,'box-violet',svg); popShow(log,150);
+    T(250,215,'EVENT LOG','lbl',svg); T(250,245,'long retention (Kafka)','lbl-faint',svg);
+    const proc = box(520,180,280,90,'box-amber',svg); popShow(proc,450);
+    T(660,215,'STREAM PROCESSOR','lbl',svg); T(660,245,'one codebase','lbl-faint',svg);
+    const view = box(900,180,220,90,'box-teal',svg); popShow(view,750);
+    T(1010,215,'SERVING VIEW','lbl',svg); T(1010,245,'always current','lbl-faint',svg);
+    for(let i=0;i<3;i++){ moveDot('M 410 225 L 520 225', 600+i*260, 500, 'var(--amber)', svg); }
+    for(let i=0;i<3;i++){ moveDot('M 800 225 L 900 225', 1000+i*260, 500, 'var(--teal)', svg); }
+    setTimeout(()=>{
+      T(250,320,'need new logic? rewind and replay the whole log','lbl-dim',svg).setAttribute('fill','var(--violet)');
+      const rewind = E('path',{d:'M 250 340 A 60 20 0 1 1 251 340', fill:'none', stroke:'var(--violet)','stroke-width':2,'marker-end':'url(#arrow)'},svg);
+    }, 1900);
+  };
+
+  slideScripts['s-cqrs'] = function(){
+    const svg = document.getElementById('svg-cqrs'); svg.innerHTML='';
+    const client = box(80,190,160,60,'box',svg); popShow(client,100);
+    T(160,225,'Client','lbl',svg);
+    const cmd = box(400,60,260,80,'box-rose',svg); popShow(cmd,350);
+    T(530,95,'COMMAND','lbl',svg); T(530,120,'write model (validated)','lbl-faint',svg);
+    const qry = box(400,320,260,80,'box-teal',svg); popShow(qry,350);
+    T(530,355,'QUERY','lbl',svg); T(530,380,'read model (denormalized)','lbl-faint',svg);
+    conn(240,205,400,100,250,'var(--rose)',svg);
+    conn(240,225,400,360,250,'var(--teal)',svg);
+    const store = box(800,60,300,80,'box-rose',svg); popShow(store,700);
+    T(950,95,'write store','lbl',svg); T(950,120,'source of truth','lbl-faint',svg);
+    const cache = box(800,320,300,80,'box-teal',svg); popShow(cache,700);
+    T(950,355,'read store','lbl',svg); T(950,380,'Elasticsearch / Redis','lbl-faint',svg);
+    conn(660,100,800,100,900,'var(--rose)',svg);
+    conn(1100,100,1100,320,1100,'var(--violet)',svg);
+    conn(1100,320,800,360,1300,'var(--violet)',svg);
+    for(let i=0;i<3;i++){ moveDot('M 1100 100 L 1100 320 L 800 360', 1500+i*300, 900, 'var(--violet)', svg); }
+    T(950,430,'writes flow one way; a projection updates the read side moments later','lbl-faint',svg);
+  };
+
+  slideScripts['s-eventsourcing'] = function(){
+    const svg = document.getElementById('svg-eventsourcing'); svg.innerHTML='';
+    const events=['Opened(0)','Deposit(+100)','Deposit(+50)','Withdraw(-30)'];
+    let x=90;
+    events.forEach((e,i)=>{
+      const b = box(x,80,180,60,'box-violet',svg); popShow(b,200+i*250);
+      T(x+90,115,e,'lbl-dim',svg);
+      if(i>0) conn(x-30,110,x,110,180+i*250,'var(--violet)',svg);
+      x+=225;
+    });
+    setTimeout(()=>{
+      T(500,200,'replay all events in order →','lbl-faint',svg);
+      const result = box(400,260,280,90,'box-amber',svg); popShow(result,1400);
+      T(540,300,'current balance','lbl',svg);
+      T(540,330,'= 0 + 100 + 50 − 30 = 120','lbl-big mono',svg);
+    }, 1300);
+    setTimeout(()=>{
+      T(950,300,'query state at any past','lbl-faint',svg);
+      T(950,325,'point in time — just stop','lbl-faint',svg);
+      T(950,350,'the replay early','lbl-faint',svg);
+    }, 2000);
+  };
+
+  slideScripts['s-stream'] = function(){
+    const svg = document.getElementById('svg-stream'); svg.innerHTML='';
+    T(600,30,'unbounded event stream →','lbl-dim',svg);
+    conn(80,60,1120,60,200,'var(--line)',svg);
+    for(let i=0;i<8;i++){ moveDot('M 80 60 L 1120 60', 300+i*220, 2200,'var(--amber)',svg); }
+    const win = E('rect',{x:500,y:35,width:160,height:50,fill:'none',stroke:'var(--teal)','stroke-width':2,rx:6},svg);
+    win.style.opacity=0; win.style.transition='opacity .4s'; setTimeout(()=>win.style.opacity=1,500);
+    T(580,25,'window (last 5s)','lbl-faint',svg).setAttribute('fill','var(--teal)');
+    const proc = box(500,160,280,90,'box-amber',svg); popShow(proc,700);
+    T(640,200,'STREAM','lbl',svg); T(640,225,'PROCESSOR','lbl',svg);
+    conn(580,90,600,160,900,'var(--amber)',svg);
+    const out = box(500,320,280,80,'box-teal',svg); popShow(out,1600);
+    T(640,355,'live dashboard','lbl',svg); T(640,380,'updates every second','lbl-faint',svg);
+    conn(640,250,640,320,1700,'var(--teal)',svg);
+  };
+
+  slideScripts['s-batch'] = function(){
+    const svg = document.getElementById('svg-batch'); svg.innerHTML='';
+    T(250,30,'data accumulates ...','lbl-dim',svg);
+    for(let r=0;r<3;r++){
+      for(let c=0;c<6;c++){
+        const x=90+c*70, y=60+r*45;
+        const cell = box(x,y,55,32,'box-violet',svg);
+        popShow(cell, 150 + (r*6+c)*60);
+      }
+    }
+    setTimeout(()=>{
+      T(250,230,'... until the scheduled run fires','lbl-dim',svg).setAttribute('fill','var(--amber)');
+      const job = box(90,260,470,60,'box-amber',svg); popShow(job,3000);
+      T(325,295,'BATCH JOB (nightly cron / Spark)','lbl',svg);
+    }, 2900);
+    setTimeout(()=>{
+      const out = box(700,240,420,110,'box-teal',svg); popShow(out,3400);
+      T(910,280,'complete, accurate result','lbl',svg);
+      T(910,310,'e.g. full billing reconciliation','lbl-faint',svg);
+      conn(560,290,700,290,3450,'var(--amber)',svg);
+    }, 3400);
+  };
+
+  slideScripts['s-mapreduce'] = function(){
+    const svg = document.getElementById('svg-mapreduce'); svg.innerHTML='';
+    T(600,25,'input: "cat dog cat bird dog cat"','lbl-dim',svg);
+    const splits=['cat dog','cat bird','dog cat'];
+    splits.forEach((s,i)=>{
+      const x=150+i*350;
+      const b = box(x,55,260,50,'box',svg); popShow(b,150+i*150);
+      T(x+130,85,'split: "'+s+'"','lbl-faint',svg);
+    });
+    const maps=[['cat',1],['dog',1],['cat',1],['bird',1],['dog',1],['cat',1]];
+    maps.forEach((m,i)=>{
+      const x=110+i*165;
+      const b = box(x,150,140,45,'box-amber',svg); popShow(b,700+i*90);
+      T(x+70,178,'('+m[0]+','+m[1]+')','lbl-faint mono',svg);
+    });
+    T(600,225,'MAP — emit (key,1) for every word','lbl-faint',svg);
+    const groups=[['cat',3,150],['dog',2,500],['bird',1,850]];
+    groups.forEach((g,i)=>{
+      const [key,,x]=g;
+      const b = box(x,270,220,50,'box-violet',svg); popShow(b,1400+i*150);
+      T(x+110,300,'shuffle: "'+key+'" → [1,1,1]'.slice(0, key==='cat'?15:(key==='dog'?15:15)),'lbl-faint mono',svg);
+    });
+    T(600,345,'SHUFFLE — group values by key','lbl-faint',svg);
+    groups.forEach((g,i)=>{
+      const [key,count,x]=g;
+      const b = box(x,380,220,55,'box-teal',svg); popShow(b,2000+i*150);
+      T(x+110,412,'reduce("'+key+'") = '+count,'lbl-big mono',svg);
+    });
+    T(600,460,'REDUCE — sum the counts per key = word frequencies','lbl-faint',svg);
+  };
+
+  slideScripts['s-scattergather'] = function(){
+    const svg = document.getElementById('svg-scattergather'); svg.innerHTML='';
+    const coord = box(500,30,200,55,'box-teal',svg); popShow(coord,100);
+    T(600,62,'Coordinator','lbl',svg);
+    const workers=[130,340,550,760,970];
+    workers.forEach((x,i)=>{
+      const b = box(x,220,160,80,'box-amber',svg); popShow(b,300+i*100);
+      T(x+80,255,'worker '+(i+1),'lbl',svg);
+      const delay = i===3? 1600: 400+i*100;
+      T(x+80,285,i===3?'(straggler)':'shard '+(i+1),'lbl-faint',svg).setAttribute('fill', i===3?'var(--rose)':'var(--ink-faint)');
+      moveDot('M 600 85 L '+(x+80)+' 220', 300+i*100, 600, 'var(--teal)', svg);
+    });
+    const gather = box(500,380,200,60,'box-violet',svg); popShow(gather,1900);
+    T(600,415,'merged result','lbl',svg);
+    workers.forEach((x,i)=>{
+      const delay = i===3 ? 1700 : 900+i*100;
+      moveDot('M '+(x+80)+' 300 L 600 385', delay, 700, i===3?'var(--rose)':'var(--amber)', svg);
+    });
+    T(600,470,'total latency = the slowest worker\u2019s response','lbl-faint',svg);
+  };
+
+  slideScripts['s-fanoutin'] = function(){
+    const svg = document.getElementById('svg-fanoutin'); svg.innerHTML='';
+    T(280,30,'FAN-OUT','lbl',svg).setAttribute('fill','var(--amber)');
+    const ev = box(180,60,200,55,'box-amber',svg); popShow(ev,100);
+    T(280,92,'order placed','lbl',svg);
+    const outs=['email svc','inventory svc','analytics svc'];
+    outs.forEach((o,i)=>{
+      const y=170+i*70;
+      const b = box(150,y,260,50,'box',svg); popShow(b,400+i*150);
+      T(280,y+30,o,'lbl-dim',svg);
+      conn(280,115,280,y,300+i*120,'var(--amber)',svg);
+    });
+    T(920,30,'FAN-IN','lbl',svg).setAttribute('fill','var(--teal)');
+    const ins=['svc A','svc B','svc C'];
+    ins.forEach((o,i)=>{
+      const y=60+i*70;
+      const b = box(790,y,220,50,'box',svg); popShow(b,700+i*150);
+      T(900,y+30,o,'lbl-dim',svg);
+      conn(1010,y+25,1080,335,900+i*150,'var(--teal)',svg);
+    });
+    const topic = box(940,310,220,55,'box-teal',svg); popShow(topic,1300);
+    T(1050,342,'one Kafka topic','lbl',svg);
+  };
+
+  slideScripts['s-workstealing'] = function(){
+    const svg = document.getElementById('svg-workstealing'); svg.innerHTML='';
+    const w1 = box(120,80,400,90,'box',svg); popShow(w1,100);
+    T(320,110,'Worker 1 queue','lbl',svg);
+    const w1tasks=[0,1,2,3,4];
+    w1tasks.forEach((t,i)=>{ const b=box(150+i*65,130,50,30,'box-amber',svg); popShow(b,300+i*80); });
+    const w2 = box(680,80,400,90,'box',svg); popShow(w2,100);
+    T(880,110,'Worker 2 queue','lbl',svg);
+    T(880,155,'(empty — idle)','lbl-faint',svg);
+    setTimeout(()=>{
+      T(500,250,'worker 2 is idle → steals from the TAIL of worker 1\u2019s queue','lbl-dim',svg).setAttribute('fill','var(--rose)');
+    }, 1200);
+    setTimeout(()=>{
+      moveDot('M 470 145 L 880 145', 1600, 900, 'var(--rose)', svg);
+    }, 1600);
+    setTimeout(()=>{
+      const stolen = box(700,130,50,30,'box-rose',svg); popShow(stolen,2500);
+      T(880,190,'now processing','lbl-faint',svg);
+    }, 2500);
+    T(500,330,'no central coordinator — workers self-balance','lbl-faint',svg);
+  };
+
+  slideScripts['s-scheduler'] = function(){
+    const svg = document.getElementById('svg-scheduler'); svg.innerHTML='';
+    const sched = box(500,40,200,55,'box-teal',svg); popShow(sched,100);
+    T(600,72,'Scheduler','lbl',svg);
+    const jobs=[['Job A','2 CPU'],['Job B','1 CPU'],['Job C','4 CPU']];
+    jobs.forEach((j,i)=>{
+      const x=150+i*130;
+      const b = box(x,130,110,55,'box-amber',svg); popShow(b,300+i*150);
+      T(x+55,155,j[0],'lbl-dim',svg); T(x+55,175,j[1],'lbl-faint',svg);
+    });
+    const nodes=[['Node 1','6 CPU free',250],['Node 2','2 CPU free',650],['Node 3','8 CPU free',1050]];
+    nodes.forEach((n,i)=>{
+      const b = box(n[2]-100,300,200,90,'box-violet',svg); popShow(b,900+i*150);
+      T(n[2],335,n[0],'lbl',svg); T(n[2],365,n[1],'lbl-faint',svg);
+    });
+    setTimeout(()=>{ moveDot('M 600 95 L 250 300',1500,700,'var(--amber)',svg); T(250,410,'Job A → Node 1','lbl-faint',svg); },1500);
+    setTimeout(()=>{ moveDot('M 600 95 L 650 300',1900,700,'var(--amber)',svg); T(650,410,'Job B → Node 2','lbl-faint',svg); },1900);
+    setTimeout(()=>{ moveDot('M 600 95 L 1050 300',2300,700,'var(--amber)',svg); T(1050,410,'Job C → Node 3 (needs 4 CPU)','lbl-faint',svg); },2300);
+  };
+
+  slideScripts['s-leaderless'] = function(){
+    const svg = document.getElementById('svg-leaderless'); svg.innerHTML='';
+    const client = box(520,20,160,50,'box',svg); popShow(client,100);
+    T(600,50,'Client writes X','lbl',svg);
+    const nodes=[150,400,650,900];
+    nodes.forEach((x,i)=>{
+      const b = box(x,150,180,90,'box-teal',svg); popShow(b,300+i*120);
+      T(x+90,190,'Replica '+(i+1),'lbl',svg);
+      T(x+90,220,'N = 4','lbl-faint',svg);
+      moveDot('M 600 75 L '+(x+90)+' 150', 300+i*120, 500, 'var(--teal)', svg);
+    });
+    setTimeout(()=>{
+      [150,400,650].forEach((x,i)=>{
+        const b = box(x,150,180,90,'box-amber',svg); popShow(b,1500+i*100);
+        T(x+90,190,'Replica '+(i+1),'lbl',svg); T(x+90,220,'ACK ✓','lbl-faint',svg).setAttribute('fill','var(--amber)');
+      });
+      T(600,290,'W = 3 acknowledge the write','lbl-dim',svg).setAttribute('fill','var(--amber)');
+    }, 1500);
+    setTimeout(()=>{
+      T(600,360,'a later read only needs R = 2 replicas','lbl-dim',svg);
+      T(600,390,'formula:  R + W  &gt;  N   →   2 + 3 &gt; 4  ✓ guaranteed overlap','lbl-big mono',svg);
+    }, 2400);
+  };
+
+  slideScripts['s-final'] = function(){
+    const svg = document.getElementById('svg-final'); svg.innerHTML='';
+    const axes = [
+      ['ISOLATION','blast radius','Bulkhead · Cell · Federated','var(--teal)',150,90],
+      ['GEOGRAPHY','survive a region loss','Multi-Region · Active-Active · Active-Passive','var(--amber)',650,90],
+      ['TIMING','speed vs accuracy','Hot/Cold · Lambda · Kappa · Stream · Batch','var(--violet)',150,300],
+      ['COORDINATION','who does what, together','CQRS · ES · Scatter-Gather · Fan-out/in · Work-Stealing · Scheduler · Leaderless','var(--rose)',650,300]
+    ];
+    axes.forEach((a,i)=>{
+      const [title,sub,list,color,x,y]=a;
+      const b = box(x,y,500,170,'',svg); b.setAttribute('stroke',color); popShow(b,200+i*250);
+      T(x+250,y+40,title,'lbl',svg).setAttribute('fill',color);
+      T(x+250,y+65,sub,'lbl-faint',svg);
+      const words = list.split(' · ');
+      words.forEach((w,j)=>{
+        const wy = y+95+Math.floor(j/2)*28;
+        const wx = x+30+(j%2)*250;
+        const t = T(wx,wy,w,'lbl-dim',svg,'start'); t.setAttribute('font-size','12.5');
+        t.style.opacity=0; t.style.transition='opacity .4s'; setTimeout(()=>t.style.opacity=1, 500+i*250+j*80);
+      });
+    });
+  };
+
+  /* ===================== BRIDGE ANIM ===================== */
+  function playBridge(slide){
+    const rows = slide.querySelectorAll('[data-b]');
+    rows.forEach((r,i)=>{ r.classList.remove('show'); setTimeout(()=>r.classList.add('show'), 300+i*650); });
+  }
+
+  /* ===================== NAV ENGINE ===================== */
+  const slides = Array.from(document.querySelectorAll('.slide'));
+  const sectionMap = {};
+  let lastSection = '';
+  slides.forEach(s=>{
+    const eyebrow = s.querySelector('.slide-eyebrow');
+    if(eyebrow){ lastSection = eyebrow.childNodes[0].textContent.trim(); }
+    sectionMap[s.id] = lastSection || 'INTRO';
+  });
+  // number slides per section for eyebrow-num
+  const perSection = {};
+  slides.forEach(s=>{
+    const sec = sectionMap[s.id];
+    perSection[sec] = (perSection[sec]||0)+1;
+    const num = s.querySelector('.eyebrow-num');
+    if(num) num.textContent = '';
+  });
+
+  let current = 0;
+  const dotsWrap = document.getElementById('dots');
+  slides.forEach((s,i)=>{
+    const d = document.createElement('div'); d.className='dot'; d.dataset.i=i;
+    d.addEventListener('click', ()=>goTo(i));
+    dotsWrap.appendChild(d);
+  });
+  const dots = Array.from(dotsWrap.children);
+
+  function runSlideAnim(s){
+    // reset fade-up elements
+    s.querySelectorAll('.slide-eyebrow,.slide-title,.slide-sub,.caption').forEach(el=>{
+      el.style.animation='none'; void el.offsetWidth; el.style.animation='';
+    });
+    const fn = slideScripts[s.id];
+    if(fn){ try{ fn(); }catch(e){ console.error(e); } }
+    if(s.classList.contains('bridge') || s.querySelector('.bridge-wrap')){ playBridge(s); }
+  }
+
+  function goTo(i){
+    if(i<0) i=0; if(i>=slides.length) i=slides.length-1;
+    slides[current].classList.remove('active');
+    current=i;
+    const s = slides[current];
+    s.classList.add('active');
+    dots.forEach((d,j)=>d.classList.toggle('active', j===current));
+    document.getElementById('progress').style.width = ((current+1)/slides.length*100)+'%';
+    document.getElementById('sectiontag').textContent = sectionMap[s.id] + '  ·  ' + (current+1) + ' / ' + slides.length;
+    runSlideAnim(s);
+  }
+
+  document.getElementById('nextBtn').addEventListener('click', ()=>goTo(current+1));
+  document.getElementById('prevBtn').addEventListener('click', ()=>goTo(current-1));
+  document.getElementById('replayBtn').addEventListener('click', ()=>runSlideAnim(slides[current]));
+  document.addEventListener('keydown', (e)=>{
+    if(e.key==='ArrowRight' || e.key===' ') goTo(current+1);
+    if(e.key==='ArrowLeft') goTo(current-1);
+  });
+  let touchX=null;
+  document.addEventListener('touchstart', e=>{ touchX=e.touches[0].clientX; });
+  document.addEventListener('touchend', e=>{
+    if(touchX===null) return;
+    const dx = e.changedTouches[0].clientX - touchX;
+    if(dx<-40) goTo(current+1);
+    if(dx>40) goTo(current-1);
+    touchX=null;
+  });
+
+  goTo(0);
+})();
+</script>
+</body>
+</html>

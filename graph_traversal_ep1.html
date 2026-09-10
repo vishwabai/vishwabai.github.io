@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Graph Algorithms — Ep.1 Traversal</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#040404;
+    --panel:#0b0b0a;
+    --panel-2:#0f0f0e;
+    --ink:#ece7db;
+    --muted:#8c8779;
+    --rule:#232019;
+    --bone:#c9c4b5;
+    --amber:#c98a4b;
+    --teal:#5f9089;
+    --brick:#a15048;
+    --amber-dim: rgba(201,138,75,0.16);
+    --teal-dim: rgba(95,144,137,0.16);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);}
+  body{
+    min-height:100vh;
+    display:flex;align-items:center;justify-content:center;
+    font-family:'IBM Plex Sans',sans-serif;
+    color:var(--ink);
+    overflow:hidden;
+  }
+  .stage-wrap{
+    width:min(96vw, 1600px);
+    aspect-ratio:16/9;
+    position:relative;
+    background:var(--bg);
+    border:1px solid var(--rule);
+    box-shadow:0 40px 120px rgba(0,0,0,0.6);
+    overflow:hidden;
+  }
+  .rail{
+    position:absolute; left:0; top:0; bottom:0; width:46px;
+    border-right:1px solid var(--rule);
+    display:flex; flex-direction:column; align-items:center; justify-content:space-between;
+    padding:22px 0;
+    z-index:5;
+  }
+  .rail .mark{ width:6px; height:6px; border-radius:50%; background:var(--rule); }
+  .rail .mark.on{ background:var(--amber); }
+  .rail .idx{
+    writing-mode:vertical-rl; text-orientation:mixed;
+    font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.08em;
+    color:var(--muted);
+  }
+  .slides{ position:absolute; inset:0; left:46px; }
+  .slide{
+    position:absolute; inset:0;
+    padding:52px 64px 44px 56px;
+    display:flex; flex-direction:column;
+    opacity:0; pointer-events:none;
+    transform:translateY(14px);
+    transition:opacity .5s ease, transform .5s ease;
+  }
+  .slide.active{ opacity:1; pointer-events:auto; transform:translateY(0); }
+
+  .kicker{ font-family:'IBM Plex Mono',monospace; font-size:12.5px; color:var(--muted); letter-spacing:0.02em; margin-bottom:6px;}
+  h1{ font-family:'Fraunces',serif; font-weight:600; font-size:clamp(26px,3vw,40px); margin:0 0 6px 0; line-height:1.15; max-width:16ch;}
+  h2{ font-family:'Fraunces',serif; font-weight:600; font-size:22px; margin:0 0 10px 0; color:var(--ink);}
+  .lede{ font-size:16px; color:var(--bone); max-width:58ch; line-height:1.55; margin:0 0 18px 0;}
+  .body-copy{ font-size:15px; color:var(--bone); line-height:1.6; max-width:56ch;}
+  .gap-line{
+    font-family:'Fraunces',serif; font-style:italic; font-weight:500;
+    font-size:19px; color:var(--brick); max-width:44ch; line-height:1.5;
+  }
+  .fill-tag, .recap-tag, .gap-tag{
+    font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--muted);
+    margin-bottom:6px; display:block;
+  }
+  .content{ flex:1; display:flex; gap:36px; min-height:0; }
+  .col{ display:flex; flex-direction:column; min-width:0; }
+  .col-left{ flex:1.15; }
+  .col-right{ flex:1; }
+  .stage-box{
+    flex:1; position:relative; border:1px solid var(--rule); background:
+      radial-gradient(circle, rgba(140,135,121,0.10) 1px, transparent 1.2px) 0 0/26px 26px, var(--panel);
+    display:flex; align-items:center; justify-content:center;
+    min-height:0;
+  }
+  svg.graph{ width:92%; height:92%; }
+  .node circle{ fill:var(--bg); stroke:var(--bone); stroke-width:2; transition:fill .35s ease, stroke .35s ease, stroke-width .35s ease; transform-box:fill-box; transform-origin:center; }
+  .node text{ fill:var(--bone); font-family:'IBM Plex Mono',monospace; font-size:19px; font-weight:600; text-anchor:middle; dominant-baseline:central; pointer-events:none; transition:fill .35s ease;}
+  .node.visited circle{ stroke:var(--accent,var(--amber)); stroke-width:3; }
+  .node.current circle{ fill:var(--accent,var(--amber)); stroke:var(--accent,var(--amber)); animation:pop .5s ease; }
+  .node.current text{ fill:#0a0a0a; }
+  .node.onpath circle{ fill:var(--accent,var(--amber)); stroke:var(--accent,var(--amber)); }
+  .node.onpath text{ fill:#0a0a0a; }
+  .node.dim circle{ stroke:var(--rule); }
+  .node.dim text{ fill:var(--rule); }
+  @keyframes pop{ 0%{transform:scale(1);} 45%{transform:scale(1.22);} 100%{transform:scale(1);} }
+  .edge{ stroke:var(--rule); stroke-width:1.6; transition:stroke .35s ease, stroke-width .35s ease; }
+  .edge.traversed{ stroke:var(--accent,var(--amber)); stroke-width:3; }
+  .edge.onpath{ stroke:var(--accent,var(--amber)); stroke-width:4; }
+  .edge.dim{ stroke:#141311; }
+  .dist-label{ font-family:'IBM Plex Mono',monospace; font-size:12px; fill:var(--teal); opacity:0; transition:opacity .3s ease;}
+  .dist-label.show{ opacity:1; }
+
+  .panel{
+    border:1px solid var(--rule); background:var(--panel-2); padding:16px 18px; display:flex; flex-direction:column; gap:10px;
+  }
+  .panel + .panel{ margin-top:14px; }
+  .panel-title{ font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--muted); }
+  pre.code{
+    margin:0; font-family:'IBM Plex Mono',monospace; font-size:12.6px; line-height:1.65;
+    color:var(--bone); white-space:pre; overflow:auto;
+  }
+  pre.code .kw{ color:var(--amber); } pre.code .fn{ color:var(--teal); }
+
+  .struct-track{ min-height:64px; display:flex; align-items:flex-end; gap:8px; padding:8px 4px; }
+  .struct-track.row{ flex-direction:row; align-items:center; flex-wrap:wrap; }
+  .struct-track.col{ flex-direction:column-reverse; align-items:flex-start; }
+  .chip{
+    font-family:'IBM Plex Mono',monospace; font-size:13px; padding:6px 12px;
+    border:1px solid var(--accent,var(--amber)); color:var(--accent,var(--amber));
+    background:transparent; opacity:0; transform:scale(.85);
+    transition:opacity .28s ease, transform .28s ease;
+  }
+  .chip.in{ opacity:1; transform:scale(1); }
+  .chip.out{ opacity:0; transform:scale(.7) translateY(-6px); }
+
+  .order-strip{ display:flex; gap:6px; flex-wrap:wrap; font-family:'IBM Plex Mono',monospace; font-size:13px; }
+  .order-strip span{ padding:3px 8px; border:1px solid var(--rule); color:var(--muted); }
+  .order-strip span.on{ color:var(--accent,var(--amber)); border-color:var(--accent,var(--amber)); }
+
+  .note{ font-size:13.5px; color:var(--muted); line-height:1.55; margin-top:4px; }
+  .callout{ border-left:2px solid var(--brick); padding-left:12px; margin-top:10px; font-size:14px; color:var(--bone); }
+
+  table.cheat{ border-collapse:collapse; width:100%; font-size:13.5px; }
+  table.cheat th, table.cheat td{ border:1px solid var(--rule); padding:9px 12px; text-align:left; }
+  table.cheat th{ color:var(--muted); font-weight:500; font-family:'IBM Plex Mono',monospace; font-size:11.5px; }
+  table.cheat td{ color:var(--bone); }
+  table.cheat td.accent{ color:var(--amber); font-family:'IBM Plex Mono',monospace; }
+  table.cheat td.accent2{ color:var(--teal); font-family:'IBM Plex Mono',monospace; }
+
+  .use-grid{ display:grid; grid-template-columns:1fr 1fr; gap:16px; flex:1; min-height:0; }
+  .use-card{ border:1px solid var(--rule); background:var(--panel-2); padding:16px 18px; display:flex; flex-direction:column; gap:8px; }
+  .use-card h3{ margin:0; font-family:'Fraunces',serif; font-weight:600; font-size:16px; }
+  .use-card p{ margin:0; font-size:13px; color:var(--muted); line-height:1.5; }
+  .use-icon{ width:100%; height:64px; }
+
+  .roadmap{ display:flex; flex-wrap:wrap; gap:10px; margin-top:14px; }
+  .rchip{ font-family:'IBM Plex Mono',monospace; font-size:12.5px; padding:7px 13px; border:1px solid var(--rule); color:var(--muted); }
+  .rchip.done{ color:var(--amber); border-color:var(--amber); }
+  .rchip.next{ color:var(--teal); border-color:var(--teal); }
+
+  .foot{
+    position:absolute; left:46px; right:0; bottom:0; height:40px;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:0 26px; border-top:1px solid var(--rule); z-index:5;
+  }
+  .progress{ flex:1; height:2px; background:var(--rule); margin:0 22px; position:relative; }
+  .progress-fill{ position:absolute; left:0; top:0; bottom:0; background:var(--amber); width:0%; transition:width .4s ease; }
+  .counter{ font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--muted); min-width:52px; }
+  .nav-btn{
+    width:30px;height:30px; border:1px solid var(--rule); background:transparent; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .nav-btn:hover{ border-color:var(--bone); }
+  .nav-btn svg{ width:12px; height:12px; }
+  .replay-btn{
+    font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--muted);
+    background:transparent; border:1px solid var(--rule); padding:6px 12px; cursor:pointer; align-self:flex-start;
+  }
+  .replay-btn:hover{ color:var(--ink); border-color:var(--bone); }
+
+  .hint{ position:absolute; bottom:52px; right:64px; font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--rule); }
+</style>
+</head>
+<body>
+<div class="stage-wrap" id="stageWrap">
+
+  <div class="rail" id="rail">
+    <div class="idx">GRAPH TRAVERSAL</div>
+    <div id="marks" style="display:flex;flex-direction:column;gap:9px;"></div>
+    <div class="idx">EP. 01</div>
+  </div>
+
+  <div class="slides" id="slides">
+
+    <!-- S1 : HOOK -->
+    <section class="slide" data-anim="s1">
+      <span class="kicker">Graph Algorithms · Episode 1</span>
+      <h1>Every graph is a set of connections.<br>How do you actually walk through one?</h1>
+      <div class="content" style="align-items:center;">
+        <div class="stage-box" id="stage-hook">
+          <svg class="graph" id="hook-svg" viewBox="0 0 1000 600"></svg>
+        </div>
+      </div>
+      <p class="lede" style="margin-top:14px;">Eight rooms, connected by doors. No map. No labels on the doors telling you where they lead. Just: start somewhere, and visit every room you can reach.</p>
+    </section>
+
+    <!-- S2 : THE PROBLEM -->
+    <section class="slide" data-anim="s2">
+      <span class="kicker">The setup</span>
+      <h1>A graph is just G = (V, E)</h1>
+      <div class="content">
+        <div class="col col-left">
+          <div class="stage-box"><svg class="graph" id="s2-svg" viewBox="0 0 1000 600"></svg></div>
+        </div>
+        <div class="col col-right">
+          <div class="panel">
+            <span class="panel-title">Adjacency list — how a computer sees it</span>
+            <pre class="code" id="s2-adj"></pre>
+          </div>
+          <p class="body-copy" style="margin-top:14px;">V = vertices (the rooms). E = edges (the doors). "Traversal" means: starting from one vertex, systematically visit every vertex reachable from it — touching each one exactly once.</p>
+          <p class="gap-line" style="margin-top:16px;">but a computer can only look at <em>one door at a time</em> — so what rule decides which door it opens next?</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- S3 : DFS INTUITION -->
+    <section class="slide" data-anim="s3">
+      <span class="kicker">Depth-First Search · intuition</span>
+      <h1>Rule one: keep walking forward. Only turn back at a dead end.</h1>
+      <div class="content">
+        <div class="col col-left">
+          <div class="stage-box"><svg class="graph" id="s3-svg" viewBox="0 0 1000 600"></svg></div>
+        </div>
+        <div class="col col-right" style="justify-content:center;">
+          <p class="body-copy">Think of a hedge maze. You pick a direction and commit to it — all the way to a dead end. Only then do you retrace your last few steps and try the next unexplored path.</p>
+          <p class="body-copy" style="margin-top:10px;">You never re-plan from scratch. You just <em>undo one decision at a time</em>. That "undo" is the whole idea behind DFS — before we even give it a formal algorithm.</p>
+          <button class="replay-btn" data-replay="s3" style="margin-top:16px;">Replay walk</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- S4 : DFS RECURSIVE -->
+    <section class="slide" data-anim="s4">
+      <span class="kicker">Depth-First Search · recursive</span>
+      <h1>The call stack <em style="font-style:italic;color:var(--amber);">is</em> the "undo" mechanism</h1>
+      <div class="content">
+        <div class="col col-left">
+          <div class="stage-box"><svg class="graph" id="s4-svg" viewBox="0 0 1000 600"></svg></div>
+          <button class="replay-btn" data-replay="s4" style="margin-top:10px;">Replay</button>
+        </div>
+        <div class="col col-right">
+          <div class="panel">
+            <span class="panel-title">dfs.py</span>
+            <pre class="code"><span class="kw">def</span> <span class="fn">dfs</span>(v, visited):
+    visited.add(v)
+    <span class="kw">for</span> u <span class="kw">in</span> adj[v]:
+        <span class="kw">if</span> u <span class="kw">not in</span> visited:
+            <span class="fn">dfs</span>(u, visited)   <span style="color:#5a564a"># recurse</span></pre>
+          </div>
+          <div class="panel">
+            <span class="panel-title">Call stack (implicit)</span>
+            <div class="struct-track col" id="s4-stack"></div>
+          </div>
+          <div class="note"><strong style="color:var(--bone)">O(V + E)</strong> time — every vertex started once, every edge inspected once. <strong style="color:var(--bone)">O(V)</strong> space — one stack frame per vertex on the current path.</div>
+        </div>
+      </div>
+      <div style="margin-top:8px;">
+        <span class="recap-tag">RECAP</span>
+        <span class="body-copy" style="display:block;">Each call to <code>dfs()</code> remembers exactly where to resume — that's a stack frame doing the "undo."</span>
+        <p class="gap-line" style="margin-top:8px;">but recursion depth is capped by your language's call stack — a chain of 200,000 vertices can crash a "correct" program. what do we do when the graph itself is the problem?</p>
+      </div>
+    </section>
+
+    <!-- S5 : DFS ITERATIVE -->
+    <section class="slide" data-anim="s5">
+      <span class="kicker">Depth-First Search · iterative</span>
+      <span class="fill-tag">FILL</span>
+      <h1>Make the stack explicit — and watch the order change</h1>
+      <div class="content">
+        <div class="col col-left">
+          <div class="stage-box"><svg class="graph" id="s5-svg" viewBox="0 0 1000 600"></svg></div>
+          <button class="replay-btn" data-replay="s5" style="margin-top:10px;">Replay</button>
+        </div>
+        <div class="col col-right">
+          <div class="panel">
+            <span class="panel-title">dfs_iterative.py</span>
+            <pre class="code"><span class="kw">def</span> <span class="fn">dfs_iter</span>(start):
+    stack = [start]; visited = set()
+    <span class="kw">while</span> stack:
+        v = stack.pop()          <span style="color:#5a564a"># take the TOP</span>
+        <span class="kw">if</span> v <span class="kw">in</span> visited: <span class="kw">continue</span>
+        visited.add(v)
+        <span class="kw">for</span> u <span class="kw">in</span> adj[v]:
+            <span class="kw">if</span> u <span class="kw">not in</span> visited:
+                stack.append(u)</pre>
+          </div>
+          <div class="panel">
+            <span class="panel-title">Explicit stack (array)</span>
+            <div class="struct-track row" id="s5-stack"></div>
+          </div>
+          <div class="callout" id="s5-callout" style="opacity:0;transition:opacity .5s ease;">
+            Same reachable vertices — <strong style="color:var(--bone)">different visit order.</strong> A stack pops last-in-first. Pushing B then C means C is popped first — the reverse of what recursion did. To match recursion exactly, push neighbors in <em>reverse</em>.
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:6px;display:flex;gap:26px;">
+        <div class="order-strip"><span style="color:var(--muted);border:none;padding:0;">recursive:</span><span id="s5-order-rec"></span></div>
+        <div class="order-strip"><span style="color:var(--muted);border:none;padding:0;">iterative:</span><span id="s5-order-it"></span></div>
+      </div>
+    </section>
+
+    <!-- S6: DFS finds A path, not THE shortest -->
+    <section class="slide" data-anim="s6">
+      <span class="kicker">A limitation, made visible</span>
+      <h1>DFS reaches every room. It doesn't promise the <em style="font-style:italic;">nearest</em> route.</h1>
+      <div class="content">
+        <div class="col col-left">
+          <div class="stage-box"><svg class="graph" id="s6-svg" viewBox="0 0 1000 600"></svg></div>
+          <button class="replay-btn" data-replay="s6" style="margin-top:10px;">Replay</button>
+        </div>
+        <div class="col col-right" style="justify-content:center;">
+          <span class="recap-tag">RECAP</span>
+          <p class="body-copy">DFS from A reaches H — but by tunnelling through B, D, F, E, C first. Six doors, when a two-door route existed all along (A → C → H).</p>
+          <span class="gap-tag" style="margin-top:12px;">GAP</span>
+          <p class="gap-line">DFS never "looks around" before committing — it only looks forward. what if, instead, we explored everything <em>one step away</em> before going further?</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- S7 : BFS INTUITION -->
+    <section class="slide" data-anim="s7">
+      <span class="kicker">Breadth-First Search · intuition</span>
+      <span class="fill-tag">FILL</span>
+      <h1>Explore in rings, like ripples in a pond</h1>
+      <div class="content" style="align-items:center;">
+        <div class="stage-box"><svg class="graph" id="s7-svg" viewBox="0 0 1000 600"></svg></div>
+      </div>
+      <p class="lede" style="margin-top:14px;">Every room exactly one door away is visited together, before any room two doors away. No commitment to a single direction — the search grows outward evenly, like a wavefront.</p>
+      <button class="replay-btn" data-replay="s7" style="align-self:flex-start;">Replay ripple</button>
+    </section>
+
+    <!-- S8 : BFS FORMAL -->
+    <section class="slide" data-anim="s8">
+      <span class="kicker">Breadth-First Search · formalized</span>
+      <h1>A queue enforces "one ring at a time"</h1>
+      <div class="content">
+        <div class="col col-left">
+          <div class="stage-box"><svg class="graph" id="s8-svg" viewBox="0 0 1000 600"></svg></div>
+          <button class="replay-btn" data-replay="s8" style="margin-top:10px;">Replay</button>
+        </div>
+        <div class="col col-right">
+          <div class="panel">
+            <span class="panel-title">bfs.py</span>
+            <pre class="code"><span class="kw">def</span> <span class="fn">bfs</span>(start):
+    visited = {start}; dist = {start: 0}
+    q = deque([start])
+    <span class="kw">while</span> q:
+        v = q.popleft()        <span style="color:#5a564a"># FRONT out</span>
+        <span class="kw">for</span> u <span class="kw">in</span> adj[v]:
+            <span class="kw">if</span> u <span class="kw">not in</span> visited:
+                visited.add(u)   <span style="color:#5a564a"># mark on enqueue!</span>
+                dist[u] = dist[v] + 1
+                q.append(u)      <span style="color:#5a564a"># BACK in</span></pre>
+          </div>
+          <div class="panel">
+            <span class="panel-title">Queue (FIFO)</span>
+            <div class="struct-track row" id="s8-queue"></div>
+          </div>
+          <div class="callout">Mark visited the moment you <em>enqueue</em>, not when you dequeue — otherwise the same vertex can be queued twice. This is the #1 real-world BFS bug.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- S9 : PROOF SKETCH + RECAP/GAP -->
+    <section class="slide" data-anim="s9">
+      <span class="kicker">Why BFS guarantees shortest hops</span>
+      <h1>Distance = the ring you were first discovered in</h1>
+      <div class="content">
+        <div class="col col-left" style="justify-content:center;">
+          <p class="body-copy">Formal claim: for an unweighted graph, BFS discovers every vertex <em>u</em> at exactly <code style="color:var(--teal)">dist(source, u)</code> — the minimum number of edges.</p>
+          <p class="body-copy" style="margin-top:12px;">Proof sketch, Feynman-style: ring 0 is just the source. Ring 1 can only contain vertices one door from ring 0 — there's no way to reach them faster, since ring 0 was everything closer. By induction, ring k+1 is built only from unvisited neighbors of ring k. You can never "skip ahead" — the queue physically won't let you.</p>
+        </div>
+        <div class="col col-right" style="justify-content:center;">
+          <div class="panel">
+            <span class="panel-title">Complexity</span>
+            <table class="cheat">
+              <tr><th></th><th>Time</th><th>Space</th></tr>
+              <tr><td>BFS</td><td class="accent2">O(V + E)</td><td class="accent2">O(V)</td></tr>
+            </table>
+          </div>
+          <div style="margin-top:16px;">
+            <span class="recap-tag">RECAP</span>
+            <p class="body-copy">BFS guarantees the minimum-edge path. DFS doesn't — but DFS wasn't built for that job.</p>
+            <span class="gap-tag" style="margin-top:10px;">GAP</span>
+            <p class="gap-line">so should we just always use BFS? what is DFS actually the <em>right</em> tool for?</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- S10: DFS vs BFS use-case split -->
+    <section class="slide" data-anim="s10">
+      <span class="kicker">Choosing the right search</span>
+      <h1>Same O(V+E) cost. Very different superpowers.</h1>
+      <div class="content" style="gap:20px;">
+        <div class="use-grid" style="grid-template-columns:1fr; grid-template-rows:1fr 1fr; gap:14px;">
+          <div class="use-card" style="border-color:#3a2a18;">
+            <h3 style="color:var(--amber);">DFS is the right tool when...</h3>
+            <p>you need to fully explore one branch before comparing it to another: detecting cycles, finding connected components, topological ordering, or backtracking search (Sudoku, maze generation, N-queens).</p>
+          </div>
+          <div class="use-card" style="border-color:#1c3230;">
+            <h3 style="color:var(--teal);">BFS is the right tool when...</h3>
+            <p>"distance" or "fewest steps" matters: shortest path in an unweighted graph, minimum moves in a puzzle, checking if a graph is bipartite, or spreading outward level-by-level (social graphs, broadcast).</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- S11: PRACTICAL APPLICATIONS -->
+    <section class="slide" data-anim="s11">
+      <span class="kicker">Where this runs in production</span>
+      <h1>Four systems you've already used today</h1>
+      <div class="use-grid">
+        <div class="use-card">
+          <svg class="use-icon" viewBox="0 0 200 60"><g id="ic-crawl"></g></svg>
+          <h3>Web crawlers</h3>
+          <p>BFS from a seed URL. "Click depth" = BFS distance — pages found early rank as more important.</p>
+        </div>
+        <div class="use-card">
+          <svg class="use-icon" viewBox="0 0 200 60"><g id="ic-social"></g></svg>
+          <h3>"2nd-degree connection"</h3>
+          <p>LinkedIn / social graphs run BFS from you outward to label 1st, 2nd, 3rd-degree contacts.</p>
+        </div>
+        <div class="use-card">
+          <svg class="use-icon" viewBox="0 0 200 60"><g id="ic-gc"></g></svg>
+          <h3>Garbage collection</h3>
+          <p>Mark-and-sweep GC does DFS/BFS from root objects. Anything unreached is memory to reclaim.</p>
+        </div>
+        <div class="use-card">
+          <svg class="use-icon" viewBox="0 0 200 60"><g id="ic-maze"></g></svg>
+          <h3>Maze generation & solving</h3>
+          <p>Randomized DFS carves the maze (backtracking). BFS solves it — guaranteed shortest exit path.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- S12: CHEAT SHEET -->
+    <section class="slide" data-anim="s12">
+      <span class="kicker">Things to know, before you move on</span>
+      <h1>The cheat sheet</h1>
+      <div class="content">
+        <div class="col col-left" style="justify-content:center;">
+          <table class="cheat">
+            <tr><th>Algorithm</th><th>Time</th><th>Space</th><th>Guarantees</th></tr>
+            <tr><td>DFS (recursive)</td><td class="accent">O(V+E)</td><td class="accent">O(V)</td><td>reaches all, any order</td></tr>
+            <tr><td>DFS (iterative)</td><td class="accent">O(V+E)</td><td class="accent">O(V)</td><td>same set, order may differ</td></tr>
+            <tr><td>BFS</td><td class="accent2">O(V+E)</td><td class="accent2">O(V)</td><td>min. edge-count path</td></tr>
+          </table>
+        </div>
+        <div class="col col-right" style="justify-content:center;">
+          <p class="body-copy"><strong style="color:var(--bone)">Gotcha 1 —</strong> mark BFS vertices visited at <em>enqueue</em> time, not dequeue, or duplicates flood the queue.</p>
+          <p class="body-copy" style="margin-top:10px;"><strong style="color:var(--bone)">Gotcha 2 —</strong> naive iterative DFS visits neighbors in reverse order vs. recursion. Reverse the push order to match.</p>
+          <p class="body-copy" style="margin-top:10px;"><strong style="color:var(--bone)">Gotcha 3 —</strong> on a directed graph, "reachable" is one-way. A can reach B without B reaching A — traversal alone can't detect that asymmetry; you need the direction of every edge.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- S13: FINAL RECAP + ROADMAP -->
+    <section class="slide" data-anim="s13">
+      <span class="kicker">Episode 1 — closing</span>
+      <h1>You can now walk any graph — and find the shortest hop-count route</h1>
+      <p class="gap-line" style="margin-top:6px;">but every edge here cost exactly "one step." what happens when a road has tolls, and a network link has latency — when edges have different <em>weights</em>? counting hops stops being enough.</p>
+      <div class="roadmap">
+        <span class="rchip done">Traversal ✓</span>
+        <span class="rchip next">Shortest Paths — next</span>
+        <span class="rchip">Minimum Spanning Tree</span>
+        <span class="rchip">DAG &amp; Topological Sort</span>
+        <span class="rchip">Connectivity &amp; SCC</span>
+        <span class="rchip">Max Flow</span>
+        <span class="rchip">Bipartite Matching</span>
+        <span class="rchip">String Algorithms</span>
+      </div>
+    </section>
+
+  </div>
+
+  <div class="foot">
+    <button class="nav-btn" id="prevBtn" aria-label="Previous"><svg viewBox="0 0 12 12"><polyline points="8,1 3,6 8,11" fill="none" stroke="#8c8779" stroke-width="1.4"/></svg></button>
+    <div class="progress"><div class="progress-fill" id="progFill"></div></div>
+    <span class="counter" id="counter">01 / 13</span>
+    <button class="nav-btn" id="nextBtn" aria-label="Next" style="margin-left:14px;"><svg viewBox="0 0 12 12"><polyline points="4,1 9,6 4,11" fill="none" stroke="#8c8779" stroke-width="1.4"/></svg></button>
+  </div>
+  <div class="hint">← → to navigate</div>
+</div>
+
+<script>
+/* ---------- graph model ---------- */
+const NODES = {
+  A:{x:90,y:340}, B:{x:300,y:160}, C:{x:300,y:500},
+  D:{x:520,y:160}, E:{x:520,y:500}, F:{x:720,y:330},
+  G:{x:920,y:330}, H:{x:150,y:560}
+};
+const EDGES = [['A','B'],['A','C'],['B','D'],['C','E'],['D','F'],['E','F'],['F','G'],['C','H']];
+const ADJ = {A:['B','C'],B:['A','D'],C:['A','E','H'],D:['B','F'],E:['C','F'],F:['D','E','G'],G:['F'],H:['C']};
+
+function edgeId(a,b){ return [a,b].sort().join('-'); }
+
+function buildGraphSVG(svgEl, prefix){
+  svgEl.innerHTML = '';
+  const ns = 'http://www.w3.org/2000/svg';
+  EDGES.forEach(([a,b])=>{
+    const line = document.createElementNS(ns,'line');
+    line.setAttribute('x1',NODES[a].x); line.setAttribute('y1',NODES[a].y);
+    line.setAttribute('x2',NODES[b].x); line.setAttribute('y2',NODES[b].y);
+    line.setAttribute('class','edge');
+    line.id = prefix+'-edge-'+edgeId(a,b);
+    svgEl.appendChild(line);
+  });
+  Object.entries(NODES).forEach(([k,p])=>{
+    const g = document.createElementNS(ns,'g');
+    g.setAttribute('class','node'); g.id = prefix+'-node-'+k;
+    const c = document.createElementNS(ns,'circle');
+    c.setAttribute('cx',p.x); c.setAttribute('cy',p.y); c.setAttribute('r',30);
+    const t = document.createElementNS(ns,'text');
+    t.setAttribute('x',p.x); t.setAttribute('y',p.y); t.textContent = k;
+    const d = document.createElementNS(ns,'text');
+    d.setAttribute('class','dist-label'); d.setAttribute('x',p.x); d.setAttribute('y',p.y+46);
+    d.setAttribute('text-anchor','middle'); d.id = prefix+'-dist-'+k;
+    g.appendChild(c); g.appendChild(t);
+    svgEl.appendChild(g); svgEl.appendChild(d);
+  });
+}
+
+function setAccent(svgEl,color){ svgEl.style.setProperty('--accent',color); }
+function nodeEl(prefix,k){ return document.getElementById(prefix+'-node-'+k); }
+function edgeEl(prefix,a,b){ return document.getElementById(prefix+'-edge-'+edgeId(a,b)); }
+function distEl(prefix,k){ return document.getElementById(prefix+'-dist-'+k); }
+function resetGraph(prefix){
+  Object.keys(NODES).forEach(k=>{ const n=nodeEl(prefix,k); if(n){ n.className.baseVal='node'; } const d=distEl(prefix,k); if(d){d.classList.remove('show'); d.textContent='';} });
+  EDGES.forEach(([a,b])=>{ const e=edgeEl(prefix,a,b); if(e){ e.setAttribute('class','edge'); } });
+}
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+
+/* ---------- structure panels ---------- */
+function pushChip(container, label, color){
+  const el = document.createElement('div');
+  el.className='chip'; el.textContent=label;
+  el.style.borderColor = color; el.style.color = color;
+  container.appendChild(el);
+  requestAnimationFrame(()=>el.classList.add('in'));
+  return el;
+}
+function popChip(el){
+  el.classList.add('out');
+  setTimeout(()=>el.remove(),260);
+}
+
+/* ================= S1 : hook — graph forming ================= */
+async function animS1(){
+  const svg = document.getElementById('hook-svg');
+  buildGraphSVG(svg,'hook'); setAccent(svg,'#c9c4b5');
+  EDGES.forEach(([a,b])=>edgeEl('hook',a,b).style.opacity=0);
+  Object.keys(NODES).forEach(k=>nodeEl('hook',k).style.opacity=0);
+  for(const k of Object.keys(NODES)){
+    nodeEl('hook',k).style.transition='opacity .5s ease';
+    nodeEl('hook',k).style.opacity=1;
+    await sleep(140);
+  }
+  for(const [a,b] of EDGES){
+    const e = edgeEl('hook',a,b);
+    e.style.transition='opacity .4s ease'; e.style.opacity=1;
+    await sleep(110);
+  }
+}
+
+/* ================= S2 : adjacency reveal ================= */
+function animS2(){
+  const svg = document.getElementById('s2-svg');
+  buildGraphSVG(svg,'s2'); setAccent(svg,'#c9c4b5');
+  const pre = document.getElementById('s2-adj');
+  let lines = Object.entries(ADJ).map(([k,v])=>`${k}: [${v.join(', ')}]`);
+  pre.textContent = lines.join('\n');
+}
+
+/* ================= S3 : DFS intuition walk (single path, no backtrack visuals kept simple) ============ */
+async function animS3(){
+  const svg = document.getElementById('s3-svg');
+  buildGraphSVG(svg,'s3'); setAccent(svg,'#c98a4b'); resetGraph('s3');
+  const order = ['A','B','D','F']; // walk forward
+  let prev=null;
+  for(const k of order){
+    if(prev){ edgeEl('s3',prev,k).classList.add('traversed'); await sleep(260); }
+    nodeEl('s3',k).classList.add('current'); await sleep(200);
+    nodeEl('s3',k).classList.remove('current'); nodeEl('s3',k).classList.add('visited');
+    prev = k; await sleep(160);
+  }
+  // dead end at F->G is fine, but show "no unvisited neighbor from D path" backtrack cue
+  await sleep(300);
+  edgeEl('s3','D','F').classList.add('traversed');
+}
+
+/* ================= S4 : DFS recursive full ================= */
+async function dfsRecursiveAnim(prefix, stackContainer, speed=520){
+  const visited = new Set();
+  const stackEls = [];
+  async function dfs(v){
+    visited.add(v);
+    nodeEl(prefix,v).classList.add('current');
+    const chip = pushChip(stackContainer, v, 'var(--amber)');
+    stackEls.push(chip);
+    await sleep(speed*0.55);
+    nodeEl(prefix,v).classList.remove('current');
+    nodeEl(prefix,v).classList.add('visited');
+    for(const u of ADJ[v]){
+      if(!visited.has(u)){
+        edgeEl(prefix,v,u).classList.add('traversed');
+        await sleep(speed*0.35);
+        await dfs(u);
+      }
+    }
+    await sleep(speed*0.35);
+    const chipToRemove = stackEls.pop();
+    popChip(chipToRemove);
+  }
+  await dfs('A');
+}
+async function animS4(){
+  const svg = document.getElementById('s4-svg');
+  buildGraphSVG(svg,'s4'); setAccent(svg,'#c98a4b'); resetGraph('s4');
+  const stackC = document.getElementById('s4-stack'); stackC.innerHTML='';
+  await dfsRecursiveAnim('s4', stackC, 480);
+}
+
+/* ================= S5 : DFS iterative (naive order, contrasted) ================= */
+async function animS5(){
+  const svg = document.getElementById('s5-svg');
+  buildGraphSVG(svg,'s5'); setAccent(svg,'#c98a4b'); resetGraph('s5');
+  const stackArr = ['A'];
+  const stackC = document.getElementById('s5-stack'); stackC.innerHTML='';
+  const chipMap = {};
+  chipMap['A0'] = pushChip(stackC,'A','var(--amber)');
+  const visited = new Set();
+  const orderVisited = [];
+  let uid=0;
+  const stackModel = [{k:'A',id:'A0'}];
+  document.getElementById('s5-callout').style.opacity=0;
+  while(stackModel.length){
+    const top = stackModel.pop();
+    popChip(chipMap[top.id]);
+    await sleep(260);
+    if(visited.has(top.k)) continue;
+    visited.add(top.k); orderVisited.push(top.k);
+    nodeEl('s5',top.k).classList.add('current');
+    await sleep(260);
+    nodeEl('s5',top.k).classList.remove('current');
+    nodeEl('s5',top.k).classList.add('visited');
+    for(const u of ADJ[top.k]){
+      if(!visited.has(u)){
+        edgeEl('s5',top.k,u).classList.add('traversed');
+        const id = 'x'+(uid++);
+        chipMap[id] = pushChip(stackC,u,'var(--amber)');
+        stackModel.push({k:u,id});
+        await sleep(160);
+      }
+    }
+  }
+  document.getElementById('s5-order-rec').innerHTML =
+    ['A','B','D','F','E','C','H','G'].map(k=>`<span class="on">${k}</span>`).join('');
+  document.getElementById('s5-order-it').innerHTML =
+    orderVisited.map(k=>`<span class="on">${k}</span>`).join('');
+  document.getElementById('s5-callout').style.opacity=1;
+}
+
+/* ================= S6 : long DFS path vs short path ================= */
+async function animS6(){
+  const svg = document.getElementById('s6-svg');
+  buildGraphSVG(svg,'s6'); setAccent(svg,'#c98a4b'); resetGraph('s6');
+  const dfsPath = ['A','B','D','F','E','C','H'];
+  for(let i=0;i<dfsPath.length;i++){
+    if(i>0) edgeEl('s6',dfsPath[i-1],dfsPath[i]).classList.add('traversed');
+    nodeEl('s6',dfsPath[i]).classList.add('visited');
+    await sleep(220);
+  }
+  await sleep(500);
+  // now reveal short path A-C-H in teal overlay via onpath classes on top
+  setAccent(svg,'#5f9089');
+  ['A','C','H'].forEach(k=>{ /* keep amber trail, add teal path marks */ });
+  const shortEdges = [['A','C'],['C','H']];
+  for(const [a,b] of shortEdges){
+    const e = edgeEl('s6',a,b);
+    e.style.stroke = '#5f9089'; e.style.strokeWidth = 5;
+    await sleep(260);
+  }
+  nodeEl('s6','A').querySelector('circle').style.stroke='#5f9089';
+  nodeEl('s6','C').querySelector('circle').style.stroke='#5f9089';
+  nodeEl('s6','H').querySelector('circle').style.stroke='#5f9089';
+}
+
+/* ================= S7 : BFS ripple ================= */
+async function animS7(){
+  const svg = document.getElementById('s7-svg');
+  buildGraphSVG(svg,'s7'); setAccent(svg,'#5f9089'); resetGraph('s7');
+  const rings = [['A'],['B','C'],['D','E','H'],['F'],['G']];
+  const edgesByRing = [[],[['A','B'],['A','C']],[['B','D'],['C','E'],['C','H']],[['D','F'],['E','F']],[['F','G']]];
+  for(let i=0;i<rings.length;i++){
+    edgesByRing[i].forEach(([a,b])=>edgeEl('s7',a,b).classList.add('traversed'));
+    rings[i].forEach(k=>nodeEl('s7',k).classList.add('current'));
+    await sleep(420);
+    rings[i].forEach(k=>{ nodeEl('s7',k).classList.remove('current'); nodeEl('s7',k).classList.add('visited'); });
+    await sleep(200);
+  }
+}
+
+/* ================= S8 : BFS formal with queue + distances ================= */
+async function animS8(){
+  const svg = document.getElementById('s8-svg');
+  buildGraphSVG(svg,'s8'); setAccent(svg,'#5f9089'); resetGraph('s8');
+  const qC = document.getElementById('s8-queue'); qC.innerHTML='';
+  const visited = new Set(['A']);
+  const dist = {A:0};
+  const chipQ = [];
+  chipQ.push(pushChip(qC,'A','var(--teal)'));
+  distEl('s8','A').textContent='0'; distEl('s8','A').classList.add('show');
+  const queue = ['A'];
+  while(queue.length){
+    const v = queue.shift();
+    popChip(chipQ.shift());
+    nodeEl('s8',v).classList.add('current');
+    await sleep(260);
+    nodeEl('s8',v).classList.remove('current');
+    nodeEl('s8',v).classList.add('visited');
+    for(const u of ADJ[v]){
+      if(!visited.has(u)){
+        visited.add(u); dist[u]=dist[v]+1;
+        edgeEl('s8',v,u).classList.add('traversed');
+        distEl('s8',u).textContent = String(dist[u]);
+        distEl('s8',u).classList.add('show');
+        chipQ.push(pushChip(qC,u,'var(--teal)'));
+        queue.push(u);
+        await sleep(180);
+      }
+    }
+  }
+}
+
+/* ================= S11: mini icon vignettes ================= */
+function drawIcons(){
+  const ns='http://www.w3.org/2000/svg';
+  function mk(tag,attrs){ const e=document.createElementNS(ns,tag); for(const k in attrs) e.setAttribute(k,attrs[k]); return e; }
+  // crawler: seed + 3 rings of dots
+  const crawl = document.getElementById('ic-crawl');
+  const seedC = mk('circle',{cx:20,cy:30,r:6,fill:'#c98a4b'}); crawl.appendChild(seedC);
+  [[60,15],[60,45],[100,10],[100,30],[100,50],[140,20],[140,40]].forEach((p,i)=>{
+    crawl.appendChild(mk('circle',{cx:p[0],cy:p[1],r:4,fill:'#5f9089',opacity:0.8}));
+  });
+  [[20,30,60,15],[20,30,60,45],[60,15,100,10],[60,15,100,30],[60,45,100,30],[60,45,100,50],[100,10,140,20],[100,50,140,40]].forEach(l=>{
+    crawl.appendChild(mk('line',{x1:l[0],y1:l[1],x2:l[2],y2:l[3],stroke:'#232019','stroke-width':1}));
+  });
+  // social: you + rings
+  const soc = document.getElementById('ic-social');
+  soc.appendChild(mk('circle',{cx:24,cy:30,r:7,fill:'#c98a4b'}));
+  [[70,15],[70,45]].forEach(p=>soc.appendChild(mk('circle',{cx:p[0],cy:p[1],r:5,fill:'#5f9089'})));
+  [[115,8],[115,25],[115,42],[115,55]].forEach(p=>soc.appendChild(mk('circle',{cx:p[0],cy:p[1],r:4,fill:'#8c8779'})));
+  [[24,30,70,15],[24,30,70,45],[70,15,115,8],[70,15,115,25],[70,45,115,42],[70,45,115,55]].forEach(l=>{
+    soc.appendChild(mk('line',{x1:l[0],y1:l[1],x2:l[2],y2:l[3],stroke:'#232019','stroke-width':1}));
+  });
+  // GC: roots + reachable + one unreached (dim)
+  const gc = document.getElementById('ic-gc');
+  gc.appendChild(mk('rect',{x:10,y:22,width:14,height:14,fill:'none',stroke:'#c98a4b','stroke-width':2}));
+  [[55,15],[55,45],[100,30]].forEach(p=>gc.appendChild(mk('circle',{cx:p[0],cy:p[1],r:6,fill:'#5f9089'})));
+  gc.appendChild(mk('circle',{cx:150,cy:30,r:6,fill:'none',stroke:'#3a352c','stroke-width':2}));
+  [[24,29,55,15],[24,29,55,45],[55,15,100,30],[55,45,100,30]].forEach(l=>gc.appendChild(mk('line',{x1:l[0],y1:l[1],x2:l[2],y2:l[3],stroke:'#232019','stroke-width':1})));
+  // maze: grid path
+  const maze = document.getElementById('ic-maze');
+  const path = 'M10,50 L10,30 L40,30 L40,10 L80,10 L80,35 L120,35 L120,15 L160,15';
+  maze.appendChild(mk('path',{d:path, fill:'none', stroke:'#5f9089','stroke-width':3}));
+  maze.appendChild(mk('circle',{cx:10,cy:50,r:5,fill:'#c98a4b'}));
+  maze.appendChild(mk('circle',{cx:160,cy:15,r:5,fill:'#5f9089'}));
+}
+
+/* ---------- slide machine ---------- */
+const animators = {s1:animS1, s2:animS2, s3:animS3, s4:animS4, s5:animS5, s6:animS6, s7:animS7, s8:animS8};
+const slideEls = Array.from(document.querySelectorAll('.slide'));
+const total = slideEls.length;
+let current = 0;
+const marksC = document.getElementById('marks');
+slideEls.forEach((_,i)=>{ const m=document.createElement('div'); m.className='mark'+(i===0?' on':''); m.id='mark-'+i; marksC.appendChild(m); });
+
+function updateChrome(){
+  document.getElementById('counter').textContent = String(current+1).padStart(2,'0')+' / '+String(total).padStart(2,'0');
+  document.getElementById('progFill').style.width = ((current+1)/total*100)+'%';
+  slideEls.forEach((s,i)=>document.getElementById('mark-'+i).classList.toggle('on', i<=current));
+}
+
+function runAnim(idx){
+  const key = slideEls[idx].dataset.anim;
+  if(animators[key]) animators[key]();
+}
+
+function goTo(idx){
+  if(idx<0||idx>=total) return;
+  slideEls[current].classList.remove('active');
+  current = idx;
+  slideEls[current].classList.add('active');
+  updateChrome();
+  runAnim(current);
+}
+
+document.getElementById('nextBtn').addEventListener('click',()=>goTo(current+1));
+document.getElementById('prevBtn').addEventListener('click',()=>goTo(current-1));
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowRight'||e.key===' ') goTo(current+1);
+  if(e.key==='ArrowLeft') goTo(current-1);
+});
+document.querySelectorAll('[data-replay]').forEach(btn=>{
+  btn.addEventListener('click',()=>runAnim(current));
+});
+
+slideEls[0].classList.add('active');
+updateChrome();
+drawIcons();
+runAnim(0);
+</script>
+</body>
+</html>

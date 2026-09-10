@@ -1,0 +1,1381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Compiler Concepts — A Manim-Style Walkthrough</title>
+<style>
+  :root{
+    --bg:#0a0a0f;
+    --blue:#4A90C4;
+    --yellow:#D4C55A;
+    --green:#6BAA75;
+    --red:#C4605A;
+    --gray:#8A8F98;
+    --text:#EDEDED;
+    --caption:#9AA0A8;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; width:100%; height:100%;
+    background:#000; overflow:hidden;
+    font-family:'Helvetica Neue',Arial,sans-serif;
+  }
+  #deck-scaler{
+    width:1600px; height:900px;
+    background:var(--bg);
+    position:absolute; top:50%; left:50%;
+    transform-origin:center center;
+  }
+  .slide{ position:absolute; inset:0; display:none; }
+  .slide.active{ display:block; }
+
+  .zone-title{
+    position:absolute; top:40px; left:80px; right:80px; height:80px;
+    display:flex; align-items:center;
+    color:var(--text); font-size:32px; font-weight:600; letter-spacing:.3px;
+  }
+  .zone-stage{
+    position:absolute; top:140px; left:80px; right:80px; height:630px;
+  }
+  .zone-caption{
+    position:absolute; top:790px; left:120px; right:120px; height:90px;
+    display:flex; align-items:center; justify-content:center;
+    color:var(--caption); font-size:19px; line-height:1.4; text-align:center;
+    white-space:normal; overflow-wrap:break-word; overflow:visible;
+    opacity:0;
+  }
+  .zone-caption.go{ animation:fadeIn 500ms ease-out forwards; }
+
+  svg.stage{ width:100%; height:100%; overflow:visible; display:block; }
+  svg.stage *{ transform-box:fill-box; transform-origin:center; }
+
+  .draw-in{ stroke-dasharray:var(--len,1000); stroke-dashoffset:var(--len,1000); }
+  .draw-in.go{ animation:drawShape 800ms cubic-bezier(.65,0,.35,1) forwards; }
+  @keyframes drawShape{ to{ stroke-dashoffset:0; } }
+
+  .fade-in{ opacity:0; }
+  .fade-in.go{ animation:fadeIn 500ms ease-out forwards; }
+  @keyframes fadeIn{
+    from{ opacity:0; transform:translateY(6px) scale(.98); }
+    to{ opacity:1; transform:translateY(0) scale(1); }
+  }
+
+  .indicate.go{ animation:indicate 700ms ease-in-out; }
+  @keyframes indicate{
+    0%{ transform:scale(1); filter:none; }
+    50%{ transform:scale(1.08); filter:drop-shadow(0 0 3px currentColor); }
+    100%{ transform:scale(1); filter:none; }
+  }
+
+  #nav{
+    position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+    display:flex; align-items:center; gap:16px; z-index:10;
+  }
+  #nav button{
+    background:transparent; border:1.5px solid var(--gray); color:var(--text);
+    width:38px; height:38px; border-radius:50%; font-size:17px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    transition:border-color .2s, color .2s;
+  }
+  #nav button:hover{ border-color:var(--blue); color:var(--blue); }
+  #dots{ display:flex; gap:5px; max-width:460px; flex-wrap:wrap; justify-content:center; }
+  .dot{
+    width:6px; height:6px; border-radius:50%; background:var(--gray); opacity:.5;
+    transition:background .2s, opacity .2s, transform .2s;
+  }
+  .dot.on{ background:var(--blue); opacity:1; transform:scale(1.4); }
+  #slideCounter{
+    color:var(--gray); font-size:13px; letter-spacing:.5px; min-width:56px; text-align:center;
+  }
+</style>
+</head>
+<body>
+
+<div id="deck-scaler">
+
+  <section class="slide" data-slide="0">
+    <div class="zone-title">Compiler Concepts</div>
+    <div class="zone-stage"><svg class="stage" viewBox="0 0 1440 630"></svg></div>
+    <div class="zone-caption">By the end, you'll know exactly what happens between these two lines.</div>
+  </section>
+
+  <section class="slide" data-slide="1">
+    <div class="zone-title">The Whole Pipeline, At a Glance</div>
+    <div class="zone-stage"><svg class="stage" viewBox="0 0 1440 630"></svg></div>
+    <div class="zone-caption">Source code passes through many small, honest transformations before it runs.</div>
+  </section>
+
+  <section class="slide" data-slide="2">
+    <div class="zone-title">What Actually Happens When Code Runs?</div>
+    <div class="zone-stage"><svg class="stage" viewBox="0 0 1440 630"></svg></div>
+    <div class="zone-caption">Every line eventually becomes electrical signals a CPU can follow. Let's trace the journey.</div>
+  </section>
+
+  <section class="slide" data-slide="3">
+    <div class="zone-title">To a Computer, Code Is Just Characters</div>
+    <div class="zone-stage"><svg class="stage" viewBox="0 0 1440 630"></svg></div>
+    <div class="zone-caption">A computer sees only a flat stream of characters. But how does it know '1' and '2' are a number, and '+' is an operator? We're missing a way to group and label them.</div>
+  </section>
+
+  <section class="slide" data-slide="4">
+    <div class="zone-title">Grouping Characters Into Words: Lexing</div>
+    <div class="zone-stage"><svg class="stage" viewBox="0 0 1440 630"></svg></div>
+    <div class="zone-caption">Each run of characters becomes one token: a name, a number, or a symbol.</div>
+  </section>
+
+  <section class="slide" data-slide="5">
+    <div class="zone-title">Every Token Has a Type</div>
+    <div class="zone-stage"><svg class="stage" viewBox="0 0 1440 630"></svg></div>
+    <div class="zone-caption">A token is a (type, value) pair — the atoms of syntax.</div>
+  </section>
+
+  <section class="slide" data-slide="6">
+    <div class="zone-title">Under the Hood: Finite Automata</div>
+    <div class="zone-stage"><svg class="stage" viewBox="0 0 1440 630"></svg></div>
+    <div class="zone-caption">Lexers are literally tiny state machines — one rule: which door to take for the next character.</div>
+  </section>
+
+  <section class="slide" data-slide="7">
+    <div class="zone-title">Tokens Have No Shape Yet</div>
+    <div class="zone-stage"><svg class="stage" viewBox="0 0 1440 630"></svg></div>
+    <div class="zone-caption">We have a flat list of typed tokens. But what stops '=' from appearing before every name? We need rules for valid structure.</div>
+  </section>
+
+  <section class="slide" data-slide="8">
+    <div class="zone-title">Grammar: Rules for Valid Structure</div>
+    <div class="zone-stage"><svg class="stage" viewBox="0 0 1440 630"></svg></div>
+    <div class="zone-caption">Grammar defines valid patterns — and lets patterns nest inside themselves. That's recursion.</div>
+  </section>
+
+  <section class="slide" data-slide="9">
+    <div class="zone-title">Parsing: Tokens Become a Tree</div>
+    <div class="zone-stage"><svg class="stage" viewBox="0 0 1440 630"></svg></div>
+    <div class="zone-caption">The parser matches grammar rules and builds a tree that mirrors the structure.</div>
+  </section>
+
+  <section class="slide" data-slide="10">
+    <div class="zone-title">Why Multiplication Binds Tighter</div>
+    <div class="zone-stage"><svg class="stage" viewBox="0 0 1440 630"></svg></div>
+    <div class="zone-caption">Grammar encodes precedence directly: '*' sits deeper in the tree, so it's evaluated first.</div>
+  </section>
+
+  <section class="slide" data-slide="11">
+    <div class="zone-title">The Parse Tree Is Too Noisy</div>
+    <div class="zone-stage"><svg class="stage" viewBox="0 0 1440 630"></svg></div>
+    <div class="zone-caption">Every node here just relays grammar bookkeeping. What's the actual meaning underneath?</div>
+  </section>
+
+  <section class="slide" data-slide="12">
+    <div class="zone-title">AST: Keep Meaning, Drop Decoration</div>
+    <div class="zone-stage"><svg class="stage" viewBox="0 0 1440 630"></svg></div>
+    <div class="zone-caption">The AST keeps only what changes behavior — operators and operands, nothing else.</div>
+  </section>
+
+  <section class="slide" data-slide="13">
+    <div class="zone-title">A Clean Tree Isn't Necessarily Correct</div>
+    <div class="zone-stage"><svg class="stage" viewBox="0 0 1440 630"></svg></div>
+    <div class="zone-caption">We have a clean AST. But nothing has checked whether 'ab' was ever declared. Is a valid-looking tree the same as a meaningful one?</div>
+  </section>
+
+  <section class="slide" data-slide="14">
+    <div class="zone-title">Semantic Analysis: Does It Make Sense?</div>
+    <div class="zone-stage"><svg class="stage" viewBox="0 0 1440 630"></svg></div>
+    <div class="zone-caption">Semantic analysis tracks what each name means — its type, its scope — as the tree is walked.</div>
+  </section>
+
+  <section class="slide" data-slide="15">
+    <div class="zone-title">Type Checking: Catching Category Errors</div>
+    <div class="zone-stage"><svg class="stage" viewBox="0 0 1440 630"></svg></div>
+    <div class="zone-caption">Type checking enforces rules like this one — mismatched types are an error, not just a style issue.</div>
+  </section>
+
+  <section class="slide" data-slide="16">
+    <div class="zone-title">Still Tied to One Language's Shape</div>
+    <div class="zone-stage"><svg class="stage" viewBox="0 0 1440 630"></svg></div>
+    <div class="zone-caption">Semantic analysis confirms the program is internally consistent. But this AST still mirrors one language's grammar. How do we get a form any machine can target?</div>
+  </section>
+
+  <section class="slide" data-slide="17">
+    <div class="zone-title">Intermediate Representation: One Language In Between</div>
+    <div class="zone-stage"><svg class="stage" viewBox="0 0 1440 630"></svg></div>
+    <div class="zone-caption">IR is simple, uniform, and close to hardware — but still independent of any one machine.</div>
+  </section>
+
+  <section class="slide" data-slide="18">
+    <div class="zone-title">Static Single Assignment: Name Once, Reason Easily</div>
+    <div class="zone-stage"><svg class="stage" viewBox="0 0 1440 630"></svg></div>
+    <div class="zone-caption">SSA renames each assignment — now every use points to exactly one definition, which makes optimization straightforward.</div>
+  </section>
+
+  <section class="slide" data-slide="19">
+    <div class="zone-title">Correct, But Wasteful</div>
+    <div class="zone-stage"><svg class="stage" viewBox="0 0 1440 630"></svg></div>
+    <div class="zone-caption">This IR is correct — but it does unnecessary work at runtime. Can the compiler do some of that work in advance?</div>
+  </section>
+
+  <section class="slide" data-slide="20">
+    <div class="zone-title">Optimization: Do the Math Now, Not Later</div>
+    <div class="zone-stage"><svg class="stage" viewBox="0 0 1440 630"></svg></div>
+    <div class="zone-caption">Constant folding: if the compiler already knows the values, it computes the result once — not every time the program runs.</div>
+  </section>
+
+  <section class="slide" data-slide="21">
+    <div class="zone-title">Optimization: Delete What Never Matters</div>
+    <div class="zone-stage"><svg class="stage" viewBox="0 0 1440 630"></svg></div>
+    <div class="zone-caption">If a value is computed but never used, it's dead — safe to remove entirely.</div>
+  </section>
+
+  <section class="slide" data-slide="22">
+    <div class="zone-title">Optimization: Never Repeat Yourself</div>
+    <div class="zone-stage"><svg class="stage" viewBox="0 0 1440 630"></svg></div>
+    <div class="zone-caption">Computed the same thing twice? Reuse the first result instead of recomputing.</div>
+  </section>
+
+  <section class="slide" data-slide="23">
+    <div class="zone-title">Still Not a Real Machine's Language</div>
+    <div class="zone-stage"><svg class="stage" viewBox="0 0 1440 630"></svg></div>
+    <div class="zone-caption">Optimization trimmed the IR to only necessary work. But a CPU only knows fixed registers and a small instruction set. How does IR become that?</div>
+  </section>
+
+  <section class="slide" data-slide="24">
+    <div class="zone-title">Code Generation: IR to Instructions</div>
+    <div class="zone-stage"><svg class="stage" viewBox="0 0 1440 630"></svg></div>
+    <div class="zone-caption">Code generation picks concrete instructions and registers for each IR operation — this is instruction selection.</div>
+  </section>
+
+  <section class="slide" data-slide="25">
+    <div class="zone-title">Register Allocation: Finite Slots, Infinite Values</div>
+    <div class="zone-stage"><svg class="stage" viewBox="0 0 1440 630"></svg></div>
+    <div class="zone-caption">There are far fewer registers than values — the allocator reuses a register once a value's lifetime ends.</div>
+  </section>
+
+  <section class="slide" data-slide="26">
+    <div class="zone-title">One File Isn't the Whole Program</div>
+    <div class="zone-stage"><svg class="stage" viewBox="0 0 1440 630"></svg></div>
+    <div class="zone-caption">Code generation produced machine instructions in an object file. But our program calls functions living in other files. How do separate pieces become one program?</div>
+  </section>
+
+  <section class="slide" data-slide="27">
+    <div class="zone-title">Linking: Stitching Files Into One</div>
+    <div class="zone-stage"><svg class="stage" viewBox="0 0 1440 630"></svg></div>
+    <div class="zone-caption">The linker resolves each reference to a real address and merges everything into one executable.</div>
+  </section>
+
+  <section class="slide" data-slide="28">
+    <div class="zone-title">A File on Disk Isn't a Running Program</div>
+    <div class="zone-stage"><svg class="stage" viewBox="0 0 1440 630"></svg></div>
+    <div class="zone-caption">Linking produced a single executable file sitting on disk. But nothing is executing yet. How does it become a live process?</div>
+  </section>
+
+  <section class="slide" data-slide="29">
+    <div class="zone-title">Loading: From Disk to Live Memory</div>
+    <div class="zone-stage"><svg class="stage" viewBox="0 0 1440 630"></svg></div>
+    <div class="zone-caption">The loader maps each section into memory and hands control to the entry point — execution begins.</div>
+  </section>
+
+  <section class="slide" data-slide="30">
+    <div class="zone-title">But Not Every Language Takes This Road</div>
+    <div class="zone-stage"><svg class="stage" viewBox="0 0 1440 630"></svg></div>
+    <div class="zone-caption">Some languages compile to a made-up machine's instructions instead of the real one. Let's see why.</div>
+  </section>
+
+  <section class="slide" data-slide="31">
+    <div class="zone-title">Bytecode: A Machine That Only Exists in Software</div>
+    <div class="zone-stage"><svg class="stage" viewBox="0 0 1440 630"></svg></div>
+    <div class="zone-caption">Bytecode is simple, compact, and machine-independent — perfect for a software-simulated machine to run anywhere.</div>
+  </section>
+
+  <section class="slide" data-slide="32">
+    <div class="zone-title">Virtual Machines: Executing Bytecode Step by Step</div>
+    <div class="zone-stage"><svg class="stage" viewBox="0 0 1440 630"></svg></div>
+    <div class="zone-caption">The VM is a small interpreter loop: read one bytecode instruction, update the stack, repeat.</div>
+  </section>
+
+  <section class="slide" data-slide="33">
+    <div class="zone-title">Interpreting Is Safe, But Slow</div>
+    <div class="zone-stage"><svg class="stage" viewBox="0 0 1440 630"></svg></div>
+    <div class="zone-caption">A VM interpreting bytecode is portable. But repeating the same decode-and-dispatch work every time costs real speed. Can we get both portability and native speed?</div>
+  </section>
+
+  <section class="slide" data-slide="34">
+    <div class="zone-title">JIT: Compile the Hot Parts, While Running</div>
+    <div class="zone-stage"><svg class="stage" viewBox="0 0 1440 630"></svg></div>
+    <div class="zone-caption">The JIT watches which code runs often, compiles just that part to native instructions, then uses the fast version from then on.</div>
+  </section>
+
+  <section class="slide" data-slide="35">
+    <div class="zone-title">Two Philosophies: Compile Ahead vs Compile Live</div>
+    <div class="zone-stage"><svg class="stage" viewBox="0 0 1440 630"></svg></div>
+    <div class="zone-caption">AOT pays the compile cost once, upfront. JIT starts immediately but pays a smaller cost later, adapting to real usage.</div>
+  </section>
+
+  <section class="slide" data-slide="36">
+    <div class="zone-title">Real Compilers, Real Choices</div>
+    <div class="zone-stage"><svg class="stage" viewBox="0 0 1440 630"></svg></div>
+    <div class="zone-caption">Same pipeline, different trade-offs — chosen based on startup time, peak speed, and portability needs.</div>
+  </section>
+
+  <section class="slide" data-slide="37">
+    <div class="zone-title">The Full Journey, One More Time</div>
+    <div class="zone-stage"><svg class="stage" viewBox="0 0 1440 630"></svg></div>
+    <div class="zone-caption">Characters → tokens → tree → meaning → IR → faster IR → instructions → one program → running.</div>
+  </section>
+</div>
+
+<div id="nav">
+  <button id="prevBtn" aria-label="Previous">‹</button>
+  <div id="dots"></div>
+  <span id="slideCounter">1 / 1</span>
+  <button id="nextBtn" aria-label="Next">›</button>
+</div>
+
+<script>
+// ---------- scaling: perfect 16:9 fit, letterboxed ----------
+function fitScale(){
+  const vw = (window.visualViewport && window.visualViewport.width)  || window.innerWidth;
+  const vh = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+  const s = Math.min(vw / 1600, vh / 900);
+  const scaler = document.getElementById('deck-scaler');
+  scaler.style.transform = `translate(-50%,-50%) scale(${s})`;
+}
+window.addEventListener('resize', fitScale);
+window.addEventListener('orientationchange', fitScale);
+if (window.visualViewport) window.visualViewport.addEventListener('resize', fitScale);
+fitScale();
+
+// ---------- SVG element helpers ----------
+const NS = 'http://www.w3.org/2000/svg';
+function mkEl(tag, attrs){
+  const e = document.createElementNS(NS, tag);
+  for(const k in attrs) if(attrs[k]!==undefined) e.setAttribute(k, attrs[k]);
+  return e;
+}
+function mkText(svg, x, y, str, opts){
+  opts = opts || {};
+  const t = mkEl('text', {
+    x, y,
+    'text-anchor': opts.anchor || 'middle',
+    'font-family': opts.mono ? "'Menlo','Consolas',monospace" : "'Helvetica Neue',Arial,sans-serif",
+    'font-size': opts.size || 22,
+    'font-weight': opts.weight || 400
+  });
+  t.style.fill = opts.color || 'var(--text)';
+  t.classList.add('fade-in');
+  t.textContent = str;
+  svg.appendChild(t);
+  return t;
+}
+function mkRect(svg, x, y, w, h, opts){
+  opts = opts || {};
+  const r = mkEl('rect', {x, y, width:w, height:h, rx: (opts.rx!=null? opts.rx : 10)});
+  r.style.fill = opts.fill || 'none';
+  r.style.stroke = opts.stroke || 'var(--gray)';
+  r.style.strokeWidth = (opts.sw || 2.5) + 'px';
+  r.classList.add(opts.mode === 'fade' ? 'fade-in' : 'draw-in');
+  svg.appendChild(r);
+  return r;
+}
+function mkCircle(svg, cx, cy, r, opts){
+  opts = opts || {};
+  const c = mkEl('circle', {cx, cy, r});
+  c.style.fill = opts.fill || 'none';
+  c.style.stroke = opts.stroke || 'var(--gray)';
+  c.style.strokeWidth = (opts.sw || 2.5) + 'px';
+  c.classList.add(opts.mode === 'fade' ? 'fade-in' : 'draw-in');
+  svg.appendChild(c);
+  return c;
+}
+function mkLine(svg, x1, y1, x2, y2, opts){
+  opts = opts || {};
+  const l = mkEl('line', {x1, y1, x2, y2});
+  l.style.stroke = opts.stroke || 'var(--gray)';
+  l.style.strokeWidth = (opts.sw || 2.5) + 'px';
+  if(opts.dashed){ l.style.strokeDasharray = '7,7'; l.classList.add('fade-in'); }
+  else { l.classList.add('draw-in'); }
+  svg.appendChild(l);
+  return l;
+}
+function mkArrow(svg, x1, y1, x2, y2, opts){
+  opts = opts || {};
+  const l = mkLine(svg, x1, y1, x2, y2, opts);
+  const angle = Math.atan2(y2 - y1, x2 - x1);
+  const ah = 9;
+  const p1x = x2 - ah * Math.cos(angle - Math.PI/6), p1y = y2 - ah * Math.sin(angle - Math.PI/6);
+  const p2x = x2 - ah * Math.cos(angle + Math.PI/6), p2y = y2 - ah * Math.sin(angle + Math.PI/6);
+  const head = mkEl('polygon', {points:`${x2},${y2} ${p1x},${p1y} ${p2x},${p2y}`});
+  head.style.fill = opts.stroke || 'var(--gray)';
+  head.classList.add('fade-in');
+  svg.appendChild(head);
+  return {line:l, head};
+}
+function mkGroup(svg, els){
+  // returns a fake "element" with classList/getTotalLength delegating to the first shape,
+  // used when we want one reveal() call to fade in several children of a group at once.
+  return els;
+}
+
+// ---------- reveal / animation ----------
+function reveal(elm){
+  if(Array.isArray(elm)){ elm.forEach(reveal); return; }
+  if(elm.line){ reveal(elm.line); reveal(elm.head); return; } // mkArrow result
+  if(elm.classList && elm.classList.contains('draw-in')){
+    const len = elm.getTotalLength();
+    elm.style.setProperty('--len', len);
+  }
+  if(elm.classList) elm.classList.add('go');
+}
+function beat(fn, ms){ fn(); return new Promise(r=>setTimeout(r, ms + 150)); }
+function wait(ms){ return new Promise(r=>setTimeout(r, ms)); }
+
+function animateNumber(el, from, to, ms, decimals){
+  decimals = decimals || 0;
+  return new Promise(resolve=>{
+    const t0 = performance.now();
+    function step(t){
+      const p = Math.min(1, (t - t0) / ms);
+      const v = from + (to - from) * (1 - Math.pow(1 - p, 3));
+      el.textContent = v.toFixed(decimals);
+      if(p < 1) requestAnimationFrame(step); else resolve();
+    }
+    requestAnimationFrame(step);
+  });
+}
+
+// swap a text element's content with a brief cross-fade, same bounding box (Transform-lite)
+function crossFade(elm, newText, ms){
+  ms = ms || 500;
+  return new Promise(resolve=>{
+    elm.style.transition = `opacity ${ms/2}ms ease`;
+    elm.style.opacity = 0;
+    setTimeout(()=>{
+      elm.textContent = newText;
+      elm.style.opacity = 1;
+      setTimeout(resolve, ms/2 + 60);
+    }, ms/2);
+  });
+}
+
+function clearSvg(svg){ while(svg.firstChild) svg.removeChild(svg.firstChild); }
+
+// generic node+edge helpers for small trees (uniform r=30 circles)
+function treeNode(svg, cx, cy, label, color){
+  const c = mkCircle(svg, cx, cy, 30, {stroke: color || 'var(--blue)'});
+  const t = mkText(svg, cx, cy + 7, label, {size:22, mono:true});
+  return {c, t};
+}
+function treeEdge(svg, x1, y1, x2, y2, color){
+  return mkLine(svg, x1, y1, x2, y2, {stroke: color || 'var(--gray)', sw:2});
+}
+
+const scenes = {
+
+  // ---------------- SLIDE 0: Title ----------------
+  // code text bbox: center(720,280) ~ w360 h50 -> x540-900,y255-305
+  // mystery box: x620,y360,w200,h90 -> gap to code text bottom(305) = 55px OK
+  0: { enter: async (root) => {
+    const svg = root.querySelector('svg.stage');
+    const code = mkText(svg, 720, 280, 'x = 2 + 3 * 4;', {mono:true, size:40, color:'var(--text)'});
+    await beat(()=>reveal(code), 600);
+    const box = mkRect(svg, 620, 360, 200, 90, {stroke:'var(--yellow)', mode:'fade'});
+    const q = mkText(svg, 720, 415, '?', {size:44, color:'var(--yellow)', weight:700});
+    await beat(()=>{ reveal(box); reveal(q); }, 500);
+    box.classList.add('indicate'); q.classList.add('indicate');
+    await beat(()=>{ box.classList.add('go'); q.classList.add('go'); }, 700);
+  }},
+
+  // ---------------- SLIDE 1: Roadmap ----------------
+  // 8 boxes row: x_i = 95 + i*160, y=270, w=130, h=90 (bottoms 360). arrows between at y=315.
+  1: { enter: async (root) => {
+    const svg = root.querySelector('svg.stage');
+    const labels = ['Lex','Parse','Sem','IR','Opt','CodeGen','Link','Load'];
+    const boxes = [];
+    for(let i=0;i<labels.length;i++){
+      const x = 95 + i*160;
+      const r = mkRect(svg, x, 270, 130, 90, {stroke:'var(--blue)'});
+      const t = mkText(svg, x+65, 322, labels[i], {size:20, mono:true});
+      boxes.push({r,t,x});
+      await beat(()=>{ reveal(r); reveal(t); }, 260);
+      if(i < labels.length-1){
+        const a = mkArrow(svg, x+130, 315, x+160, 315, {stroke:'var(--gray)'});
+        await beat(()=>reveal(a), 160);
+      }
+    }
+  }},
+
+  // ---------------- SLIDE 2: Hook ----------------
+  // code lines x=200,y=260/320 ; bubble cx=1150,cy=290,r=60 (x1090-1210) no overlap with code(ends ~x560)
+  2: { enter: async (root) => {
+    const svg = root.querySelector('svg.stage');
+    const l1 = mkText(svg, 200, 260, 'int x = 2 + 3 * 4;', {mono:true, size:28, anchor:'start'});
+    const l2 = mkText(svg, 200, 320, 'print(x);', {mono:true, size:28, anchor:'start'});
+    await beat(()=>{ reveal(l1); }, 350);
+    await beat(()=>{ reveal(l2); }, 450);
+    const bubble = mkCircle(svg, 1150, 290, 60, {stroke:'var(--yellow)'});
+    const q = mkText(svg, 1150, 302, '?', {size:46, color:'var(--yellow)', weight:700});
+    await beat(()=>{ reveal(bubble); reveal(q); }, 500);
+    bubble.classList.add('indicate'); q.classList.add('indicate');
+    bubble.classList.add('go'); q.classList.add('go');
+  }},
+
+  // ---------------- SLIDE 3: Problem — flat characters ----------------
+  // 8 char boxes w40 gap10 total 390 start x=525, y=280,h=80 (bottom360)
+  3: { enter: async (root) => {
+    const svg = root.querySelector('svg.stage');
+    const chars = ['a','b','=','1','2','+','3',';'];
+    let x = 525;
+    for(const ch of chars){
+      const r = mkRect(svg, x, 280, 40, 80, {stroke:'var(--gray)'});
+      const t = mkText(svg, x+20, 328, ch, {mono:true, size:26});
+      await beat(()=>{ reveal(r); reveal(t); }, 130);
+      x += 50;
+    }
+  }},
+
+  // ---------------- SLIDE 4: Lexing — merge into tokens ----------------
+  // top row 8 chars: x471..919 step64 y=200,h=60 (bottom260)
+  // bottom row 6 tokens y=380,h=80 (top380 bottom460) gap from top row bottom(260)=120 OK
+  4: { enter: async (root) => {
+    const svg = root.querySelector('svg.stage');
+    const topChars = [
+      {ch:'a',x:471},{ch:'b',x:535},{ch:'=',x:599},{ch:'1',x:663},
+      {ch:'2',x:727},{ch:'+',x:791},{ch:'3',x:855},{ch:';',x:919}
+    ];
+    const topEls = [];
+    for(const c of topChars){
+      const r = mkRect(svg, c.x, 200, 50, 60, {stroke:'var(--gray)'});
+      const t = mkText(svg, c.x+25, 238, c.ch, {mono:true, size:22});
+      topEls.push({r,t});
+    }
+    await beat(()=>topEls.forEach(e=>{ reveal(e.r); reveal(e.t); }), 500);
+
+    const bottomTokens = [
+      {label:'ab', x:460, w:90}, {label:'=', x:570, w:60}, {label:'12', x:650, w:90},
+      {label:'+', x:760, w:60}, {label:'3', x:840, w:60}, {label:';', x:920, w:60}
+    ];
+    const groups = [ [0,1], [2], [3,4], [5], [6], [7] ]; // indices into topEls each token absorbs
+    for(let i=0;i<bottomTokens.length;i++){
+      const bt = bottomTokens[i];
+      // fade out the contributing top chars
+      groups[i].forEach(idx=>{ topEls[idx].r.style.transition='opacity 300ms ease'; topEls[idx].t.style.transition='opacity 300ms ease'; topEls[idx].r.style.opacity=0.15; topEls[idx].t.style.opacity=0.15; });
+      const r = mkRect(svg, bt.x, 380, bt.w, 80, {stroke:'var(--blue)'});
+      const t = mkText(svg, bt.x + bt.w/2, 428, bt.label, {mono:true, size:24});
+      await beat(()=>{ reveal(r); reveal(t); }, 260);
+    }
+  }},
+
+  // ---------------- SLIDE 5: Tokenization — types ----------------
+  // token row y=260,h=80 (bottom340); label row y=380..420, gap 40 OK
+  5: { enter: async (root) => {
+    const svg = root.querySelector('svg.stage');
+    const tokens = [
+      {label:'ab', x:460, w:90, cat:'IDENTIFIER', color:'var(--blue)'},
+      {label:'=', x:570, w:60, cat:'SYMBOL', color:'var(--green)'},
+      {label:'12', x:650, w:90, cat:'NUMBER', color:'var(--yellow)'},
+      {label:'+', x:760, w:60, cat:'SYMBOL', color:'var(--green)'},
+      {label:'3', x:840, w:60, cat:'NUMBER', color:'var(--yellow)'},
+      {label:';', x:920, w:60, cat:'SYMBOL', color:'var(--green)'}
+    ];
+    const built = [];
+    for(const tk of tokens){
+      const r = mkRect(svg, tk.x, 260, tk.w, 80, {stroke:'var(--gray)'});
+      const t = mkText(svg, tk.x + tk.w/2, 308, tk.label, {mono:true, size:24});
+      built.push({...tk, r, t});
+      await beat(()=>{ reveal(r); reveal(t); }, 160);
+    }
+    for(const tk of built){
+      const lbl = mkText(svg, tk.x + tk.w/2, 405, tk.cat, {size:14, color:tk.color, mono:true});
+      tk.r.style.transition = 'stroke 400ms ease';
+      await beat(()=>{ tk.r.style.stroke = tk.color; reveal(lbl); }, 150);
+    }
+  }}
+};
+
+Object.assign(scenes, {
+
+  // ---------------- SLIDE 6: Lexer mechanism — DFA ----------------
+  // left group q0(280,320) q1(580,320) r30; title y150; loop label y230
+  // right group q0'(930,320) q1'(1230,320)
+  6: { enter: async (root) => {
+    const svg = root.querySelector('svg.stage');
+    const t1 = mkText(svg, 430, 150, "identifier:  [a-zA-Z][a-zA-Z0-9]*", {mono:true, size:19, color:'var(--blue)'});
+    const t2 = mkText(svg, 1080, 150, "number:  [0-9]+", {mono:true, size:19, color:'var(--yellow)'});
+    await beat(()=>{ reveal(t1); reveal(t2); }, 400);
+
+    // left DFA
+    const q0 = treeNode(svg, 280, 320, 'q0', 'var(--gray)');
+    const q1 = treeNode(svg, 580, 320, 'q1', 'var(--blue)');
+    const q1outer = mkCircle(svg, 580, 320, 37, {stroke:'var(--blue)', sw:2});
+    const startArrow = mkArrow(svg, 190, 320, 250, 320, {stroke:'var(--gray)'});
+    await beat(()=>{ reveal(startArrow); reveal(q0.c); reveal(q0.t); }, 500);
+    const edge1 = mkArrow(svg, 310, 320, 550, 320, {stroke:'var(--blue)'});
+    const edgeLbl1 = mkText(svg, 430, 300, 'letter', {size:15, color:'var(--blue)'});
+    await beat(()=>{ reveal(edge1); reveal(edgeLbl1); reveal(q1.c); reveal(q1.t); reveal(q1outer); }, 600);
+    const loop1 = mkEl('path', {d:'M 558,296 Q 580,220 602,296'});
+    loop1.style.fill='none'; loop1.style.stroke='var(--blue)'; loop1.style.strokeWidth='2px';
+    loop1.classList.add('draw-in'); svg.appendChild(loop1);
+    const loopLbl1 = mkText(svg, 580, 225, 'letter, digit', {size:14, color:'var(--blue)'});
+    await beat(()=>{ reveal(loop1); reveal(loopLbl1); }, 500);
+
+    // right DFA
+    const p0 = treeNode(svg, 930, 320, 'q0', 'var(--gray)');
+    const p1 = treeNode(svg, 1230, 320, 'q1', 'var(--yellow)');
+    const p1outer = mkCircle(svg, 1230, 320, 37, {stroke:'var(--yellow)', sw:2});
+    const startArrow2 = mkArrow(svg, 840, 320, 900, 320, {stroke:'var(--gray)'});
+    await beat(()=>{ reveal(startArrow2); reveal(p0.c); reveal(p0.t); }, 400);
+    const edge2 = mkArrow(svg, 960, 320, 1200, 320, {stroke:'var(--yellow)'});
+    const edgeLbl2 = mkText(svg, 1080, 300, 'digit', {size:15, color:'var(--yellow)'});
+    await beat(()=>{ reveal(edge2); reveal(edgeLbl2); reveal(p1.c); reveal(p1.t); reveal(p1outer); }, 500);
+    const loop2 = mkEl('path', {d:'M 1208,296 Q 1230,220 1252,296'});
+    loop2.style.fill='none'; loop2.style.stroke='var(--yellow)'; loop2.style.strokeWidth='2px';
+    loop2.classList.add('draw-in'); svg.appendChild(loop2);
+    const loopLbl2 = mkText(svg, 1230, 225, 'digit', {size:14, color:'var(--yellow)'});
+    await beat(()=>{ reveal(loop2); reveal(loopLbl2); }, 500);
+  }},
+
+  // ---------------- SLIDE 7: GAP — order alone isn't enough ----------------
+  // left valid box x200,y310,w430,h90 ; right scrambled box x810,y310,w430,h90 ; marks above at y=260
+  7: { enter: async (root) => {
+    const svg = root.querySelector('svg.stage');
+    const leftBox = mkRect(svg, 200, 310, 430, 90, {stroke:'var(--green)'});
+    const leftTxt = mkText(svg, 415, 362, 'ab = 12 + 3 ;', {mono:true, size:24});
+    const check = mkText(svg, 415, 260, '\u2713', {size:40, color:'var(--green)', weight:700});
+    await beat(()=>{ reveal(leftBox); reveal(leftTxt); reveal(check); }, 500);
+
+    const rightBox = mkRect(svg, 810, 310, 430, 90, {stroke:'var(--red)'});
+    const rightTxt = mkText(svg, 1025, 362, '= ; ab 3 12 +', {mono:true, size:24});
+    const cross = mkText(svg, 1025, 260, '\u2717', {size:40, color:'var(--red)', weight:700});
+    await beat(()=>{ reveal(rightBox); reveal(rightTxt); reveal(cross); }, 500);
+  }},
+
+  // ---------------- SLIDE 8: FILL — Grammar rules ----------------
+  8: { enter: async (root) => {
+    const svg = root.querySelector('svg.stage');
+    const l1 = mkText(svg, 260, 260, "expr   \u2192  expr '+' term  |  term", {mono:true, size:26, anchor:'start'});
+    const l2 = mkText(svg, 260, 330, "term   \u2192  term '*' factor  |  factor", {mono:true, size:26, anchor:'start'});
+    const l3 = mkText(svg, 260, 400, "factor \u2192  NUMBER  |  IDENT", {mono:true, size:26, anchor:'start'});
+    await beat(()=>reveal(l1), 450);
+    await beat(()=>reveal(l2), 450);
+    await beat(()=>reveal(l3), 450);
+    const note = mkText(svg, 720, 490, "(\u201cterm\u201d refers to itself \u2014 a rule can nest inside its own pattern)", {size:18, color:'var(--caption)'});
+    await beat(()=>reveal(note), 400);
+  }},
+
+  // ---------------- SLIDE 9: Parsing builds a tree ----------------
+  // root(720,190) leaf12(560,380) leaf3(880,380), r30 circles
+  9: { enter: async (root) => {
+    const svg = root.querySelector('svg.stage');
+    const leaf1 = treeNode(svg, 560, 380, '12', 'var(--yellow)');
+    const leaf2 = treeNode(svg, 880, 380, '3', 'var(--yellow)');
+    await beat(()=>{ reveal(leaf1.c); reveal(leaf1.t); reveal(leaf2.c); reveal(leaf2.t); }, 500);
+    const e1 = treeEdge(svg, 720, 218, 560, 352, 'var(--blue)');
+    const e2 = treeEdge(svg, 720, 218, 880, 352, 'var(--blue)');
+    const root_ = treeNode(svg, 720, 190, '+', 'var(--blue)');
+    await beat(()=>{ reveal(e1); reveal(e2); reveal(root_.c); reveal(root_.t); }, 600);
+  }},
+
+  // ---------------- SLIDE 10: Precedence — two trees compared ----------------
+  10: { enter: async (root) => {
+    const svg = root.querySelector('svg.stage');
+    const divider = mkLine(svg, 720, 140, 720, 540, {stroke:'var(--gray)', sw:1.5});
+    await beat(()=>reveal(divider), 200);
+
+    // LEFT: correct  2 + (3*4)
+    const l2 = treeNode(svg, 180, 360, '2', 'var(--yellow)');
+    const l3 = treeNode(svg, 360, 440, '3', 'var(--yellow)');
+    const l4 = treeNode(svg, 480, 440, '4', 'var(--yellow)');
+    await beat(()=>{ [l2,l3,l4].forEach(n=>{ reveal(n.c); reveal(n.t); }); }, 450);
+    const emul = treeEdge(svg, 420, 318, 360, 412, 'var(--green)');
+    const emul2 = treeEdge(svg, 420, 318, 480, 412, 'var(--green)');
+    const mulNode = treeNode(svg, 420, 290, '*', 'var(--green)');
+    await beat(()=>{ reveal(emul); reveal(emul2); reveal(mulNode.c); reveal(mulNode.t); }, 500);
+    const ep1 = treeEdge(svg, 300, 190, 180, 332, 'var(--blue)');
+    const ep2 = treeEdge(svg, 300, 190, 420, 262, 'var(--blue)');
+    const plusNode = treeNode(svg, 300, 170, '+', 'var(--blue)');
+    await beat(()=>{ reveal(ep1); reveal(ep2); reveal(plusNode.c); reveal(plusNode.t); }, 500);
+    const leftLbl = mkText(svg, 330, 510, '= 2 + 12 = 14  \u2713', {mono:true, size:19, color:'var(--green)'});
+    await beat(()=>reveal(leftLbl), 350);
+
+    // RIGHT: incorrect (2+3)*4
+    const r2 = treeNode(svg, 960, 440, '2', 'var(--yellow)');
+    const r3 = treeNode(svg, 1080, 440, '3', 'var(--yellow)');
+    const r4 = treeNode(svg, 1260, 360, '4', 'var(--yellow)');
+    await beat(()=>{ [r2,r3,r4].forEach(n=>{ reveal(n.c); reveal(n.t); }); }, 450);
+    const eplus1 = treeEdge(svg, 1020, 318, 960, 412, 'var(--blue)');
+    const eplus2 = treeEdge(svg, 1020, 318, 1080, 412, 'var(--blue)');
+    const plusNode2 = treeNode(svg, 1020, 290, '+', 'var(--blue)');
+    await beat(()=>{ reveal(eplus1); reveal(eplus2); reveal(plusNode2.c); reveal(plusNode2.t); }, 500);
+    const emulr1 = treeEdge(svg, 1140, 190, 1020, 262, 'var(--green)');
+    const emulr2 = treeEdge(svg, 1140, 190, 1260, 332, 'var(--green)');
+    const mulNode2 = treeNode(svg, 1140, 170, '*', 'var(--green)');
+    await beat(()=>{ reveal(emulr1); reveal(emulr2); reveal(mulNode2.c); reveal(mulNode2.t); }, 500);
+    const rightLbl = mkText(svg, 1110, 510, '= 5 \u00d7 4 = 20  (wrong)', {mono:true, size:19, color:'var(--red)'});
+    await beat(()=>reveal(rightLbl), 350);
+  }},
+
+  // ---------------- SLIDE 11: GAP — parse tree is noisy ----------------
+  11: { enter: async (root) => {
+    const svg = root.querySelector('svg.stage');
+    const l2 = treeNode(svg, 560, 360, '2', 'var(--yellow)');
+    const l3 = treeNode(svg, 800, 440, '3', 'var(--yellow)');
+    const l4 = treeNode(svg, 960, 440, '4', 'var(--yellow)');
+    await beat(()=>{ [l2,l3,l4].forEach(n=>{ reveal(n.c); reveal(n.t); }); }, 450);
+    const em1 = treeEdge(svg, 880, 318, 800, 412, 'var(--green)');
+    const em2 = treeEdge(svg, 880, 318, 960, 412, 'var(--green)');
+    const mulNode = treeNode(svg, 880, 290, '*', 'var(--green)');
+    await beat(()=>{ reveal(em1); reveal(em2); reveal(mulNode.c); reveal(mulNode.t); }, 450);
+    const ep1 = treeEdge(svg, 720, 198, 560, 332, 'var(--blue)');
+    const ep2 = treeEdge(svg, 720, 198, 880, 262, 'var(--blue)');
+    const plusNode = treeNode(svg, 720, 170, '+', 'var(--blue)');
+    await beat(()=>{ reveal(ep1); reveal(ep2); reveal(plusNode.c); reveal(plusNode.t); }, 500);
+
+    const tag1 = mkText(svg, 800, 140, 'expr', {size:16, color:'var(--gray)'});
+    const tag2 = mkText(svg, 970, 250, 'term', {size:16, color:'var(--gray)'});
+    const tag3 = mkText(svg, 850, 400, 'factor', {size:16, color:'var(--gray)'});
+    await beat(()=>{ [tag1,tag2,tag3].forEach(t=>{ reveal(t); t.classList.add('indicate'); t.classList.add('go'); }); }, 600);
+  }},
+
+  // ---------------- SLIDE 12: FILL — AST simplification ----------------
+  12: { enter: async (root) => {
+    const svg = root.querySelector('svg.stage');
+    const l2 = treeNode(svg, 560, 360, '2', 'var(--yellow)');
+    const l3 = treeNode(svg, 800, 440, '3', 'var(--yellow)');
+    const l4 = treeNode(svg, 960, 440, '4', 'var(--yellow)');
+    await beat(()=>{ [l2,l3,l4].forEach(n=>{ reveal(n.c); reveal(n.t); }); }, 400);
+    const em1 = treeEdge(svg, 880, 318, 800, 412, 'var(--green)');
+    const em2 = treeEdge(svg, 880, 318, 960, 412, 'var(--green)');
+    const mulNode = treeNode(svg, 880, 290, '*', 'var(--green)');
+    await beat(()=>{ reveal(em1); reveal(em2); reveal(mulNode.c); reveal(mulNode.t); }, 400);
+    const ep1 = treeEdge(svg, 720, 198, 560, 332, 'var(--blue)');
+    const ep2 = treeEdge(svg, 720, 198, 880, 262, 'var(--blue)');
+    const plusNode = treeNode(svg, 720, 170, '+', 'var(--blue)');
+    await beat(()=>{ reveal(ep1); reveal(ep2); reveal(plusNode.c); reveal(plusNode.t); }, 450);
+
+    const tag1 = mkText(svg, 800, 140, 'expr', {size:16, color:'var(--gray)'});
+    const tag2 = mkText(svg, 970, 250, 'term', {size:16, color:'var(--gray)'});
+    const tag3 = mkText(svg, 850, 400, 'factor', {size:16, color:'var(--gray)'});
+    await beat(()=>{ [tag1,tag2,tag3].forEach(t=>reveal(t)); }, 450);
+
+    await wait(400);
+    [tag1,tag2,tag3].forEach(t=>{ t.style.transition='opacity 500ms ease'; t.style.opacity=0; });
+    await wait(600);
+    const label = mkText(svg, 720, 500, 'This is the AST \u2014 same shape, no grammar labels.', {size:18, color:'var(--caption)'});
+    await beat(()=>reveal(label), 300);
+  }},
+
+  // ---------------- SLIDE 13: GAP — clean tree isn't necessarily correct ----------------
+  // root=(720,170) leftleaf ab(500,340) rightnode+(900,340) grand12(820,500) grand3(980,500)
+  13: { enter: async (root) => {
+    const svg = root.querySelector('svg.stage');
+    const abLeaf = treeNode(svg, 500, 340, 'ab', 'var(--blue)');
+    const g12 = treeNode(svg, 820, 500, '12', 'var(--yellow)');
+    const g3 = treeNode(svg, 980, 500, '3', 'var(--yellow)');
+    await beat(()=>{ [abLeaf,g12,g3].forEach(n=>{ reveal(n.c); reveal(n.t); }); }, 450);
+    const eg1 = treeEdge(svg, 900, 368, 820, 472, 'var(--green)');
+    const eg2 = treeEdge(svg, 900, 368, 980, 472, 'var(--green)');
+    const plusNode = treeNode(svg, 900, 340, '+', 'var(--green)');
+    await beat(()=>{ reveal(eg1); reveal(eg2); reveal(plusNode.c); reveal(plusNode.t); }, 450);
+    const e1 = treeEdge(svg, 720, 198, 500, 312, 'var(--blue)');
+    const e2 = treeEdge(svg, 720, 198, 900, 312, 'var(--blue)');
+    const root_ = treeNode(svg, 720, 170, '=', 'var(--blue)');
+    await beat(()=>{ reveal(e1); reveal(e2); reveal(root_.c); reveal(root_.t); }, 450);
+
+    const qBubble = mkCircle(svg, 500, 250, 22, {stroke:'var(--red)'});
+    const q = mkText(svg, 500, 258, '?', {size:26, color:'var(--red)', weight:700});
+    await beat(()=>{ reveal(qBubble); reveal(q); qBubble.classList.add('indicate'); q.classList.add('indicate'); qBubble.classList.add('go'); q.classList.add('go'); }, 500);
+  }}
+});
+
+Object.assign(scenes, {
+
+  // ---------------- SLIDE 14: FILL — Semantic analysis / symbol table ----------------
+  // compact tree left (x100-650), table right (x850-1280,y200-370)
+  14: { enter: async (root) => {
+    const svg = root.querySelector('svg.stage');
+    const abLeaf = treeNode(svg, 260, 310, 'ab', 'var(--blue)');
+    const g12 = treeNode(svg, 480, 460, '12', 'var(--yellow)');
+    const g3 = treeNode(svg, 600, 460, '3', 'var(--yellow)');
+    await beat(()=>{ [abLeaf,g12,g3].forEach(n=>{ reveal(n.c); reveal(n.t); }); }, 400);
+    const eg1 = treeEdge(svg, 540, 338, 480, 432, 'var(--green)');
+    const eg2 = treeEdge(svg, 540, 338, 600, 432, 'var(--green)');
+    const plusNode = treeNode(svg, 540, 310, '+', 'var(--green)');
+    await beat(()=>{ reveal(eg1); reveal(eg2); reveal(plusNode.c); reveal(plusNode.t); }, 400);
+    const e1 = treeEdge(svg, 400, 168, 260, 282, 'var(--blue)');
+    const e2 = treeEdge(svg, 400, 168, 540, 282, 'var(--blue)');
+    const root_ = treeNode(svg, 400, 150, '=', 'var(--blue)');
+    await beat(()=>{ reveal(e1); reveal(e2); reveal(root_.c); reveal(root_.t); }, 400);
+
+    const tableBox = mkRect(svg, 850, 200, 430, 170, {stroke:'var(--gray)'});
+    const tableTitle = mkText(svg, 1065, 240, 'Symbol Table', {size:20, weight:600});
+    await beat(()=>{ reveal(tableBox); reveal(tableTitle); }, 400);
+    const link = mkLine(svg, 290, 310, 850, 300, {stroke:'var(--gray)', dashed:true});
+    await beat(()=>reveal(link), 350);
+    const row = mkText(svg, 1065, 310, 'ab  :  int', {mono:true, size:22, color:'var(--yellow)'});
+    await beat(()=>reveal(row), 350);
+    const check = mkText(svg, 260, 250, '\u2713', {size:24, color:'var(--green)', weight:700});
+    await beat(()=>reveal(check), 300);
+  }},
+
+  // ---------------- SLIDE 15: Type checking ----------------
+  15: { enter: async (root) => {
+    const svg = root.querySelector('svg.stage');
+    const divider = mkLine(svg, 720, 150, 720, 460, {stroke:'var(--gray)', sw:1.5});
+    await beat(()=>reveal(divider), 200);
+
+    // LEFT valid
+    const l1 = mkRect(svg, 180, 380, 130, 56, {stroke:'var(--yellow)'});
+    const l1t = mkText(svg, 245, 414, '12:num', {mono:true, size:18});
+    const l2b = mkRect(svg, 380, 380, 120, 56, {stroke:'var(--yellow)'});
+    const l2t = mkText(svg, 440, 414, '3:num', {mono:true, size:18});
+    await beat(()=>{ [l1,l1t,l2b,l2t].forEach(reveal); }, 400);
+    const ea = treeEdge(svg, 350, 280, 245, 378, 'var(--green)');
+    const eb = treeEdge(svg, 350, 280, 440, 378, 'var(--green)');
+    const plus1 = treeNode(svg, 350, 250, '+', 'var(--green)');
+    await beat(()=>{ reveal(ea); reveal(eb); reveal(plus1.c); reveal(plus1.t); }, 400);
+    const ok = mkText(svg, 350, 190, '\u2713', {size:34, color:'var(--green)', weight:700});
+    await beat(()=>reveal(ok), 300);
+
+    // RIGHT invalid
+    const r1 = mkRect(svg, 840, 380, 130, 56, {stroke:'var(--yellow)'});
+    const r1t = mkText(svg, 905, 414, '12:num', {mono:true, size:18});
+    const r2b = mkRect(svg, 1060, 380, 150, 56, {stroke:'var(--red)'});
+    const r2t = mkText(svg, 1135, 414, '"x":str', {mono:true, size:18});
+    await beat(()=>{ [r1,r1t,r2b,r2t].forEach(reveal); }, 400);
+    const ec = treeEdge(svg, 1020, 280, 905, 378, 'var(--red)');
+    const ed = treeEdge(svg, 1020, 280, 1135, 378, 'var(--red)');
+    const plus2 = treeNode(svg, 1020, 250, '+', 'var(--red)');
+    await beat(()=>{ reveal(ec); reveal(ed); reveal(plus2.c); reveal(plus2.t); }, 400);
+    const bad = mkText(svg, 1020, 190, '\u2717', {size:34, color:'var(--red)', weight:700});
+    await beat(()=>reveal(bad), 300);
+
+    const rule = mkText(svg, 720, 545, "+  :  number \u00d7 number \u2192 number", {mono:true, size:18, color:'var(--caption)'});
+    await beat(()=>reveal(rule), 300);
+  }},
+
+  // ---------------- SLIDE 16: GAP — tied to one language's shape ----------------
+  16: { enter: async (root) => {
+    const svg = root.querySelector('svg.stage');
+    const groups = [
+      {x:250, label:'C'}, {x:720, label:'Python'}, {x:1190, label:'Rust'}
+    ];
+    for(const g of groups){
+      const root_ = treeNode(svg, g.x, 230, '\u25CF', 'var(--blue)');
+      root_.c.setAttribute('r', 18);
+      const leafA = treeNode(svg, g.x - 60, 320, '\u25CF', 'var(--gray)');
+      leafA.c.setAttribute('r', 16);
+      const leafB = treeNode(svg, g.x + 60, 320, '\u25CF', 'var(--gray)');
+      leafB.c.setAttribute('r', 16);
+      const e1 = treeEdge(svg, g.x, 248, g.x - 60, 304);
+      const e2 = treeEdge(svg, g.x, 248, g.x + 60, 304);
+      const lbl = mkText(svg, g.x, 390, g.label, {size:20, color:'var(--caption)'});
+      await beat(()=>{ [e1,e2].forEach(reveal); [root_.c,root_.t,leafA.c,leafA.t,leafB.c,leafB.t,lbl].forEach(reveal); }, 350);
+    }
+    const box = mkRect(svg, 650, 480, 140, 80, {stroke:'var(--yellow)'});
+    const q = mkText(svg, 720, 528, '?', {size:32, color:'var(--yellow)', weight:700});
+    await beat(()=>{ reveal(box); reveal(q); }, 350);
+    const a1 = mkArrow(svg, 250, 410, 680, 490, {stroke:'var(--gray)', sw:1.5});
+    const a2 = mkArrow(svg, 720, 410, 720, 478, {stroke:'var(--gray)', sw:1.5});
+    const a3 = mkArrow(svg, 1190, 410, 760, 490, {stroke:'var(--gray)', sw:1.5});
+    await beat(()=>{ [a1,a2,a3].forEach(reveal); }, 350);
+  }},
+
+  // ---------------- SLIDE 17: FILL — Intermediate Representation ----------------
+  17: { enter: async (root) => {
+    const svg = root.querySelector('svg.stage');
+    const leaf12 = treeNode(svg, 120, 330, '12', 'var(--yellow)');
+    const leaf3 = treeNode(svg, 280, 440, '3', 'var(--yellow)');
+    const leaf4 = treeNode(svg, 400, 440, '4', 'var(--yellow)');
+    await beat(()=>{ [leaf12,leaf3,leaf4].forEach(n=>{ reveal(n.c); reveal(n.t); }); }, 400);
+    const em1 = treeEdge(svg, 340, 318, 280, 412, 'var(--green)');
+    const em2 = treeEdge(svg, 340, 318, 400, 412, 'var(--green)');
+    const mulNode = treeNode(svg, 340, 290, '*', 'var(--green)');
+    await beat(()=>{ reveal(em1); reveal(em2); reveal(mulNode.c); reveal(mulNode.t); }, 400);
+    const ep1 = treeEdge(svg, 220, 198, 120, 302, 'var(--blue)');
+    const ep2 = treeEdge(svg, 220, 198, 340, 262, 'var(--blue)');
+    const plusNode = treeNode(svg, 220, 170, '+', 'var(--blue)');
+    await beat(()=>{ reveal(ep1); reveal(ep2); reveal(plusNode.c); reveal(plusNode.t); }, 400);
+
+    const arrow = mkArrow(svg, 460, 240, 730, 280, {stroke:'var(--gray)'});
+    await beat(()=>reveal(arrow), 350);
+    const ir1 = mkText(svg, 750, 290, 't1 = 3 * 4', {mono:true, size:26, anchor:'start'});
+    const ir2 = mkText(svg, 750, 350, 't2 = 12 + t1', {mono:true, size:26, anchor:'start'});
+    await beat(()=>reveal(ir1), 350);
+    await beat(()=>reveal(ir2), 350);
+  }},
+
+  // ---------------- SLIDE 18: SSA ----------------
+  18: { enter: async (root) => {
+    const svg = root.querySelector('svg.stage');
+    const divider = mkLine(svg, 720, 200, 720, 420, {stroke:'var(--gray)', sw:1.5});
+    await beat(()=>reveal(divider), 200);
+    const hdrL = mkText(svg, 380, 220, 'before', {size:18, color:'var(--caption)'});
+    const hdrR = mkText(svg, 1070, 220, 'after (SSA)', {size:18, color:'var(--caption)'});
+    await beat(()=>{ reveal(hdrL); reveal(hdrR); }, 250);
+    const left = ['x = 1', 'x = x + 1', 'x = x * 2'];
+    const right = ['x1 = 1', 'x2 = x1 + 1', 'x3 = x2 * 2'];
+    for(let i=0;i<3;i++){
+      const lt = mkText(svg, 260, 270 + i*60, left[i], {mono:true, size:24, anchor:'start'});
+      const rt = mkText(svg, 950, 270 + i*60, right[i], {mono:true, size:24, anchor:'start', color:'var(--blue)'});
+      await beat(()=>{ reveal(lt); reveal(rt); }, 350);
+    }
+  }},
+
+  // ---------------- SLIDE 19: GAP — correct but wasteful ----------------
+  19: { enter: async (root) => {
+    const svg = root.querySelector('svg.stage');
+    const ir1 = mkText(svg, 500, 280, 't1 = 3 * 4', {mono:true, size:28, anchor:'start'});
+    const ir2 = mkText(svg, 500, 350, 't2 = 12 + t1', {mono:true, size:28, anchor:'start'});
+    await beat(()=>{ reveal(ir1); reveal(ir2); }, 500);
+    const clockC = mkCircle(svg, 900, 280, 26, {stroke:'var(--yellow)'});
+    const hand1 = mkLine(svg, 900, 280, 900, 264, {stroke:'var(--yellow)', sw:2});
+    const hand2 = mkLine(svg, 900, 280, 913, 288, {stroke:'var(--yellow)', sw:2});
+    const lbl = mkText(svg, 900, 335, 'recomputed every run', {size:14, color:'var(--yellow)'});
+    await beat(()=>{ [clockC,hand1,hand2,lbl].forEach(reveal); }, 500);
+    clockC.classList.add('indicate'); clockC.classList.add('go');
+  }},
+
+  // ---------------- SLIDE 20: FILL — constant folding ----------------
+  20: { enter: async (root) => {
+    const svg = root.querySelector('svg.stage');
+    const line1 = mkText(svg, 720, 270, 't1 = 3 * 4', {mono:true, size:30});
+    const line2 = mkText(svg, 720, 350, 't2 = 12 + t1', {mono:true, size:30});
+    await beat(()=>{ reveal(line1); reveal(line2); }, 500);
+    await wait(400);
+    await crossFade(line1, 't1 = 12', 500);
+    await wait(200);
+    await crossFade(line2, 't2 = 12 + 12', 500);
+    await wait(300);
+    await crossFade(line2, 't2 = 24', 500);
+    await wait(300);
+    const final = mkText(svg, 720, 440, 'x = 24', {mono:true, size:26, color:'var(--green)'});
+    await beat(()=>reveal(final), 300);
+  }},
+
+  // ---------------- SLIDE 21: Dead code elimination ----------------
+  21: { enter: async (root) => {
+    const svg = root.querySelector('svg.stage');
+    const l1 = mkText(svg, 460, 270, 't1 = 12 + 3', {mono:true, size:26, anchor:'start'});
+    const l2 = mkText(svg, 460, 340, 't2 = 99        (never used)', {mono:true, size:26, anchor:'start'});
+    const l3 = mkText(svg, 460, 410, 'x  = t1', {mono:true, size:26, anchor:'start'});
+    await beat(()=>{ [l1,l2,l3].forEach(reveal); }, 500);
+    l2.classList.add('indicate'); l2.style.fill = 'var(--red)';
+    await beat(()=>{ l2.classList.add('go'); }, 500);
+    await wait(300);
+    l2.style.transition = 'opacity 500ms ease';
+    l2.style.opacity = 0.15;
+    const strike = mkLine(svg, 460, 334, 900, 334, {stroke:'var(--red)', sw:2});
+    await beat(()=>reveal(strike), 400);
+  }},
+
+  // ---------------- SLIDE 22: Common subexpression elimination ----------------
+  22: { enter: async (root) => {
+    const svg = root.querySelector('svg.stage');
+    const l1 = mkText(svg, 500, 280, 'a = 3 * 4', {mono:true, size:28, anchor:'start'});
+    const l2 = mkText(svg, 500, 360, 'b = 3 * 4 + 1', {mono:true, size:28, anchor:'start'});
+    await beat(()=>{ reveal(l1); reveal(l2); }, 500);
+    await wait(300);
+    l1.classList.add('indicate');
+    await beat(()=>l1.classList.add('go'), 500);
+    await wait(200);
+    await crossFade(l2, 'b = a + 1', 500);
+  }}
+});
+
+Object.assign(scenes, {
+
+  // ---------------- SLIDE 23: GAP — not a real machine's language ----------------
+  23: { enter: async (root) => {
+    const svg = root.querySelector('svg.stage');
+    const ir = mkText(svg, 220, 300, 't1 = 12 + 3', {mono:true, size:28, anchor:'start'});
+    await beat(()=>reveal(ir), 400);
+    const q = mkText(svg, 660, 300, '?', {size:40, color:'var(--yellow)', weight:700});
+    await beat(()=>reveal(q), 300);
+    const chip = mkRect(svg, 980, 220, 240, 170, {stroke:'var(--gray)'});
+    await beat(()=>reveal(chip), 400);
+    for(const y of [260, 300, 340]){
+      const gl = mkLine(svg, 1005, y, 1195, y, {stroke:'var(--gray)', sw:1.2, dashed:true});
+      await beat(()=>reveal(gl), 150);
+    }
+    const cpuLbl = mkText(svg, 1100, 425, 'CPU: fixed registers only', {size:15, color:'var(--caption)'});
+    await beat(()=>reveal(cpuLbl), 250);
+  }},
+
+  // ---------------- SLIDE 24: FILL — code generation ----------------
+  24: { enter: async (root) => {
+    const svg = root.querySelector('svg.stage');
+    const line1 = mkText(svg, 720, 270, 't1 = 12 + 3', {mono:true, size:30});
+    const line2 = mkText(svg, 720, 350, 'x = t1', {mono:true, size:30});
+    await beat(()=>{ reveal(line1); reveal(line2); }, 500);
+    await wait(400);
+    await crossFade(line1, 'ADD  R1, 12, 3', 550);
+    await wait(200);
+    await crossFade(line2, 'MOV  [x], R1', 550);
+    await wait(300);
+    const note = mkText(svg, 720, 440, 'one IR line \u2192 one concrete machine instruction', {size:17, color:'var(--caption)'});
+    await beat(()=>reveal(note), 300);
+  }},
+
+  // ---------------- SLIDE 25: Register allocation ----------------
+  // temps col x=500 y=200..500 step60 ; register boxes x=1000 w120h60 centers y290/380/470
+  25: { enter: async (root) => {
+    const svg = root.querySelector('svg.stage');
+    const regDefs = [ {y:260, h:60, label:'R0'}, {y:350, h:60, label:'R1'}, {y:440, h:60, label:'R2'} ];
+    const regBoxes = [];
+    for(const r of regDefs){
+      const rb = mkRect(svg, 940, r.y, 120, r.h, {stroke:'var(--gray)'});
+      const rt = mkText(svg, 1000, r.y + r.h/2 + 7, r.label, {mono:true, size:20});
+      regBoxes.push(rb);
+      await beat(()=>{ reveal(rb); reveal(rt); }, 200);
+    }
+    const temps = [
+      {label:'t1', y:200, target:0, color:'var(--blue)'},
+      {label:'t2', y:260, target:1, color:'var(--yellow)'},
+      {label:'t3', y:320, target:2, color:'var(--green)'},
+      {label:'t4', y:380, target:0, color:'var(--blue)'},
+      {label:'t5', y:440, target:1, color:'var(--yellow)'},
+      {label:'t6', y:500, target:2, color:'var(--green)'}
+    ];
+    const regCenters = [290, 380, 470];
+    for(const tp of temps){
+      const tt = mkText(svg, 420, tp.y + 6, tp.label, {mono:true, size:20, color:tp.color, anchor:'start'});
+      const arrow = mkArrow(svg, 470, tp.y, 935, regCenters[tp.target], {stroke:tp.color, sw:1.6});
+      await beat(()=>{ reveal(tt); reveal(arrow); }, 220);
+    }
+    const note = mkText(svg, 700, 570, 'Same register, different lifetimes \u2014 no two live values collide.', {size:16, color:'var(--caption)'});
+    await beat(()=>reveal(note), 300);
+  }},
+
+  // ---------------- SLIDE 26: GAP — one file isn't the whole program ----------------
+  26: { enter: async (root) => {
+    const svg = root.querySelector('svg.stage');
+    const box1 = mkRect(svg, 230, 270, 330, 150, {stroke:'var(--blue)'});
+    const t1a = mkText(svg, 395, 310, 'main.o', {size:20, weight:600});
+    const t1b = mkText(svg, 395, 375, 'call print(...)', {mono:true, size:18, color:'var(--caption)'});
+    await beat(()=>{ [box1,t1a,t1b].forEach(reveal); }, 450);
+    const box2 = mkRect(svg, 880, 270, 330, 150, {stroke:'var(--green)'});
+    const t2a = mkText(svg, 1045, 310, 'libc.o', {size:20, weight:600});
+    const t2b = mkText(svg, 1045, 375, 'print:  ...', {mono:true, size:18, color:'var(--caption)'});
+    await beat(()=>{ [box2,t2a,t2b].forEach(reveal); }, 450);
+    const seg1 = mkLine(svg, 560, 345, 680, 345, {stroke:'var(--gray)', dashed:true});
+    const seg2 = mkLine(svg, 760, 345, 880, 345, {stroke:'var(--gray)', dashed:true});
+    const q = mkText(svg, 720, 353, '?', {size:30, color:'var(--yellow)', weight:700});
+    await beat(()=>{ [seg1,seg2,q].forEach(reveal); }, 350);
+  }},
+
+  // ---------------- SLIDE 27: FILL — linking ----------------
+  27: { enter: async (root) => {
+    const svg = root.querySelector('svg.stage');
+    const box1 = mkRect(svg, 230, 270, 330, 150, {stroke:'var(--blue)'});
+    const t1a = mkText(svg, 395, 310, 'main.o', {size:20, weight:600});
+    const t1b = mkText(svg, 395, 375, 'call print(...)', {mono:true, size:18, color:'var(--caption)'});
+    const box2 = mkRect(svg, 880, 270, 330, 150, {stroke:'var(--green)'});
+    const t2a = mkText(svg, 1045, 310, 'libc.o', {size:20, weight:600});
+    const t2b = mkText(svg, 1045, 375, 'print:  ...', {mono:true, size:18, color:'var(--caption)'});
+    await beat(()=>{ [box1,t1a,t1b,box2,t2a,t2b].forEach(reveal); }, 450);
+    const link = mkLine(svg, 560, 345, 880, 345, {stroke:'var(--yellow)', sw:2.5});
+    await beat(()=>reveal(link), 400);
+    const addr = mkText(svg, 720, 320, '0x4020', {mono:true, size:16, color:'var(--yellow)'});
+    await beat(()=>reveal(addr), 300);
+    const outer = mkRect(svg, 180, 220, 1080, 250, {stroke:'var(--gray)', mode:'fade'});
+    await beat(()=>reveal(outer), 400);
+    const outerLbl = mkText(svg, 260, 250, 'a.out', {size:18, color:'var(--gray)', anchor:'start'});
+    await beat(()=>reveal(outerLbl), 250);
+  }},
+
+  // ---------------- SLIDE 28: GAP — file on disk isn't running ----------------
+  28: { enter: async (root) => {
+    const svg = root.querySelector('svg.stage');
+    const disk = mkCircle(svg, 250, 320, 90, {stroke:'var(--gray)'});
+    const diskInner = mkCircle(svg, 250, 320, 55, {stroke:'var(--gray)', sw:1.5});
+    const diskLbl = mkText(svg, 250, 327, 'a.out', {mono:true, size:18});
+    await beat(()=>{ [disk,diskInner,diskLbl].forEach(reveal); }, 450);
+    const q = mkText(svg, 600, 328, '?', {size:40, color:'var(--yellow)', weight:700});
+    await beat(()=>reveal(q), 300);
+    const mem = mkRect(svg, 850, 220, 400, 220, {stroke:'var(--gray)'});
+    const memLbl = mkText(svg, 1050, 460, 'empty memory', {size:15, color:'var(--caption)'});
+    await beat(()=>{ reveal(mem); reveal(memLbl); }, 400);
+  }},
+
+  // ---------------- SLIDE 29: FILL — loading into memory ----------------
+  // column x=600,w=300 ; text y150-230, data y230-290, heap y290-380, stack y380-470
+  29: { enter: async (root) => {
+    const svg = root.querySelector('svg.stage');
+    const bands = [
+      {y:150, h:80, label:'.text (code)', color:'var(--blue)'},
+      {y:230, h:60, label:'.data (globals)', color:'var(--yellow)'},
+      {y:290, h:90, label:'heap', color:'var(--green)'},
+      {y:380, h:90, label:'stack', color:'var(--red)'}
+    ];
+    for(const b of bands){
+      const r = mkRect(svg, 600, b.y, 300, b.h, {stroke:b.color, mode:'fade'});
+      r.style.fill = b.color; r.style.fillOpacity = 0.14;
+      const t = mkText(svg, 750, b.y + b.h/2 + 6, b.label, {mono:true, size:18, color:b.color});
+      await beat(()=>{ reveal(r); reveal(t); }, 320);
+    }
+    const heapArrow = mkArrow(svg, 700, 300, 700, 370, {stroke:'var(--green)', sw:1.5});
+    const stackArrow = mkArrow(svg, 800, 460, 800, 390, {stroke:'var(--red)', sw:1.5});
+    await beat(()=>{ reveal(heapArrow); reveal(stackArrow); }, 350);
+    const entry = mkText(svg, 1050, 195, '\u25B6 entry point', {size:16, color:'var(--blue)', anchor:'start'});
+    const entryArrow = mkArrow(svg, 1035, 190, 910, 190, {stroke:'var(--blue)', sw:1.5});
+    await beat(()=>{ reveal(entry); reveal(entryArrow); }, 350);
+  }}
+});
+
+function mkBolt(svg, cx, cy, color, mode){
+  const pts = [
+    [cx+8, cy-30], [cx-10, cy+2], [cx-2, cy+2],
+    [cx-8, cy+30], [cx+12, cy-4], [cx+2, cy-4]
+  ].map(p=>p.join(',')).join(' ');
+  const poly = mkEl('polygon', {points: pts});
+  poly.style.fill = color;
+  poly.classList.add(mode === 'draw' ? 'draw-in' : 'fade-in');
+  svg.appendChild(poly);
+  return poly;
+}
+
+Object.assign(scenes, {
+
+  // ---------------- SLIDE 30: Branch — not every language takes this road ----------------
+  30: { enter: async (root) => {
+    const svg = root.querySelector('svg.stage');
+    const top = mkText(svg, 720, 190, 'compiled so far: IR \u2192 optimized \u2192 ?', {mono:true, size:20});
+    await beat(()=>reveal(top), 400);
+    const a1 = mkArrow(svg, 680, 220, 460, 410, {stroke:'var(--blue)'});
+    const a2 = mkArrow(svg, 760, 220, 980, 410, {stroke:'var(--green)'});
+    await beat(()=>{ reveal(a1); reveal(a2); }, 400);
+    const box1 = mkRect(svg, 280, 420, 320, 90, {stroke:'var(--blue)'});
+    const t1 = mkText(svg, 440, 472, 'Native machine code', {size:19});
+    await beat(()=>{ reveal(box1); reveal(t1); }, 400);
+    const box2 = mkRect(svg, 840, 420, 320, 90, {stroke:'var(--green)'});
+    const t2 = mkText(svg, 1000, 465, 'Bytecode +', {size:19});
+    const t2b = mkText(svg, 1000, 490, 'Virtual Machine', {size:19});
+    await beat(()=>{ reveal(box2); reveal(t2); reveal(t2b); }, 400);
+  }},
+
+  // ---------------- SLIDE 31: FILL — Bytecode ----------------
+  31: { enter: async (root) => {
+    const svg = root.querySelector('svg.stage');
+    const divider = mkLine(svg, 720, 200, 720, 430, {stroke:'var(--gray)', sw:1.5});
+    await beat(()=>reveal(divider), 200);
+    const hdrL = mkText(svg, 400, 230, 'Native Instruction', {size:18, color:'var(--caption)'});
+    await beat(()=>reveal(hdrL), 250);
+    const nat = mkText(svg, 300, 310, 'ADD R1, 12, 3', {mono:true, size:22, anchor:'start'});
+    nat.style.opacity = 0; nat.classList.add('fade-in');
+    await beat(()=>{ reveal(nat); nat.style.opacity=''; nat.style.color='var(--gray)'; nat.style.fill='var(--gray)'; }, 350);
+    const hdrR = mkText(svg, 1050, 230, 'Bytecode', {size:18, color:'var(--green)'});
+    await beat(()=>reveal(hdrR), 250);
+    const lines = ['PUSH 12', 'PUSH 3', 'ADD'];
+    for(let i=0;i<lines.length;i++){
+      const t = mkText(svg, 960, 300 + i*55, lines[i], {mono:true, size:22, anchor:'start', color:'var(--green)'});
+      await beat(()=>reveal(t), 250);
+    }
+  }},
+
+  // ---------------- SLIDE 32: Virtual machine executes bytecode ----------------
+  32: { enter: async (root) => {
+    const svg = root.querySelector('svg.stage');
+    const lines = ['PUSH 12', 'PUSH 3', 'ADD'];
+    const ys = [250, 320, 390];
+    const texts = lines.map((l,i)=>mkText(svg, 300, ys[i], l, {mono:true, size:26, anchor:'start'}));
+    await beat(()=>texts.forEach(reveal), 450);
+
+    const stackLbl = mkText(svg, 1050, 210, 'stack', {size:16, color:'var(--caption)'});
+    await beat(()=>reveal(stackLbl), 250);
+
+    async function activate(i){
+      texts[i].style.fill = 'var(--blue)';
+      texts[i].classList.add('indicate');
+      texts[i].classList.add('go');
+      await wait(500);
+    }
+    function deactivate(i){ texts[i].style.fill = 'var(--gray)'; }
+
+    await activate(0);
+    const slot1 = mkRect(svg, 990, 430, 120, 60, {stroke:'var(--yellow)'});
+    const slot1t = mkText(svg, 1050, 466, '12', {mono:true, size:22});
+    await beat(()=>{ reveal(slot1); reveal(slot1t); }, 350);
+    deactivate(0);
+
+    await activate(1);
+    const slot2 = mkRect(svg, 990, 360, 120, 60, {stroke:'var(--yellow)'});
+    const slot2t = mkText(svg, 1050, 396, '3', {mono:true, size:22});
+    await beat(()=>{ reveal(slot2); reveal(slot2t); }, 350);
+    deactivate(1);
+
+    await activate(2);
+    [slot1, slot1t, slot2, slot2t].forEach(e=>{ e.style.transition = 'opacity 350ms ease'; e.style.opacity = 0; });
+    await wait(400);
+    const result = mkRect(svg, 990, 430, 120, 60, {stroke:'var(--green)'});
+    const resultT = mkText(svg, 1050, 466, '15', {mono:true, size:24, color:'var(--green)'});
+    await beat(()=>{ reveal(result); reveal(resultT); }, 350);
+    deactivate(2);
+  }},
+
+  // ---------------- SLIDE 33: GAP — interpreting is slow ----------------
+  33: { enter: async (root) => {
+    const svg = root.querySelector('svg.stage');
+    const lines = ['PUSH 12', 'PUSH 3', 'ADD'];
+    const texts = lines.map((l,i)=>mkText(svg, 560, 260 + i*55, l, {mono:true, size:22, anchor:'start'}));
+    await beat(()=>texts.forEach(reveal), 400);
+    const loop = mkEl('path', {d:'M 500,390 C 400,390 400,230 500,230'});
+    loop.style.fill='none'; loop.style.stroke='var(--gray)'; loop.style.strokeWidth='2px';
+    loop.classList.add('draw-in'); svg.appendChild(loop);
+    await beat(()=>reveal(loop), 500);
+    const clockC = mkCircle(svg, 850, 310, 26, {stroke:'var(--yellow)'});
+    const hand1 = mkLine(svg, 850, 310, 850, 294, {stroke:'var(--yellow)', sw:2});
+    const hand2 = mkLine(svg, 850, 310, 863, 318, {stroke:'var(--yellow)', sw:2});
+    const slowLbl = mkText(svg, 850, 365, 'slow', {size:15, color:'var(--yellow)'});
+    await beat(()=>{ [clockC,hand1,hand2,slowLbl].forEach(reveal); }, 400);
+    const bolt = mkBolt(svg, 1150, 310, 'var(--gray)');
+    await beat(()=>reveal(bolt), 300);
+  }},
+
+  // ---------------- SLIDE 34: FILL — JIT compilation ----------------
+  34: { enter: async (root) => {
+    const svg = root.querySelector('svg.stage');
+    const cLabel = mkText(svg, 300, 220, 'run count:', {size:20, anchor:'start', color:'var(--caption)'});
+    const cValue = mkText(svg, 500, 220, '0', {mono:true, size:24, anchor:'start'});
+    await beat(()=>{ reveal(cLabel); reveal(cValue); }, 350);
+    const lines = ['PUSH 12', 'PUSH 3', 'ADD'];
+    const texts = lines.map((l,i)=>mkText(svg, 300, 300 + i*55, l, {mono:true, size:22, anchor:'start'}));
+    await beat(()=>texts.forEach(reveal), 400);
+    await animateNumber(cValue, 0, 100, 900, 0);
+    await wait(200);
+    const threshold = mkText(svg, 300, 480, '\u2265 100 runs \u2192 compile this to native code', {size:17, color:'var(--yellow)', anchor:'start'});
+    await beat(()=>reveal(threshold), 350);
+    const nativeBox = mkRect(svg, 950, 300, 320, 90, {stroke:'var(--green)'});
+    const nativeT = mkText(svg, 1110, 352, 'ADD R1, R2, R3', {mono:true, size:19});
+    await beat(()=>{ reveal(nativeBox); reveal(nativeT); }, 400);
+    const bolt = mkBolt(svg, 1150, 230, 'var(--green)');
+    bolt.classList.add('indicate');
+    await beat(()=>{ reveal(bolt); bolt.classList.add('go'); }, 350);
+    const bypass = mkArrow(svg, 650, 250, 950, 330, {stroke:'var(--gray)', dashed:true});
+    const bypassLbl = mkText(svg, 800, 250, 'skip the interpreter next time', {size:14, color:'var(--caption)'});
+    await beat(()=>{ reveal(bypass); reveal(bypassLbl); }, 350);
+  }},
+
+  // ---------------- SLIDE 35: AOT vs JIT ----------------
+  35: { enter: async (root) => {
+    const svg = root.querySelector('svg.stage');
+    const divider = mkLine(svg, 720, 230, 720, 410, {stroke:'var(--gray)', sw:1.5});
+    await beat(()=>reveal(divider), 200);
+
+    const aotTitle = mkText(svg, 425, 260, 'AOT', {size:22, weight:700, color:'var(--blue)'});
+    await beat(()=>reveal(aotTitle), 200);
+    const aot1 = mkRect(svg, 200, 300, 180, 60, {stroke:'var(--yellow)', mode:'fade'});
+    aot1.style.fill = 'var(--yellow)'; aot1.style.fillOpacity = 0.16;
+    const aot2 = mkRect(svg, 380, 300, 270, 60, {stroke:'var(--green)', mode:'fade'});
+    aot2.style.fill = 'var(--green)'; aot2.style.fillOpacity = 0.16;
+    await beat(()=>{ reveal(aot1); reveal(aot2); }, 350);
+    const aotL1 = mkText(svg, 290, 390, 'Compile (once)', {size:14, color:'var(--yellow)'});
+    const aotL2 = mkText(svg, 515, 390, 'Run (fast, immediately)', {size:14, color:'var(--green)'});
+    await beat(()=>{ reveal(aotL1); reveal(aotL2); }, 300);
+
+    const jitTitle = mkText(svg, 1050, 260, 'JIT', {size:22, weight:700, color:'var(--blue)'});
+    await beat(()=>reveal(jitTitle), 200);
+    const jit1 = mkRect(svg, 800, 300, 180, 60, {stroke:'var(--gray)', mode:'fade'});
+    jit1.style.fill = 'var(--gray)'; jit1.style.fillOpacity = 0.16;
+    const jit2 = mkRect(svg, 980, 300, 320, 60, {stroke:'var(--green)', mode:'fade'});
+    jit2.style.fill = 'var(--green)'; jit2.style.fillOpacity = 0.16;
+    await beat(()=>{ reveal(jit1); reveal(jit2); }, 350);
+    const marker = mkLine(svg, 980, 295, 980, 365, {stroke:'var(--yellow)', sw:2});
+    await beat(()=>reveal(marker), 250);
+    const jitL1 = mkText(svg, 890, 390, 'Interpreted (slower)', {size:13, color:'var(--gray)'});
+    const jitL2 = mkText(svg, 1140, 390, 'Native (fast)', {size:13, color:'var(--green)'});
+    const jitL3 = mkText(svg, 980, 280, 'compiles here', {size:12, color:'var(--yellow)'});
+    await beat(()=>{ [jitL1,jitL2,jitL3].forEach(reveal); }, 300);
+  }},
+
+  // ---------------- SLIDE 36: Practical mapping ----------------
+  36: { enter: async (root) => {
+    const svg = root.querySelector('svg.stage');
+    const boxes = [
+      {x:180, y:200, title:'C / C++  \u2192  GCC, Clang', desc:'Compiles ahead-of-time straight to native machine code.'},
+      {x:740, y:200, title:'Java  \u2192  javac + JVM', desc:'Compiles to bytecode, then JITs hot paths to native.'},
+      {x:180, y:430, title:'JavaScript  \u2192  V8 engine', desc:'Parses and JIT-compiles on the fly as the page runs.'},
+      {x:740, y:430, title:'Python  \u2192  CPython', desc:'Compiles to bytecode, then interprets it directly.'}
+    ];
+    for(const b of boxes){
+      const r = mkRect(svg, b.x, b.y, 520, 160, {stroke:'var(--blue)'});
+      const t1 = mkText(svg, b.x+260, b.y+55, b.title, {size:21, weight:600, anchor:'middle'});
+      const t2 = mkText(svg, b.x+260, b.y+100, b.desc, {size:15, color:'var(--caption)', anchor:'middle'});
+      await beat(()=>{ [r,t1,t2].forEach(reveal); }, 400);
+    }
+  }},
+
+  // ---------------- SLIDE 37: Recap — full pipeline ----------------
+  37: { enter: async (root) => {
+    const svg = root.querySelector('svg.stage');
+    const labels = ['Lex','Parse','Sem','IR','Opt','CodeGen','Link','Load'];
+    const boxes = [];
+    for(let i=0;i<labels.length;i++){
+      const x = 95 + i*160;
+      const r = mkRect(svg, x, 270, 130, 90, {stroke:'var(--blue)'});
+      const t = mkText(svg, x+65, 322, labels[i], {size:20, mono:true});
+      boxes.push({r,t});
+      reveal(r); reveal(t);
+      if(i < labels.length-1){
+        const a = mkArrow(svg, x+130, 315, x+160, 315, {stroke:'var(--gray)'});
+        reveal(a);
+      }
+    }
+    await wait(500);
+    for(const b of boxes){
+      b.r.classList.add('indicate'); b.t.classList.add('indicate');
+      b.r.classList.add('go'); b.t.classList.add('go');
+      await wait(220);
+    }
+    await wait(200);
+    boxes.forEach(b=>{ b.r.style.stroke = 'var(--green)'; });
+  }}
+});
+
+// ---------------- deck controller ----------------
+class SlideDeck{
+  constructor(){
+    this.slides = Array.from(document.querySelectorAll('.slide'));
+    this.i = 0;
+    this.busy = false;
+    this.dotsEl = document.getElementById('dots');
+    this.counterEl = document.getElementById('slideCounter');
+    this.slides.forEach(()=>{
+      const d = document.createElement('div');
+      d.className = 'dot';
+      this.dotsEl.appendChild(d);
+    });
+    document.getElementById('nextBtn').onclick = ()=>this.go(this.i+1);
+    document.getElementById('prevBtn').onclick = ()=>this.go(this.i-1);
+    window.addEventListener('keydown', e=>{
+      if(e.key === 'ArrowRight' || e.key === ' ') this.go(this.i+1);
+      if(e.key === 'ArrowLeft') this.go(this.i-1);
+    });
+    this.render(0);
+  }
+  async render(idx){
+    if(this.busy) return;
+    this.busy = true;
+    this.slides.forEach((s,k)=>s.classList.toggle('active', k===idx));
+    Array.from(this.dotsEl.children).forEach((d,k)=>d.classList.toggle('on', k===idx));
+    this.counterEl.textContent = `${idx+1} / ${this.slides.length}`;
+    const slideEl = this.slides[idx];
+    const svg = slideEl.querySelector('svg.stage');
+    if(svg) clearSvg(svg);
+    const cap = slideEl.querySelector('.zone-caption');
+    if(cap) cap.classList.remove('go');
+    this.i = idx;
+    const scene = scenes[idx];
+    if(scene && scene.enter){
+      try{ await scene.enter(slideEl); } catch(e){ /* swallow to keep nav usable */ }
+    }
+    if(cap) cap.classList.add('go');
+    this.busy = false;
+  }
+  go(idx){
+    if(idx < 0 || idx >= this.slides.length) return;
+    this.render(idx);
+  }
+}
+new SlideDeck();
+</script>
+</body>
+</html>

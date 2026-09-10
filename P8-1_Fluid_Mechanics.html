@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>P8.1 — Fluid Mechanics · A Feynman Walk</title>
+<style>
+  :root{ --bg:#07070b; }
+  *{ margin:0; padding:0; box-sizing:border-box; }
+  html,body{ height:100%; background:#000; overflow:hidden; font-family:Inter,system-ui,-apple-system,sans-serif; }
+  #stage{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center; }
+  #wrap{ position:relative; aspect-ratio:16/9; width:min(100vw, 177.78vh); height:auto; max-height:100vh; background:var(--bg);
+         box-shadow:0 0 60px rgba(0,0,0,.8); }
+  canvas{ position:absolute; inset:0; width:100%; height:100%; display:block; }
+  #ui{ position:absolute; left:0; right:0; bottom:0; height:6.5%; display:flex; align-items:center;
+       justify-content:center; gap:14px; z-index:5; pointer-events:none; }
+  .btn{ pointer-events:auto; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.14);
+        color:#cfd3da; font-size:clamp(11px,1.35vh,16px); padding:.5em 1.1em; border-radius:999px; cursor:pointer;
+        letter-spacing:.03em; transition:.18s; user-select:none; }
+  .btn:hover{ background:rgba(255,255,255,.10); border-color:rgba(255,255,255,.28); color:#fff; }
+  .btn:disabled{ opacity:.25; cursor:default; }
+  #dots{ display:flex; gap:5px; align-items:center; }
+  .dot{ width:6px; height:6px; border-radius:50%; background:rgba(255,255,255,.16); transition:.25s; }
+  .dot.on{ background:#7fa8d8; transform:scale(1.5); }
+  #hint{ position:absolute; right:1.4%; top:2.4%; color:rgba(255,255,255,.28); font-size:clamp(9px,1.2vh,13px);
+         z-index:5; letter-spacing:.04em; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="wrap">
+    <canvas id="cv" width="1280" height="720"></canvas>
+    <div id="ui">
+      <button class="btn" id="prev">‹ Prev</button>
+      <div id="dots"></div>
+      <button class="btn" id="next">Next ›</button>
+      <button class="btn" id="replay">↻ Replay</button>
+    </div>
+    <div id="hint">← → to navigate</div>
+  </div>
+</div>
+<script>
+const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+const W=1280,H=720;
+
+/* ---------- palette (muted, low-glow) ---------- */
+const BG='#07070b', INK='#e9e9ee', DIM='#828896', FAINT='#3a3e49';
+const BLUE='#5f8fc4', TEAL='#4fb0a5', GOLD='#cf9f48', RED='#cc6b6b',
+      GREEN='#7ba86b', VIOLET='#9a86c4', ROSE='#c77fa6';
+
+/* ---------- math / easing ---------- */
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const lerp=(a,b,t)=>a+(b-a)*t;
+const ease=t=>{t=clamp(t,0,1);return t*t*(3-2*t);};
+const easeOut=t=>{t=clamp(t,0,1);return 1-(1-t)*(1-t);};
+const app=(t,s,d=0.6)=>ease((t-s)/d);            // appear 0->1 starting at s
+const pulse=(T,sp=1)=>0.5+0.5*Math.sin(T*sp);
+
+/* ---------- drawing helpers ---------- */
+function txt(s,x,y,o={}){
+  const {size=28,color=INK,align='center',baseline='middle',alpha=1,weight=400,italic=false,
+         font='Inter,system-ui,sans-serif',ls=0}=o;
+  if(alpha<=0)return;
+  ctx.save();ctx.globalAlpha=clamp(alpha,0,1);ctx.fillStyle=color;
+  ctx.font=`${italic?'italic ':''}${weight} ${size}px ${font}`;
+  ctx.textAlign=align;ctx.textBaseline=baseline;
+  if(ls){ // letter spacing
+    let cx=x; const tot=[...s].reduce((a,c)=>a+ctx.measureText(c).width+ls,0)-ls;
+    if(align==='center')cx=x-tot/2; if(align==='right')cx=x-tot;
+    ctx.textAlign='left';
+    for(const c of s){ctx.fillText(c,cx,y);cx+=ctx.measureText(c).width+ls;}
+  } else ctx.fillText(s,x,y);
+  ctx.restore();
+}
+function line(x1,y1,x2,y2,o={}){
+  const {color=INK,w=2,alpha=1,dash=null,cap='round'}=o;
+  if(alpha<=0)return;
+  ctx.save();ctx.globalAlpha=alpha;ctx.strokeStyle=color;ctx.lineWidth=w;ctx.lineCap=cap;
+  if(dash)ctx.setLineDash(dash);
+  ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();ctx.restore();
+}
+function arrow(x1,y1,x2,y2,o={}){
+  const {color=INK,w=3,alpha=1,head=11}=o;
+  if(alpha<=0)return;
+  const a=Math.atan2(y2-y1,x2-x1);
+  ctx.save();ctx.globalAlpha=alpha;ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=w;ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(x2,y2);
+  ctx.lineTo(x2-head*Math.cos(a-0.42),y2-head*Math.sin(a-0.42));
+  ctx.lineTo(x2-head*Math.cos(a+0.42),y2-head*Math.sin(a+0.42));
+  ctx.closePath();ctx.fill();ctx.restore();
+}
+function circle(x,y,r,o={}){
+  const {color=INK,alpha=1,fill=true,w=2}=o;if(alpha<=0)return;
+  ctx.save();ctx.globalAlpha=alpha;ctx.beginPath();ctx.arc(x,y,r,0,7);
+  if(fill){ctx.fillStyle=color;ctx.fill();}else{ctx.strokeStyle=color;ctx.lineWidth=w;ctx.stroke();}ctx.restore();
+}
+function rrect(x,y,w,h,r,o={}){
+  const {color=INK,alpha=1,fill=false,lw=2}=o;if(alpha<=0)return;
+  ctx.save();ctx.globalAlpha=alpha;ctx.beginPath();
+  ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();
+  if(fill){ctx.fillStyle=color;ctx.fill();}else{ctx.strokeStyle=color;ctx.lineWidth=lw;ctx.stroke();}ctx.restore();
+}
+function header(title,tag){
+  txt('P8.1 · FLUID MECHANICS',34,40,{size:15,color:DIM,align:'left',weight:600,ls:2});
+  if(tag)txt(tag,W-34,40,{size:14,color:tag.color||TEAL,align:'right',weight:600,ls:2});
+  if(title)txt(title,W/2,74,{size:30,color:INK,weight:600});
+}
+function chip(label,x,y,col){
+  ctx.save();ctx.font='700 14px Inter';const w=ctx.measureText(label).width+26;ctx.restore();
+  rrect(x-w/2,y-15,w,30,15,{color:col,alpha:.16,fill:true});
+  rrect(x-w/2,y-15,w,30,15,{color:col,alpha:.55,lw:1.4});
+  txt(label,x,y,{size:14,color:col,weight:700,ls:2});
+  return w;
+}
+// simple particle along polyline path fraction
+function ptOnStreak(fn,f){return fn(clamp(f,0,1));}
+
+/* ============================================================
+   SLIDES  — each: {kind, draw(t,T)}   t=slide time, T=global
+   ============================================================ */
+const S=[];
+
+/* 0 — TITLE */
+S.push({draw(t,T){
+  const a=app(t,0.1,1);
+  // flowing background streamlines
+  for(let i=0;i<7;i++){
+    const y=170+i*55, ph=T*0.5+i;
+    ctx.save();ctx.globalAlpha=.10+.05*Math.sin(ph);ctx.strokeStyle=BLUE;ctx.lineWidth=2;ctx.beginPath();
+    for(let x=0;x<=W;x+=8){const yy=y+22*Math.sin(x*0.012+ph);x===0?ctx.moveTo(x,yy):ctx.lineTo(x,yy);}
+    ctx.stroke();ctx.restore();
+  }
+  // moving particles
+  for(let i=0;i<7;i++){const y=170+i*55,ph=T*0.5+i;const x=((T*120+i*180)%(W+40))-20;
+    const yy=y+22*Math.sin(x*0.012+ph);circle(x,yy,3,{color:TEAL,alpha:.5});}
+  txt('FLUID MECHANICS',W/2,315,{size:78,color:INK,weight:800,alpha:a,ls:2});
+  txt('the physics of everything that flows',W/2,385,{size:26,color:GOLD,alpha:app(t,0.6,1),italic:true});
+  txt('air over a wing · blood in an artery · oil in a pipeline · a storm on the map',
+      W/2,440,{size:17,color:DIM,alpha:app(t,1.1,1)});
+  txt('P8.1  ·  Applied / Engineering Physics — Tier 3',W/2,560,{size:15,color:FAINT,alpha:app(t,1.5,1),ls:3});
+}});
+
+/* 1 — WHAT IS A FLUID */
+S.push({draw(t,T){
+  header('What even IS a fluid?');
+  // left: solid resists shear
+  const sx=340,sy=380,sz=120;
+  txt('SOLID',sx,220,{size:16,color:DIM,weight:700,ls:3,alpha:app(t,.2)});
+  const shear=8*ease(app(t,.6,1.2)); // fixed tilt then hold
+  ctx.save();ctx.globalAlpha=app(t,.3);ctx.strokeStyle=BLUE;ctx.lineWidth=2.5;ctx.beginPath();
+  ctx.moveTo(sx-sz/2+shear,sy-sz/2);ctx.lineTo(sx+sz/2+shear,sy-sz/2);
+  ctx.lineTo(sx+sz/2-shear,sy+sz/2);ctx.lineTo(sx-sz/2-shear,sy+sz/2);ctx.closePath();ctx.stroke();ctx.restore();
+  arrow(sx-sz/2,sy-sz/2-16,sx+sz/2-6,sy-sz/2-16,{color:GOLD,alpha:app(t,.6),w:2.5});
+  txt('push sideways → it strains a little, then STOPS.',sx,sy+110,{size:15,color:INK,alpha:app(t,1.3)});
+  txt('it resists shear.',sx,sy+135,{size:15,color:BLUE,alpha:app(t,1.6),weight:600});
+  // right: fluid keeps deforming
+  const fx=940,fy=380;
+  txt('FLUID',fx,220,{size:16,color:DIM,weight:700,ls:3,alpha:app(t,.2)});
+  const nL=6, off=(T*40)%40;
+  for(let i=0;i<nL;i++){
+    const y=fy-sz/2+i*(sz/(nL-1));
+    const slide=(off* (i/(nL-1))); // top layers slide more
+    ctx.save();ctx.globalAlpha=.5*app(t,.9);ctx.strokeStyle=TEAL;ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(fx-sz/2+slide-40,y);ctx.lineTo(fx+sz/2+slide-40,y);ctx.stroke();ctx.restore();
+    // little particles
+    circle(fx-sz/2+ ((T*60*(i/(nL-1)))%sz) -40 +slide%40, y,2.5,{color:TEAL,alpha:.55*app(t,.9)});
+  }
+  arrow(fx-sz/2-40,fy-sz/2-16,fx+sz/2-46,fy-sz/2-16,{color:GOLD,alpha:app(t,.6),w:2.5});
+  txt('push sideways → it NEVER stops deforming.',fx,fy+110,{size:15,color:INK,alpha:app(t,1.3)});
+  txt('it cannot resist shear — it flows.',fx,fy+135,{size:15,color:TEAL,alpha:app(t,1.6),weight:600});
+  txt('That single fact — "no resistance to shear" — is the seed of this whole subject.',
+      W/2,650,{size:18,color:GOLD,alpha:app(t,2.1),italic:true});
+}});
+
+/* 2 — PRESSURE & DEPTH */
+S.push({draw(t,T){
+  header('Fluid statics — pressure grows with depth');
+  const x0=430,y0=180,w=250,h=380;
+  // tank gradient
+  const g=ctx.createLinearGradient(0,y0,0,y0+h);
+  g.addColorStop(0,'rgba(95,143,196,.10)');g.addColorStop(1,'rgba(95,143,196,.34)');
+  ctx.save();ctx.globalAlpha=app(t,.2);ctx.fillStyle=g;ctx.fillRect(x0,y0,w,h);ctx.restore();
+  rrect(x0,y0,w,h,4,{color:BLUE,alpha:app(t,.2),lw:2});
+  // depth marker sinking + growing pressure arrows
+  const f=easeOut(app(t,.6,1.6));
+  const dy=y0+ f*(h-30);
+  line(x0,dy,x0+w,dy,{color:GOLD,alpha:app(t,.6)*.8,dash:[6,6]});
+  const P=(dy-y0)/(h); // 0..1 depth
+  for(let s=-1;s<=1;s+=2){ // arrows both walls point inward, length ~ depth
+    const len=20+70*P;
+    arrow(x0+(s<0?-len:w+len), dy, x0+(s<0?0:w), dy,{color:GOLD,alpha:app(t,.9),w:3});
+  }
+  txt('same depth ⇒ same pressure, in every direction',x0+w/2,dy-16,{size:13,color:DIM,alpha:app(t,1.2)});
+  // equation panel
+  const px=930;
+  txt('P = P₀ + ρ g h',px,300,{size:40,color:INK,weight:700,alpha:app(t,1.4)});
+  txt('ρ  density   ·   g  gravity   ·   h  depth',px,345,{size:16,color:DIM,alpha:app(t,1.7)});
+  txt('Pressure doesn\u2019t care about container shape —',px,420,{size:16,color:INK,alpha:app(t,2.1),align:'center'});
+  txt('only about how deep you are.',px,445,{size:16,color:BLUE,alpha:app(t,2.3),weight:600});
+  chip('USE  ·  dam design · scuba limits · IV drips',px,540,ROSE);
+  if(t>2.4)txt('But if pressure comes from a fluid pushing... can it push things UP?',
+      W/2,655,{size:17,color:GOLD,italic:true,alpha:app(t,2.7)});
+}});
+
+/* 3 — BUOYANCY */
+S.push({draw(t,T){
+  header('Buoyancy — pressure difference becomes lift');
+  const cx=560,cy=360+8*Math.sin(T*1.2)*ease(app(t,2.2));
+  // water
+  rrect(300,190,520,360,4,{color:BLUE,alpha:.14,fill:true});
+  rrect(300,190,520,360,4,{color:BLUE,alpha:app(t,.15),lw:2});
+  // block
+  const bw=120,bh=100;
+  rrect(cx-bw/2,cy-bh/2,bw,bh,6,{color:GOLD,alpha:app(t,.4)*.22,fill:true});
+  rrect(cx-bw/2,cy-bh/2,bw,bh,6,{color:GOLD,alpha:app(t,.4),lw:2.5});
+  // pressure arrows: bottom longer than top
+  const a=app(t,.9,1.2);
+  for(let i=-1;i<=1;i++){
+    arrow(cx+i*35,cy-bh/2-42,cx+i*35,cy-bh/2-4,{color:TEAL,alpha:a*.8,w:2.5}); // top (small)
+    arrow(cx+i*35,cy+bh/2+64,cx+i*35,cy+bh/2+4,{color:TEAL,alpha:a,w:3.4});     // bottom (big)
+  }
+  txt('deeper ⇒ bigger push',cx,cy+bh/2+88,{size:13,color:DIM,alpha:a});
+  txt('shallower ⇒ smaller push',cx,cy-bh/2-58,{size:13,color:DIM,alpha:a});
+  // net force
+  arrow(cx,cy,cx,cy-140,{color:GREEN,alpha:app(t,1.9),w:5,head:16});
+  txt('F',cx+22,cy-100,{size:22,color:GREEN,italic:true,alpha:app(t,2.0)});
+  // panel
+  txt('F_b = ρ_fluid · g · V',980,320,{size:32,color:INK,weight:700,alpha:app(t,2.2)});
+  txt('“the weight of the fluid it pushes aside”',980,362,{size:16,color:GOLD,italic:true,alpha:app(t,2.4)});
+  txt('— Archimedes, ~250 BC',980,388,{size:14,color:DIM,alpha:app(t,2.6)});
+  chip('USE  ·  ships · submarines · hot-air balloons',980,470,ROSE);
+}});
+
+/* 4 — MANOMETRY */
+S.push({draw(t,T){
+  header('Manometry — reading pressure as a height');
+  // U-tube
+  const bx=640, top=210, bot=520, gap=150, r=40;
+  ctx.save();ctx.globalAlpha=app(t,.2);ctx.strokeStyle=DIM;ctx.lineWidth=3;ctx.lineCap='round';
+  ctx.beginPath();
+  ctx.moveTo(bx-gap,top);ctx.lineTo(bx-gap,bot-r);
+  ctx.arc(bx-gap+r,bot-r,r,Math.PI,Math.PI/2,true);
+  ctx.lineTo(bx+gap-r,bot);
+  ctx.arc(bx+gap-r,bot-r,r,Math.PI/2,0,true);
+  ctx.lineTo(bx+gap,top);ctx.stroke();ctx.restore();
+  // fluid levels — pressure pushes left down, right up
+  const f=easeOut(app(t,.8,1.6));
+  const dh=90*f;
+  const lL=380+dh, lR=380-dh;
+  const fluid=(yTop)=>{ctx.save();ctx.globalAlpha=app(t,.6);ctx.strokeStyle=TEAL;ctx.lineWidth=6;ctx.lineCap='round';
+    ctx.beginPath();
+    ctx.moveTo(bx-gap,Math.min(yTop,bot-r));ctx.lineTo(bx-gap,bot-r);
+    ctx.arc(bx-gap+r,bot-r,r,Math.PI,Math.PI/2,true);ctx.lineTo(bx+gap-r,bot);
+    ctx.arc(bx+gap-r,bot-r,r,Math.PI/2,0,true);ctx.lineTo(bx+gap,Math.max(lR,top));ctx.stroke();ctx.restore();};
+  // draw both columns as fill
+  ctx.save();ctx.globalAlpha=app(t,.55);ctx.strokeStyle=TEAL;ctx.lineWidth=8;ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(bx-gap,lL);ctx.lineTo(bx-gap,bot-r);
+  ctx.arc(bx-gap+r,bot-r,r,Math.PI,Math.PI/2,true);ctx.lineTo(bx+gap-r,bot);
+  ctx.arc(bx+gap-r,bot-r,r,Math.PI/2,0,true);ctx.lineTo(bx+gap,lR);ctx.stroke();ctx.restore();
+  // pressure source arrow (left)
+  arrow(bx-gap,top-46,bx-gap,top-8,{color:GOLD,alpha:app(t,.5),w:3.5});
+  txt('unknown  P',bx-gap,top-62,{size:14,color:GOLD,alpha:app(t,.5)});
+  txt('open',bx+gap,top-20,{size:13,color:DIM,alpha:app(t,.5)});
+  // Δh bracket
+  line(bx+gap+30,lR,bx+gap+30,lL,{color:INK,alpha:app(t,2.0)});
+  line(bx+gap+24,lR,bx+gap+36,lR,{color:INK,alpha:app(t,2.0)});
+  line(bx+gap+24,lL,bx+gap+36,lL,{color:INK,alpha:app(t,2.0)});
+  txt('Δh',bx+gap+60,(lL+lR)/2,{size:22,color:INK,italic:true,alpha:app(t,2.0)});
+  txt('ΔP = ρ g Δh',300,320,{size:30,color:INK,weight:700,alpha:app(t,2.2),align:'left'});
+  txt('a hard-to-measure pressure',300,362,{size:15,color:DIM,alpha:app(t,2.4),align:'left'});
+  txt('becomes an easy-to-read length.',300,384,{size:15,color:BLUE,alpha:app(t,2.5),align:'left',weight:600});
+  chip('USE · blood pressure · gas gauges · HVAC balancing',330,470,ROSE);
+}});
+
+/* 5 — RECAP/GAP (statics -> motion) */
+S.push({kind:'gap',draw(t,T){
+  txt('RECAP',W/2,150,{size:15,color:TEAL,weight:800,ls:6,alpha:app(t,.1)});
+  txt('Here\u2019s what we have so far.',W/2,196,{size:26,color:INK,alpha:app(t,.3)});
+  // mini icon row
+  const items=[['pressure',BLUE],['buoyancy',GOLD],['manometry',TEAL]];
+  items.forEach((it,i)=>{const x=W/2-260+i*260; chip(it[0],x,260,it[1]);});
+  txt('We can fully describe a fluid at REST.',W/2,330,{size:20,color:DIM,alpha:app(t,.9)});
+  // GAP
+  txt('BUT WE\u2019RE STILL MISSING SOMETHING',W/2,430,{size:16,color:RED,weight:800,ls:4,alpha:app(t,1.4)});
+  const gp=app(t,1.8,1.2);
+  txt('The name is “fluid mechanics.”',W/2,486,{size:24,color:INK,alpha:gp});
+  txt('So far nothing has actually MOVED.',W/2,524,{size:24,color:INK,alpha:app(t,2.2)});
+  const a=app(t,2.8);
+  txt('What happens the instant a fluid begins to flow?',W/2,600,
+      {size:26,color:GOLD,italic:true,weight:600,alpha:a*(0.7+0.3*pulse(T,2))});
+}});
+
+/* 6 — KINEMATICS / STREAMLINES (FILL) */
+S.push({draw(t,T){
+  header('Kinematics — the velocity field & streamlines',{color:GOLD});
+  // flow around a cylinder using simple potential-ish deflection
+  const cxc=560, cyc=370, R=55;
+  const inflow=1;
+  function vel(x,y){
+    // uniform + doublet approx around cylinder
+    const dx=x-cxc, dy=y-cyc, r2=dx*dx+dy*dy;
+    let u=inflow, v=0;
+    if(r2>1){ u += inflow*R*R*(dy*dy-dx*dx)/(r2*r2); v += -inflow*R*R*2*dx*dy/(r2*r2); }
+    return [u,v];
+  }
+  // vector field
+  const a0=app(t,.3);
+  for(let x=180;x<W-260;x+=64)for(let y=150;y<560;y+=64){
+    const dx=x-cxc,dy=y-cyc;if(dx*dx+dy*dy<(R+14)*(R+14))continue;
+    const[u,v]=vel(x,y);const m=Math.hypot(u,v);const s=16/(m+.2)+6;
+    arrow(x,y,x+u/m*18,y+v/m*18,{color:BLUE,alpha:.30*a0,w:1.6,head:5});
+  }
+  // cylinder
+  circle(cxc,cyc,R,{color:'#0d0d14',alpha:app(t,.4),fill:true});
+  circle(cxc,cyc,R,{color:INK,alpha:app(t,.4),fill:false,w:2});
+  // tracer particles following field
+  const N=26;
+  for(let i=0;i<N;i++){
+    let x=((T*140+i*820/N)%(W+120))-60; if(x<170)continue;
+    let y=180+ (i%6)*62;
+    // integrate a few steps for a streak
+    ctx.save();ctx.globalAlpha=.7*app(t,.6);ctx.strokeStyle=TEAL;ctx.lineWidth=2.4;ctx.lineCap='round';ctx.beginPath();
+    let px=x,py=y,drawn=false;
+    for(let k=0;k<10;k++){const[u,v]=vel(px,py);const m=Math.hypot(u,v)||1;
+      const nx=px-u/m*7, ny=py-v/m*7;
+      const dd=px-cxc,de=py-cyc;if(dd*dd+de*de>R*R){k===0?ctx.moveTo(px,py):ctx.lineTo(px,py);drawn=true;}
+      px=nx;py=ny;}
+    ctx.stroke();ctx.restore();
+    const dd=x-cxc,de=y-cyc;if(dd*dd+de*de>R*R)circle(x,y,3,{color:GOLD,alpha:.85*app(t,.6)});
+  }
+  // panel
+  txt('velocity field  v(x, y, t)',990,300,{size:22,color:INK,weight:600,alpha:app(t,1.2)});
+  txt('a streamline = the path a',990,350,{size:16,color:DIM,alpha:app(t,1.5)});
+  txt('massless dot would trace.',990,372,{size:16,color:DIM,alpha:app(t,1.6)});
+  txt('We stop tracking particles —',990,430,{size:16,color:GOLD,alpha:app(t,2.0)});
+  txt('and describe the flow as a FIELD.',990,452,{size:16,color:GOLD,weight:600,alpha:app(t,2.1)});
+  if(t>2.6)txt('If mass can\u2019t appear or vanish... what must the field obey?',
+      W/2,655,{size:17,color:GOLD,italic:true,alpha:app(t,2.7)});
+}});
+
+/* 7 — CONTINUITY */
+S.push({draw(t,T){
+  header('Continuity — mass can\u2019t be created or destroyed');
+  // converging pipe
+  const x1=280,x2=1000, yc=350;
+  const w1=150, w2=58;
+  const wall=(x)=>{const f=(x-x1)/(x2-x1);return lerp(w1,w2,ease(clamp(f,0,1)));};
+  ctx.save();ctx.globalAlpha=app(t,.25);ctx.strokeStyle=BLUE;ctx.lineWidth=2.5;
+  ctx.beginPath();for(let x=x1;x<=x2;x+=6){const w=wall(x);x===x1?ctx.moveTo(x,yc-w):ctx.lineTo(x,yc-w);}ctx.stroke();
+  ctx.beginPath();for(let x=x1;x<=x2;x+=6){const w=wall(x);x===x1?ctx.moveTo(x,yc+w):ctx.lineTo(x,yc+w);}ctx.stroke();
+  ctx.restore();
+  // particles speed up where narrow (v ~ 1/A)
+  const NR=5;
+  for(let r=0;r<NR;r++){
+    for(let i=0;i<7;i++){
+      // phase param p advances faster where pipe is narrow
+      let seed=(T*0.16+ i/7 + r*0.013)%1;
+      // map seed->x by integrating 1/w (denser where slow). approximate with fixed x sampling
+      let x=x1+ ( ( (T*130 + i*260 + r*37) % (x2-x1) ) );
+      const w=wall(x);
+      const yy=yc + lerp(-1,1,(r+0.5)/NR)*(w-8);
+      const speedTint=clamp((w1-w)/(w1-w2),0,1);
+      circle(x,yy,3,{color: speedTint>0.5?GOLD:TEAL, alpha:.8*app(t,.6)});
+    }
+  }
+  // labels A1 v1 / A2 v2
+  arrow(x1-6,yc,x1+50,yc,{color:TEAL,alpha:app(t,1.2),w:3});
+  txt('A₁ v₁',x1+30,yc-w1-24,{size:20,color:TEAL,italic:true,alpha:app(t,1.2)});
+  arrow(x2-70,yc,x2+8,yc,{color:GOLD,alpha:app(t,1.5),w:3.5,head:13});
+  txt('A₂ v₂',x2-30,yc-w2-24,{size:20,color:GOLD,italic:true,alpha:app(t,1.5)});
+  txt('A₁ v₁  =  A₂ v₂',W/2,600,{size:38,color:INK,weight:700,alpha:app(t,2.0)});
+  txt('squeeze the area → the fluid MUST speed up.',W/2,650,{size:18,color:GOLD,italic:true,alpha:app(t,2.4)});
+}});
+
+/* 8 — GAP (continuity -> Bernoulli) */
+S.push({kind:'gap',draw(t,T){
+  txt('RECAP',W/2,160,{size:15,color:TEAL,weight:800,ls:6,alpha:app(t,.1)});
+  txt('Continuity tells us the fluid speeds up in a narrow pipe.',W/2,214,{size:23,color:INK,alpha:app(t,.3)});
+  txt('BUT WE\u2019RE STILL MISSING SOMETHING',W/2,330,{size:16,color:RED,weight:800,ls:4,alpha:app(t,1.0)});
+  txt('It tells us how FAST — never how much it PUSHES,',W/2,390,{size:23,color:INK,alpha:app(t,1.4)});
+  txt('nor where that speed\u2019s energy comes from.',W/2,428,{size:23,color:INK,alpha:app(t,1.8)});
+  txt('What ties together speed, pressure, and height?',W/2,540,
+      {size:26,color:GOLD,italic:true,weight:600,alpha:app(t,2.4)*(0.7+0.3*pulse(T,2))});
+}});
+
+/* 9 — BERNOULLI */
+S.push({draw(t,T){
+  header('Bernoulli — energy is conserved along a streamline',{color:GOLD});
+  const x1=250,x2=1000,yc=330,w1=120,w2=48;
+  const wall=(x)=>{const f=(x-x1)/(x2-x1);return lerp(w1,w2,ease(clamp(f,0,1)));};
+  ctx.save();ctx.globalAlpha=app(t,.25);ctx.strokeStyle=BLUE;ctx.lineWidth=2.5;
+  ctx.beginPath();for(let x=x1;x<=x2;x+=6){const w=wall(x);x===x1?ctx.moveTo(x,yc-w):ctx.lineTo(x,yc-w);}ctx.stroke();
+  ctx.beginPath();for(let x=x1;x<=x2;x+=6){const w=wall(x);x===x1?ctx.moveTo(x,yc+w):ctx.lineTo(x,yc+w);}ctx.stroke();ctx.restore();
+  for(let r=-2;r<=2;r++)for(let i=0;i<9;i++){
+    let x=x1+((T*150+i*230+r*30)%(x2-x1));const w=wall(x);
+    circle(x,yc+r/2*(w-6),2.6,{color:TEAL,alpha:.7*app(t,.5)});
+  }
+  // three vertical "energy bars" at wide, throat: pressure (blue) + kinetic (gold) sum const
+  const stations=[[330,'wide, slow'],[820,'narrow, fast']];
+  stations.forEach((st,k)=>{
+    const x=st[0],w=wall(x); const f=(x-x1)/(x2-x1);
+    const speed=lerp(0.25,0.9,ease(f)); const kin=speed; const pres=1-speed;
+    const baseY=yc+w+70, hMax=110, a=app(t,1.0+k*.4,1);
+    // pressure bar
+    rrect(x-26,baseY-pres*hMax,22,pres*hMax,3,{color:BLUE,alpha:.75*a,fill:true});
+    // kinetic bar stacked total constant
+    rrect(x-2,baseY-kin*hMax,22,kin*hMax,3,{color:GOLD,alpha:.8*a,fill:true});
+    line(x-34,baseY,x+30,baseY,{color:DIM,alpha:.6*a});
+    txt(st[1],x,baseY+22,{size:13,color:DIM,alpha:a});
+    if(k===0){txt('pressure',x-15,baseY-pres*hMax-16,{size:12,color:BLUE,alpha:a});
+              txt('speed²',x+9,baseY-kin*hMax-16,{size:12,color:GOLD,alpha:a});}
+  });
+  txt('P + ½ρv² + ρgh  =  constant',W/2,632,{size:34,color:INK,weight:700,alpha:app(t,2.2)});
+  txt('faster flow ⇒ LOWER pressure. The bars trade — the total never changes.',
+      W/2,676,{size:16,color:GOLD,italic:true,alpha:app(t,2.6)});
+}});
+
+/* 10 — BERNOULLI APPLICATIONS */
+S.push({draw(t,T){
+  header('Bernoulli in the wild — lift, speed, spray');
+  // airfoil with faster top -> lower pressure -> lift
+  const ax=380,ay=300;
+  ctx.save();ctx.globalAlpha=app(t,.3);ctx.fillStyle='#12131b';ctx.strokeStyle=INK;ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(ax-110,ay+18);
+  ctx.bezierCurveTo(ax-40,ay-40,ax+70,ay-30,ax+120,ay+6);
+  ctx.bezierCurveTo(ax+70,ay+14,ax-40,ay+28,ax-110,ay+18);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore();
+  // streamlines: top closer/faster
+  for(let i=0;i<4;i++){
+    const off=-46-i*20; const a=app(t,.6);
+    ctx.save();ctx.globalAlpha=.5*a;ctx.strokeStyle=TEAL;ctx.lineWidth=2;ctx.beginPath();
+    for(let x=ax-170;x<=ax+180;x+=6){const bump=Math.exp(-(((x-ax)/70)**2))*(28-i*4);
+      const y=ay+off-bump; x===ax-170?ctx.moveTo(x,y):ctx.lineTo(x,y);}ctx.stroke();ctx.restore();
+    const px=((T*180+i*90)%350)+ax-170; const bump=Math.exp(-(((px-ax)/70)**2))*(28-i*4);
+    circle(px,ay+off-bump,2.5,{color:GOLD,alpha:.8*a});
+  }
+  for(let i=0;i<4;i++){const off=40+i*20;const a=app(t,.6);
+    ctx.save();ctx.globalAlpha=.35*a;ctx.strokeStyle=BLUE;ctx.lineWidth=2;ctx.beginPath();
+    for(let x=ax-170;x<=ax+180;x+=6){const bump=Math.exp(-(((x-ax)/80)**2))*(12);
+      const y=ay+off+bump;x===ax-170?ctx.moveTo(x,y):ctx.lineTo(x,y);}ctx.stroke();ctx.restore();}
+  arrow(ax,ay-2,ax,ay-120,{color:GREEN,alpha:app(t,1.6),w:5,head:15});
+  txt('LIFT',ax+30,ay-90,{size:18,color:GREEN,weight:700,alpha:app(t,1.7)});
+  txt('faster air on top → lower P → net upward force',ax,ay+120,{size:14,color:DIM,alpha:app(t,1.4)});
+  // pitot tube
+  const p=930;
+  txt('Pitot tube — measuring airspeed',p,200,{size:16,color:INK,weight:600,alpha:app(t,1.9)});
+  line(p-120,330,p+30,330,{color:DIM,alpha:app(t,1.9),w:3});
+  line(p+30,330,p+30,270,{color:DIM,alpha:app(t,1.9),w:3});
+  for(let i=0;i<4;i++){const x=((T*140+i*70)%150)+p-120;arrow(x,330-14,x+22,330-14,{color:TEAL,alpha:app(t,2.0)*.7,w:2});}
+  txt('flow rammed to a stop → high P → read v',p,370,{size:14,color:DIM,alpha:app(t,2.1)});
+  chip('USE · aircraft airspeed · carburetors · perfume atomizers',p,470,ROSE);
+  if(t>2.4)txt('Beautiful. But it\u2019s a lie of omission — real fluids have friction.',
+      W/2,660,{size:17,color:GOLD,italic:true,alpha:app(t,2.6)});
+}});
+
+/* 11 — GAP (Bernoulli -> viscosity) */
+S.push({kind:'gap',draw(t,T){
+  txt('RECAP',W/2,170,{size:15,color:TEAL,weight:800,ls:6,alpha:app(t,.1)});
+  txt('Bernoulli linked speed, pressure and height — assuming NO friction.',W/2,224,{size:22,color:INK,alpha:app(t,.3)});
+  txt('BUT WE\u2019RE STILL MISSING SOMETHING',W/2,340,{size:16,color:RED,weight:800,ls:4,alpha:app(t,1.0)});
+  txt('Honey pours slower than water. Pipes lose pressure.',W/2,400,{size:23,color:INK,alpha:app(t,1.4)});
+  txt('What did we quietly throw away?',W/2,510,
+      {size:26,color:GOLD,italic:true,weight:600,alpha:app(t,2.0)*(0.7+0.3*pulse(T,2))});
+}});
+
+/* 12 — VISCOSITY */
+S.push({draw(t,T){
+  header('Viscosity — the internal friction of a fluid',{color:GOLD});
+  const x0=360,x1=920, yTop=250,yBot=470;
+  // plates
+  const shift=(T*90)%1e9;
+  rrect(x0,yBot,x1-x0,14,3,{color:DIM,alpha:app(t,.3),fill:true});
+  txt('fixed wall (no-slip)',(x0+x1)/2,yBot+34,{size:13,color:DIM,alpha:app(t,.3)});
+  rrect(x0,yTop-14,x1-x0,14,3,{color:GOLD,alpha:app(t,.3),fill:true});
+  arrow(x1-70,yTop-7,x1+10,yTop-7,{color:GOLD,alpha:app(t,.6),w:3});
+  txt('moving plate  U',x0+120,yTop-24,{size:14,color:GOLD,alpha:app(t,.6)});
+  // velocity profile — linear arrows
+  const layers=8;
+  for(let i=0;i<=layers;i++){
+    const y=lerp(yTop,yBot,i/layers); const frac=1-i/layers; // top fast
+    const a=app(t,.8+ i*0.05,1);
+    arrow((x0+x1)/2, y, (x0+x1)/2+ frac*120, y, {color:TEAL,alpha:.85*a,w:2.4,head:7});
+    // sliding particle
+    const px=x0+40+ ((shift*frac + i*90)% (x1-x0-80));
+    circle(px,y,2.5,{color:TEAL,alpha:.6*a});
+  }
+  // profile line
+  ctx.save();ctx.globalAlpha=app(t,1.4);ctx.strokeStyle=INK;ctx.lineWidth=2;ctx.setLineDash([5,5]);
+  ctx.beginPath();ctx.moveTo((x0+x1)/2,yBot);ctx.lineTo((x0+x1)/2+120,yTop);ctx.stroke();ctx.restore();
+  txt('τ = μ · (du/dy)',990,300,{size:26,color:INK,weight:700,alpha:app(t,1.8),align:'left'});
+  txt('shear stress',990,336,{size:14,color:TEAL,alpha:app(t,2.0),align:'left'});
+  txt('μ = viscosity',990,360,{size:14,color:GOLD,alpha:app(t,2.1),align:'left'});
+  txt('velocity gradient',990,384,{size:14,color:DIM,alpha:app(t,2.2),align:'left'});
+  txt('μ_honey ≈ 10,000 × μ_water',W/2,615,{size:20,color:INK,alpha:app(t,2.4)});
+  txt('Viscosity is momentum quietly leaking between neighboring layers.',
+      W/2,655,{size:16,color:GOLD,italic:true,alpha:app(t,2.7)});
+}});
+
+/* 13 — LAMINAR vs TURBULENT + REYNOLDS */
+S.push({draw(t,T){
+  header('Order to chaos — the Reynolds number decides');
+  // rising Re controls transition point
+  const Re= 400 + 4200*ease(app(t,.6,3.0));
+  const trans= clamp((Re-1500)/2500,0,1); // 0 laminar ..1 turbulent
+  const y=330, x0=200,x1=1080;
+  const breakX = lerp(x1, x0+260, trans); // where it breaks up
+  // pipe hint
+  line(x0,y-70,x1,y-70,{color:FAINT,alpha:app(t,.2)});
+  line(x0,y+70,x1,y+70,{color:FAINT,alpha:app(t,.2)});
+  // dye filament
+  ctx.save();ctx.globalAlpha=app(t,.5);ctx.strokeStyle=GOLD;ctx.lineWidth=3;ctx.lineCap='round';ctx.beginPath();
+  for(let x=x0;x<=x1;x+=4){
+    let yy=y;
+    if(x>breakX){const k=(x-breakX)/60; yy=y+ (28*trans)*Math.sin(x*0.12+T*6)*Math.min(1,k)
+                    + (18*trans)*Math.sin(x*0.31-T*8)*Math.min(1,k);}
+    x===x0?ctx.moveTo(x,yy):ctx.lineTo(x,yy);
+  }ctx.stroke();ctx.restore();
+  // particles
+  for(let i=0;i<20;i++){let x=x0+((T*160+i*90)%(x1-x0));let yy=y;
+    if(x>breakX){const k=(x-breakX)/60;yy=y+(28*trans)*Math.sin(x*0.12+T*6+i)*Math.min(1,k);}
+    circle(x,yy,2.4,{color:x>breakX?RED:TEAL,alpha:.7*app(t,.5)});}
+  txt(trans<0.4?'LAMINAR — smooth, layered':'TURBULENT — chaotic, mixing',
+      W/2,y-120,{size:20,color:trans<0.4?TEAL:RED,weight:700,alpha:app(t,1.0)});
+  // Re gauge
+  txt('Re  =  ρ v L / μ  ≈  '+Math.round(Re/50)*50,W/2,540,{size:30,color:INK,weight:700,alpha:app(t,1.4)});
+  txt('inertia ÷ viscosity',W/2,578,{size:15,color:DIM,alpha:app(t,1.6)});
+  txt('low Re → viscosity tidies the flow    ·    high Re → inertia shatters it',
+      W/2,632,{size:16,color:GOLD,italic:true,alpha:app(t,2.0)});
+  chip('USE · pipeline design · mixing tanks · aircraft/blood-flow modeling',W/2,678,ROSE);
+}});
+
+/* 14 — GAP (-> Navier–Stokes) */
+S.push({kind:'gap',draw(t,T){
+  txt('RECAP',W/2,170,{size:15,color:TEAL,weight:800,ls:6,alpha:app(t,.1)});
+  txt('Statics, motion, energy, friction, and the order-vs-chaos knob.',W/2,224,{size:22,color:INK,alpha:app(t,.3)});
+  txt('BUT WE\u2019RE STILL MISSING SOMETHING',W/2,340,{size:16,color:RED,weight:800,ls:4,alpha:app(t,1.0)});
+  txt('We have pieces. We don\u2019t yet have ONE law of motion',W/2,400,{size:23,color:INK,alpha:app(t,1.4)});
+  txt('that every fluid particle must obey — Newton\u2019s F = ma, for fluids.',W/2,438,{size:23,color:INK,alpha:app(t,1.8)});
+  txt('Can we write that master equation?',W/2,548,
+      {size:26,color:GOLD,italic:true,weight:600,alpha:app(t,2.4)*(0.7+0.3*pulse(T,2))});
+}});
+
+/* 15 — NAVIER–STOKES */
+S.push({draw(t,T){
+  header('Navier–Stokes — F = ma, written for a fluid',{color:GOLD});
+  // equation with term-by-term highlight
+  const y=300;
+  const terms=[
+    {s:'ρ (∂v/∂t + v·∇v)',c:INK,mid:390,ic:'mass × acceleration',col:INK},
+    {s:'=',c:DIM,mid:520},
+    {s:'−∇p',c:BLUE,mid:600,ic:'pressure push',col:BLUE},
+    {s:'+ μ∇²v',c:TEAL,mid:730,ic:'viscous smoothing',col:TEAL},
+    {s:'+ ρg',c:GOLD,mid:850,ic:'gravity / body force',col:GOLD},
+  ];
+  // measure & lay out centered
+  ctx.font='700 34px Inter';
+  const widths=terms.map(tm=>ctx.measureText(tm.s).width);
+  const gap=20; const total=widths.reduce((a,b)=>a+b,0)+gap*(terms.length-1);
+  let x=W/2-total/2;
+  const focus=Math.floor(clamp((t-1.0)/1.1,0,terms.length)); // sequential highlight
+  terms.forEach((tm,i)=>{
+    const on= t>1.0 && i<=focus;
+    const a= i===0? app(t,.3): app(t,.6+i*0.15);
+    const lift = (i===focus && t>1.0)? -6:0;
+    txt(tm.s, x+widths[i]/2, y+lift, {size:34,color:on?tm.c:DIM,weight:700,alpha:a});
+    if(tm.ic && i<=focus && t>1.0){
+      txt(tm.ic, x+widths[i]/2, y+52, {size:14,color:tm.col,alpha:app(t,1.0+i*0.15)});
+    }
+    x+=widths[i]+gap;
+  });
+  // narrative
+  txt('inertia of a fluid blob  =  pressure  +  friction  +  gravity',
+      W/2,470,{size:20,color:INK,alpha:app(t,3.6)});
+  txt('Exact. Universal. And so hard that proving smooth solutions always exist',
+      W/2,600,{size:16,color:DIM,alpha:app(t,4.2)});
+  txt('is a $1,000,000 Millennium Prize problem — still unsolved.',
+      W/2,626,{size:16,color:GOLD,italic:true,alpha:app(t,4.5)});
+  chip('USE · weather models · CFD · engine & turbine design · climate',W/2,680,ROSE);
+}});
+
+/* 16 — POTENTIAL FLOW & VORTICITY */
+S.push({draw(t,T){
+  header('Two faces of flow — irrotational vs rotational');
+  // left: irrotational (paddle translates, no spin)
+  const lx=380,ly=360;
+  txt('POTENTIAL / IRROTATIONAL',lx,210,{size:15,color:BLUE,weight:700,ls:1,alpha:app(t,.2)});
+  for(let i=0;i<3;i++){const yy=ly-70+i*70;
+    ctx.save();ctx.globalAlpha=.35*app(t,.4);ctx.strokeStyle=BLUE;ctx.lineWidth=2;ctx.beginPath();
+    for(let x=lx-150;x<=lx+150;x+=8){x===lx-150?ctx.moveTo(x,yy):ctx.lineTo(x,yy);}ctx.stroke();ctx.restore();}
+  // paddle that translates but keeps orientation
+  const px=lx-120+((T*70)%240);
+  drawPaddle(px,ly,0,BLUE,app(t,.8)); // angle 0 always
+  txt('a paddle drifts but never spins',lx,ly+120,{size:14,color:DIM,alpha:app(t,1.2)});
+  txt('curl v = 0',lx,ly+150,{size:18,color:BLUE,italic:true,alpha:app(t,1.4)});
+  // right: rotational vortex (paddle spins)
+  const rx=920,ry=360;
+  txt('ROTATIONAL / VORTICITY',rx,210,{size:15,color:RED,weight:700,ls:1,alpha:app(t,.2)});
+  // vortex streamlines (circles)
+  for(let r=30;r<=110;r+=26){circle(rx,ry,r,{color:RED,alpha:.22*app(t,.4),fill:false,w:2});}
+  // orbiting + spinning paddle
+  const ang=T*0.8; const orx=rx+70*Math.cos(ang), ory=ry+70*Math.sin(ang);
+  drawPaddle(orx,ory, T*3, RED, app(t,.8)); // spins
+  // arrows around
+  for(let k=0;k<6;k++){const aa=k/6*6.28+T*0.8;const R=70;
+    arrow(rx+R*Math.cos(aa),ry+R*Math.sin(aa),
+          rx+R*Math.cos(aa+0.3),ry+R*Math.sin(aa+0.3),{color:RED,alpha:.5*app(t,.9),w:2,head:6});}
+  txt('here the paddle SPINS as it orbits',rx,ry+130,{size:14,color:DIM,alpha:app(t,1.2)});
+  txt('curl v ≠ 0',rx,ry+150,{size:18,color:RED,italic:true,alpha:app(t,1.4)});
+  txt('Vorticity = local spin. It\u2019s the difference between calm current and a whirlpool.',
+      W/2,670,{size:16,color:GOLD,italic:true,alpha:app(t,2.0)});
+  function drawPaddle(x,y,ang,col,a){
+    ctx.save();ctx.globalAlpha=a;ctx.translate(x,y);ctx.rotate(ang);ctx.strokeStyle=col;ctx.lineWidth=2.5;
+    ctx.beginPath();ctx.moveTo(-18,0);ctx.lineTo(18,0);ctx.moveTo(0,-18);ctx.lineTo(0,18);ctx.stroke();
+    circle(0,0,4,{color:col});ctx.restore();
+  }
+}});
+
+/* 17 — GAP (-> boundary layer) */
+S.push({kind:'gap',draw(t,T){
+  txt('RECAP',W/2,170,{size:15,color:TEAL,weight:800,ls:6,alpha:app(t,.1)});
+  txt('We have the master equation — and it says friction matters.',W/2,224,{size:22,color:INK,alpha:app(t,.3)});
+  txt('BUT HERE\u2019S THE PUZZLE',W/2,340,{size:16,color:RED,weight:800,ls:4,alpha:app(t,1.0)});
+  txt('Air\u2019s viscosity is tiny — yet planes feel drag, and flows separate.',W/2,400,{size:22,color:INK,alpha:app(t,1.4)});
+  txt('Where does that tiny friction suddenly become decisive?',W/2,510,
+      {size:26,color:GOLD,italic:true,weight:600,alpha:app(t,2.0)*(0.7+0.3*pulse(T,2))});
+}});
+
+/* 18 — BOUNDARY LAYER, DRAG, SEPARATION */
+S.push({draw(t,T){
+  header('The boundary layer — where "no-slip" rules everything',{color:GOLD});
+  // flat plate with growing BL
+  const px=200, py=300, plen=560;
+  line(px,py,px+plen,py,{color:DIM,alpha:app(t,.3),w:3});
+  txt('surface (no-slip: v = 0 at the wall)',px+plen/2,py+26,{size:13,color:DIM,alpha:app(t,.3)});
+  // BL thickness curve
+  ctx.save();ctx.globalAlpha=.4*app(t,.6);ctx.strokeStyle=BLUE;ctx.lineWidth=2;ctx.setLineDash([5,5]);
+  ctx.beginPath();for(let x=0;x<=plen;x+=6){const d=46*Math.sqrt(x/plen);ctx.lineTo(px+x,py-d);}ctx.stroke();ctx.restore();
+  // velocity profiles at 3 stations
+  [0.25,0.55,0.9].forEach((f,k)=>{
+    const x=px+plen*f, d=46*Math.sqrt(f), a=app(t,.9+k*.2);
+    for(let i=0;i<=6;i++){const y=py-d*i/6;const frac=easeOut(i/6);
+      arrow(x,y,x+frac*46,y,{color:TEAL,alpha:.8*a,w:1.8,head:5});}
+    // freestream particle
+    const sx=(T*160+k*120)%plen;
+  });
+  txt('velocity goes 0 → full speed across a paper-thin layer',px+plen/2,py-90,{size:14,color:INK,alpha:app(t,1.6)});
+  // separation over bluff body (small inset lower)
+  const bx=980,by=430,R=48;
+  circle(bx,by,R,{color:'#12131b',alpha:app(t,1.8),fill:true});
+  circle(bx,by,R,{color:INK,alpha:app(t,1.8),fill:false,w:2});
+  for(let i=0;i<5;i++){const yy=by-40+i*20;
+    ctx.save();ctx.globalAlpha=.4*app(t,2.0);ctx.strokeStyle=BLUE;ctx.lineWidth=1.6;ctx.beginPath();
+    for(let x=bx-120;x<bx-R;x+=6){ctx.lineTo(x,yy);}ctx.stroke();ctx.restore();}
+  // wake eddies
+  for(let i=0;i<2;i++){const ex=bx+40+i*34, ey=by+(i%2?-16:16);
+    circle(ex,ey,10+4*Math.sin(T*4+i),{color:RED,alpha:.4*app(t,2.2),fill:false,w:2});}
+  txt('flow SEPARATES → turbulent wake → pressure drag',bx,by+80,{size:13,color:RED,alpha:app(t,2.3)});
+  txt('Drag & lift are decided in this whisker-thin skin of fluid.',
+      W/2,630,{size:17,color:GOLD,italic:true,alpha:app(t,2.6)});
+  chip('USE · streamlining cars · golf-ball dimples · wing stall · turbine blades',W/2,678,ROSE);
+}});
+
+/* 19 — GAP (-> dimensional analysis) */
+S.push({kind:'gap',draw(t,T){
+  txt('RECAP',W/2,170,{size:15,color:TEAL,weight:800,ls:6,alpha:app(t,.1)});
+  txt('Real flows depend on speed, size, density, viscosity, gravity...',W/2,224,{size:22,color:INK,alpha:app(t,.3)});
+  txt('BUT THAT\u2019S TOO MANY KNOBS',W/2,340,{size:16,color:RED,weight:800,ls:4,alpha:app(t,1.0)});
+  txt('How can a tiny wind-tunnel model predict a real 80-metre aircraft?',W/2,400,{size:22,color:INK,alpha:app(t,1.4)});
+  txt('Is there a way to collapse many variables into a few?',W/2,510,
+      {size:26,color:GOLD,italic:true,weight:600,alpha:app(t,2.0)*(0.7+0.3*pulse(T,2))});
+}});
+
+/* 20 — DIMENSIONAL ANALYSIS & SIMILITUDE */
+S.push({draw(t,T){
+  header('Dimensional analysis — fewer numbers, same physics',{color:GOLD});
+  // big plane + tiny model, same streamlines when Re matches
+  function plane(cx,cy,s,a){
+    ctx.save();ctx.globalAlpha=a;ctx.translate(cx,cy);ctx.scale(s,s);ctx.strokeStyle=INK;ctx.lineWidth=2/s;ctx.fillStyle='#12131b';
+    ctx.beginPath();ctx.moveTo(-70,0);ctx.quadraticCurveTo(0,-14,70,0);ctx.quadraticCurveTo(0,14,-70,0);ctx.closePath();ctx.fill();ctx.stroke();
+    ctx.beginPath();ctx.moveTo(-10,0);ctx.lineTo(-34,-30);ctx.lineTo(6,0);ctx.moveTo(-10,0);ctx.lineTo(-34,30);ctx.lineTo(6,0);ctx.stroke();
+    ctx.restore();
+  }
+  function streaks(cx,cy,s,a,seed){
+    for(let i=-2;i<=2;i++){const yy=cy+i*22*s;
+      ctx.save();ctx.globalAlpha=.4*a;ctx.strokeStyle=TEAL;ctx.lineWidth=1.8;ctx.beginPath();
+      for(let x=-120*s;x<=120*s;x+=6){const bump=Math.exp(-(((x)/(60*s))**2))*(16*s)*(i===0?0:1);
+        ctx.lineTo(cx+x,yy-Math.sign(i)*bump);}ctx.stroke();ctx.restore();
+      const dx=((T*120*s+i*40+seed)% (240*s))-120*s;const bump=Math.exp(-(((dx)/(60*s))**2))*(16*s)*(i===0?0:1);
+      circle(cx+dx,yy-Math.sign(i)*bump,2.4*Math.max(s,.6),{color:GOLD,alpha:.8*a});}
+  }
+  streaks(420,300,1.0,app(t,.6),0);plane(420,300,1.0,app(t,.4));
+  txt('real aircraft',420,400,{size:15,color:DIM,alpha:app(t,.8)});
+  streaks(950,300,0.5,app(t,1.0),120);plane(950,300,0.5,app(t,.8));
+  txt('scale model',950,370,{size:15,color:DIM,alpha:app(t,1.2)});
+  // equality
+  txt('=',685,300,{size:40,color:GREEN,alpha:app(t,1.5)});
+  txt('SAME  Re, Ma  ⇒  SAME flow pattern',W/2,470,{size:22,color:INK,weight:600,alpha:app(t,1.8)});
+  txt('Buckingham π theorem:',420,540,{size:17,color:GOLD,weight:600,alpha:app(t,2.2)});
+  txt('n variables − k dimensions  →  (n−k) dimensionless groups',W/2,575,{size:18,color:INK,alpha:app(t,2.4)});
+  txt('Match the dimensionless numbers, and a model on your desk mimics the real thing.',
+      W/2,640,{size:16,color:GOLD,italic:true,alpha:app(t,2.8)});
+  chip('USE · wind tunnels · ship-hull tanks · scaling lab experiments',W/2,682,ROSE);
+}});
+
+/* 21 — GAP (-> compressible) */
+S.push({kind:'gap',draw(t,T){
+  txt('RECAP',W/2,170,{size:15,color:TEAL,weight:800,ls:6,alpha:app(t,.1)});
+  txt('One assumption has hidden in almost everything: density stays constant.',W/2,224,{size:21,color:INK,alpha:app(t,.3)});
+  txt('BUT WE\u2019RE STILL MISSING SOMETHING',W/2,340,{size:16,color:RED,weight:800,ls:4,alpha:app(t,1.0)});
+  txt('Push a gas near the speed of sound and it squeezes — density changes.',W/2,400,{size:22,color:INK,alpha:app(t,1.4)});
+  txt('What new physics appears at the speed of sound?',W/2,510,
+      {size:26,color:GOLD,italic:true,weight:600,alpha:app(t,2.0)*(0.7+0.3*pulse(T,2))});
+}});
+
+/* 22 — COMPRESSIBLE FLOW */
+S.push({draw(t,T){
+  header('Compressible flow — Mach, shocks & the magic nozzle',{color:GOLD});
+  // converging-diverging nozzle
+  const x0=260,x1=1000,yc=320;
+  const th=(x0+x1)/2; // throat
+  const prof=(x)=>{const f=(x-x0)/(x1-x0);
+    // wide -> narrow at throat -> wide
+    const w= x<th? lerp(90,30,ease((x-x0)/(th-x0))) : lerp(30,110,ease((x-th)/(x1-th)));
+    return w;};
+  ctx.save();ctx.globalAlpha=app(t,.3);ctx.strokeStyle=BLUE;ctx.lineWidth=2.5;
+  ctx.beginPath();for(let x=x0;x<=x1;x+=5){const w=prof(x);x===x0?ctx.moveTo(x,yc-w):ctx.lineTo(x,yc-w);}ctx.stroke();
+  ctx.beginPath();for(let x=x0;x<=x1;x+=5){const w=prof(x);x===x0?ctx.moveTo(x,yc+w):ctx.lineTo(x,yc+w);}ctx.stroke();ctx.restore();
+  // particles: accelerate through throat, color by regime
+  for(let r=-2;r<=2;r++)for(let i=0;i<8;i++){
+    let x=x0+((T*180+i*230+r*20)%(x1-x0));const w=prof(x);
+    const f=(x-x0)/(x1-x0); const M= x<th? lerp(0.3,1,ease((x-x0)/(th-x0))) : lerp(1,2.4,ease((x-th)/(x1-th)));
+    const col= M<0.95?TEAL : (M<1.1?GOLD:RED);
+    circle(x,yc+r/2.2*(w-6),2.6,{color:col,alpha:.75*app(t,.5)});
+  }
+  txt('subsonic  M<1',x0+110,yc+130,{size:14,color:TEAL,alpha:app(t,1.0)});
+  txt('M = 1',th,yc-125,{size:15,color:GOLD,weight:700,alpha:app(t,1.2)});
+  line(th,yc-100,th,yc+100,{color:GOLD,alpha:app(t,1.2)*.5,dash:[4,4]});
+  txt('supersonic  M>1',x1-120,yc+150,{size:14,color:RED,alpha:app(t,1.4)});
+  // shock line
+  const sh=lerp(th,x1-140,0.6);
+  line(sh,yc-100,sh+18,yc+100,{color:RED,alpha:app(t,2.0),w:3});
+  txt('shock',sh+40,yc-90,{size:14,color:RED,weight:700,alpha:app(t,2.0)});
+  txt('M = v / a   (a = speed of sound)',W/2,540,{size:26,color:INK,weight:700,alpha:app(t,1.8)});
+  txt('Counter-intuitive: past Mach 1, WIDENING the pipe speeds the gas up further.',
+      W/2,600,{size:16,color:GOLD,italic:true,alpha:app(t,2.4)});
+  chip('USE · rocket & jet nozzles · supersonic jets · turbines',W/2,662,ROSE);
+}});
+
+/* 23 — FULL RECAP MAP + APPLICATIONS */
+S.push({draw(t,T){
+  header('The whole journey — one chain of questions');
+  const nodes=[
+    ['Statics',BLUE],['Kinematics',TEAL],['Bernoulli',GOLD],['Viscosity',TEAL],
+    ['Reynolds',BLUE],['Navier–Stokes',VIOLET],['Boundary layer',GOLD],['Similitude',GREEN],['Compressible',RED]
+  ];
+  const y=250, x0=140, x1=1140;
+  for(let i=0;i<nodes.length;i++){
+    const x=lerp(x0,x1,i/(nodes.length-1));
+    const a=app(t,.2+i*0.12);
+    if(i>0){const xp=lerp(x0,x1,(i-1)/(nodes.length-1));arrow(xp+52,y,x-52,y,{color:FAINT,alpha:a,w:1.6,head:6});}
+    circle(x,y,7,{color:nodes[i][1],alpha:a});
+    txt(nodes[i][0],x,y+ (i%2?34: -30),{size:14,color:nodes[i][1],alpha:a,weight:600});
+  }
+  txt('each answered the gap the last one opened.',W/2,y+80,{size:16,color:DIM,alpha:app(t,1.6)});
+  // applications grid
+  txt('WHERE IT ALL SHOWS UP',W/2,410,{size:15,color:GOLD,weight:700,ls:4,alpha:app(t,1.9)});
+  const apps=[
+    'Aerospace — wings, jets, rockets','Automotive — drag, cooling, intakes',
+    'Civil — dams, pipelines, wind loads','Energy — turbines, pumps, HVAC',
+    'Process — reactors, mixing, transport','Bio — blood flow, respiration, hearts'
+  ];
+  apps.forEach((s,i)=>{const col=i%2, row=(i/2|0);
+    const x=W/2+(col?150:-150), yy=460+row*46;
+    circle(x-150,yy,4,{color:ROSE,alpha:app(t,2.2+i*0.1)});
+    txt(s,x-135,yy,{size:16,color:INK,align:'left',alpha:app(t,2.2+i*0.1)});});
+  txt('“What I cannot create, I do not understand.” — you just built fluid mechanics from one idea.',
+      W/2,672,{size:15,color:GOLD,italic:true,alpha:app(t,3.2)});
+}});
+
+/* ============================================================
+   ENGINE
+   ============================================================ */
+let idx=0, start=performance.now();
+const dotsEl=document.getElementById('dots');
+S.forEach((_,i)=>{const d=document.createElement('div');d.className='dot';dotsEl.appendChild(d);});
+const dots=[...dotsEl.children];
+function setDots(){dots.forEach((d,i)=>d.classList.toggle('on',i===idx));}
+function go(n){idx=clamp(n,0,S.length-1);start=performance.now();setDots();
+  document.getElementById('prev').disabled=idx===0;
+  document.getElementById('next').disabled=idx===S.length-1;}
+document.getElementById('next').onclick=()=>go(idx+1);
+document.getElementById('prev').onclick=()=>go(idx-1);
+document.getElementById('replay').onclick=()=>{start=performance.now();};
+window.addEventListener('keydown',e=>{
+  if(e.key==='ArrowRight'||e.key===' ')go(idx+1);
+  else if(e.key==='ArrowLeft')go(idx-1);
+  else if(e.key==='r'||e.key==='R')start=performance.now();
+});
+cv.addEventListener('click',e=>{const r=cv.getBoundingClientRect();
+  if((e.clientX-r.left)/r.width>0.5)go(idx+1);else go(idx-1);});
+
+function frame(now){
+  const t=(now-start)/1000, Tg=now/1000;
+  ctx.fillStyle=BG;ctx.fillRect(0,0,W,H);
+  try{S[idx].draw(t,Tg);}catch(err){txt('…',W/2,H/2,{color:RED});}
+  // slide transition fade-in from black
+  const tr=clamp(1-t/0.4,0,1);
+  if(tr>0){ctx.save();ctx.globalAlpha=tr;ctx.fillStyle=BG;ctx.fillRect(0,0,W,H);ctx.restore();}
+  requestAnimationFrame(frame);
+}
+setDots();go(0);requestAnimationFrame(frame);
+</script>
+</body>
+</html>

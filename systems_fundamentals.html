@@ -1,0 +1,3074 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Systems Fundamentals: Memory, Low-Level Concepts &amp; Error Handling</title>
+<style>
+  :root{
+    --bg:#0b0b0d;
+    --panel:#111114;
+    --grid:#1c1c20;
+    --stack:#6f9bd6;
+    --heap:#d69a63;
+    --statc:#6fbf8b;
+    --danger:#d1706f;
+    --ptr:#b28fd1;
+    --text:#e8e8ea;
+    --muted:#8d8d94;
+    --dim:#4b4b52;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:#000;height:100%;overflow:hidden;font-family:'Segoe UI',ui-sans-serif,-apple-system,Helvetica,Arial,sans-serif;}
+  #stage-wrap{
+    width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;background:#000;
+  }
+  #stage{
+    position:relative;
+    width:1600px;height:900px;
+    background:var(--bg);
+    transform-origin:center center;
+    box-shadow:0 0 0 1px #1a1a1e;
+    overflow:hidden;
+  }
+  svg{width:100%;height:100%;display:block;}
+  .title-text{fill:var(--text);font-size:40px;font-weight:600;}
+  .sub-text{fill:var(--muted);font-size:20px;font-weight:400;}
+  .caption-text{fill:var(--muted);font-size:19px;}
+  .label-14{font-size:14px;fill:var(--text);}
+  .label-18{font-size:18px;fill:var(--text);}
+  .label-24{font-size:24px;fill:var(--text);}
+  .mono{font-family:'Consolas','SFMono-Regular',Menlo,monospace;}
+  .kicker{fill:var(--muted);font-size:16px;letter-spacing:2px;text-transform:uppercase;}
+  #hud{position:absolute;inset:0;pointer-events:none;}
+  .navbtn{
+    position:absolute; top:50%; transform:translateY(-50%);
+    width:52px;height:52px;border-radius:50%;
+    background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.12);
+    color:#ddd; font-size:22px; display:flex; align-items:center; justify-content:center;
+    cursor:pointer; pointer-events:all; user-select:none; transition:background .15s;
+  }
+  .navbtn:hover{background:rgba(255,255,255,0.1);}
+  #prevBtn{left:-70px;} #nextBtn{right:-70px;}
+  #dots{
+    position:absolute; bottom:-42px; left:0; right:0;
+    display:flex; justify-content:center; gap:6px; pointer-events:all;
+  }
+  .dot{width:7px;height:7px;border-radius:50%;background:#333;cursor:pointer;transition:background .2s, width .2s;}
+  .dot.active{background:#e8e8ea;width:18px;border-radius:4px;}
+  #slideNum{position:absolute; top:-38px; left:0; color:#666; font-size:14px; font-family:monospace;}
+  #hint{position:absolute; top:-38px; right:0; color:#555; font-size:13px; font-family:monospace;}
+  .predict-box{
+    fill:rgba(255,255,255,0.03); stroke:rgba(255,255,255,0.15); stroke-width:1;
+  }
+  .clickable{cursor:pointer;}
+  .arrow-head{fill:none;}
+</style>
+</head>
+<body>
+<div id="stage-wrap">
+  <div id="stage">
+    <svg id="mainsvg" viewBox="0 0 1600 900">
+      <defs>
+        <marker id="arrowPtr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z"></path>
+        </marker>
+        <clipPath id="mainClip"><rect x="60" y="130" width="1480" height="650"></rect></clipPath>
+      </defs>
+      <g id="zoneTitle"></g>
+      <g id="zoneMain" clip-path="url(#mainClip)"></g>
+      <g id="zoneCaption"></g>
+    </svg>
+    <div id="hud">
+      <div id="slideNum"></div>
+      <div id="hint">&larr; &rarr; navigate &middot; space next &middot; r replay</div>
+      <div class="navbtn" id="prevBtn">&#8592;</div>
+      <div class="navbtn" id="nextBtn">&#8594;</div>
+      <div id="dots"></div>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+"use strict";
+const NS = "http://www.w3.org/2000/svg";
+const stage = document.getElementById('stage');
+const zoneTitle = document.getElementById('zoneTitle');
+const zoneMain = document.getElementById('zoneMain');
+const zoneCaption = document.getElementById('zoneCaption');
+
+/* ---------- responsive scaling ---------- */
+function fitStage(){
+  const wrap = document.getElementById('stage-wrap');
+  const scale = Math.min(wrap.clientWidth/1600, wrap.clientHeight/900) * 0.94;
+  stage.style.transform = `scale(${scale})`;
+}
+window.addEventListener('resize', fitStage);
+fitStage();
+
+/* ---------- tiny svg helper ---------- */
+function se(tag, attrs, ...kids){
+  const el = document.createElementNS(NS, tag);
+  if(attrs) for(const k in attrs){
+    if(k==='text') el.textContent = attrs[k];
+    else el.setAttribute(k, attrs[k]);
+  }
+  for(const kid of kids){
+    if(kid==null) continue;
+    if(typeof kid === 'string') el.appendChild(document.createTextNode(kid));
+    else el.appendChild(kid);
+  }
+  return el;
+}
+function txt(x,y,str,cls,attrs){
+  const t = se('text', Object.assign({x,y,class:cls||'label-18'}, attrs||{}));
+  t.textContent = str;
+  return t;
+}
+function tspanLine(el, x, dy, str, attrs){
+  const t = se('tspan', Object.assign({x, dy},attrs||{}));
+  t.textContent = str;
+  el.appendChild(t);
+  return t;
+}
+
+/* ---------- timer / raf bookkeeping (cleared on slide change) ---------- */
+let timers = [], rafs = [];
+function clearAll(){ timers.forEach(clearTimeout); timers=[]; rafs.forEach(cancelAnimationFrame); rafs=[]; }
+function after(ms, fn){ const id=setTimeout(fn, Math.max(0,ms)); timers.push(id); return id; }
+function easeOutCubic(t){ return 1-Math.pow(1-t,3); }
+function easeInOutCubic(t){ return t<0.5 ? 4*t*t*t : 1-Math.pow(-2*t+2,3)/2; }
+function raf(fn){ const id=requestAnimationFrame(fn); rafs.push(id); return id; }
+
+function fadeUp(el, delay=0, dur=500, dy=14){
+  el.style.opacity=0; el.style.transform=`translateY(${dy}px)`;
+  after(delay, ()=>{
+    const t0=performance.now();
+    function step(now){
+      const p=Math.min(1,(now-t0)/dur), e=easeOutCubic(p);
+      el.style.opacity=e; el.style.transform=`translateY(${dy*(1-e)}px)`;
+      if(p<1) raf(step);
+    }
+    raf(step);
+  });
+}
+function fadeOnly(el, delay=0, dur=400, targetOp=1){
+  el.style.opacity=0;
+  after(delay, ()=>{
+    const t0=performance.now();
+    function step(now){
+      const p=Math.min(1,(now-t0)/dur);
+      el.style.opacity = targetOp*easeOutCubic(p);
+      if(p<1) raf(step);
+    }
+    raf(step);
+  });
+}
+function tweenAttrs(el, props, dur=600, delay=0, easing=easeInOutCubic, onDone){
+  after(delay, ()=>{
+    const start={};
+    for(const k in props) start[k]=parseFloat(el.getAttribute(k))||0;
+    const t0=performance.now();
+    function step(now){
+      const p=Math.min(1,(now-t0)/dur), e=easing(p);
+      for(const k in props) el.setAttribute(k, start[k]+(props[k]-start[k])*e);
+      if(p<1) raf(step); else if(onDone) onDone();
+    }
+    raf(step);
+  });
+}
+function moveGroup(el, x0,y0,x1,y1, dur=700, delay=0, easing=easeInOutCubic, onDone){
+  el.setAttribute('transform',`translate(${x0},${y0})`);
+  after(delay, ()=>{
+    const t0=performance.now();
+    function step(now){
+      const p=Math.min(1,(now-t0)/dur), e=easing(p);
+      el.setAttribute('transform',`translate(${x0+(x1-x0)*e},${y0+(y1-y0)*e})`);
+      if(p<1) raf(step); else if(onDone) onDone();
+    }
+    raf(step);
+  });
+}
+function drawPath(el, dur=600, delay=0){
+  let len=100; try{ len = el.getTotalLength(); }catch(e){}
+  el.style.strokeDasharray = len;
+  el.style.strokeDashoffset = len;
+  el.style.opacity = 1;
+  after(delay, ()=>{
+    const t0=performance.now();
+    function step(now){
+      const p=Math.min(1,(now-t0)/dur);
+      el.style.strokeDashoffset = len*(1-easeOutCubic(p));
+      if(p<1) raf(step);
+    }
+    raf(step);
+  });
+}
+function growRect(el, targetAttr, targetVal, dur=600, delay=0){
+  tweenAttrs(el, {[targetAttr]:targetVal}, dur, delay, easeOutCubic);
+}
+function pulse(el, delay=0, times=2){
+  after(delay, ()=>{
+    let n=0;
+    const base = el.getAttribute('stroke-width') || 2;
+    function step(){
+      if(n>=times*2) { el.setAttribute('stroke-width', base); return; }
+      el.setAttribute('stroke-width', n%2===0 ? (parseFloat(base)+2) : base);
+      n++; after(160, step);
+    }
+    step();
+  });
+}
+
+/* ---------- reusable visual components ---------- */
+function box(x,y,w,h,color,opts){
+  opts = opts||{};
+  return se('rect', Object.assign({x,y,width:w,height:h, rx:opts.rx!==undefined?opts.rx:6,
+    fill:opts.fill!==undefined?opts.fill:'rgba(255,255,255,0.03)',
+    stroke:color, 'stroke-width':opts.sw||1.6}, opts.attrs||{}));
+}
+function labeledBox(x,y,w,h,color,label,sub,opts){
+  opts=opts||{};
+  const g = se('g',{});
+  g.appendChild(box(x,y,w,h,color,opts));
+  const t1 = txt(x+w/2, y+h/2+(sub?-4:6), label, 'label-18', {'text-anchor':'middle'});
+  g.appendChild(t1);
+  if(sub){ g.appendChild(txt(x+w/2, y+h/2+18, sub, 'label-14', {'text-anchor':'middle', fill:'var(--muted)'})); }
+  return g;
+}
+function arrow(x1,y1,x2,y2,color,opts){
+  opts=opts||{};
+  return se('path',{d:`M${x1},${y1} L${x2},${y2}`, stroke:color||'var(--ptr)',
+    'stroke-width':opts.sw||2, fill:'none', 'marker-end':'url(#arrowPtr)'});
+}
+function curveArrow(x1,y1,x2,y2,bend,color){
+  const mx=(x1+x2)/2, my=(y1+y2)/2 - bend;
+  return se('path',{d:`M${x1},${y1} Q${mx},${my} ${x2},${y2}`, stroke:color||'var(--ptr)',
+    'stroke-width':2, fill:'none', 'marker-end':'url(#arrowPtr)'});
+}
+function addrTag(x,y,hex,color){
+  return txt(x,y,hex,'label-14 mono',{fill:color||'var(--muted)'});
+}
+function sectionKicker(str,x,y){ return txt(x,y,str,'kicker'); }
+
+/* ---------- small explanatory icon glyphs ----------
+   Used to give "practical application" / summary cards a genuine visual
+   hook instead of a plain colored text box. Each returns a <g> that
+   animates itself in (paths draw, dots fade) starting at `delay`. */
+function icon(type, cx, cy, color, delay){
+  delay = delay||0;
+  const g = se('g',{});
+  function addPath(d, dur, dd){
+    const p = se('path',{d, stroke:color, 'stroke-width':2, fill:'none', 'stroke-linecap':'round','stroke-linejoin':'round'});
+    g.appendChild(p); drawPath(p,dur,delay+dd); return p;
+  }
+  function addDot(r, dx, dy, dd, fillColor){
+    const c = se('circle',{cx:cx+dx,cy:cy+dy,r, fill:fillColor||color});
+    c.style.opacity=0; g.appendChild(c); fadeOnly(c,delay+dd,300,1); return c;
+  }
+  const s=16;
+  if(type==='stack'){
+    addPath(`M${cx-s},${cy+10} L${cx+s},${cy+10}`,250,0);
+    addPath(`M${cx-s},${cy} L${cx+s},${cy}`,250,150);
+    const top = addPath(`M${cx-s},${cy-10} L${cx+s},${cy-10}`,250,300);
+    after(delay+700, ()=>{
+      const t0=performance.now();
+      function step(now){
+        const p=Math.min(1,(now-t0)/450);
+        top.setAttribute('transform', `rotate(${26*p} ${cx-s} ${cy-10}) translate(${5*p},${9*p})`);
+        top.style.opacity = 1-0.35*p;
+        if(p<1) raf(step);
+      }
+      raf(step);
+    });
+  } else if(type==='lock'){
+    const body = se('rect',{x:cx-14,y:cy-2,width:28,height:20,rx:3, stroke:color,'stroke-width':2, fill:'none'});
+    body.style.opacity=0; g.appendChild(body); fadeOnly(body,delay,300,1);
+    const shackle = se('path',{d:`M${cx-9},${cy-2} L${cx-9},${cy-12} A9,9 0 0 1 ${cx+9},${cy-12} L${cx+9},${cy-2}`, stroke:color,'stroke-width':2, fill:'none'});
+    g.appendChild(shackle); drawPath(shackle,350,delay+280);
+    addDot(2.4,0,8,720);
+  } else if(type==='search'){
+    const lens = se('circle',{cx:cx-4,cy:cy-4,r:11, stroke:color,'stroke-width':2, fill:'none'});
+    lens.style.opacity=0; g.appendChild(lens); fadeOnly(lens,delay,320,1);
+    addPath(`M${cx+4},${cy+4} L${cx+14},${cy+14}`,220,340);
+    after(delay+620, ()=>{
+      addPath(`M${cx-8},${cy-8} L${cx},${cy}`,180,0);
+      addPath(`M${cx},${cy-8} L${cx-8},${cy}`,180,90);
+    });
+  } else if(type==='pause'){
+    [-9,3].forEach((dx,i)=>{
+      const b = se('rect',{x:cx+dx,y:cy-12,width:6,height:24,rx:1.5, fill:color});
+      b.style.opacity=0; g.appendChild(b);
+      after(delay+i*160, ()=>{
+        const t0=performance.now();
+        function step(now){ const p=Math.min(1,(now-t0)/350); b.style.opacity=p; if(p<1) raf(step); }
+        raf(step);
+      });
+    });
+  } else if(type==='grid'){
+    const cells=[[-12,-12],[0,-12],[12,-12],[-12,0],[0,0],[12,0]];
+    cells.forEach((c,i)=>{
+      const on = i===2||i===4;
+      const r = se('rect',{x:cx+c[0]-5,y:cy+c[1]-5,width:10,height:10,rx:2, stroke:color,'stroke-width':1.6, fill: on?color:'none', 'fill-opacity': on?0.4:0});
+      r.style.opacity=0; g.appendChild(r);
+      after(delay+i*90, ()=>{
+        const t0=performance.now();
+        function step(now){ const p=Math.min(1,(now-t0)/260); r.style.opacity=p; if(p<1) raf(step); }
+        raf(step);
+      });
+    });
+  } else if(type==='swap'){
+    addPath(`M${cx-14},${cy-5} L${cx+8},${cy-5}`,240,0);
+    addPath(`M${cx+3},${cy-9} L${cx+8},${cy-5} L${cx+3},${cy-1}`,180,220);
+    addPath(`M${cx+14},${cy+5} L${cx-8},${cy+5}`,240,420);
+    addPath(`M${cx-3},${cy+1} L${cx-8},${cy+5} L${cx-3},${cy+9}`,180,640);
+  } else if(type==='fork'){
+    addPath(`M${cx},${cy-14} L${cx},${cy-2}`,220,0);
+    addPath(`M${cx},${cy-2} L${cx-12},${cy+14}`,280,280);
+    addPath(`M${cx},${cy-2} L${cx+12},${cy+14}`,280,280);
+    addDot(3,-12,16,680,'var(--statc)');
+    addDot(3,12,16,680,'var(--danger)');
+  } else if(type==='tuple'){
+    addPath(`M${cx-16},${cy-10} Q${cx-20},${cy} ${cx-16},${cy+10}`,300,0);
+    addDot(3,-4,0,340); addDot(3,4,0,440);
+    addPath(`M${cx+16},${cy-10} Q${cx+20},${cy} ${cx+16},${cy+10}`,300,560);
+  } else if(type==='loop'){
+    const arc = addPath(`M${cx-10},${cy-8} A12,12 0 1 1 ${cx-10.5},${cy+7.5}`,480,0);
+    addPath(`M${cx-16},${cy+2} L${cx-10.5},${cy+7.5} L${cx-4},${cy+3}`,220,480);
+  } else if(type==='breakcircuit'){
+    addPath(`M${cx-16},${cy} L${cx-4},${cy}`,180,0);
+    addPath(`M${cx+4},${cy} L${cx+16},${cy}`,180,480);
+    after(delay+240, ()=>{
+      addPath(`M${cx-4},${cy} L${cx},${cy-8}`,140,0);
+      addPath(`M${cx},${cy-8} L${cx+4},${cy}`,140,90);
+    });
+  } else if(type==='heartbeat'){
+    addPath(`M${cx-16},${cy} L${cx-6},${cy} L${cx-2},${cy-12} L${cx+2},${cy+12} L${cx+6},${cy} L${cx+16},${cy}`,600,0);
+  } else if(type==='eye'){
+    addPath(`M${cx-16},${cy} Q${cx},${cy-12} ${cx+16},${cy} Q${cx},${cy+12} ${cx-16},${cy} Z`,450,0);
+    addDot(4,0,0,520);
+  }
+  return g;
+}
+
+/* generate a pseudo hex address, stable per call site */
+function hexAddr(n){ return '0x' + n.toString(16).toUpperCase().padStart(6,'0'); }
+
+/* ---------- slide scaffolding ---------- */
+function setTitle(main, kicker){
+  zoneTitle.innerHTML='';
+  if(kicker) zoneTitle.appendChild(sectionKicker(kicker,80,58));
+  const t = txt(80, kicker?96:80, main, 'title-text');
+  zoneTitle.appendChild(t);
+  fadeUp(t,0,450,10);
+}
+function setCaption(str){
+  zoneCaption.innerHTML='';
+  if(!str) return;
+  const t = txt(80,838,str,'caption-text');
+  zoneCaption.appendChild(t);
+  fadeUp(t,50,450,8);
+}
+function clearMain(){ zoneMain.innerHTML=''; }
+
+/* generic "predict pause" helper: shows a question + click-to-reveal glow button,
+   then calls revealFn() which continues the timeline. Used for cliffhanger GAP slides
+   and true predict-before-you-see-it moments. */
+function predictGate(x,y,question,onReveal){
+  const g = se('g',{});
+  const w=1000;
+  const bg = box(x-40,y-45,w,110,'var(--dim)',{fill:'rgba(255,255,255,0.025)', 'stroke-dasharray':'4,4'});
+  g.appendChild(bg);
+  const qt = txt(x-20,y-6,'', 'label-24');
+  qt.style.fontStyle='italic';
+  g.appendChild(qt);
+  const words = question.split(' ');
+  // wrap manually
+  let line='', lines=[];
+  words.forEach(w2=>{ if((line+w2).length>62){lines.push(line);line=w2+' ';} else line+=w2+' '; });
+  lines.push(line);
+  lines.forEach((ln,i)=>tspanLine(qt, x-20, i===0?0:26, ln.trim()));
+  qt.setAttribute('y', y - 8 - (lines.length-1)*13);
+
+  const btn = se('g',{class:'clickable'});
+  const bw=190,bh=42;
+  const bx = x-20, by = y+34;
+  btn.appendChild(box(bx,by,bw,bh,'var(--ptr)',{fill:'rgba(178,143,209,0.10)', rx:21}));
+  btn.appendChild(txt(bx+bw/2, by+27, 'Click to reveal &#9656;', 'label-14', {'text-anchor':'middle', fill:'#d8c8ea'}));
+  btn.lastChild.textContent = 'Click to reveal ▸';
+  g.appendChild(btn);
+  fadeUp(g,0,500,10);
+  btn.addEventListener('click', ()=>{
+    btn.style.pointerEvents='none';
+    fadeOnly(btn,0,300,0);
+    onReveal();
+  });
+  return g;
+}
+
+/* ================================================================
+   SLIDE DEFINITIONS (combined: Memory & Low-Level, then Error Handling)
+   ================================================================ */
+const slides = [];
+
+/* 0 ---------------- TITLE ---------------- */
+slides.push({
+  kicker:'A Feynman-style walkthrough',
+  title:'Memory & Low-Level Concepts',
+  caption:'How your program actually lives inside a computer.',
+  build(main){
+    const cx=800, cy=430;
+    const ring = se('circle',{cx,cy,r:4,fill:'none',stroke:'var(--stack)','stroke-width':2});
+    main.appendChild(ring);
+    tweenAttrs(ring,{r:170},1400,200,easeOutCubic);
+    ring.style.opacity=0.55;
+    const chip = box(cx-90,cy-55,180,110,'var(--ptr)',{rx:10});
+    main.appendChild(chip);
+    fadeUp(chip,500,600,20);
+    const lbl = txt(cx,cy-10,'CPU', 'title-text',{'text-anchor':'middle'});
+    main.appendChild(lbl); fadeUp(lbl,700,500,10);
+    const lbl2 = txt(cx,cy+28,'reading & writing bytes','sub-text',{'text-anchor':'middle'});
+    main.appendChild(lbl2); fadeUp(lbl2,850,500,10);
+    const dots=[[-330,-140,'var(--stack)','stack'],[330,-140,'var(--heap)','heap'],[-330,150,'var(--statc)','static'],[330,150,'var(--danger)','pitfalls']];
+    dots.forEach(([dx,dy,c,name],i)=>{
+      const px=cx+dx, py=cy+dy;
+      const d = se('circle',{cx:px,cy:py,r:8,fill:c});
+      main.appendChild(d); fadeUp(d,1000+i*120,400,10);
+      const t = txt(px, py + (dy<0?-20:32), name, 'label-18',{'text-anchor':'middle'});
+      main.appendChild(t); fadeUp(t,1050+i*120,400,8);
+      const ln = arrow(cx+dx*0.28, cy+dy*0.28, px-Math.sign(dx)*16, py, c, {sw:1.4});
+      main.appendChild(ln); ln.style.opacity=0; fadeOnly(ln,1000+i*120,400,0.6);
+    });
+  }
+});
+
+/* 1 ---------------- HOOK ---------------- */
+slides.push({
+  kicker:'The question everything starts from',
+  title:'Where does a variable actually live?',
+  caption:'Not a metaphor — a real address in physical RAM.',
+  build(main){
+    const t1 = txt(120,260,'int x = 5;','label-24 mono',{fill:'var(--text)'});
+    main.appendChild(t1); fadeUp(t1,100,500,14);
+    const box1 = box(120,300,220,90,'var(--dim)',{fill:'rgba(255,255,255,0.03)'});
+    main.appendChild(box1); fadeUp(box1,500,500,14);
+    const q = txt(230,352,'?','title-text',{'text-anchor':'middle', fill:'var(--muted)'});
+    main.appendChild(q); fadeUp(q,700,500,10);
+    // three candidate regions
+    const regions=[
+      {x:900,y:190,w:280,h:140,c:'var(--stack)',label:'Stack',sub:'fast, automatic'},
+      {x:900,y:360,w:280,h:140,c:'var(--heap)',label:'Heap',sub:'flexible, manual'},
+      {x:900,y:530,w:280,h:140,c:'var(--statc)',label:'Static / Global',sub:'fixed for life of program'},
+    ];
+    const regionEls=[];
+    regions.forEach((r,i)=>{
+      const g = labeledBox(r.x,r.y,r.w,r.h,r.c,r.label,r.sub);
+      main.appendChild(g); fadeUp(g,900+i*180,500,16); regionEls.push(g);
+    });
+    /* a small traveling probe visits each candidate in turn, showing that
+       the SAME variable declaration could genuinely land in any of them */
+    const probe = se('circle',{cx:230,cy:345,r:8,fill:'var(--ptr)'});
+    probe.style.opacity=0;
+    main.appendChild(probe);
+    after(1600, ()=>{
+      fadeOnly(probe,0,300,1);
+      const targets = regions.map(r=>[r.x+40, r.y+r.h/2]);
+      let t=200;
+      targets.forEach((pt,i)=>{
+        tweenAttrs(probe,{cx:pt[0],cy:pt[1]},500,t,easeInOutCubic, ()=>{
+          pulse(regionEls[i].querySelector('rect'),0,1);
+        });
+        t+=650;
+      });
+      after(t+200, ()=> fadeOnly(probe,0,300,0));
+    });
+    const brace = txt(650,430,'depends on\nhow it was declared','label-18',{'text-anchor':'middle', fill:'var(--muted)'});
+    // manual line wrap
+    brace.textContent='';
+    tspanLine(brace,650,0,'depends on how');
+    tspanLine(brace,650,24,'it was declared');
+    main.appendChild(brace); fadeUp(brace,3300,500,10);
+  }
+});
+
+/* 2 ---------------- STACK MEMORY ---------------- */
+slides.push({
+  kicker:'Region 1 of 3',
+  title:'Stack Memory',
+  caption:'Last-In-First-Out. Each function call pushes a new frame; returning pops it.',
+  build(main){
+    const baseX=1150, baseY=730, w=300, frameH=70;
+    const label = txt(baseX+w/2, baseY-frameH*4-70, 'call stack', 'label-14',{'text-anchor':'middle', fill:'var(--muted)'});
+    main.appendChild(label); fadeUp(label,100,400,8);
+    const arrowDown = txt(baseX+w/2, baseY-frameH*4-46,'grows downward on push ▾','label-14',{'text-anchor':'middle',fill:'var(--stack)'});
+    main.appendChild(arrowDown); fadeUp(arrowDown,200,400,8);
+
+    const code = [
+      'main() {',
+      '  greet();',
+      '}',
+      'greet() {',
+      '  build();',
+      '}',
+      'build() { ... }'
+    ];
+    const codeG = se('g',{});
+    code.forEach((ln,i)=> codeG.appendChild(txt(110,220+i*30,ln,'label-18 mono')));
+    main.appendChild(codeG); fadeUp(codeG,100,500,14);
+
+    const frames = [
+      {name:'main()', local:'(no locals)'},
+      {name:'greet()', local:'msg'},
+      {name:'build()', local:'buf'}
+    ];
+    const frameEls=[];
+    function pushFrame(i, delay){
+      const y = baseY - (i+1)*frameH;
+      const g = labeledBox(baseX, y+900, w, frameH-8, 'var(--stack)', frames[i].name, 'local: '+frames[i].local, {fill:'rgba(111,155,214,0.08)'});
+      main.appendChild(g);
+      frameEls.push(g);
+      moveGroup(g,0,0,0,y-900,500,delay,easeOutCubic);
+      fadeOnly(g,delay,300,1);
+    }
+    pushFrame(0,600);
+    pushFrame(1,1250);
+    pushFrame(2,1900);
+
+    function popFrame(i,delay){
+      after(delay, ()=>{
+        const g = frameEls[i];
+        tweenAttrs(g,{},1,0); // no-op to keep pattern
+        const t0=performance.now();
+        function step(now){
+          const p=Math.min(1,(now-t0)/450);
+          g.style.opacity = 1-p;
+          const cur = g.getAttribute('transform')||'translate(0,0)';
+          if(p<1) raf(step); else g.remove();
+        }
+        raf(step);
+        const arrowUp = txt(baseX+w+40, baseY-(i+1)*frameH+40, 'pop ▴ returns', 'label-14',{fill:'var(--stack)'});
+        main.appendChild(arrowUp); fadeOnly(arrowUp,0,300,0.9);
+        after(600,()=>fadeOnly(arrowUp,0,300,0));
+      });
+    }
+    popFrame(2,2700);
+    popFrame(1,3300);
+
+    const note = txt(110, 470, '', 'label-18');
+    tspanLine(note,110,0,'Each frame holds that function\u2019s');
+    tspanLine(note,110,26,'local variables & return address.');
+    tspanLine(note,110,52,'Size is known at compile time —');
+    tspanLine(note,110,78,'that\u2019s why push/pop is a single');
+    tspanLine(note,110,104,'pointer move: extremely fast.');
+    main.appendChild(note); fadeUp(note,3600,600,14);
+  }
+});
+
+/* 3 ---------------- HEAP MEMORY ---------------- */
+slides.push({
+  kicker:'Region 2 of 3',
+  title:'Heap Memory',
+  caption:'A large pool for data whose size or lifetime isn\u2019t known until runtime.',
+  build(main){
+    const poolX=850,poolY=200,poolW=600,poolH=430;
+    main.appendChild(box(poolX,poolY,poolW,poolH,'var(--heap)',{fill:'rgba(214,154,99,0.05)'}));
+    const lbl = txt(poolX+poolW/2, poolY-14, 'heap (unordered, addressable pool)', 'label-14',{'text-anchor':'middle',fill:'var(--muted)'});
+    main.appendChild(lbl); fadeUp(lbl,100,400,8);
+
+    const code = ['node1 = allocate(48)','node2 = allocate(32)','node3 = allocate(64)'];
+    const codeG = se('g',{});
+    code.forEach((ln,i)=> codeG.appendChild(txt(110,240+i*46,ln,'label-18 mono')));
+    main.appendChild(codeG); fadeUp(codeG,100,500,14);
+
+    const blocks=[
+      {x:poolX+40,y:poolY+40,w:150,h:70,label:'node1',addr:hexAddr(0x7f2c10)},
+      {x:poolX+260,y:poolY+150,w:120,h:60,label:'node2',addr:hexAddr(0x7f2c60)},
+      {x:poolX+420,y:poolY+280,w:170,h:80,label:'node3',addr:hexAddr(0x7f2cb0)},
+    ];
+    blocks.forEach((b,i)=>{
+      const g = labeledBox(b.x,b.y,b.w,b.h,'var(--heap)', b.label, b.addr, {fill:'rgba(214,154,99,0.14)'});
+      g.style.opacity=0; g.setAttribute('transform','scale(0.6)');
+      g.style.transformOrigin=`${b.x+b.w/2}px ${b.y+b.h/2}px`;
+      main.appendChild(g);
+      after(700+i*450, ()=>{
+        const t0=performance.now();
+        function step(now){
+          const p=Math.min(1,(now-t0)/450), e=easeOutCubic(p);
+          g.style.opacity=e; g.setAttribute('transform',`scale(${0.6+0.4*e})`);
+          if(p<1) raf(step);
+        }
+        raf(step);
+      });
+      const ptrArrow = arrow(110+240, 240+i*46-6, b.x+b.w/2, b.y+b.h, 'var(--ptr)',{sw:1.6});
+      main.appendChild(ptrArrow);
+      drawPath(ptrArrow, 400, 900+i*450);
+    });
+
+    const nt = txt(110,470,'','label-18');
+    tspanLine(nt,110,0,'Blocks land at whatever free');
+    tspanLine(nt,110,26,'address the allocator finds.');
+    tspanLine(nt,110,52,'You get back a pointer, not the');
+    tspanLine(nt,110,78,'data itself — flexible, but YOU');
+    tspanLine(nt,110,104,'must free it later (or a GC must).');
+    main.appendChild(nt); fadeUp(nt,2200,600,14);
+  }
+});
+
+/* 4 ---------------- STATIC MEMORY ---------------- */
+slides.push({
+  kicker:'Region 3 of 3',
+  title:'Static / Global Memory',
+  caption:'Allocated once when the program loads; lives until the program exits.',
+  build(main){
+    const x=900,y=220,w=520,h=280;
+    main.appendChild(box(x,y,w,h,'var(--statc)',{fill:'rgba(111,191,139,0.06)'}));
+    const lbl = txt(x+w/2,y-14,'data / bss segment','label-14',{'text-anchor':'middle',fill:'var(--muted)'});
+    main.appendChild(lbl); fadeUp(lbl,100,400,8);
+
+    const code=['static int total = 0;','const char* NAME = "app";','counter++;  // persists','counter++;  // across calls'];
+    const cg=se('g',{});
+    code.forEach((ln,i)=>cg.appendChild(txt(110,240+i*34,ln,'label-18 mono')));
+    main.appendChild(cg); fadeUp(cg,100,500,14);
+
+    const rows=[{label:'total',val:'0'},{label:'NAME',val:'"app"'}];
+    rows.forEach((r,i)=>{
+      const g = labeledBox(x+40+i*250,y+60,220,90,'var(--statc)',r.label,r.val,{fill:'rgba(111,191,139,0.12)'});
+      main.appendChild(g); fadeUp(g,700+i*350,500,14);
+    });
+
+    const counterBox = labeledBox(x+140,y+180,240,80,'var(--statc)','counter','0',{fill:'rgba(111,191,139,0.12)'});
+    main.appendChild(counterBox); fadeUp(counterBox,1500,500,14);
+    const valEl = counterBox.querySelector('text.label-18');
+    let n=0;
+    function bump(delay){
+      after(delay,()=>{ n++; valEl.textContent=String(n); pulse(counterBox.querySelector('rect'),0,1);});
+    }
+    bump(2100); bump(2500);
+
+    const note=txt(110,470,'','label-18');
+    tspanLine(note,110,0,'Fixed address, fixed size, known');
+    tspanLine(note,110,26,'at compile time. No push/pop, no');
+    tspanLine(note,110,52,'malloc/free — the OS reserves it');
+    tspanLine(note,110,78,'once and it just sits there.');
+    main.appendChild(note); fadeUp(note,2900,600,14);
+  }
+});
+
+/* 5 ---------------- RECAP TABLE ---------------- */
+slides.push({
+  kicker:'RECAP',
+  title:'Three regions, three trade-offs',
+  caption:'So far: memory is not one place — it\u2019s three, chosen for you by how you declare a variable.',
+  build(main){
+    const cols=['','Stack','Heap','Static'];
+    const rows=[
+      ['Lifetime','function call','you decide','whole program'],
+      ['Size known?','compile time','runtime','compile time'],
+      ['Speed','fastest','slower (search)','fast (one-time)'],
+      ['Managed by','CPU (push/pop)','you / GC','loader'],
+    ];
+    const colColors=['','var(--stack)','var(--heap)','var(--statc)'];
+    const x0=140, y0=210, colW=[260,340,340,340], rowH=90;
+    let x=x0;
+    const xs=[x0]; colW.forEach(w=>{x+=w; xs.push(x);});
+    cols.forEach((c,i)=>{
+      if(!c) return;
+      const t = txt(xs[i]+colW[i]/2, y0-24, c, 'label-24',{'text-anchor':'middle', fill:colColors[i]});
+      main.appendChild(t); fadeUp(t,100+i*100,400,10);
+      const underline = se('path',{d:`M${xs[i]+colW[i]/2-24},${y0-6} L${xs[i]+colW[i]/2+24},${y0-6}`, stroke:colColors[i], 'stroke-width':2, fill:'none'});
+      main.appendChild(underline); drawPath(underline,300,300+i*100);
+    });
+    rows.forEach((r,ri)=>{
+      r.forEach((cell,ci)=>{
+        const cy = y0+30+ri*rowH;
+        if(ci===0){
+          const t=txt(x0-10, cy+6, cell,'label-18',{'text-anchor':'end', fill:'var(--muted)'});
+          main.appendChild(t); fadeUp(t,500+ri*160,400,10);
+        } else {
+          const t=txt(xs[ci]+colW[ci]/2, cy+6, cell,'label-18',{'text-anchor':'middle'});
+          main.appendChild(t); fadeUp(t,560+ri*160+ci*40,400,10);
+        }
+      });
+      const sepY = y0+30+ri*rowH+24;
+      const sep = se('path',{d:`M${x0-10},${sepY} L${x0+colW.reduce((a,b)=>a+b,0)-24},${sepY}`, stroke:'var(--grid)','stroke-width':1, fill:'none'});
+      main.appendChild(sep); drawPath(sep,300,1150+ri*160);
+    });
+
+    /* a highlight sweeps across the three columns, one region at a time */
+    const tableBottom = y0+30+rows.length*rowH-6;
+    after(2500, ()=>{
+      const sweep = box(xs[1], y0-34, colW[1], tableBottom-(y0-34), 'var(--stack)', {fill:'rgba(255,255,255,0.04)', rx:8});
+      sweep.style.opacity=0;
+      main.insertBefore(sweep, main.firstChild);
+      fadeOnly(sweep,0,300,1);
+      [1,2,3].forEach((ci,i)=>{
+        tweenAttrs(sweep,{x: xs[ci], width: colW[ci]}, 400, i*500, easeInOutCubic, ()=>{
+          sweep.setAttribute('stroke', colColors[ci]);
+          sweep.setAttribute('stroke-width', 1.6);
+        });
+      });
+      after(3*500+500, ()=> fadeOnly(sweep,0,400,0));
+    });
+  }
+});
+
+/* 6 ---------------- GAP -> pointers ---------------- */
+slides.push({
+  kicker:'GAP',
+  title:'But how do we refer to memory\u2026',
+  caption:'…without copying the whole thing every time we pass it around?',
+  build(main){
+    const g = predictGate(800,420,
+      'We can create data in the heap — but functions need to SHARE it without duplicating it. How do we refer to a location instead of the data itself?',
+      ()=>{ after(50, ()=> gotoSlide(cur+1)); });
+    main.appendChild(g);
+  }
+});
+
+/* 7 ---------------- POINTERS & ADDRESSES ---------------- */
+slides.push({
+  kicker:'The answer: an address',
+  title:'Pointers & Addresses',
+  caption:'A pointer is just a number: the address of a byte in memory.',
+  build(main){
+    const memX=850, memY=260, cellW=90, cellH=70, n=5;
+    for(let i=0;i<n;i++){
+      const b = box(memX+i*cellW, memY, cellW-6, cellH, 'var(--dim)', {fill:'rgba(255,255,255,0.03)'});
+      main.appendChild(b); fadeUp(b,100+i*70,400,10);
+      main.appendChild(addrTag(memX+i*cellW+6, memY-10, hexAddr(0x1000+i*4)));
+    }
+    const valCell = 2;
+    const valBox = box(memX+valCell*cellW, memY, cellW-6, cellH, 'var(--heap)', {fill:'rgba(214,154,99,0.18)'});
+    main.appendChild(valBox); fadeUp(valBox,500,400,10);
+    const valTxt = txt(memX+valCell*cellW+(cellW-6)/2, memY+cellH/2+7,'42','label-24',{'text-anchor':'middle'});
+    main.appendChild(valTxt); fadeUp(valTxt,650,400,8);
+    main.appendChild(txt(memX+valCell*cellW+(cellW-6)/2, memY+cellH+20,'x','label-14',{'text-anchor':'middle',fill:'var(--muted)'}));
+
+    const ptrCell = 4;
+    const ptrBox = box(memX+ptrCell*cellW, memY, cellW-6, cellH, 'var(--ptr)', {fill:'rgba(178,143,209,0.18)'});
+    main.appendChild(ptrBox); fadeUp(ptrBox,1000,400,10);
+    const ptrTxt = txt(memX+ptrCell*cellW+(cellW-6)/2, memY+cellH/2+7, hexAddr(0x1000+valCell*4), 'label-14 mono',{'text-anchor':'middle'});
+    main.appendChild(ptrTxt); fadeUp(ptrTxt,1150,400,8);
+    main.appendChild(txt(memX+ptrCell*cellW+(cellW-6)/2, memY+cellH+20,'p = &x','label-14',{'text-anchor':'middle',fill:'var(--muted)'}));
+
+    const arr = curveArrow(memX+ptrCell*cellW+42, memY-16, memX+valCell*cellW+42, memY-16, 60, 'var(--ptr)');
+    main.appendChild(arr); arr.style.opacity=0; drawPath(arr,700,1600); fadeOnly(arr,1600,50,1);
+
+    const code = ['int x = 42;','int* p = &x;   // address-of','','p    holds:  ', 'p ->        :  42'];
+    const cg=se('g',{});
+    cg.appendChild(txt(110,240,'int x = 42;','label-24 mono'));
+    cg.appendChild(txt(110,290,'int* p = &x;','label-24 mono',{fill:'var(--ptr)'}));
+    main.appendChild(cg); fadeUp(cg,100,500,14);
+
+    const note=txt(110,470,'','label-18');
+    tspanLine(note,110,0,'p does not store 42. It stores');
+    tspanLine(note,110,26,'the ADDRESS where 42 lives.');
+    tspanLine(note,110,52,'Any function holding p can reach');
+    tspanLine(note,110,78,'the same x — no copy needed.');
+    main.appendChild(note); fadeUp(note,2000,600,14);
+  }
+});
+
+/* 8 ---------------- DEREFERENCING ---------------- */
+slides.push({
+  kicker:'Following the arrow',
+  title:'Dereferencing',
+  caption:'*p means: go to the address p holds, and read (or write) what\u2019s there.',
+  build(main){
+    const px=300,py=300, vx=900,vy=300, w=170,h=90;
+    const pBox = labeledBox(px,py,w,h,'var(--ptr)','p','0x1008',{fill:'rgba(178,143,209,0.14)'});
+    main.appendChild(pBox); fadeUp(pBox,100,500,14);
+    const vBox = labeledBox(vx,py,w,h,'var(--heap)','*p','?',{fill:'rgba(214,154,99,0.14)'});
+    main.appendChild(vBox); fadeUp(vBox,300,500,14);
+
+    const arr = arrow(px+w+10,py+h/2, vx-10, py+h/2, 'var(--ptr)');
+    main.appendChild(arr); arr.style.opacity=0; drawPath(arr,700,900);
+    const followLabel = txt((px+w+vx)/2, py-24, 'follow the address', 'label-14',{'text-anchor':'middle',fill:'var(--ptr)'});
+    main.appendChild(followLabel); fadeUp(followLabel,1000,400,8);
+
+    after(1900, ()=>{
+      const valTxt = vBox.querySelectorAll('text')[0];
+      valTxt.textContent='42';
+      pulse(vBox.querySelector('rect'),0,2);
+    });
+
+    const code = se('g',{});
+    code.appendChild(txt(110,500,'*p = 42;','label-24 mono'));
+    code.appendChild(txt(110,540,'int y = *p;   // y == 42','label-18 mono',{fill:'var(--muted)'}));
+    main.appendChild(code); fadeUp(code,2300,600,14);
+
+    const note=txt(110,620,'','label-18');
+    tspanLine(note,110,0,'Read *p  \u2192 fetch the value at that address.');
+    tspanLine(note,110,26,'Write *p = v \u2192 store v at that address.');
+    tspanLine(note,110,52,'Same address, two directions of travel.');
+    main.appendChild(note); fadeUp(note,2700,600,14);
+  }
+});
+
+/* 9 ---------------- REFERENCES vs POINTERS ---------------- */
+slides.push({
+  kicker:'A safer cousin',
+  title:'References vs Pointers',
+  caption:'A reference is an alias for the same memory — with guardrails a raw pointer doesn\u2019t have.',
+  build(main){
+    const leftX=180, rightX=880, y=210, w=520, h=520;
+    main.appendChild(labeledBoxHeader(leftX,y,w,h,'var(--ptr)','Pointer'));
+    main.appendChild(labeledBoxHeader(rightX,y,w,h,'var(--stack)','Reference'));
+    function labeledBoxHeader(x,y,w,h,c,label){
+      const g=se('g',{});
+      g.appendChild(box(x,y,w,h,c,{fill:'rgba(255,255,255,0.02)'}));
+      g.appendChild(txt(x+w/2,y+40,label,'label-24',{'text-anchor':'middle', fill:c}));
+      g.appendChild(se('line',{x1:x+30,y1:y+58,x2:x+w-30,y2:y+58,stroke:c,'stroke-width':1.4}));
+      return g;
+    }
+    const ptrPoints=['can be reassigned to point elsewhere','can be null','supports arithmetic (p+1)','explicit * and & syntax'];
+    const refPoints=['bound once, aliases forever','cannot be null (by design)','no arithmetic — just another name','used like the variable itself'];
+    ptrPoints.forEach((p,i)=>{
+      const t=txt(leftX+30,y+100+i*70,'','label-18');
+      wrapText(t,p,leftX+30,25,3);
+      main.appendChild(t); fadeUp(t,300+i*180,400,10);
+    });
+    refPoints.forEach((p,i)=>{
+      const t=txt(rightX+30,y+100+i*70,'','label-18');
+      wrapText(t,p,rightX+30,25,3);
+      main.appendChild(t); fadeUp(t,500+i*180,400,10);
+    });
+    function wrapText(el,str,x,lh,maxWords){
+      const words=str.split(' ');
+      let line='',lines=[];
+      words.forEach(w=>{ if((line+w).length>26){lines.push(line);line=w+' ';} else line+=w+' ';});
+      lines.push(line);
+      lines.forEach((l,i)=>tspanLine(el,x,i===0?0:lh,l.trim()));
+    }
+
+    /* small live demo under each panel: the pointer visibly gets reassigned,
+       the reference visibly cannot */
+    after(1700, ()=>{
+      const capL = txt(leftX+30,650,'p = &x;','label-14 mono',{fill:'var(--muted)'});
+      main.appendChild(capL); fadeUp(capL,0,350,8);
+      const pBox = labeledBox(leftX+30,668,110,50,'var(--ptr)','p','',{fill:'rgba(178,143,209,0.14)'});
+      const xBox = labeledBox(leftX+220,668,110,50,'var(--stack)','x','',{fill:'rgba(111,155,214,0.14)'});
+      main.appendChild(pBox); main.appendChild(xBox);
+      fadeUp(pBox,150,350,10); fadeUp(xBox,150,350,10);
+      const arr1 = arrow(leftX+140,693,leftX+220,693,'var(--ptr)');
+      main.appendChild(arr1); arr1.style.opacity=0; drawPath(arr1,300,500);
+
+      after(1300, ()=>{
+        capL.textContent='p = &y;   \u2014 pointer moved';
+        const yBox = labeledBox(leftX+390,668,110,50,'var(--heap)','y','',{fill:'rgba(214,154,99,0.14)'});
+        main.appendChild(yBox); fadeUp(yBox,0,300,10);
+        const t0=performance.now();
+        function step(now){ const p=Math.min(1,(now-t0)/350); arr1.style.opacity=1-p; if(p<1) raf(step); }
+        raf(step);
+        const arr2 = arrow(leftX+140,693,leftX+390,693,'var(--ptr)');
+        main.appendChild(arr2); arr2.style.opacity=0; drawPath(arr2,300,150);
+      });
+    });
+
+    after(1700, ()=>{
+      const capR = txt(rightX+30,650,'ref = x;','label-14 mono',{fill:'var(--muted)'});
+      main.appendChild(capR); fadeUp(capR,0,350,8);
+      const refBox = labeledBox(rightX+30,668,110,50,'var(--stack)','ref','',{fill:'rgba(111,155,214,0.14)'});
+      const xBox2 = labeledBox(rightX+220,668,110,50,'var(--stack)','x','',{fill:'rgba(111,155,214,0.14)'});
+      main.appendChild(refBox); main.appendChild(xBox2);
+      fadeUp(refBox,150,350,10); fadeUp(xBox2,150,350,10);
+      const arr3 = arrow(rightX+140,693,rightX+220,693,'var(--stack)');
+      main.appendChild(arr3); arr3.style.opacity=0; drawPath(arr3,300,500);
+
+      after(1300, ()=>{
+        const errTxt = txt(rightX+390,693,'ref = z;  \u2716 rejected','label-14 mono',{fill:'var(--danger)'});
+        main.appendChild(errTxt); fadeOnly(errTxt,0,300,1);
+        pulse(refBox.querySelector('rect'),100,2);
+        after(1400, ()=> fadeOnly(errTxt,0,300,0));
+      });
+    });
+  }
+});
+
+/* 10 ---------------- PASS BY VALUE / REFERENCE / OBJECT ---------------- */
+slides.push({
+  kicker:'Where this actually matters',
+  title:'Pass by Value, Reference, Object Reference',
+  caption:'What crosses the function boundary: a copy of data, an alias to it, or a copy of an address.',
+  build(main){
+    const panels=[
+      {x:100,w:440,c:'var(--stack)',title:'by value',code:['f(x)','copies 5 ->','callee\u2019s own 5'],desc:'changes inside f do NOT affect caller\u2019s x'},
+      {x:580,w:440,c:'var(--ptr)',title:'by reference',code:['f(&x) / f(ref x)','same address ->','one shared 5'],desc:'changes inside f DO affect caller\u2019s x'},
+      {x:1060,w:440,c:'var(--heap)',title:'by object reference',code:['f(obj)','copies the pointer ->','both point to 1 object'],desc:'mutating obj\u2019s fields is shared; reassigning obj inside f is not'},
+    ];
+    panels.forEach((p,pi)=>{
+      const y=190, h=520;
+      main.appendChild(box(p.x,y,p.w,h,p.c,{fill:'rgba(255,255,255,0.02)'}));
+      const ttl = txt(p.x+p.w/2,y+40,p.title,'label-24',{'text-anchor':'middle',fill:p.c});
+      main.appendChild(ttl); fadeUp(ttl,150+pi*250,400,10);
+      const callerBox = labeledBox(p.x+40,y+80,p.w-80,70,p.c,'caller: x','5',{fill:'rgba(255,255,255,0.04)'});
+      main.appendChild(callerBox); fadeUp(callerBox,300+pi*250,400,10);
+      const calleeBox = labeledBox(p.x+40,y+220,p.w-80,70,p.c,'callee param','?',{fill:'rgba(255,255,255,0.04)'});
+      main.appendChild(calleeBox); fadeUp(calleeBox,600+pi*250,400,10);
+      const arr = arrow(p.x+p.w/2, y+150, p.x+p.w/2, y+215, p.c);
+      main.appendChild(arr); arr.style.opacity=0; drawPath(arr,400,850+pi*250);
+      after(1300+pi*250, ()=>{
+        const valEl = calleeBox.querySelectorAll('text')[1];
+        if(pi===0) valEl.textContent='5 (copy)';
+        if(pi===1) valEl.textContent='5 (same box)';
+        if(pi===2) valEl.textContent='same address';
+        pulse(calleeBox.querySelector('rect'),0,1);
+      });
+      const dt = txt(p.x+40, y+340, '', 'label-14',{fill:'var(--muted)'});
+      const words=p.desc.split(' '); let line='',lines=[];
+      words.forEach(w=>{ if((line+w).length>34){lines.push(line);line=w+' ';} else line+=w+' ';});
+      lines.push(line);
+      lines.forEach((l,i)=>tspanLine(dt,p.x+40,i===0?0:20,l.trim()));
+      main.appendChild(dt); fadeUp(dt,1600+pi*250,500,10);
+    });
+  }
+});
+
+/* 11 ---------------- GAP -> problems ---------------- */
+slides.push({
+  kicker:'GAP',
+  title:'Manual control is powerful\u2026',
+  caption:'…but every allocate() needs a matching free(). What happens when we get that wrong?',
+  build(main){
+    main.appendChild(predictGate(800,420,
+      'We can allocate heap memory freely — but nothing forces us to free it, or stops us from freeing it twice. What could possibly go wrong?',
+      ()=>{ after(50, ()=> gotoSlide(cur+1)); }));
+  }
+});
+
+/* 12 ---------------- MEMORY LEAKS ---------------- */
+slides.push({
+  kicker:'Pitfall 1',
+  title:'Memory Leaks',
+  caption:'Allocated memory that nothing points to anymore — but was never freed.',
+  build(main){
+    const poolX=700,poolY=190,poolW=760,poolH=440;
+    main.appendChild(box(poolX,poolY,poolW,poolH,'var(--heap)',{fill:'rgba(214,154,99,0.04)'}));
+    const cap = txt(poolX+poolW/2,poolY-14,'heap usage over time','label-14',{'text-anchor':'middle',fill:'var(--muted)'});
+    main.appendChild(cap); fadeUp(cap,100,400,8);
+
+    const code=se('g',{});
+    code.appendChild(txt(110,230,'while (running) {','label-18 mono'));
+    code.appendChild(txt(110,264,'  data = allocate(1MB);','label-18 mono',{fill:'var(--danger)'}));
+    code.appendChild(txt(110,298,'  process(data);','label-18 mono'));
+    code.appendChild(txt(110,332,'  // forgot: free(data)','label-14 mono',{fill:'var(--muted)'}));
+    code.appendChild(txt(110,366,'}','label-18 mono'));
+    main.appendChild(code); fadeUp(code,100,500,14);
+
+    const n=7;
+    const blockPositions=[];
+    for(let i=0;i<n;i++){
+      blockPositions.push({x:poolX+30+(i%4)*180, y:poolY+30+Math.floor(i/4)*160});
+    }
+    function spawnBlock(i,delay){
+      after(delay,()=>{
+        const p=blockPositions[i];
+        const g = box(p.x,p.y,150,120,'var(--heap)',{fill:'rgba(214,154,99,0.16)'});
+        g.style.opacity=0; main.appendChild(g);
+        fadeOnly(g,0,300,1);
+        main.appendChild((()=>{const t=txt(p.x+75,p.y+65,'1MB\nunreachable','label-14',{'text-anchor':'middle'}); return t;})());
+        const lastTxt = zoneMain.lastChild;
+        lastTxt.textContent='';
+        tspanLine(lastTxt,p.x+75,0,'1MB');
+        tspanLine(lastTxt,p.x+75,18,'stuck');
+        lastTxt.setAttribute('text-anchor','middle');
+        fadeOnly(lastTxt,0,300,1);
+      });
+    }
+    for(let i=0;i<n;i++) spawnBlock(i, 700+i*380);
+
+    const warn = txt(poolX+poolW/2, poolY+poolH+40,'','label-18',{'text-anchor':'middle', fill:'var(--danger)'});
+    main.appendChild(warn);
+    after(700+n*380+300, ()=>{
+      warn.textContent = 'RSS keeps climbing — eventually: out of memory';
+      fadeOnly(warn,0,400,1);
+    });
+  }
+});
+
+/* 13 ---------------- DANGLING POINTERS ---------------- */
+slides.push({
+  kicker:'Pitfall 2',
+  title:'Dangling Pointers',
+  caption:'A pointer that still holds an address whose memory has already been freed.',
+  build(main){
+    const px=300,py=300,w=170,h=90;
+    const vx=900;
+    const pBox = labeledBox(px,py,w,h,'var(--ptr)','p','0x2000',{fill:'rgba(178,143,209,0.14)'});
+    main.appendChild(pBox); fadeUp(pBox,100,500,14);
+    const vBox = labeledBox(vx,py,w,h,'var(--heap)','*p','"data"',{fill:'rgba(214,154,99,0.14)'});
+    main.appendChild(vBox); fadeUp(vBox,300,500,14);
+    const arr = arrow(px+w+10,py+h/2, vx-10, py+h/2, 'var(--ptr)');
+    main.appendChild(arr); arr.style.opacity=0; drawPath(arr,600,700);
+
+    const code = se('g',{});
+    code.appendChild(txt(110,470,'free(p);','label-24 mono',{fill:'var(--danger)'}));
+    main.appendChild(code); fadeUp(code,1500,500,14);
+
+    after(2000, ()=>{
+      // memory freed - box turns to void
+      const rect = vBox.querySelector('rect');
+      rect.setAttribute('stroke','var(--danger)');
+      rect.setAttribute('fill','rgba(209,112,111,0.10)');
+      vBox.querySelectorAll('text')[0].textContent='freed';
+      vBox.querySelectorAll('text')[1].textContent='(reused by OS?)';
+      pulse(rect,0,2);
+      arr.setAttribute('stroke','var(--danger)');
+    });
+
+    after(2800, ()=>{
+      const code2 = txt(110,520,'*p = "oops";  // use-after-free','label-24 mono',{fill:'var(--danger)'});
+      main.appendChild(code2); fadeUp(code2,0,400,10);
+    });
+
+    const note = txt(110,600,'','label-18');
+    tspanLine(note,110,0,'p still holds 0x2000 — nobody');
+    tspanLine(note,110,26,'erased the pointer. Writing');
+    tspanLine(note,110,52,'through it now corrupts whatever');
+    tspanLine(note,110,78,'the allocator gave that address next.');
+    main.appendChild(note); fadeUp(note,3300,600,14);
+  }
+});
+
+/* 14 ---------------- FRAGMENTATION ---------------- */
+slides.push({
+  kicker:'Pitfall 3',
+  title:'Fragmentation',
+  caption:'Plenty of free memory in total — but no single free chunk big enough.',
+  build(main){
+    const poolX=200,poolY=250,poolW=1200,poolH=100;
+    main.appendChild(box(poolX,poolY,poolW,poolH,'var(--dim)',{fill:'rgba(255,255,255,0.02)'}));
+    const segs=[
+      {w:150,used:true},{w:60,used:false},{w:200,used:true},{w:50,used:false},
+      {w:180,used:true},{w:70,used:false},{w:220,used:true},{w:60,used:false},
+      {w:150,used:true},{w:60,used:false}
+    ];
+    let x=poolX;
+    const freeSlots=[];
+    segs.forEach((s,i)=>{
+      const c = s.used?'var(--heap)':'var(--statc)';
+      const g = box(x,poolY,s.w-4,poolH,c,{fill: s.used?'rgba(214,154,99,0.22)':'rgba(111,191,139,0.10)'});
+      main.appendChild(g); fadeUp(g,100+i*90,350,10);
+      if(!s.used) freeSlots.push({x, w:s.w-4});
+      x+=s.w;
+    });
+    const legend = se('g',{});
+    legend.appendChild(box(poolX,poolY+poolH+30,20,20,'var(--heap)',{fill:'rgba(214,154,99,0.22)'}));
+    legend.appendChild(txt(poolX+28,poolY+poolH+46,'in use','label-14'));
+    legend.appendChild(box(poolX+130,poolY+poolH+30,20,20,'var(--statc)',{fill:'rgba(111,191,139,0.10)'}));
+    legend.appendChild(txt(poolX+158,poolY+poolH+46,'free','label-14'));
+    main.appendChild(legend); fadeUp(legend,1000,400,10);
+
+    /* animate a 220px request trying each free hole in turn — none fit */
+    const reqW=220, reqH=50;
+    const reqBox = box(poolX, poolY-70, reqW, reqH, 'var(--danger)', {fill:'rgba(209,112,111,0.10)', 'stroke-dasharray':'6,4'});
+    reqBox.style.opacity=0;
+    main.appendChild(reqBox);
+    const reqLabel = txt(poolX+reqW/2, poolY-70-14, 'need: 220px contiguous', 'label-14',{'text-anchor':'middle', fill:'var(--danger)'});
+    main.appendChild(reqLabel);
+    after(1500, ()=>{
+      fadeOnly(reqBox,0,300,1); fadeUp(reqLabel,0,300,8);
+      let t=400;
+      freeSlots.forEach((slot,i)=>{
+        tweenAttrs(reqBox,{x:slot.x, y:poolY+(poolH-reqH)/2}, 350, t, easeInOutCubic, ()=>{
+          // shake to show it doesn't fit
+          const cx = slot.x;
+          let n=0;
+          function shake(){
+            if(n>=4){ reqBox.setAttribute('x',cx); return; }
+            reqBox.setAttribute('x', cx + (n%2===0?6:-6));
+            n++; after(60,shake);
+          }
+          shake();
+        });
+        t += 550;
+      });
+      after(t+200, ()=>{
+        tweenAttrs(reqBox,{x:poolX, y:poolY-70},350,0,easeInOutCubic);
+        reqLabel.textContent='no single hole is big enough';
+      });
+    });
+
+    const totalFree = segs.filter(s=>!s.used).reduce((a,s)=>a+s.w,0);
+    const stat = txt(poolX, poolY+poolH+100, `total free \u2248 ${totalFree}px worth of memory`,'label-18');
+    main.appendChild(stat); fadeUp(stat,1300,500,10);
+
+    const request = txt(poolX, poolY+poolH+140, 'request: one contiguous block of 220px \u2014 fails, even though 350px is free overall.','label-18',{fill:'var(--danger)'});
+    main.appendChild(request); fadeUp(request,3600,500,10);
+
+    const note=txt(poolX,poolY+poolH+210,'','label-18');
+    tspanLine(note,poolX,0,'Free space is scattered in small,');
+    tspanLine(note,poolX,26,'non-adjacent holes. Fix: compaction');
+    tspanLine(note,poolX,52,'(move things) or smarter allocators —');
+    tspanLine(note,poolX,78,'both cost CPU time.');
+    main.appendChild(note); fadeUp(note,4200,600,14);
+  }
+});
+
+/* 15 ---------------- GAP -> automatic mgmt ---------------- */
+slides.push({
+  kicker:'GAP',
+  title:'Manual cleanup keeps breaking\u2026',
+  caption:'…leaks, dangling pointers, fragmentation. Can memory clean up after itself?',
+  build(main){
+    main.appendChild(predictGate(800,420,
+      'Every manual free() is a chance to forget, or to free twice. What if the RUNTIME tracked what\u2019s still reachable, and freed the rest for us?',
+      ()=>{ after(50, ()=> gotoSlide(cur+1)); }));
+  }
+});
+
+/* 16 ---------------- GC OVERVIEW ---------------- */
+slides.push({
+  kicker:'Automatic memory management',
+  title:'Garbage Collection: the idea',
+  caption:'Anything still reachable from a "root" (a live variable) is kept. Everything else is garbage.',
+  build(main){
+    const rootX=250, rootY=300;
+    main.appendChild(txt(rootX,rootY-40,'roots','label-14',{fill:'var(--muted)'}));
+    const roots=['stack var a','stack var b'];
+    roots.forEach((r,i)=>{
+      const g = labeledBox(rootX-70,rootY+i*120,180,70,'var(--stack)',r,'',{fill:'rgba(111,155,214,0.12)'});
+      main.appendChild(g); fadeUp(g,100+i*150,400,10);
+    });
+    const objs=[
+      {x:700,y:230,label:'Obj A', reach:true},
+      {x:950,y:180,label:'Obj B', reach:true},
+      {x:700,y:420,label:'Obj C', reach:false},
+      {x:950,y:470,label:'Obj D', reach:false},
+      {x:1200,y:280,label:'Obj E', reach:true},
+    ];
+    const objEls={};
+    objs.forEach((o,i)=>{
+      const g = labeledBox(o.x,o.y,150,80,'var(--dim)',o.label,'',{fill:'rgba(255,255,255,0.03)'});
+      main.appendChild(g); fadeUp(g,400+i*150,400,10);
+      objEls[o.label]=g;
+    });
+    const edges=[
+      [rootX+110,rootY+35, 700+10,230+40, 'A'],
+      [rootX+110,rootY+120+35, 700+10,420+40,'C'],
+      [700+150,230+30, 950+10,180+40,'B'],
+      [950+150,470+30, 1200+0,470+10,'skip'],
+    ];
+    // meaningful edges: a->A, b->C, A->B, B->E ; D unreachable island
+    const meaningfulEdges=[
+      [rootX+110,rootY+35, 700, 265, true],
+      [rootX+110,rootY+120+35, 700,455, true],
+      [700+150,265, 950,215, true],
+      [950+150,215, 1200,315, true],
+    ];
+    meaningfulEdges.forEach((e,i)=>{
+      const ar = arrow(e[0],e[1],e[2],e[3],'var(--stack)');
+      main.appendChild(ar); ar.style.opacity=0; drawPath(ar,400,1300+i*200);
+    });
+    after(2400, ()=>{
+      ['Obj A','Obj B','Obj E'].forEach(l=>{
+        const rect = objEls[l].querySelector('rect');
+        rect.setAttribute('stroke','var(--statc)'); rect.setAttribute('fill','rgba(111,191,139,0.14)');
+      });
+      ['Obj C','Obj D'].forEach(l=>{
+        const rect = objEls[l].querySelector('rect');
+        rect.setAttribute('stroke','var(--danger)'); rect.setAttribute('fill','rgba(209,112,111,0.10)');
+        objEls[l].style.opacity=0.4;
+      });
+      const g = txt(700,600,'green = reachable from a root \u2192 kept   |   red = unreachable \u2192 garbage','label-18',{fill:'var(--muted)'});
+      main.appendChild(g); fadeUp(g,0,500,10);
+    });
+  }
+});
+
+/* 17 ---------------- REFERENCE COUNTING (+ predict pause) ---------------- */
+slides.push({
+  kicker:'GC strategy 1',
+  title:'Reference Counting',
+  caption:'Every object carries a count of how many references point to it; zero means free it immediately.',
+  build(main){
+    const oX=400, oY=300, ow=200, oh=110;
+    const obj = labeledBox(oX,oY,ow,oh,'var(--heap)','Object','refcount: 0',{fill:'rgba(214,154,99,0.12)'});
+    main.appendChild(obj); fadeUp(obj,100,500,14);
+    const countTxt = obj.querySelectorAll('text')[1];
+
+    const refs=[{x:750,y:220,l:'a'},{x:750,y:380,l:'b'}];
+    const refEls=[];
+    refs.forEach((r,i)=>{
+      const g = labeledBox(r.x,r.y,140,70,'var(--stack)',r.l,'',{fill:'rgba(111,155,214,0.1)'});
+      g.style.opacity=0; main.appendChild(g); refEls.push(g);
+    });
+    let count=0;
+    function addRef(i,delay){
+      after(delay,()=>{
+        fadeOnly(refEls[i],0,300,1);
+        const ar = arrow(refs[i].x-10, refs[i].y+35, oX+ow, oY+oh/2, 'var(--stack)');
+        main.appendChild(ar); ar.style.opacity=0; drawPath(ar,350,150);
+        count++; countTxt.textContent='refcount: '+count; pulse(obj.querySelector('rect'),200,1);
+      });
+    }
+    addRef(0,700);
+    addRef(1,1500);
+
+    const code1 = txt(1050,240,'a = Object()','label-18 mono');
+    const code2 = txt(1050,280,'b = a','label-18 mono');
+    main.appendChild(code1); main.appendChild(code2);
+    fadeUp(code1,700,400,10); fadeUp(code2,1500,400,10);
+
+    after(2400, ()=>{
+      const code3 = txt(1050,320,'a = null','label-18 mono',{fill:'var(--muted)'});
+      main.appendChild(code3); fadeUp(code3,0,400,10);
+      count--; countTxt.textContent='refcount: '+count;
+      refEls[0].style.opacity=0.25;
+    });
+    after(3100, ()=>{
+      const code4 = txt(1050,360,'b = null','label-18 mono',{fill:'var(--muted)'});
+      main.appendChild(code4); fadeUp(code4,0,400,10);
+      count--; countTxt.textContent='refcount: 0 \u2192 freed now';
+      obj.querySelector('rect').setAttribute('stroke','var(--danger)');
+      refEls[1].style.opacity=0.25;
+      pulse(obj.querySelector('rect'),200,2);
+    });
+
+    after(3900, ()=>{
+      const g = predictGate(800,690,
+        'Two objects reference EACH OTHER and nothing else. Their counts are both 1, never 0. Does plain reference counting free this cycle?',
+        ()=>{
+          const ans = txt(800,780,'No \u2014 plain refcounting leaks cycles. That gap is exactly why mark-and-sweep exists.','label-18',{'text-anchor':'middle',fill:'var(--danger)'});
+          main.appendChild(ans); fadeUp(ans,0,500,10);
+        });
+      main.appendChild(g);
+    });
+  }
+});
+
+/* 18 ---------------- MARK AND SWEEP ---------------- */
+slides.push({
+  kicker:'GC strategy 2 — the fix for cycles',
+  title:'Mark-and-Sweep',
+  caption:'Pause the program. Walk from the roots, marking everything reachable. Sweep away the unmarked.',
+  build(main){
+    const rootX=250,rootY=350;
+    main.appendChild(labeledBox(rootX,rootY,150,70,'var(--stack)','root','',{fill:'rgba(111,155,214,0.12)'}));
+    fadeUp(main.lastChild,100,400,10);
+
+    const nodes={
+      A:{x:550,y:230}, B:{x:800,y:230}, C:{x:550,y:470}, D:{x:800,y:470}
+    };
+    const edges=[['root','A'],['A','B'],['B','A'],['C','D'],['D','C']]; // C<->D cycle, unreachable
+    const nodeEls={};
+    Object.keys(nodes).forEach((k,i)=>{
+      const n=nodes[k];
+      const g = labeledBox(n.x,n.y,140,80,'var(--dim)',k,'',{fill:'rgba(255,255,255,0.03)'});
+      main.appendChild(g); fadeUp(g,300+i*120,400,10);
+      nodeEls[k]=g;
+    });
+    function centerOf(n){ return [n.x+70,n.y+40]; }
+    edges.forEach((e,i)=>{
+      const from = e[0]==='root'?[rootX+150,rootY+35]:centerOf(nodes[e[0]]);
+      const to = centerOf(nodes[e[1]]);
+      const ar = arrow(from[0],from[1],to[0],to[1],'var(--muted)',{sw:1.4});
+      main.appendChild(ar); ar.style.opacity=0; fadeOnly(ar,900+i*100,300,0.7);
+    });
+
+    after(1800, ()=>{
+      const cap = txt(800,180,'MARK: traverse from root, following every edge','label-18',{'text-anchor':'middle',fill:'var(--statc)'});
+      main.appendChild(cap); fadeUp(cap,0,400,10);
+      ['A','B'].forEach((k,i)=>{
+        after(i*400, ()=>{
+          const rect = nodeEls[k].querySelector('rect');
+          rect.setAttribute('stroke','var(--statc)'); rect.setAttribute('fill','rgba(111,191,139,0.16)');
+          pulse(rect,0,1);
+        });
+      });
+    });
+
+    after(3200, ()=>{
+      const cap2 = txt(800,140,'SWEEP: reclaim everything still unmarked','label-18',{'text-anchor':'middle',fill:'var(--danger)'});
+      main.appendChild(cap2); fadeUp(cap2,0,400,10);
+      ['C','D'].forEach((k)=>{
+        const g = nodeEls[k];
+        const t0=performance.now();
+        function step(now){
+          const p=Math.min(1,(now-t0)/500);
+          g.style.opacity=1-p;
+          if(p<1) raf(step);
+        }
+        raf(step);
+      });
+      const note = txt(500,600,'','label-18');
+      tspanLine(note,500,0,'C and D reference each other, but');
+      tspanLine(note,500,26,'nothing from the root reaches them.');
+      tspanLine(note,500,52,'Mark-and-sweep does not care about');
+      tspanLine(note,500,78,'refcounts \u2014 only reachability. Cycle solved.');
+      main.appendChild(note); fadeUp(note,300,600,14);
+    });
+  }
+});
+
+/* 19 ---------------- GENERATIONAL GC ---------------- */
+slides.push({
+  kicker:'GC strategy 3 — making it fast',
+  title:'Generational GC',
+  caption:'Most objects die young. So collect the "young generation" often, and the "old generation" rarely.',
+  build(main){
+    const youngX=200, oldX=900, y=230, w=500, h=260;
+    main.appendChild(box(youngX,y,w,h,'var(--heap)',{fill:'rgba(214,154,99,0.05)'}));
+    main.appendChild(txt(youngX+w/2,y-16,'young generation (nursery)','label-18',{'text-anchor':'middle',fill:'var(--heap)'}));
+    main.appendChild(box(oldX,y,w,h,'var(--statc)',{fill:'rgba(111,191,139,0.05)'}));
+    main.appendChild(txt(oldX+w/2,y-16,'old generation','label-18',{'text-anchor':'middle',fill:'var(--statc)'}));
+    fadeUp(zoneMain.children[zoneMain.children.length-3],100,400,10);
+    fadeUp(zoneMain.children[zoneMain.children.length-1],150,400,10);
+
+    const babies=[];
+    for(let i=0;i<6;i++){
+      const bx=youngX+40+(i%3)*150, by=y+40+Math.floor(i/3)*110;
+      const g = box(bx,by,110,80,'var(--heap)',{fill:'rgba(214,154,99,0.18)'});
+      g.style.opacity=0; main.appendChild(g); babies.push({g,bx,by});
+      fadeOnly(g,400+i*150,300,1);
+    }
+    after(1900, ()=>{
+      const cap = txt(youngX+w/2,y+h+50,'minor GC: most of these are already garbage','label-18',{'text-anchor':'middle',fill:'var(--danger)'});
+      main.appendChild(cap); fadeUp(cap,0,400,10);
+      babies.forEach((b,i)=>{
+        if(i<4){
+          after(i*100,()=>{ const t0=performance.now();
+            function step(now){ const p=Math.min(1,(now-t0)/400); b.g.style.opacity=1-p; if(p<1) raf(step);}
+            raf(step);
+          });
+        }
+      });
+    });
+    after(2900, ()=>{
+      const survivors = babies.filter((b,i)=>i>=4);
+      survivors.forEach((b,i)=>{
+        moveGroup(b.g, 0,0, oldX+40+i*160-b.bx, y+90-b.by, 700, i*200);
+      });
+      const cap2 = txt(700,y+h+90,'survivors get PROMOTED to the old generation','label-18',{'text-anchor':'middle',fill:'var(--statc)'});
+      main.appendChild(cap2); fadeUp(cap2,300,400,10);
+    });
+    after(4000, ()=>{
+      const note = txt(200,600,'','label-18');
+      tspanLine(note,200,0,'Weak generational hypothesis: young');
+      tspanLine(note,200,26,'objects die fast, old ones rarely do.');
+      tspanLine(note,200,52,'So scan the small nursery often (cheap)');
+      tspanLine(note,200,78,'and the big old generation rarely (expensive, infrequent).');
+      main.appendChild(note); fadeUp(note,0,600,14);
+    });
+  }
+});
+
+/* 20 ---------------- GAP -> locality ---------------- */
+slides.push({
+  kicker:'GAP',
+  title:'We know WHERE things live\u2026',
+  caption:'…but does location affect how fast the CPU can actually get to them?',
+  build(main){
+    main.appendChild(predictGate(800,420,
+      'RAM addresses look uniform \u2014 any address should cost the same to read. So why do programmers obsess over "cache-friendly" data layout?',
+      ()=>{ after(50, ()=> gotoSlide(cur+1)); }));
+  }
+});
+
+/* 21 ---------------- LOCALITY ---------------- */
+slides.push({
+  kicker:'Why layout matters',
+  title:'Memory & Cache Locality',
+  caption:'Spatial locality: nearby addresses tend to be used together. Temporal: recent addresses get reused soon.',
+  build(main){
+    const arrY=260, cellW=90,n=8, arrX=200;
+    const cap = txt(arrX,arrY-24,'array: contiguous memory','label-18',{fill:'var(--stack)'});
+    main.appendChild(cap); fadeUp(cap,100,400,10);
+    const cellEls=[];
+    for(let i=0;i<n;i++){
+      const g = box(arrX+i*cellW,arrY,cellW-6,60,'var(--stack)',{fill:'rgba(111,155,214,0.08)'});
+      main.appendChild(g); fadeUp(g,150+i*60,300,10); cellEls.push(g);
+    }
+    const cursor = se('circle',{cx:arrX+30,cy:arrY+30,r:10,fill:'var(--stack)'});
+    main.appendChild(cursor); fadeOnly(cursor,900,300,1);
+    for(let i=0;i<n;i++){
+      tweenAttrs(cursor,{cx:arrX+i*cellW+30}, 220, 900+i*260, t=>t);
+    }
+    const arrNote = txt(arrX, arrY+100, 'sequential walk \u2192 next item is already nearby in cache', 'label-14',{fill:'var(--muted)'});
+    main.appendChild(arrNote); fadeUp(arrNote,900,400,10);
+
+    const llY=470;
+    const cap2 = txt(arrX,llY-24,'linked list: scattered memory','label-18',{fill:'var(--ptr)'});
+    main.appendChild(cap2); fadeUp(cap2,3000,400,10);
+    const positions=[[arrX,llY],[arrX+520,llY-60],[arrX+250,llY+90],[arrX+760,llY+40],[arrX+90,llY+150]];
+    const llEls=[];
+    positions.forEach((p,i)=>{
+      const g = box(p[0],p[1],90,60,'var(--ptr)',{fill:'rgba(178,143,209,0.10)'});
+      main.appendChild(g); fadeUp(g,3100+i*150,300,10); llEls.push({x:p[0]+45,y:p[1]+30});
+    });
+    after(4000, ()=>{
+      for(let i=0;i<llEls.length-1;i++){
+        const ar = arrow(llEls[i].x,llEls[i].y,llEls[i+1].x,llEls[i+1].y,'var(--ptr)',{sw:1.6});
+        main.appendChild(ar); ar.style.opacity=0; drawPath(ar,350,i*300);
+      }
+      const cursor2 = se('circle',{cx:llEls[0].x,cy:llEls[0].y,r:10,fill:'var(--ptr)'});
+      main.appendChild(cursor2); fadeOnly(cursor2,0,300,1);
+      llEls.forEach((p,i)=>{ tweenAttrs(cursor2,{cx:p.x,cy:p.y},250,i*350,t=>t); });
+      after(1900, ()=>{
+        const note = txt(arrX, llY+220, 'each hop can land in a totally different cache line \u2192 more cache misses, even though total data is the same size.', 'label-14',{fill:'var(--muted)'});
+        main.appendChild(note); fadeUp(note,0,500,10);
+      });
+    });
+  }
+});
+
+/* 22 ---------------- CPU CACHE HIERARCHY ---------------- */
+slides.push({
+  kicker:'What "nearby" is racing against',
+  title:'CPU Cache: L1 / L2 / L3',
+  caption:'Each level trades size for speed. Missing all of them means going all the way to RAM.',
+  build(main){
+    const cx=800;
+    const levels=[
+      {y:200,w:260,h:70,label:'L1 cache',lat:'~1 ns',size:'32-64 KB',c:'var(--stack)'},
+      {y:290,w:420,h:80,label:'L2 cache',lat:'~4 ns',size:'256 KB\u20131 MB',c:'var(--stack)'},
+      {y:390,w:640,h:90,label:'L3 cache (shared)',lat:'~15 ns',size:'8\u201332 MB',c:'var(--heap)'},
+      {y:500,w:900,h:110,label:'Main RAM',lat:'~100 ns',size:'GBs',c:'var(--danger)'},
+    ];
+    levels.forEach((l,i)=>{
+      const x=cx-l.w/2;
+      const g = box(x,l.y,l.w,l.h,l.c,{fill:'rgba(255,255,255,0.03)'});
+      main.appendChild(g); fadeUp(g,150+i*220,450,14);
+      const t1 = txt(cx,l.y+l.h/2-6,l.label,'label-18',{'text-anchor':'middle'});
+      const t2 = txt(cx,l.y+l.h/2+16,`${l.lat}  \u00b7  ${l.size}`,'label-14',{'text-anchor':'middle',fill:'var(--muted)'});
+      main.appendChild(t1); main.appendChild(t2);
+      fadeUp(t1,250+i*220,400,10); fadeUp(t2,300+i*220,400,10);
+    });
+    const arrowDown = txt(cx+480,350,'','label-14',{fill:'var(--muted)'});
+    tspanLine(arrowDown,cx+480,0,'bigger');
+    tspanLine(arrowDown,cx+480,20,'&');
+    tspanLine(arrowDown,cx+480,40,'slower ▾');
+    main.appendChild(arrowDown); fadeUp(arrowDown,1200,500,10);
+
+    /* a single memory request travels down through the levels; it pauses
+       longer at each one, in rough proportion to that level's latency */
+    const cpuLabel = txt(cx,158,'CPU requests a byte','label-14',{'text-anchor':'middle', fill:'var(--muted)'});
+    main.appendChild(cpuLabel);
+    const probe = se('circle',{cx:cx,cy:160,r:8,fill:'var(--stack)'});
+    probe.style.opacity=0;
+    main.appendChild(probe);
+    after(1900, ()=>{
+      fadeUp(cpuLabel,0,300,8);
+      fadeOnly(probe,150,300,1);
+      const stops = [
+        {y:235, pause:150, c:'var(--stack)'},
+        {y:330, pause:300, c:'var(--stack)'},
+        {y:435, pause:600, c:'var(--heap)'},
+        {y:555, pause:1200, c:'var(--danger)'},
+      ];
+      let t=450;
+      stops.forEach((s)=>{
+        tweenAttrs(probe,{cy:s.y},260,t,easeInOutCubic, ()=>{
+          probe.setAttribute('fill', s.c);
+          pulse(probe,0,1);
+        });
+        t += 260 + s.pause;
+      });
+      after(t+100, ()=>{
+        const miss = txt(cx, 640, 'missed everything \u2014 all the way to RAM: ~100x an L1 hit', 'label-14',{'text-anchor':'middle', fill:'var(--danger)'});
+        main.appendChild(miss); fadeUp(miss,0,400,8);
+      });
+    });
+
+    after(4900, ()=>{
+      const note = txt(80,700,'','label-18');
+      tspanLine(note,80,0,'A CPU checks L1 first, then L2, L3, then RAM.');
+      tspanLine(note,80,26,'A "cache miss" at every level costs ~100x the');
+      tspanLine(note,80,52,'time of an L1 hit \u2014 this is WHY locality (previous');
+      tspanLine(note,80,78,'slide) can make identical algorithms 10\u2013100x faster.');
+      main.appendChild(note); fadeUp(note,0,600,14);
+    });
+  }
+});
+
+/* 23 ---------------- GAP -> virtual memory ---------------- */
+slides.push({
+  kicker:'GAP',
+  title:'Every program acts like it owns all of RAM\u2026',
+  caption:'…but dozens of programs run at once, sharing the same physical chips. How is that even possible?',
+  build(main){
+    main.appendChild(predictGate(800,420,
+      'Two programs both use address 0x1000 for a variable, with no crash and no interference. RAM is finite and shared \u2014 how can that address mean two different things at once?',
+      ()=>{ after(50, ()=> gotoSlide(cur+1)); }));
+  }
+});
+
+/* 24 ---------------- VIRTUAL MEMORY ---------------- */
+slides.push({
+  kicker:'The illusion each process gets',
+  title:'Virtual Memory',
+  caption:'Every process sees its own private, full address space. The OS maps it onto real, shared RAM.',
+  build(main){
+    const pA={x:150,y:220,w:280,h:400};
+    const pB={x:520,y:220,w:280,h:400};
+    const ram={x:1000,y:260,w:380,h:320};
+    [pA,pB].forEach((p,i)=>{
+      const g = box(p.x,p.y,p.w,p.h,'var(--stack)',{fill:'rgba(111,155,214,0.05)'});
+      main.appendChild(g); fadeUp(g,100+i*200,450,14);
+      const t = txt(p.x+p.w/2,p.y-14,`Process ${i===0?'A':'B'} (virtual)`,'label-18',{'text-anchor':'middle',fill:'var(--stack)'});
+      main.appendChild(t); fadeUp(t,150+i*200,400,10);
+      const varBox = labeledBox(p.x+40,p.y+150,p.w-80,70,'var(--stack)','0x1000','x = '+(i===0?'5':'99'),{fill:'rgba(111,155,214,0.12)'});
+      main.appendChild(varBox); fadeUp(varBox,600+i*200,400,10);
+    });
+    const ramG = box(ram.x,ram.y,ram.w,ram.h,'var(--statc)',{fill:'rgba(111,191,139,0.05)'});
+    main.appendChild(ramG); fadeUp(ramG,1100,450,14);
+    main.appendChild(txt(ram.x+ram.w/2,ram.y-14,'Physical RAM (shared, real)','label-18',{'text-anchor':'middle',fill:'var(--statc)'}));
+    fadeUp(zoneMain.lastChild,1150,400,10);
+    const frameA = labeledBox(ram.x+40,ram.y+60,140,70,'var(--statc)','frame 0x7A00','5',{fill:'rgba(111,191,139,0.14)'});
+    const frameB = labeledBox(ram.x+200,ram.y+180,140,70,'var(--statc)','frame 0x9F00','99',{fill:'rgba(111,191,139,0.14)'});
+    main.appendChild(frameA); main.appendChild(frameB);
+    fadeUp(frameA,1400,400,10); fadeUp(frameB,1600,400,10);
+
+    after(2000, ()=>{
+      const ar1 = curveArrow(pA.x+pA.w-40, pA.y+185, ram.x+40+30, ram.y+95, -40,'var(--stack)');
+      const ar2 = curveArrow(pB.x+40, pB.y+185, ram.x+270, ram.y+195, 40,'var(--stack)');
+      main.appendChild(ar1); main.appendChild(ar2);
+      [ar1,ar2].forEach((a,i)=>{a.style.opacity=0; drawPath(a,600,i*400);});
+    });
+
+    after(3200, ()=>{
+      const note = txt(80,700,'','label-18');
+      tspanLine(note,80,0,'Same virtual address 0x1000, two different');
+      tspanLine(note,80,26,'physical frames \u2014 the OS + hardware translate');
+      tspanLine(note,80,52,'on every access. Neither process can see or touch the other\u2019s frame.');
+      main.appendChild(note); fadeUp(note,0,600,14);
+    });
+  }
+});
+
+/* 25 ---------------- PAGING ---------------- */
+slides.push({
+  kicker:'How the translation actually works',
+  title:'Paging',
+  caption:'Both spaces are cut into fixed-size pages; a page table maps virtual page \u2192 physical frame.',
+  build(main){
+    const vX=200,vY=220, pageH=50, pageW=200;
+    main.appendChild(txt(vX,vY-16,'virtual pages','label-18',{fill:'var(--stack)'}));
+    fadeUp(zoneMain.lastChild,100,400,10);
+    const vPages=['Page 0','Page 1','Page 2','Page 3'];
+    const vEls=[];
+    vPages.forEach((p,i)=>{
+      const g = labeledBox(vX,vY+i*(pageH+14),pageW,pageH,'var(--stack)',p,'',{fill:'rgba(111,155,214,0.1)'});
+      main.appendChild(g); fadeUp(g,200+i*140,400,10); vEls.push(g);
+    });
+
+    const tX=620, tY=220;
+    main.appendChild(txt(tX,tY-16,'page table','label-18',{fill:'var(--ptr)'}));
+    fadeUp(zoneMain.lastChild,900,400,10);
+    const mapping=[2,0,3,1]; // page i -> frame mapping[i]
+    const tEls=[];
+    vPages.forEach((p,i)=>{
+      const g = labeledBox(tX,tY+i*(pageH+14),160,pageH,'var(--ptr)',`${i} \u2192 frame ${mapping[i]}`,'',{fill:'rgba(178,143,209,0.12)'});
+      main.appendChild(g); fadeUp(g,1000+i*140,400,10); tEls.push(g);
+    });
+
+    const fX=1040, fY=220;
+    main.appendChild(txt(fX,fY-16,'physical frames (RAM)','label-18',{fill:'var(--statc)'}));
+    fadeUp(zoneMain.lastChild,1700,400,10);
+    const frameOrder=[0,1,2,3];
+    const fEls=[];
+    frameOrder.forEach((f,i)=>{
+      const g = labeledBox(fX,fY+i*(pageH+14),200,pageH,'var(--statc)',`Frame ${f}`,'',{fill:'rgba(111,191,139,0.1)'});
+      main.appendChild(g); fadeUp(g,1800+i*140,400,10); fEls.push(g);
+    });
+
+    after(2500, ()=>{
+      vPages.forEach((p,i)=>{
+        const from=[vX+pageW,vY+i*(pageH+14)+pageH/2];
+        const mid=[tX,tY+i*(pageH+14)+pageH/2];
+        const ar1 = arrow(from[0],from[1],mid[0],mid[1],'var(--muted)',{sw:1.4});
+        main.appendChild(ar1); ar1.style.opacity=0; drawPath(ar1,300,i*250);
+        const frame=mapping[i];
+        const to=[fX, fY+frame*(pageH+14)+pageH/2];
+        const midOut=[tX+160,tY+i*(pageH+14)+pageH/2];
+        after(i*250+350, ()=>{
+          const ar2 = arrow(midOut[0],midOut[1],to[0],to[1],'var(--ptr)',{sw:1.6});
+          main.appendChild(ar2); ar2.style.opacity=0; drawPath(ar2,350,0);
+        });
+      });
+    });
+
+    after(4200, ()=>{
+      const note = txt(80,700,'','label-18');
+      tspanLine(note,80,0,'Notice frames are in a different ORDER than');
+      tspanLine(note,80,26,'the virtual pages. That\u2019s fine \u2014 the table hides');
+      tspanLine(note,80,52,'it. (Segmentation was an older, variable-sized');
+      tspanLine(note,80,78,'alternative to fixed pages \u2014 simpler, but reintroduced fragmentation.)');
+      main.appendChild(note); fadeUp(note,0,600,14);
+    });
+  }
+});
+
+/* 26 ---------------- PAGE FAULTS ---------------- */
+slides.push({
+  kicker:'When the table has no answer',
+  title:'Page Faults',
+  caption:'The page you need isn\u2019t in RAM at all \u2014 the OS must fetch it from disk first.',
+  build(main){
+    const cpuX=200,cpuY=350;
+    main.appendChild(labeledBox(cpuX,cpuY,160,90,'var(--stack)','CPU','access page 5',{fill:'rgba(111,155,214,0.1)'}));
+    fadeUp(zoneMain.lastChild,100,450,14);
+    const tblX=520;
+    main.appendChild(labeledBox(tblX,cpuY,180,90,'var(--ptr)','page table','page 5: not present',{fill:'rgba(178,143,209,0.1)'}));
+    fadeUp(zoneMain.lastChild,700,450,14);
+    const ar1 = arrow(cpuX+160,cpuY+45,tblX,cpuY+45,'var(--muted)');
+    main.appendChild(ar1); ar1.style.opacity=0; drawPath(ar1,300,500);
+
+    const diskX=1150,diskY=550;
+    main.appendChild(labeledBox(diskX,diskY,180,90,'var(--danger)','Disk / SSD','page 5 lives here',{fill:'rgba(209,112,111,0.1)'}));
+    fadeUp(zoneMain.lastChild,1400,450,14);
+    const osX=850,osY=200;
+    main.appendChild(labeledBox(osX,osY,200,90,'var(--danger)','OS: fault handler','pauses this process',{fill:'rgba(209,112,111,0.1)'}));
+    fadeUp(zoneMain.lastChild,1200,450,14);
+
+    after(1600, ()=>{
+      const ar2 = arrow(tblX+180,cpuY+45, osX+30, osY+90, 'var(--danger)');
+      main.appendChild(ar2); ar2.style.opacity=0; drawPath(ar2,350,0);
+    });
+    after(2100, ()=>{
+      const ar3 = curveArrow(osX+150,osY+90, diskX+90,diskY, 60,'var(--danger)');
+      main.appendChild(ar3); ar3.style.opacity=0; drawPath(ar3,500,0);
+    });
+    after(2900, ()=>{
+      const frameX=520,frameY=550;
+      const g = labeledBox(frameX,frameY,180,90,'var(--statc)','free RAM frame','page 5 loaded',{fill:'rgba(111,191,139,0.14)'});
+      main.appendChild(g); fadeUp(g,0,400,14);
+      const ar4 = curveArrow(diskX,diskY+45, frameX+180,frameY+45, -60,'var(--statc)');
+      main.appendChild(ar4); ar4.style.opacity=0; drawPath(ar4,500,300);
+    });
+    after(3900, ()=>{
+      const note = txt(80,720,'','label-18');
+      tspanLine(note,80,0,'Table updated, CPU instruction retried \u2014 this');
+      tspanLine(note,80,26,'time it hits. A page fault costs milliseconds');
+      tspanLine(note,80,52,'(disk speed), a cache miss costs nanoseconds. That\u2019s ~10,000x slower.');
+      main.appendChild(note); fadeUp(note,0,600,14);
+    });
+  }
+});
+
+/* 27 ---------------- MEMORY-MAPPED FILES ---------------- */
+slides.push({
+  kicker:'Paging\u2019s most elegant trick',
+  title:'Memory-Mapped Files',
+  caption:'Treat a file on disk as if it were just another set of pages in your address space.',
+  build(main){
+    const fileX=200,fileY=260,fileW=260,fileH=340;
+    main.appendChild(box(fileX,fileY,fileW,fileH,'var(--danger)',{fill:'rgba(209,112,111,0.05)'}));
+    main.appendChild(txt(fileX+fileW/2,fileY-16,'data.bin (on disk)','label-18',{'text-anchor':'middle',fill:'var(--danger)'}));
+    fadeUp(zoneMain.lastChild,100,400,10);
+    for(let i=0;i<4;i++){
+      const g = box(fileX+30,fileY+30+i*75,fileW-60,55,'var(--danger)',{fill:'rgba(209,112,111,0.12)'});
+      main.appendChild(g); fadeUp(g,200+i*120,350,10);
+    }
+
+    const vX=650,vY=260,vW=260,vH=340;
+    main.appendChild(box(vX,vY,vW,vH,'var(--stack)',{fill:'rgba(111,155,214,0.05)'}));
+    main.appendChild(txt(vX+vW/2,vY-16,'your process\u2019 address space','label-18',{'text-anchor':'middle',fill:'var(--stack)'}));
+    fadeUp(zoneMain.lastChild,900,400,10);
+
+    after(1300, ()=>{
+      const code = txt(1050,320,'ptr = mmap(file)','label-24 mono',{fill:'var(--ptr)'});
+      main.appendChild(code); fadeUp(code,0,500,10);
+    });
+
+    after(1900, ()=>{
+      for(let i=0;i<4;i++){
+        const g = box(vX+30,vY+30+i*75,vW-60,55,'var(--stack)',{fill:'rgba(111,155,214,0.12)'});
+        g.style.opacity=0; main.appendChild(g); fadeOnly(g,i*150,300,1);
+        const ar = arrow(fileX+fileW, fileY+30+i*75+27, vX, vY+30+i*75+27,'var(--ptr)',{sw:1.4});
+        main.appendChild(ar); ar.style.opacity=0; drawPath(ar,300,i*150);
+      }
+    });
+
+    after(3200, ()=>{
+      const note = txt(80,700,'','label-18');
+      tspanLine(note,80,0,'ptr[100] just works like a normal array read.');
+      tspanLine(note,80,26,'Under the hood it\u2019s the SAME page-fault machinery');
+      tspanLine(note,80,52,'\u2014 the OS pages file contents in on demand, no explicit read() calls.');
+      main.appendChild(note); fadeUp(note,0,600,14);
+    });
+  }
+});
+
+/* 28 ---------------- GAP -> raw bytes ---------------- */
+slides.push({
+  kicker:'GAP',
+  title:'We\u2019ve been drawing boxes as numbers\u2026',
+  caption:'…but a byte is just 8 bits. How is "the number 4660" actually stored — and does the order matter?',
+  build(main){
+    main.appendChild(predictGate(800,420,
+      'Send the same 4-byte integer from an Intel laptop to certain network hardware, and the bytes come out reversed on the wire. Why would byte order ever differ?',
+      ()=>{ after(50, ()=> gotoSlide(cur+1)); }));
+  }
+});
+
+/* 29 ---------------- BINARY REPRESENTATION + ENDIANNESS ---------------- */
+slides.push({
+  kicker:'The rawest layer',
+  title:'Binary Representation & Endianness',
+  caption:'Every value is bits in memory. Endianness decides which end of a multi-byte number comes first.',
+  build(main){
+    const num = 0x12345678;
+    main.appendChild(txt(120,200,`decimal 305419896  =  hex 0x12345678`,'label-24 mono'));
+    fadeUp(zoneMain.lastChild,100,500,14);
+
+    const byteVals=['12','34','56','78'];
+    const beX=150, y=280, bw=110;
+    main.appendChild(txt(beX,y-18,'Big-endian (most significant byte first)','label-18',{fill:'var(--stack)'}));
+    fadeUp(zoneMain.lastChild,600,400,10);
+    const beBoxes=[];
+    byteVals.forEach((b,i)=>{
+      const g = labeledBox(beX+i*bw,y,bw-10,60,'var(--stack)',b,hexAddr(0x1000+i),{fill:'rgba(111,155,214,0.12)'});
+      g.style.opacity=0; main.appendChild(g); beBoxes.push(g);
+      after(700+i*180,()=>fadeOnly(g,0,300,1));
+    });
+
+    const leX=150, leY=430;
+    const leLabel = txt(leX,leY-18,'Little-endian: the SAME bytes, reversed','label-18',{fill:'var(--heap)'});
+    main.appendChild(leLabel); leLabel.style.opacity=0;
+
+    /* the actual demonstration: clone each big-endian byte and fly it down
+       to its mirrored slot, so the reordering is something that happens,
+       not something merely stated in a second static row */
+    after(1900, ()=>{
+      fadeOnly(leLabel,0,350,1);
+      byteVals.forEach((b,i)=>{
+        const srcX = beX+i*bw, targetIdx = byteVals.length-1-i, dstX = leX+targetIdx*bw;
+        const clone = labeledBox(srcX,y,bw-10,60,'var(--heap)',b,hexAddr(0x1000+i),{fill:'rgba(214,154,99,0.16)'});
+        main.appendChild(clone);
+        moveGroup(clone, 0,0, dstX-srcX, leY-y, 700, 250+i*180, easeInOutCubic, ()=>{
+          pulse(clone.querySelector('rect'),0,1);
+        });
+      });
+    });
+
+    after(3500, ()=>{
+      const note = txt(120,540,'','label-18');
+      tspanLine(note,120,0,'Same 4 bytes, same value \u2014 just read in the');
+      tspanLine(note,120,26,'opposite order. x86/ARM(default) = little-endian.');
+      tspanLine(note,120,52,'Network protocols traditionally use big-endian');
+      tspanLine(note,120,78,'("network byte order"), which is WHY sockets code calls htons()/ntohs().');
+      main.appendChild(note); fadeUp(note,0,600,14);
+    });
+
+    after(4500, ()=>{
+      const bitsCap = txt(900,280,'zoomed into one byte (0x78):','label-18',{fill:'var(--muted)'});
+      main.appendChild(bitsCap); fadeUp(bitsCap,0,400,10);
+      const bits='01111000'.split('');
+      bits.forEach((b,i)=>{
+        const g = labeledBox(900+i*60,310,50,50,b==='1'?'var(--ptr)':'var(--dim)',b,'',{fill:b==='1'?'rgba(178,143,209,0.16)':'rgba(255,255,255,0.02)'});
+        g.style.opacity=0; main.appendChild(g);
+        after(i*90,()=>fadeOnly(g,0,250,1));
+      });
+    });
+  }
+});
+
+/* 30 ---------------- ALIGNMENT & BIT MANIPULATION ---------------- */
+slides.push({
+  kicker:'Two everyday low-level tools',
+  title:'Alignment & Bit Manipulation',
+  caption:'The CPU reads memory fastest at aligned addresses; bit ops give direct control over individual bits.',
+  build(main){
+    // Alignment: struct with padding
+    main.appendChild(txt(120,200,'struct { char c; int n; }','label-24 mono'));
+    fadeUp(zoneMain.lastChild,100,500,14);
+    const fields=[{w:60,label:'c',sub:'1B',c:'var(--stack)'},{w:180,label:'padding',sub:'3B unused',c:'var(--dim)'},{w:240,label:'n',sub:'4B',c:'var(--heap)'}];
+    let fx=120, fy=250;
+    fields.forEach((f,i)=>{
+      const g = labeledBox(fx,fy,f.w-6,70,f.c,f.label,f.sub,{fill:i===1?'rgba(255,255,255,0.02)':'rgba(255,255,255,0.08)'});
+      g.style.opacity=0; main.appendChild(g);
+      after(600+i*350,()=>fadeOnly(g,0,350,1));
+      fx+=f.w;
+    });
+    after(1900,()=>{
+      const note = txt(120,360,'','label-18');
+      tspanLine(note,120,0,'n needs a 4-byte-aligned address to be read in');
+      tspanLine(note,120,26,'a single CPU cycle \u2014 the compiler inserts');
+      tspanLine(note,120,52,'padding so it lands on one.');
+      main.appendChild(note); fadeUp(note,0,600,14);
+    });
+
+    // Bit manipulation: flags
+    after(2600, ()=>{
+      main.appendChild(txt(900,150,'bit flags: READ=1 WRITE=2 EXEC=4','label-18 mono',{fill:'var(--muted)'}));
+      fadeUp(zoneMain.lastChild,0,450,14);
+      const opsY=280;
+      const perms = 0b101; // READ|EXEC
+      const bits3=[4,2,1];
+      const labels=['EXEC','WRITE','READ'];
+
+      /* WRITE (unused) just settles in place, dim */
+      const writeIdx = labels.indexOf('WRITE');
+      const writeBox = labeledBox(900+writeIdx*140,opsY,120,70,'var(--dim)','WRITE','0',{fill:'rgba(255,255,255,0.02)'});
+      writeBox.style.opacity=0; main.appendChild(writeBox);
+      fadeOnly(writeBox,300,350,1);
+
+      /* EXEC and READ fly down from source operands and land in their slots,
+         visualizing perms = READ | EXEC */
+      const sources=[
+        {label:'EXEC',val:'4',idx:labels.indexOf('EXEC')},
+        {label:'READ',val:'1',idx:labels.indexOf('READ')},
+      ];
+      sources.forEach((s,i)=>{
+        const startX = 900 + s.idx*140 + 30;
+        const g = labeledBox(startX,185,120,60,'var(--statc)',s.label,'= '+s.val,{fill:'rgba(111,191,139,0.16)'});
+        g.style.opacity=0; main.appendChild(g);
+        fadeOnly(g,i*300,300,1);
+        const targetX = 900 + s.idx*140;
+        after(i*300+500, ()=>{
+          moveGroup(g, 0,0, targetX-startX, opsY-185, 450, 0, easeInOutCubic, ()=>{
+            g.querySelector('rect').setAttribute('width',120);
+            pulse(g.querySelector('rect'),0,2);
+          });
+        });
+      });
+
+      after(1600, ()=>{
+        const code = se('g',{});
+        code.appendChild(txt(900,420,'perms = READ | EXEC     // 0b101  (OR sets bits)','label-18 mono'));
+        code.appendChild(txt(900,456,'perms & WRITE == 0      // AND tests a bit','label-18 mono'));
+        code.appendChild(txt(900,492,'perms ^ READ            // XOR toggles a bit','label-18 mono'));
+        code.appendChild(txt(900,528,'perms << 1              // shift = multiply by 2','label-18 mono'));
+        main.appendChild(code); fadeUp(code,0,500,14);
+      });
+    });
+  }
+});
+
+/* 31 ---------------- PRACTICAL APPLICATIONS / RECAP ---------------- */
+slides.push({
+  kicker:'Why any of this matters',
+  title:'Where this shows up in real engineering',
+  caption:'Same handful of ideas, over and over, across totally different tools.',
+  build(main){
+    const items=[
+      {c:'var(--stack)',t:'Stack overflow', d:'deep/unbounded recursion exhausts stack frames \u2014 classic crash in parsers & tree algorithms', icon:'stack'},
+      {c:'var(--heap)',t:'C/C++/Rust ownership', d:'manual free() vs. Rust\u2019s borrow checker enforcing "one owner" at compile time', icon:'lock'},
+      {c:'var(--danger)',t:'Segfaults & valgrind', d:'dangling pointers & use-after-free are exactly what memory-safety tools like Valgrind/ASan catch', icon:'search'},
+      {c:'var(--statc)',t:'GC pauses', d:'Java/Go/Python "stop-the-world" pauses trace straight back to mark-and-sweep\u2019s pause-the-program step', icon:'pause'},
+      {c:'var(--stack)',t:'Cache-friendly code', d:'struct-of-arrays vs array-of-structs, row- vs column-major loops \u2014 pure locality engineering', icon:'grid'},
+      {c:'var(--ptr)',t:'Networking & file formats', d:'endianness bugs when parsing binary protocols/files across architectures', icon:'swap'},
+    ];
+    const cols=3, cw=480, ch=210, gx=40, gy=40, x0=90, y0=200;
+    items.forEach((it,i)=>{
+      const cx=x0+(i%cols)*(cw+gx), cy=y0+Math.floor(i/cols)*(ch+gy);
+      const g = box(cx,cy,cw,ch,it.c,{fill:'rgba(255,255,255,0.03)'});
+      main.appendChild(g); fadeUp(g,120*i,450,16);
+      main.appendChild(icon(it.icon, cx+cw-46, cy+42, it.c, 120*i+150));
+      const t = txt(cx+24,cy+42,it.t,'label-24',{fill:it.c});
+      main.appendChild(t); fadeUp(t,120*i+120,400,10);
+      const dt = txt(cx+24,cy+78,'','label-14',{fill:'var(--muted)'});
+      const words=it.d.split(' '); let line='',lines=[];
+      words.forEach(w=>{ if((line+w).length>46){lines.push(line);line=w+' ';} else line+=w+' '; });
+      lines.push(line);
+      lines.forEach((l,li)=>tspanLine(dt,cx+24,li===0?0:20,l.trim()));
+      main.appendChild(dt); fadeUp(dt,120*i+220,400,10);
+    });
+  }
+});
+
+/* 32 ---------------- END / FULL RECAP ---------------- */
+slides.push({
+  kicker:'RECAP — the whole chain',
+  title:'Every idea, one line each',
+  caption:'"I don\u2019t understand it if I can\u2019t explain it simply." \u2014 the Feynman bar we aimed for.',
+  build(main){
+    const lines=[
+      ['Stack / Heap / Static','three regions, three lifetimes','var(--stack)'],
+      ['Pointers & references','an address lets you share without copying','var(--ptr)'],
+      ['Leaks / dangling / fragmentation','manual memory\u2019s three classic failure modes','var(--danger)'],
+      ['Refcounting \u2192 mark-sweep \u2192 generational','automatic management, each fixing the last one\u2019s gap','var(--statc)'],
+      ['Locality & cache (L1/L2/L3)','WHERE data sits changes how fast you can touch it','var(--stack)'],
+      ['Virtual memory, paging, faults','the illusion of infinite private RAM, built on translation','var(--ptr)'],
+      ['Endianness, alignment, bits','the raw byte-level truth underneath every abstraction above','var(--heap)'],
+    ];
+    lines.forEach((l,i)=>{
+      const y=190+i*78;
+      if(i>0){
+        const link = se('path',{d:`M110,${190+(i-1)*78-6} L110,${y-6}`, stroke:l[2], 'stroke-width':2, fill:'none', 'stroke-opacity':0.5});
+        main.appendChild(link); drawPath(link,220,150*i-60);
+      }
+      const dot = se('circle',{cx:110,cy:y-6,r:6,fill:l[2]});
+      main.appendChild(dot); fadeUp(dot,150*i,350,8);
+      const t1 = txt(140,y,l[0],'label-24',{fill:l[2]});
+      main.appendChild(t1); fadeUp(t1,150*i+80,400,10);
+      const t2 = txt(140,y+26,l[1],'label-14',{fill:'var(--muted)'});
+      main.appendChild(t2); fadeUp(t2,150*i+160,400,8);
+    });
+    after(lines.length*150+600, ()=>{
+      const end = txt(800,760,'end of Part 1 \u2014 press \u2192 to continue into Error Handling','label-14',{'text-anchor':'middle',fill:'#555'});
+      main.appendChild(end); fadeOnly(end,0,600,1);
+    });
+  }
+});
+
+/* ---------------- SECTION DIVIDER: Part 1 -> Part 2 ---------------- */
+slides.push({
+  kicker:'Part 1 complete',
+  title:'From memory safety to error handling',
+  caption:'Different failure surface, same engineering instinct: expect it, name it, contain it.',
+  build(main){
+    const y=430;
+    const leftLabel = txt(260,y-70,'Part 1','kicker',{fill:'var(--stack)'});
+    main.appendChild(leftLabel); fadeUp(leftLabel,100,400,10);
+    const leftBox = labeledBox(140,y-40,240,90,'var(--stack)','Memory & Low-Level','',{fill:'rgba(111,155,214,0.12)'});
+    main.appendChild(leftBox); fadeUp(leftBox,200,450,14);
+
+    const rightLabel = txt(1220,y-70,'Part 2','kicker',{fill:'var(--danger)'});
+    main.appendChild(rightLabel);
+    const rightBox = labeledBox(1120,y-40,240,90,'var(--danger)','Error Handling','',{fill:'rgba(209,112,111,0.12)'});
+    rightBox.style.opacity=0; main.appendChild(rightBox);
+
+    /* a traveling marker crosses from one to the other, tracing the throughline:
+       both are about a program meeting the world and something going wrong */
+    const track = se('path',{d:`M380,${y+5} L1120,${y+5}`, stroke:'var(--muted)','stroke-width':1.4, fill:'none','stroke-dasharray':'4,6'});
+    main.appendChild(track); drawPath(track,700,700);
+
+    const marker = se('circle',{cx:380,cy:y+5,r:9,fill:'var(--ptr)'});
+    marker.style.opacity=0;
+    main.appendChild(marker);
+    after(900, ()=>{
+      fadeOnly(marker,0,300,1);
+      tweenAttrs(marker,{cx:1120},900,300,easeInOutCubic, ()=>{
+        pulse(marker,0,2);
+        fadeOnly(rightLabel,0,350,1);
+        const t0=performance.now();
+        function step(now){
+          const p=Math.min(1,(now-t0)/400);
+          rightBox.style.opacity=p;
+          if(p<1) raf(step);
+        }
+        raf(step);
+      });
+    });
+
+    after(2600, ()=>{
+      const mid = txt(750,y+90,'','label-18',{'text-anchor':'middle', fill:'var(--muted)'});
+      tspanLine(mid,750,0,'Memory taught us what happens when a resource');
+      tspanLine(mid,750,26,'silently goes wrong. Now: what happens when an');
+      tspanLine(mid,750,52,'operation openly fails \u2014 and what you do about it.');
+      main.appendChild(mid); fadeUp(mid,0,600,14);
+    });
+  }
+});
+
+/* 0 ---------------- TITLE ---------------- */
+slides.push({
+  kicker:'A Feynman-style walkthrough',
+  title:'Error Handling',
+  caption:'Code will fail. The only real question is: what happens next?',
+  build(main){
+    const cx=800, cy=430;
+    const core = box(cx-110,cy-55,220,110,'var(--stack)',{rx:10, fill:'rgba(111,155,214,0.10)'});
+    main.appendChild(core); fadeUp(core,300,600,20);
+    const lbl = txt(cx,cy-4,'your program','label-24',{'text-anchor':'middle'});
+    main.appendChild(lbl); fadeUp(lbl,600,500,10);
+    const lbl2 = txt(cx,cy+30,'running normally','label-14',{'text-anchor':'middle', fill:'var(--muted)'});
+    main.appendChild(lbl2); fadeUp(lbl2,750,500,8);
+    const sources=[[-340,-150,'network call'],[340,-150,'disk / file'],[-340,150,'bad user input'],[340,150,'a bug in logic']];
+    sources.forEach(([dx,dy,name],i)=>{
+      const px=cx+dx, py=cy+dy;
+      const d = se('circle',{cx:px,cy:py,r:8,fill:'var(--danger)'});
+      main.appendChild(d); fadeUp(d,1100+i*150,400,10);
+      const t = txt(px, py + (dy<0?-20:32), name, 'label-18',{'text-anchor':'middle'});
+      main.appendChild(t); fadeUp(t,1150+i*150,400,8);
+      const ln = arrow(px-Math.sign(dx)*16, py, cx+dx*0.30, cy+dy*0.30, 'var(--danger)', {sw:1.4});
+      main.appendChild(ln); ln.style.opacity=0; fadeOnly(ln,1100+i*150,400,0.55);
+    });
+    after(2200, ()=>{
+      const cap = txt(cx,cy+90,'any one of these can fail — at any moment','label-18',{'text-anchor':'middle', fill:'var(--muted)'});
+      main.appendChild(cap); fadeUp(cap,0,500,10);
+    });
+  }
+});
+
+/* 1 ---------------- HOOK ---------------- */
+slides.push({
+  kicker:'The question everything starts from',
+  title:'Every function has two exits',
+  caption:'It can return normally — or it can fail. What happens on the failure exit?',
+  build(main){
+    const fx=250, fy=350, fw=260, fh=140;
+    const fnBox = labeledBox(fx,fy,fw,fh,'var(--stack)','readFile(path)','',{fill:'rgba(111,155,214,0.10)'});
+    main.appendChild(fnBox); fadeUp(fnBox,100,500,14);
+
+    const okBox = labeledBox(750,220,300,90,'var(--stack)','normal exit','returns file contents',{fill:'rgba(111,155,214,0.10)'});
+    main.appendChild(okBox); fadeUp(okBox,900,450,14);
+    const arr1 = arrow(fx+fw, fy+40, 750, 220+45, 'var(--stack)');
+    main.appendChild(arr1); arr1.style.opacity=0; drawPath(arr1,400,700);
+
+    const failBox = labeledBox(750,500,300,90,'var(--danger)','failure exit','file does not exist — then?',{fill:'rgba(209,112,111,0.10)'});
+    main.appendChild(failBox); fadeUp(failBox,1400,450,14);
+    const arr2 = arrow(fx+fw, fy+100, 750, 500+45, 'var(--danger)');
+    main.appendChild(arr2); arr2.style.opacity=0; drawPath(arr2,400,1200);
+
+    after(2100, ()=>{
+      const note = txt(80,700,'','label-18');
+      tspanLine(note,80,0,'Most code is written for the happy path. The rest');
+      tspanLine(note,80,26,'of this deck is entirely about designing that second exit on purpose.');
+      main.appendChild(note); fadeUp(note,0,600,14);
+    });
+  }
+});
+
+/* 2 ---------------- EXCEPTIONS ---------------- */
+slides.push({
+  kicker:'Mechanism 1',
+  title:'Exceptions',
+  caption:'A special signal that unwinds the call stack, skipping normal returns, until something catches it.',
+  build(main){
+    const baseX=1150, baseY=730, w=300, frameH=76;
+    const frames=[{name:'main()'},{name:'loadUser()'},{name:'readFile()'}];
+    const frameEls=[];
+    frames.forEach((f,i)=>{
+      const y = baseY-(i+1)*frameH;
+      const g = labeledBox(baseX,y+900,w,frameH-8,'var(--stack)',f.name,'',{fill:'rgba(111,155,214,0.08)'});
+      main.appendChild(g); frameEls.push(g);
+      moveGroup(g,0,0,0,y-900,450,400+i*550,easeOutCubic);
+      fadeOnly(g,400+i*550,300,1);
+    });
+    after(2100, ()=>{
+      const rect = frameEls[2].querySelector('rect');
+      rect.setAttribute('stroke','var(--danger)'); rect.setAttribute('fill','rgba(209,112,111,0.16)');
+      frameEls[2].querySelectorAll('text')[0].textContent='readFile()  throw!';
+      pulse(rect,0,2);
+    });
+    function unwind(i,delay){
+      after(delay, ()=>{
+        const g=frameEls[i];
+        const t0=performance.now();
+        function step(now){
+          const p=Math.min(1,(now-t0)/450); g.style.opacity=1-p;
+          if(p<1) raf(step); else g.remove();
+        }
+        raf(step);
+        const lbl = txt(baseX+w+50, baseY-(i+1)*frameH+40,'unwinding \u2026','label-14',{fill:'var(--danger)'});
+        main.appendChild(lbl); fadeOnly(lbl,0,250,0.9);
+        after(500,()=>fadeOnly(lbl,0,250,0));
+      });
+    }
+    unwind(2,2900);
+    unwind(1,3500);
+    after(4000, ()=>{
+      const rect=frameEls[0].querySelector('rect');
+      rect.setAttribute('stroke','var(--statc)'); rect.setAttribute('fill','rgba(111,191,139,0.16)');
+      frameEls[0].querySelectorAll('text')[0].textContent='main()  catches it';
+      pulse(rect,0,2);
+    });
+    const code=se('g',{});
+    code.appendChild(txt(110,220,'main() {','label-18 mono'));
+    code.appendChild(txt(110,254,'  try { loadUser(); }','label-18 mono'));
+    code.appendChild(txt(110,288,'  catch (e) { ... }','label-18 mono',{fill:'var(--statc)'}));
+    code.appendChild(txt(110,322,'}','label-18 mono'));
+    main.appendChild(code); fadeUp(code,100,500,14);
+
+    after(4500, ()=>{
+      const note=txt(110,470,'','label-18');
+      tspanLine(note,110,0,'No frame in between had to check anything.');
+      tspanLine(note,110,26,'The exception jumps straight to the nearest');
+      tspanLine(note,110,52,'handler, skipping every normal return path.');
+      main.appendChild(note); fadeUp(note,0,600,14);
+    });
+  }
+});
+
+/* 3 ---------------- TRY / CATCH / FINALLY ---------------- */
+slides.push({
+  kicker:'The control-flow shape',
+  title:'try / catch / finally',
+  caption:'try runs the risky code. catch handles failure. finally runs no matter which path was taken.',
+  build(main){
+    const tryBox = labeledBox(150,220,350,140,'var(--stack)','try','openConnection()',{fill:'rgba(111,155,214,0.1)'});
+    main.appendChild(tryBox); fadeUp(tryBox,100,500,14);
+
+    const okBox = labeledBox(620,180,350,90,'var(--stack)','no error','continue after try',{fill:'rgba(111,155,214,0.1)'});
+    main.appendChild(okBox); fadeUp(okBox,900,450,14);
+    const catchBox = labeledBox(620,330,350,90,'var(--danger)','catch','handle the error',{fill:'rgba(209,112,111,0.1)'});
+    main.appendChild(catchBox); fadeUp(catchBox,1300,450,14);
+
+    const finallyBox = labeledBox(1080,255,340,140,'var(--statc)','finally','closeConnection()',{fill:'rgba(111,191,139,0.12)'});
+    main.appendChild(finallyBox); fadeUp(finallyBox,1900,500,14);
+
+    after(2500, ()=>{
+      const a1 = arrow(150+350,220+40,620,180+45,'var(--stack)');
+      const a2 = arrow(150+350,220+100,620,330+45,'var(--danger)');
+      [a1,a2].forEach((a,i)=>{ main.appendChild(a); a.style.opacity=0; drawPath(a,350,i*250); });
+      after(700, ()=>{
+        const a3 = arrow(620+350,180+45,1080,255+40,'var(--stack)',{sw:1.4});
+        const a4 = arrow(620+350,330+45,1080,255+100,'var(--danger)',{sw:1.4});
+        [a3,a4].forEach((a,i)=>{ main.appendChild(a); a.style.opacity=0; drawPath(a,350,i*200); });
+      });
+    });
+
+    after(3600, ()=>{
+      const note = txt(80,620,'','label-18');
+      tspanLine(note,80,0,'Both arrows lead to finally. It runs whether the');
+      tspanLine(note,80,26,'try succeeded or the catch fired \u2014 the one place');
+      tspanLine(note,80,52,'guaranteed to run cleanup (close a file, release a lock, release a connection).');
+      main.appendChild(note); fadeUp(note,0,600,14);
+    });
+  }
+});
+
+/* 4 ---------------- EXCEPTION HIERARCHY ---------------- */
+slides.push({
+  kicker:'Not all failures are equal',
+  title:'Exception Hierarchy',
+  caption:'Exceptions form a class tree — catching a base type also catches every subtype beneath it.',
+  build(main){
+    const rootX=800, rootY=200;
+    main.appendChild(labeledBox(rootX-90,rootY,180,70,'var(--danger)','Exception','',{fill:'rgba(209,112,111,0.12)'}));
+    fadeUp(zoneMain.lastChild,100,450,14);
+
+    const mid=[{x:450,label:'IOException'},{x:800,label:'RuntimeException'},{x:1150,label:'ValidationException'}];
+    mid.forEach((m,i)=>{
+      const g = labeledBox(m.x-90,rootY+150,180,70,'var(--danger)',m.label,'',{fill:'rgba(209,112,111,0.09)'});
+      main.appendChild(g); fadeUp(g,500+i*200,450,14);
+      const ar = arrow(rootX,rootY+70,m.x,rootY+150,'var(--muted)',{sw:1.4});
+      main.appendChild(ar); ar.style.opacity=0; drawPath(ar,300,600+i*200);
+    });
+
+    const leaf=[{x:300,label:'FileNotFound'},{x:600,label:'TimeoutException'},{x:1000,label:'NullPointer'},{x:1150+150,label:'InsufficientFunds'}];
+    const leafParent=[450,450,800,1150];
+    leaf.forEach((l,i)=>{
+      const g = labeledBox(l.x-85,rootY+300,170,70,'var(--danger)',l.label,'',{fill:'rgba(209,112,111,0.06)'});
+      main.appendChild(g); fadeUp(g,1300+i*180,450,14);
+      const ar = arrow(leafParent[i],rootY+220,l.x,rootY+300,'var(--muted)',{sw:1.2});
+      main.appendChild(ar); ar.style.opacity=0; drawPath(ar,300,1400+i*180);
+    });
+
+    after(2400, ()=>{
+      const code = txt(80,650,'','label-18 mono');
+      tspanLine(code,80,0,'catch (IOException e) { ... }');
+      main.appendChild(code); fadeUp(code,0,450,10);
+      const note = txt(80,690,'','label-18',{fill:'var(--muted)'});
+      tspanLine(note,80,0,'catches FileNotFound too \u2014 but NOT TimeoutException,');
+      tspanLine(note,80,24,'since it lives under a different branch. Order matters: catch specific before general.');
+      main.appendChild(note); fadeUp(note,300,500,14);
+    });
+  }
+});
+
+/* 5 ---------------- CUSTOM EXCEPTIONS ---------------- */
+slides.push({
+  kicker:'Making failures speak your domain',
+  title:'Custom Exceptions',
+  caption:'Subclass the base exception to carry the exact context a generic error can\u2019t.',
+  build(main){
+    const genX=200, genY=280;
+    main.appendChild(labeledBox(genX,genY,320,110,'var(--danger)','Exception','message: string only',{fill:'rgba(209,112,111,0.1)'}));
+    fadeUp(zoneMain.lastChild,100,500,14);
+
+    const custX=750, custY=280;
+    const g = labeledBox(custX,custY,420,180,'var(--danger)','InsufficientFundsError','',{fill:'rgba(209,112,111,0.12)'});
+    main.appendChild(g); fadeUp(g,700,500,14);
+
+    after(1300, ()=>{
+      const fields = se('g',{});
+      fields.appendChild(txt(custX+30,custY+90,'accountId: "A-4471"','label-14 mono'));
+      fields.appendChild(txt(custX+30,custY+120,'requested: 500.00','label-14 mono'));
+      fields.appendChild(txt(custX+30,custY+150,'available: 213.40','label-14 mono'));
+      main.appendChild(fields); fadeUp(fields,0,450,10);
+    });
+
+    after(1000, ()=>{
+      const ar = arrow(genX+320,genY+55,custX,custY+55,'var(--muted)',{sw:1.4});
+      main.appendChild(ar); ar.style.opacity=0; drawPath(ar,350,0);
+      main.appendChild(txt((genX+320+custX)/2, genY+40,'extends','label-14',{'text-anchor':'middle',fill:'var(--muted)'}));
+      fadeOnly(zoneMain.lastChild,0,350,0.8);
+    });
+
+    after(2100, ()=>{
+      const note = txt(80,620,'','label-18');
+      tspanLine(note,80,0,'The catch block can now branch on the exact');
+      tspanLine(note,80,26,'shortfall instead of parsing a generic string');
+      tspanLine(note,80,52,'message \u2014 structured data, not guesswork.');
+      main.appendChild(note); fadeUp(note,0,600,14);
+    });
+  }
+});
+
+/* 6 ---------------- GAP -> propagation ---------------- */
+slides.push({
+  kicker:'GAP',
+  title:'But if nobody along the way catches it\u2026',
+  caption:'…where does an exception actually go?',
+  build(main){
+    main.appendChild(predictGate(800,420,
+      'We\u2019ve seen exceptions unwind toward a try/catch. But what if there is no catch, anywhere in the entire call chain?',
+      ()=>{ after(50, ()=> gotoSlide(cur+1)); }));
+  }
+});
+
+/* 7 ---------------- ERROR PROPAGATION ---------------- */
+slides.push({
+  kicker:'When nothing catches it',
+  title:'Error Propagation',
+  caption:'An uncaught exception keeps unwinding all the way to the top — and the runtime decides what happens then.',
+  build(main){
+    const baseX=350, baseY=700, w=260, frameH=80;
+    const names=['requestHandler()','loadUser()','readFile()'];
+    const frameEls=[];
+    names.forEach((n,i)=>{
+      const y=baseY-(i+1)*frameH;
+      const g = labeledBox(baseX,y,w,frameH-8,'var(--stack)',n,'',{fill:'rgba(111,155,214,0.08)'});
+      main.appendChild(g); fadeUp(g,150+i*250,400,10); frameEls.push(g);
+    });
+    after(1000, ()=>{
+      const rect = frameEls[2].querySelector('rect');
+      rect.setAttribute('stroke','var(--danger)'); rect.setAttribute('fill','rgba(209,112,111,0.16)');
+      frameEls[2].querySelectorAll('text')[0].textContent='readFile()  throw!';
+      pulse(rect,0,2);
+    });
+    function pop(i,delay){
+      after(delay, ()=>{
+        const g=frameEls[i]; const t0=performance.now();
+        function step(now){ const p=Math.min(1,(now-t0)/400); g.style.opacity=1-p; if(p<1) raf(step); else g.remove(); }
+        raf(step);
+      });
+    }
+    pop(2,1700); pop(1,2200); pop(0,2700);
+
+    const topX=800, topY=300;
+    const runtimeBox = labeledBox(topX,topY,380,120,'var(--danger)','runtime / process boundary','no handler found anywhere',{fill:'rgba(209,112,111,0.1)'});
+    main.appendChild(runtimeBox); fadeUp(runtimeBox,3000,500,14);
+
+    after(3600, ()=>{
+      const outcomes=[
+        {y:470,label:'Uncaught in a script \u2192 process crashes, non-zero exit code'},
+        {y:520,label:'Uncaught in a web request \u2192 framework returns HTTP 500'},
+        {y:570,label:'Uncaught in a thread \u2192 that thread dies silently (dangerous!)'},
+      ];
+      outcomes.forEach((o,i)=>{
+        const t = txt(topX,o.y,o.label,'label-18',{fill:i===2?'var(--danger)':'var(--muted)'});
+        main.appendChild(t); fadeUp(t,i*300,450,10);
+      });
+    });
+  }
+});
+
+/* 8 ---------------- ERROR HANDLING STRATEGIES OVERVIEW ---------------- */
+slides.push({
+  kicker:'RECAP + zoom out',
+  title:'Error handling strategies, at a glance',
+  caption:'Exceptions are one mechanism among several for signaling "this failed."',
+  build(main){
+    const rows=[
+      ['Exceptions','throw/catch','invisible in signature','can be slow to throw'],
+      ['Error codes (C-style)','return -1 / errno','easy to ignore by accident','no structured data'],
+      ['Result / Option types','return Ok/Err, Some/None','visible in the type itself','caller must be forced to check'],
+      ['Signals / panics','process-level abort','for truly unrecoverable states','not for normal control flow'],
+    ];
+    const x0=100, y0=210, colW=[360,280,390,310], rowH=90;
+    let x=x0; const xs=[x0]; colW.forEach(w=>{x+=w;xs.push(x);});
+    const heads=['Approach','How it signals','Strength','Watch out'];
+    heads.forEach((h,i)=>{
+      const t=txt(xs[i]+20,y0-20,h,'label-18',{fill:'var(--muted)'});
+      main.appendChild(t); fadeUp(t,100+i*100,400,10);
+    });
+    rows.forEach((r,ri)=>{
+      r.forEach((cell,ci)=>{
+        const cy=y0+30+ri*rowH;
+        const t=txt(xs[ci]+20,cy,cell,'label-18',{});
+        main.appendChild(t); fadeUp(t,500+ri*160+ci*60,400,10);
+      });
+      const sepY=y0+30+ri*rowH+24;
+      const sep = se('path',{d:`M${x0},${sepY} L${x0+colW.reduce((a,b)=>a+b,0)-20},${sepY}`, stroke:'var(--grid)','stroke-width':1, fill:'none'});
+      main.appendChild(sep); drawPath(sep,300,1000+ri*160);
+    });
+
+    /* a highlight bar scans down the rows, then settles and pulses on
+       "Result / Option types" — the approach the next few slides build on */
+    const rowTop = y0+8;
+    const highlight = box(x0-16, rowTop, colW.reduce((a,b)=>a+b,0)-8, rowH-16, 'var(--ptr)', {fill:'rgba(178,143,209,0.07)', rx:8});
+    highlight.style.opacity=0;
+    main.appendChild(highlight);
+    after(2100, ()=>{
+      fadeOnly(highlight,0,300,1);
+      [0,1,2,3].forEach((ri,i)=>{
+        tweenAttrs(highlight,{y: rowTop+ri*rowH},350,i*420);
+      });
+      after(3*420+450, ()=>{
+        pulse(highlight,0,2);
+        const arrow2 = txt(x0, y0+30+4*rowH+10, 'this is the approach the rest of this deck builds on \u25be', 'label-14',{fill:'var(--ptr)'});
+        main.appendChild(arrow2); fadeUp(arrow2,150,400,8);
+      });
+    });
+  }
+});
+
+/* 9 ---------------- GAP -> visible types ---------------- */
+slides.push({
+  kicker:'GAP',
+  title:'Exceptions are invisible in a signature\u2026',
+  caption:'…nothing in readFile(path)\u2019s type tells you it might fail. Can the type system force the issue?',
+  build(main){
+    main.appendChild(predictGate(800,420,
+      'A function signature says "returns a User." It never mentions it might throw. Can we make "this might fail" part of the return type itself, so the compiler won\u2019t let you forget?',
+      ()=>{ after(50, ()=> gotoSlide(cur+1)); }));
+  }
+});
+
+/* 10 ---------------- RESULT TYPES ---------------- */
+slides.push({
+  kicker:'Failure as a value, not a jump',
+  title:'Result Types',
+  caption:'Return an explicit Ok(value) or Err(error) — the caller must open the box before using it.',
+  build(main){
+    const code = se('g',{});
+    code.appendChild(txt(110,220,'fn readFile(path) -> Result<String, IOError>','label-18 mono'));
+    main.appendChild(code); fadeUp(code,100,500,14);
+
+    const okBox = labeledBox(250,300,300,110,'var(--stack)','Ok("file contents")','the success path',{fill:'rgba(111,155,214,0.12)'});
+    main.appendChild(okBox); fadeUp(okBox,700,500,14);
+    const errBox = labeledBox(650,300,300,110,'var(--danger)','Err(FileNotFound)','the failure path',{fill:'rgba(209,112,111,0.12)'});
+    main.appendChild(errBox); fadeUp(errBox,1000,500,14);
+
+    const resultOuter = box(200,270,800,180,'var(--ptr)',{fill:'none','stroke-width':1.6});
+    main.appendChild(resultOuter);
+    main.insertBefore(resultOuter, okBox); // draw behind
+    fadeOnly(resultOuter,300,400,0.9);
+    const resLabel = txt(600,255,'Result<String, IOError>  \u2014  exactly one of these two exists','label-14',{'text-anchor':'middle', fill:'var(--ptr)'});
+    main.appendChild(resLabel); fadeUp(resLabel,1500,400,8);
+
+    /* the actual mechanism: the SAME call resolves to one branch or the
+       other at runtime — a marker travels to whichever one actually happened */
+    const callLabel = txt(1050,320,'','label-18 mono');
+    main.appendChild(callLabel);
+    const marker = se('circle',{cx:1050,cy:345,r:8,fill:'var(--ptr)'});
+    marker.style.opacity=0; main.appendChild(marker);
+
+    after(1900, ()=>{
+      callLabel.textContent = 'readFile("config.json")';
+      fadeUp(callLabel,0,350,8);
+      fadeOnly(marker,300,300,1);
+      tweenAttrs(marker,{cx:400,cy:355},550,650,easeInOutCubic, ()=>{
+        pulse(okBox.querySelector('rect'),0,2);
+      });
+    });
+    after(3100, ()=>{
+      callLabel.textContent = 'readFile("missing.json")';
+      const t0=performance.now();
+      function step(now){ const p=Math.min(1,(now-t0)/300); callLabel.style.opacity=1-0.5*Math.sin(p*Math.PI); if(p<1) raf(step); else callLabel.style.opacity=1; }
+      raf(step);
+      tweenAttrs(marker,{cx:1050,cy:345},1,0);
+      after(350, ()=>{
+        tweenAttrs(marker,{cx:800,cy:355},550,0,easeInOutCubic, ()=>{
+          pulse(errBox.querySelector('rect'),0,2);
+        });
+      });
+    });
+
+    after(4300, ()=>{
+      const codeMatch = se('g',{});
+      codeMatch.appendChild(txt(110,520,'match result {','label-18 mono'));
+      codeMatch.appendChild(txt(110,554,'  Ok(text)  => use(text),','label-18 mono',{fill:'var(--stack)'}));
+      codeMatch.appendChild(txt(110,588,'  Err(e)    => log(e),','label-18 mono',{fill:'var(--danger)'}));
+      codeMatch.appendChild(txt(110,622,'}','label-18 mono'));
+      main.appendChild(codeMatch); fadeUp(codeMatch,0,500,14);
+    });
+    after(5000, ()=>{
+      const note = txt(1050,540,'','label-18',{fill:'var(--muted)'});
+      tspanLine(note,1050,0,'Rust\u2019s Result and Go\u2019s');
+      tspanLine(note,1050,26,'(value, err) pair are');
+      tspanLine(note,1050,52,'both this same idea:');
+      tspanLine(note,1050,78,'no hidden control-flow jump.');
+      main.appendChild(note); fadeUp(note,0,500,10);
+    });
+  }
+});
+
+/* 11 ---------------- OPTION / MAYBE TYPES ---------------- */
+slides.push({
+  kicker:'A close cousin: handling absence',
+  title:'Option / Maybe Types',
+  caption:'Not every failure is an error — sometimes a value is simply not there. Option makes that explicit too.',
+  build(main){
+    /* lane A: the old way, a raw null */
+    main.appendChild(txt(110,190,'the old way: a raw null','label-14',{fill:'var(--danger)'}));
+    fadeUp(zoneMain.lastChild,100,400,8);
+    const nullBox = labeledBox(110,215,260,90,'var(--danger)','user','= null',{fill:'rgba(209,112,111,0.1)'});
+    main.appendChild(nullBox); fadeUp(nullBox,200,450,14);
+    const accessBox = labeledBox(520,215,300,90,'var(--danger)','user.name','looks totally valid\u2026',{fill:'rgba(209,112,111,0.1)'});
+    main.appendChild(accessBox); fadeUp(accessBox,700,450,14);
+    const arrA = arrow(370,260,520,260,'var(--danger)');
+    main.appendChild(arrA); arrA.style.opacity=0; drawPath(arrA,350,1150);
+
+    after(1700, ()=>{
+      const crash = labeledBox(920,190,340,140,'var(--danger)','\ud83d\udca5 crash','NullPointerException',{fill:'rgba(209,112,111,0.18)'});
+      crash.style.opacity=0; crash.setAttribute('transform','scale(0.7)');
+      crash.style.transformOrigin='1090px 260px';
+      main.appendChild(crash);
+      const t0=performance.now();
+      function step(now){
+        const p=Math.min(1,(now-t0)/350), e=easeOutCubic(p);
+        crash.style.opacity=e; crash.setAttribute('transform',`scale(${0.7+0.3*e})`);
+        if(p<1) raf(step);
+      }
+      raf(step);
+      pulse(crash.querySelector('rect'),400,3);
+      const arrB2 = arrow(820,260,920,260,'var(--danger)');
+      main.appendChild(arrB2); arrB2.style.opacity=0; drawPath(arrB2,250,0);
+    });
+
+    /* lane B: Option, explicit and safe */
+    after(2600, ()=>{
+      main.appendChild(txt(110,410,'with Option: absence is a value, not a trap','label-14',{fill:'var(--statc)'}));
+      fadeUp(zoneMain.lastChild,0,400,8);
+      const optBox = labeledBox(110,435,340,90,'var(--ptr)','user','Option<User> = None',{fill:'rgba(178,143,209,0.12)'});
+      main.appendChild(optBox); fadeUp(optBox,150,450,14);
+      const matchBox = labeledBox(560,435,240,90,'var(--ptr)','match user {','',{fill:'rgba(178,143,209,0.1)'});
+      main.appendChild(matchBox); fadeUp(matchBox,500,450,14);
+      const arrC = arrow(450,480,560,480,'var(--ptr)');
+      main.appendChild(arrC); arrC.style.opacity=0; drawPath(arrC,300,900);
+
+      after(1200, ()=>{
+        const someBox = labeledBox(900,385,320,75,'var(--dim)','Some(u) => u.name','not this branch',{fill:'rgba(255,255,255,0.03)'});
+        someBox.style.opacity=0.35;
+        main.appendChild(someBox); fadeOnly(someBox,0,350,0.35);
+        const noneBox = labeledBox(900,490,320,90,'var(--statc)','None => "guest"','\u2713 handled safely, no crash',{fill:'rgba(111,191,139,0.16)'});
+        main.appendChild(noneBox); fadeUp(noneBox,150,450,14);
+        const arrD1 = arrow(800,455,900,422,'var(--muted)',{sw:1.2});
+        const arrD2 = arrow(800,505,900,535,'var(--statc)');
+        [arrD1,arrD2].forEach((a,i)=>{ main.appendChild(a); a.style.opacity=0; drawPath(a,300,300+i*150); });
+        after(650, ()=> pulse(noneBox.querySelector('rect'),0,2));
+      });
+    });
+
+    after(4700, ()=>{
+      const note = txt(80,700,'','label-18');
+      tspanLine(note,80,0,'Same missing value, two outcomes: null lets you');
+      tspanLine(note,80,26,'forget to check and crash later; Option forces the');
+      tspanLine(note,80,52,'check right here \u2014 exactly the class of bug Tony Hoare called his "billion-dollar mistake."');
+      main.appendChild(note); fadeUp(note,0,600,14);
+    });
+  }
+});
+
+/* 12 ---------------- COMPARISON: EXCEPTIONS vs RESULT/OPTION ---------------- */
+slides.push({
+  kicker:'RECAP',
+  title:'Exceptions vs Result / Option',
+  caption:'So far: two philosophies for the same problem — hidden jump vs. explicit value.',
+  build(main){
+    const rows=[
+      ['Visible in signature?','no','yes'],
+      ['Can you forget to handle it?','yes, easily','no \u2014 compiler/caller forces a check'],
+      ['Performance','cheap until thrown, then costly unwind','uniformly cheap, just a return'],
+      ['Best for','truly exceptional, rare situations','expected, frequent failure paths'],
+    ];
+    const x0=160, y0=220, colW=[420,460,460], rowH=100;
+    let x=x0; const xs=[x0]; colW.forEach(w=>{x+=w;xs.push(x);});
+    const heads=['','Exceptions','Result / Option'];
+    heads.forEach((h,i)=>{ if(!h) return;
+      const t=txt(xs[i]+colW[i]/2,y0-24,h,'label-24',{'text-anchor':'middle', fill: i===1?'var(--danger)':'var(--ptr)'});
+      main.appendChild(t); fadeUp(t,100+i*150,400,10);
+    });
+    /* a vertical divider grows downward between the two philosophies as the header settles */
+    const dividerX = xs[1];
+    const divider = se('path',{d:`M${dividerX},${y0-10} L${dividerX},${y0+30+rows.length*rowH-14}`, stroke:'var(--grid)','stroke-width':1.4, fill:'none'});
+    main.appendChild(divider); drawPath(divider,600,650);
+
+    rows.forEach((r,ri)=>{
+      const cy=y0+30+ri*rowH;
+      const label=txt(x0-10,cy+6,r[0],'label-18',{'text-anchor':'end', fill:'var(--muted)'});
+      main.appendChild(label); fadeUp(label,500+ri*180,400,10);
+      [r[1],r[2]].forEach((cell,ci)=>{
+        const t=txt(xs[ci+1]+colW[ci+1]/2,cy+6,'','label-18',{'text-anchor':'middle'});
+        const words=cell.split(' '); let line='',lines=[];
+        words.forEach(w=>{ if((line+w).length>24){lines.push(line);line=w+' ';} else line+=w+' ';});
+        lines.push(line);
+        lines.forEach((l,li)=>tspanLine(t,xs[ci+1]+colW[ci+1]/2,li===0?0:20,l.trim()));
+        if(lines.length>1) t.setAttribute('y', cy+6-((lines.length-1)*10));
+        main.appendChild(t); fadeUp(t,560+ri*180+ci*70,400,10);
+      });
+      const sepY = y0+30+ri*rowH+34;
+      const sep = se('path',{d:`M${x0-10},${sepY} L${x0+colW.reduce((a,b)=>a+b,0)-20},${sepY}`, stroke:'var(--grid)','stroke-width':1, fill:'none'});
+      main.appendChild(sep); drawPath(sep,300,900+ri*180);
+    });
+
+    /* settle on "Best for" — the row that motivates the next section */
+    after(rows.length*180+1100, ()=>{
+      const lastCy = y0+30+(rows.length-1)*rowH;
+      const glow = box(x0-16, lastCy-34, colW.reduce((a,b)=>a+b,0)+6, rowH-4, 'var(--stack)', {fill:'rgba(111,155,214,0.06)', rx:8});
+      glow.style.opacity=0;
+      main.insertBefore(glow, main.firstChild);
+      fadeOnly(glow,0,400,1);
+      pulse(glow,300,2);
+      const tag = txt((x0 + xs[xs.length-1])/2, lastCy+rowH-16, 'both are correct \u2014 for different failure shapes', 'label-14',{'text-anchor':'middle', fill:'var(--stack)'});
+      main.appendChild(tag); fadeUp(tag,500,400,8);
+    });
+  }
+});
+
+/* 13 ---------------- GAP -> what to actually do ---------------- */
+slides.push({
+  kicker:'GAP',
+  title:'Now you KNOW it failed\u2026',
+  caption:'…so what should the program actually do about it?',
+  build(main){
+    main.appendChild(predictGate(800,420,
+      'A payment API times out. Do you stop everything and refuse to continue \u2014 or do you quietly fall back to a cached price and keep going?',
+      ()=>{ after(50, ()=> gotoSlide(cur+1)); }));
+  }
+});
+
+/* 14 ---------------- FAIL-FAST ---------------- */
+slides.push({
+  kicker:'Philosophy 1',
+  title:'Fail-Fast',
+  caption:'Stop immediately at the first sign of trouble — before bad state can spread anywhere else.',
+  build(main){
+    const steps=['validateInput()','chargeCard()','shipOrder()','sendReceipt()'];
+    const x0=200, y=350, w=250;
+    const stepEls=[];
+    steps.forEach((s,i)=>{
+      const g = labeledBox(x0+i*(w+20),y,w,90,i===1?'var(--danger)':'var(--stack)',s,'',{fill:i===1?'rgba(209,112,111,0.14)':'rgba(111,155,214,0.08)'});
+      main.appendChild(g); stepEls.push(g); fadeUp(g,200+i*350,450,14);
+      if(i>0){
+        const ar = arrow(x0+i*(w+20)-20, y+45, x0+i*(w+20), y+45,'var(--muted)',{sw:1.4});
+        main.appendChild(ar); ar.style.opacity=0; drawPath(ar,300,150+i*350);
+      }
+    });
+    after(1600, ()=>{
+      const stopX = x0+2*(w+20)-30;
+      const stop = txt(stopX,y-30,'STOP \u2014 abort now, never reached','label-18',{fill:'var(--danger)'});
+      main.appendChild(stop); fadeUp(stop,0,450,10);
+      for(let i=2;i<stepEls.length;i++){ stepEls[i].style.opacity=0.25; }
+    });
+    after(2200, ()=>{
+      const note = txt(80,600,'','label-18');
+      tspanLine(note,80,0,'chargeCard() fails \u2192 the whole order aborts');
+      tspanLine(note,80,26,'right there. shipOrder() and sendReceipt() never');
+      tspanLine(note,80,52,'run against a half-completed order. Loud, immediate, easy to debug.');
+      main.appendChild(note); fadeUp(note,0,600,14);
+    });
+  }
+});
+
+/* 15 ---------------- GRACEFUL DEGRADATION ---------------- */
+slides.push({
+  kicker:'Philosophy 2',
+  title:'Graceful Degradation',
+  caption:'Keep the system alive with reduced functionality instead of failing the whole request.',
+  build(main){
+    const reqBox = labeledBox(150,320,260,100,'var(--stack)','render homepage','',{fill:'rgba(111,155,214,0.1)'});
+    main.appendChild(reqBox); fadeUp(reqBox,100,450,14);
+
+    const recBox = labeledBox(550,220,300,90,'var(--danger)','recommendations service','times out',{fill:'rgba(209,112,111,0.12)'});
+    main.appendChild(recBox); fadeUp(recBox,600,450,14);
+    const ar1 = arrow(150+260,320+30, 550, 220+45,'var(--muted)');
+    main.appendChild(ar1); ar1.style.opacity=0; drawPath(ar1,350,900);
+
+    after(1500, ()=>{
+      const fallback = labeledBox(950,220,320,90,'var(--statc)','fallback: static "trending" list','served instead',{fill:'rgba(111,191,139,0.14)'});
+      main.appendChild(fallback); fadeUp(fallback,0,450,14);
+      const ar2 = arrow(550+300,220+45,950,220+45,'var(--statc)');
+      main.appendChild(ar2); ar2.style.opacity=0; drawPath(ar2,350,300);
+    });
+
+    after(2400, ()=>{
+      const pageBox = labeledBox(550,450,300,90,'var(--stack)','header, product, cart','fully working',{fill:'rgba(111,155,214,0.1)'});
+      main.appendChild(pageBox); fadeUp(pageBox,0,450,14);
+      const ar3 = arrow(150+130,320+100,550+150,450,'var(--stack)',{sw:1.4});
+      main.appendChild(ar3); ar3.style.opacity=0; drawPath(ar3,350,300);
+    });
+
+    after(3200, ()=>{
+      const note = txt(80,640,'','label-18');
+      tspanLine(note,80,0,'The page loads. It\u2019s slightly worse (no personalized');
+      tspanLine(note,80,26,'picks) but nowhere close to a hard failure. This is');
+      tspanLine(note,80,52,'the opposite bet from fail-fast \u2014 both are correct, for different parts of a system.');
+      main.appendChild(note); fadeUp(note,0,600,14);
+    });
+  }
+});
+
+/* 16 ---------------- GAP -> distributed / flaky network ---------------- */
+slides.push({
+  kicker:'GAP',
+  title:'In distributed systems, failures are often temporary\u2026',
+  caption:'…a network blip, a momentary overload. How do you handle a call that might just need a moment?',
+  build(main){
+    main.appendChild(predictGate(800,420,
+      'A downstream service is fine 99% of the time, but occasionally drops one request. Should you treat that one failure exactly like a permanent one?',
+      ()=>{ after(50, ()=> gotoSlide(cur+1)); }));
+  }
+});
+
+/* 17 ---------------- RETRY ---------------- */
+slides.push({
+  kicker:'Resilience pattern 1',
+  title:'Retry (with backoff)',
+  caption:'Try again — but wait longer each time, and add randomness, so retries don\u2019t all collide at once.',
+  build(main){
+    const clientX=200, clientY=350;
+    main.appendChild(labeledBox(clientX,clientY,220,90,'var(--stack)','client','',{fill:'rgba(111,155,214,0.1)'}));
+    fadeUp(zoneMain.lastChild,100,450,14);
+    const svcX=900, svcY=350;
+    main.appendChild(labeledBox(svcX,svcY,220,90,'var(--heap)','flaky service','',{fill:'rgba(214,154,99,0.1)'}));
+    fadeUp(zoneMain.lastChild,150,450,14);
+
+    const attempts=[{ms:0,ok:false,label:'attempt 1 \u2014 fail'},{ms:300,ok:false,label:'wait 200ms \u2192 attempt 2 \u2014 fail'},{ms:900,ok:true,label:'wait 500ms \u2192 attempt 3 \u2014 success'}];
+    let t=700;
+    attempts.forEach((a,i)=>{
+      after(t, ()=>{
+        const ar = arrow(clientX+220,clientY+45,svcX,svcY+45, a.ok?'var(--statc)':'var(--danger)');
+        main.appendChild(ar); ar.style.opacity=0; drawPath(ar,300,0);
+        const lbl = txt((clientX+220+svcX)/2, clientY - 100 + i*40 ,a.label,'label-14',{'text-anchor':'middle', fill: a.ok?'var(--statc)':'var(--danger)'});
+        main.appendChild(lbl); fadeUp(lbl,300,400,8);
+      });
+      t += 900;
+    });
+
+    after(t+300, ()=>{
+      const code = txt(200,600,'','label-18 mono');
+      tspanLine(code,200,0,'delay = base * 2^attempt + jitter');
+      main.appendChild(code); fadeUp(code,0,500,10);
+      const note = txt(200,650,'','label-18');
+      tspanLine(note,200,0,'Caution: only retry idempotent operations \u2014');
+      tspanLine(note,200,26,'retrying "chargeCard()" blindly can double-charge.');
+      main.appendChild(note); fadeUp(note,300,500,14);
+    });
+  }
+});
+
+/* 18 ---------------- TIMEOUT ---------------- */
+slides.push({
+  kicker:'Resilience pattern 2',
+  title:'Timeout',
+  caption:'Never wait forever. Give a call a deadline, and give up cleanly if it\u2019s missed.',
+  build(main){
+    const barX=200, barY=350, barW=1000, barH=40;
+    main.appendChild(box(barX,barY,barW,barH,'var(--dim)',{fill:'rgba(255,255,255,0.03)'}));
+    const fill = box(barX,barY,4,barH,'var(--stack)',{fill:'rgba(111,155,214,0.4)'});
+    main.appendChild(fill); fadeOnly(fill,0,10,1);
+    growRect(fill,'width',600,1400,300);
+
+    const marker = txt(barX+600, barY-16, 'timeout at 3s', 'label-14',{fill:'var(--danger)'});
+    main.appendChild(marker); fadeUp(marker,300,400,8);
+    const line = se('line',{x1:barX+600,y1:barY-6,x2:barX+600,y2:barY+barH+6,stroke:'var(--danger)','stroke-width':2,'stroke-dasharray':'4,4'});
+    main.appendChild(line); fadeOnly(line,300,400,0.9);
+
+    after(1900, ()=>{
+      const t2 = txt(barX+610, barY+70,'deadline hit \u2014 abandon the call, return TimeoutError','label-18',{fill:'var(--danger)'});
+      main.appendChild(t2); fadeUp(t2,0,450,10);
+    });
+
+    after(2600, ()=>{
+      const note = txt(200,600,'','label-18');
+      tspanLine(note,200,0,'Without this, one slow dependency can hang every');
+      tspanLine(note,200,26,'thread waiting on it \u2014 a timeout turns an unbounded');
+      tspanLine(note,200,52,'wait into a bounded, known failure you can react to (often by retrying, per the last slide).');
+      main.appendChild(note); fadeUp(note,0,600,14);
+    });
+  }
+});
+
+/* 19 ---------------- CIRCUIT BREAKER ---------------- */
+slides.push({
+  kicker:'Resilience pattern 3',
+  title:'Circuit Breaker',
+  caption:'Stop hammering a service that\u2019s clearly down — trip the breaker and fail fast until it recovers.',
+  build(main){
+    const states=[{x:200,label:'CLOSED',sub:'calls flow through normally',c:'var(--stack)'},
+                  {x:640,label:'OPEN',sub:'calls fail instantly, no network hit',c:'var(--danger)'},
+                  {x:1080,label:'HALF-OPEN',sub:'let one test call through',c:'var(--heap)'}];
+    const els=[];
+    states.forEach((s,i)=>{
+      const g = labeledBox(s.x,300,300,120,s.c,s.label,s.sub,{fill:'rgba(255,255,255,0.03)'});
+      main.appendChild(g); fadeUp(g,150+i*250,450,14); els.push(g);
+    });
+    after(1200, ()=>{
+      const ar1 = arrow(200+300,360,640,360,'var(--danger)');
+      main.appendChild(ar1); ar1.style.opacity=0; drawPath(ar1,350,0);
+      main.appendChild(txt(570,340,'error rate > 50%','label-14',{'text-anchor':'middle',fill:'var(--danger)'}));
+      fadeUp(zoneMain.lastChild,300,400,8);
+    });
+    after(2200, ()=>{
+      const ar2 = arrow(640+300,360,1080,360,'var(--heap)');
+      main.appendChild(ar2); ar2.style.opacity=0; drawPath(ar2,350,0);
+      main.appendChild(txt(1010,340,'cool-down timer expires','label-14',{'text-anchor':'middle',fill:'var(--heap)'}));
+      fadeUp(zoneMain.lastChild,300,400,8);
+    });
+    after(3200, ()=>{
+      const arBack = curveArrow(1080+150,300,200+150,300,-70,'var(--stack)');
+      main.appendChild(arBack); arBack.style.opacity=0; drawPath(arBack,450,0);
+      main.appendChild(txt(650,190,'test call succeeds \u2192 close the circuit again','label-14',{'text-anchor':'middle',fill:'var(--stack)'}));
+      fadeUp(zoneMain.lastChild,400,400,8);
+      const arFail = curveArrow(1080+150,420,640+150,420,60,'var(--danger)');
+      main.appendChild(arFail); arFail.style.opacity=0; drawPath(arFail,450,300);
+      main.appendChild(txt(860,470,'test call fails \u2192 back to open','label-14',{'text-anchor':'middle',fill:'var(--danger)'}));
+      fadeUp(zoneMain.lastChild,700,400,8);
+    });
+    after(4200, ()=>{
+      const note = txt(200,600,'','label-18');
+      tspanLine(note,200,0,'Named after the electrical version: better to trip');
+      tspanLine(note,200,26,'and stop the current than let everything downstream burn.');
+      main.appendChild(note); fadeUp(note,0,600,14);
+    });
+  }
+});
+
+/* 20 ---------------- BULKHEAD ---------------- */
+slides.push({
+  kicker:'Resilience pattern 4',
+  title:'Bulkhead',
+  caption:'Isolate resource pools so one failing dependency can\u2019t starve every other request.',
+  build(main){
+    const shipX=200, shipY=200, shipW=1150, shipH=260;
+    main.appendChild(box(shipX,shipY,shipW,shipH,'var(--dim)',{fill:'rgba(255,255,255,0.02)'}));
+    main.appendChild(txt(shipX+shipW/2,shipY-16,'shared thread pool, no isolation','label-18',{'text-anchor':'middle',fill:'var(--muted)'}));
+    fadeUp(zoneMain.lastChild,100,400,10);
+
+    const poolCells=12;
+    const cellW=(shipW-40)/poolCells;
+    const cellEls=[];
+    for(let i=0;i<poolCells;i++){
+      const g = box(shipX+20+i*cellW, shipY+30, cellW-6, shipH-60, i<9?'var(--danger)':'var(--stack)', {fill: i<9?'rgba(209,112,111,0.16)':'rgba(111,155,214,0.14)'});
+      main.appendChild(g); fadeUp(g,400+i*70,300,10); cellEls.push(g);
+    }
+    after(1300, ()=>{
+      const note = txt(shipX,shipY+shipH+40,'a slow payments API fills 9 of 12 threads \u2014 3 left for everything else on the site','label-18',{fill:'var(--danger)'});
+      main.appendChild(note); fadeUp(note,0,450,10);
+    });
+
+    /* the actual fix: the SAME 12 threads physically split into three
+       isolated pools, rather than a second diagram just appearing */
+    after(2600, ()=>{
+      const cap = txt(shipX,shipY+shipH+80,'WITH BULKHEADS: the same threads, split into isolated pools','label-18',{fill:'var(--statc)'});
+      main.appendChild(cap); fadeUp(cap,0,400,10);
+
+      const poolY=shipY+shipH+115, poolH=60;
+      const pools=[
+        {x:shipX,      w:340, color:'var(--danger)', label:'payments pool (saturated)', cells:[0,1,2,3,4,5,6,7,8]},
+        {x:shipX+380,  w:340, color:'var(--stack)',  label:'search pool (fine)',        cells:[9,10]},
+        {x:shipX+760,  w:340, color:'var(--stack)',  label:'checkout pool (fine)',      cells:[11]},
+      ];
+      pools.forEach((pool,pi)=>{
+        const outline = box(pool.x,poolY,pool.w,poolH,pool.color,{fill:'none','stroke-width':1.4});
+        outline.style.opacity=0; main.appendChild(outline); fadeOnly(outline,pi*100,400,1);
+        const n = pool.cells.length, cw = (pool.w-10)/n;
+        pool.cells.forEach((cellIdx,j)=>{
+          const cellEl = cellEls[cellIdx];
+          const tx = pool.x+5+j*cw, ty=poolY+5, tw=cw-4, th=poolH-10;
+          tweenAttrs(cellEl, {x:tx, y:ty, width:tw, height:th}, 700, pi*120+j*50, easeInOutCubic);
+        });
+      });
+      after(1200, ()=>{
+        pools.forEach((pool)=>{
+          const lbl = txt(pool.x+pool.w/2, poolY+poolH+30, pool.label, 'label-14',{'text-anchor':'middle'});
+          lbl.style.opacity=0; main.appendChild(lbl); fadeOnly(lbl,0,350,1);
+        });
+      });
+    });
+  }
+});
+
+/* 21 ---------------- GAP -> observability ---------------- */
+slides.push({
+  kicker:'GAP',
+  title:'Recovery isn\u2019t the finish line\u2026',
+  caption:'…once retries, timeouts and breakers are handling failures automatically — how do YOU find out they\u2019re happening at all?',
+  build(main){
+    main.appendChild(predictGate(800,420,
+      'Your circuit breaker is quietly tripping 200 times a day and nobody notices. Is that a success story or a five-alarm fire?',
+      ()=>{ after(50, ()=> gotoSlide(cur+1)); }));
+  }
+});
+
+/* 22 ---------------- ERROR RECOVERY (TIE-TOGETHER) ---------------- */
+slides.push({
+  kicker:'RECAP, tied together',
+  title:'Error Recovery, end to end',
+  caption:'A single failed call passing through everything so far: timeout, retry, breaker, fallback.',
+  build(main){
+    const steps=[
+      {label:'call payment API',c:'var(--stack)'},
+      {label:'no response in 3s \u2192 timeout fires',c:'var(--danger)'},
+      {label:'retry with backoff (attempt 2)',c:'var(--heap)'},
+      {label:'fails again \u2192 breaker trips OPEN',c:'var(--danger)'},
+      {label:'fall back to "pay on delivery"',c:'var(--statc)'},
+      {label:'order completes, degraded but alive',c:'var(--stack)'},
+    ];
+    const x0=200, y0=220, gap=90;
+    steps.forEach((s,i)=>{
+      const y=y0+i*gap;
+      const dot = se('circle',{cx:x0,cy:y,r:8,fill:s.c});
+      main.appendChild(dot); fadeUp(dot,300*i,350,8);
+      if(i>0){
+        const ln = se('line',{x1:x0,y1:y0+(i-1)*gap+10,x2:x0,y2:y-10,stroke:'var(--grid)','stroke-width':2});
+        main.appendChild(ln); fadeOnly(ln,300*i-100,300,1);
+      }
+      const t = txt(x0+30,y+6,s.label,'label-24',{fill:s.c});
+      main.appendChild(t); fadeUp(t,300*i+100,400,10);
+    });
+    after(steps.length*300+500, ()=>{
+      const note = txt(x0+700,y0+150,'','label-18',{fill:'var(--muted)'});
+      tspanLine(note,x0+700,0,'Every pattern from the');
+      tspanLine(note,x0+700,26,'last section played one');
+      tspanLine(note,x0+700,52,'role in this single request.');
+      tspanLine(note,x0+700,78,'None of them replace the');
+      tspanLine(note,x0+700,104,'others.');
+      main.appendChild(note); fadeUp(note,0,500,10);
+    });
+  }
+});
+
+/* 23 ---------------- LOGGING ---------------- */
+slides.push({
+  kicker:'Now: knowing it happened',
+  title:'Logging',
+  caption:'A record of what happened, when, and with what context — structured, not just print statements.',
+  build(main){
+    const badLog = txt(120,240,'print("something went wrong")','label-18 mono',{fill:'var(--danger)'});
+    main.appendChild(badLog); fadeUp(badLog,100,500,14);
+    main.appendChild(txt(120,270,'\u2014 useless at 3am with 10,000 requests/sec','label-14',{fill:'var(--muted)'}));
+    fadeUp(zoneMain.lastChild,300,400,10);
+
+    /* strike through the bad example once it's registered */
+    after(900, ()=>{
+      const strike = se('path',{d:'M112,234 L560,234', stroke:'var(--danger)', 'stroke-width':2, fill:'none'});
+      main.appendChild(strike); drawPath(strike,350,0);
+    });
+
+    const goodX=120, goodY=340, goodW=1150, goodH=180;
+    main.appendChild(box(goodX,goodY,goodW,goodH,'var(--statc)',{fill:'rgba(111,191,139,0.06)'}));
+    fadeUp(zoneMain.lastChild,1200,450,14);
+
+    /* an arrow carries the eye from the crossed-out line down to the structured record */
+    after(1450, ()=>{
+      const arr = arrow(200,285,200,338,'var(--muted)',{sw:1.6});
+      main.appendChild(arr); arr.style.opacity=0; drawPath(arr,400,0);
+    });
+
+    const fields=[
+      'level: ERROR',
+      'timestamp: 2026-09-07T10:14:02Z',
+      'service: payments-api',
+      'request_id: 8f2c-91ab',
+      'message: "downstream timeout"',
+      'dependency: card-processor',
+      'duration_ms: 3002',
+    ];
+    fields.forEach((f,i)=>{
+      const t = txt(goodX+30+(i%2)*560, goodY+35+Math.floor(i/2)*40, f, 'label-18 mono');
+      main.appendChild(t); fadeUp(t,1900+i*130,400,10);
+    });
+
+    after(3400, ()=>{
+      const note = txt(120,570,'','label-18');
+      tspanLine(note,120,0,'Levels (DEBUG/INFO/WARN/ERROR) let you filter');
+      tspanLine(note,120,26,'noise from signal. A request_id lets you follow');
+      tspanLine(note,120,52,'one failure across every service it touched.');
+      main.appendChild(note); fadeUp(note,0,600,14);
+    });
+  }
+});
+
+/* 24 ---------------- OBSERVABILITY ---------------- */
+slides.push({
+  kicker:'Beyond logging alone',
+  title:'Observability',
+  caption:'Logs, metrics, and traces together — three lenses that zoom from symptom to root cause.',
+  build(main){
+    /* a literal drill-down: metric symptom -> trace showing where -> log
+       showing why, using a crash-zoom into the same focal spot each time */
+    const fx=780, fy=400;
+    const sceneG = se('g',{});
+    main.appendChild(sceneG);
+
+    function crashZoomOut(g, dur, onDone){
+      const t0=performance.now();
+      function step(now){
+        const p=Math.min(1,(now-t0)/dur);
+        const s=1+p*9;
+        g.setAttribute('transform', `translate(${fx},${fy}) scale(${s}) translate(${-fx},${-fy})`);
+        g.style.opacity = String(1-p);
+        if(p<1) raf(step); else onDone && onDone();
+      }
+      raf(step);
+    }
+    function crashZoomIn(g, dur){
+      g.setAttribute('transform', `translate(${fx},${fy}) scale(0.12) translate(${-fx},${-fy})`);
+      g.style.opacity='1';
+      const t0=performance.now();
+      function step(now){
+        const p=Math.min(1,(now-t0)/dur);
+        const s=0.12+(1-0.12)*easeOutCubic(p);
+        g.setAttribute('transform', `translate(${fx},${fy}) scale(${s}) translate(${-fx},${-fy})`);
+        if(p<1) raf(step);
+      }
+      raf(step);
+    }
+
+    function sceneMetric(){
+      sceneG.innerHTML=''; sceneG.setAttribute('transform',''); sceneG.style.opacity='1';
+      const kicker = txt(150,200,'METRIC: the symptom, aggregated across everything','label-14',{fill:'var(--heap)'});
+      sceneG.appendChild(kicker); fadeUp(kicker,0,400,8);
+      const wide = box(150,230,1260,300,'var(--heap)',{fill:'rgba(214,154,99,0.05)'});
+      sceneG.appendChild(wide); fadeUp(wide,100,450,14);
+      const lbl = txt(780,290,'payments platform \u2014 error rate over time','label-18',{'text-anchor':'middle',fill:'var(--muted)'});
+      sceneG.appendChild(lbl); fadeUp(lbl,300,400,8);
+      const dot = se('circle',{cx:fx,cy:fy,r:9,fill:'var(--danger)'});
+      dot.style.opacity=0; sceneG.appendChild(dot);
+      after(900, ()=>{ fadeOnly(dot,0,300,1); pulse(dot,200,4); });
+      const metricLbl = txt(fx+24,fy+6,'','label-18',{fill:'var(--danger)'});
+      tspanLine(metricLbl,fx+24,0,'error rate spikes to 12%');
+      metricLbl.style.opacity=0;
+      sceneG.appendChild(metricLbl);
+      after(1200, ()=>fadeOnly(metricLbl,0,350,1));
+    }
+    function sceneTrace(){
+      sceneG.innerHTML=''; sceneG.style.opacity='1';
+      const kicker = txt(150,200,'TRACE: one request\u2019s path across every service','label-14',{fill:'var(--ptr)'});
+      sceneG.appendChild(kicker); fadeUp(kicker,0,400,8);
+      const names=['api-gateway','checkout-svc','card-processor'];
+      const positions=[300,780,1260];
+      names.forEach((n,i)=>{
+        const isFail = i===2;
+        const g = labeledBox(positions[i]-110,fy-45,220,90,isFail?'var(--danger)':'var(--ptr)',n,'',{fill:isFail?'rgba(209,112,111,0.16)':'rgba(178,143,209,0.1)'});
+        sceneG.appendChild(g); fadeUp(g,150+i*250,450,14);
+        if(i>0){
+          const ar = arrow(positions[i-1]+110,fy,positions[i]-110,fy, i===2?'var(--danger)':'var(--muted)');
+          sceneG.appendChild(ar); ar.style.opacity=0; drawPath(ar,300,400+i*250);
+        }
+      });
+      after(1300, ()=>{
+        const lbl = txt(1260,fy+90,'stalls here, every time','label-14',{'text-anchor':'middle', fill:'var(--danger)'});
+        sceneG.appendChild(lbl); fadeUp(lbl,0,400,8);
+      });
+    }
+    function sceneLog(){
+      sceneG.innerHTML=''; sceneG.style.opacity='1';
+      const kicker = txt(150,200,'LOG: the exact line that explains it','label-14',{fill:'var(--stack)'});
+      sceneG.appendChild(kicker); fadeUp(kicker,0,400,8);
+      const box1 = box(fx-420,fy-110,840,260,'var(--stack)',{fill:'rgba(111,155,214,0.06)'});
+      sceneG.appendChild(box1); fadeUp(box1,100,450,14);
+      const fields=['service: card-processor','level: ERROR','message: "connection pool exhausted"','active_connections: 100 / 100'];
+      fields.forEach((f,i)=>{
+        const t = txt(fx-390,fy-60+i*46,f,'label-18 mono',{fill:i===2?'var(--danger)':'var(--text)'});
+        sceneG.appendChild(t); fadeUp(t,400+i*220,400,10);
+      });
+    }
+
+    sceneMetric();
+    after(2200, ()=> crashZoomOut(sceneG,550, ()=>{ sceneTrace(); crashZoomIn(sceneG,500); }));
+    after(4200, ()=> crashZoomOut(sceneG,550, ()=>{ sceneLog(); crashZoomIn(sceneG,500); }));
+
+    after(6200, ()=>{
+      const note = txt(150,700,'metric said something is wrong \u2192 trace said where \u2192 log said exactly why.','label-18',{fill:'var(--muted)'});
+      main.appendChild(note); fadeUp(note,0,500,10);
+    });
+  }
+});
+
+/* 25 ---------------- PRACTICAL APPLICATIONS ---------------- */
+slides.push({
+  kicker:'Why any of this matters',
+  title:'Where this shows up in real engineering',
+  caption:'Same handful of ideas, over and over, across totally different stacks.',
+  build(main){
+    const items=[
+      {c:'var(--ptr)',t:'Rust\u2019s Result<T,E>', d:'the entire standard library is built around explicit Result — no hidden exceptions at all', icon:'fork'},
+      {c:'var(--stack)',t:'Go\u2019s (value, err) return', d:'every fallible call returns two values; the language leans hard on explicit checking', icon:'tuple'},
+      {c:'var(--heap)',t:'AWS SDK retry policies', d:'exponential backoff with jitter is the default for almost every AWS API client', icon:'loop'},
+      {c:'var(--danger)',t:'Netflix Hystrix / resilience4j', d:'popularized the circuit breaker pattern for microservice architectures', icon:'breakcircuit'},
+      {c:'var(--statc)',t:'Kubernetes probes', d:'liveness/readiness checks are essentially built-in timeouts deciding when to restart a pod', icon:'heartbeat'},
+      {c:'var(--stack)',t:'Sentry / Datadog / OpenTelemetry', d:'the observability triad (logs, metrics, traces) as commercial and open-source tooling', icon:'eye'},
+    ];
+    const cols=3, cw=480, ch=210, gx=40, gy=40, x0=90, y0=200;
+    items.forEach((it,i)=>{
+      const cx=x0+(i%cols)*(cw+gx), cy=y0+Math.floor(i/cols)*(ch+gy);
+      const g = box(cx,cy,cw,ch,it.c,{fill:'rgba(255,255,255,0.03)'});
+      main.appendChild(g); fadeUp(g,120*i,450,16);
+      main.appendChild(icon(it.icon, cx+cw-46, cy+42, it.c, 120*i+150));
+      const t = txt(cx+24,cy+42,it.t,'label-24',{fill:it.c});
+      main.appendChild(t); fadeUp(t,120*i+120,400,10);
+      const dt = txt(cx+24,cy+78,'','label-14',{fill:'var(--muted)'});
+      const words=it.d.split(' '); let line='',lines=[];
+      words.forEach(w=>{ if((line+w).length>46){lines.push(line);line=w+' ';} else line+=w+' '; });
+      lines.push(line);
+      lines.forEach((l,li)=>tspanLine(dt,cx+24,li===0?0:20,l.trim()));
+      main.appendChild(dt); fadeUp(dt,120*i+220,400,10);
+    });
+  }
+});
+
+/* 26 ---------------- FULL RECAP ---------------- */
+slides.push({
+  kicker:'RECAP — the whole chain',
+  title:'Every idea, one line each',
+  caption:'"I don\u2019t understand it if I can\u2019t explain it simply." \u2014 the Feynman bar we aimed for.',
+  build(main){
+    const lines=[
+      ['Exceptions & try/catch/finally','throw, unwind, catch — or run cleanup either way','var(--danger)'],
+      ['Hierarchy & custom exceptions','catch specific before general; carry real context','var(--danger)'],
+      ['Propagation','uncaught keeps climbing until the process boundary itself','var(--danger)'],
+      ['Result / Option types','make "might fail" and "might be absent" part of the type','var(--ptr)'],
+      ['Fail-fast vs graceful degradation','stop hard, or survive smaller — pick per situation','var(--stack)'],
+      ['Retry, timeout, breaker, bulkhead','four ways to survive a flaky, shared, distributed world','var(--heap)'],
+      ['Logging & observability','the difference between recovering silently and knowing why','var(--statc)'],
+    ];
+    lines.forEach((l,i)=>{
+      const y=190+i*78;
+      if(i>0){
+        const link = se('path',{d:`M110,${190+(i-1)*78-6} L110,${y-6}`, stroke:l[2], 'stroke-width':2, fill:'none', 'stroke-opacity':0.5});
+        main.appendChild(link); drawPath(link,220,150*i-60);
+      }
+      const dot = se('circle',{cx:110,cy:y-6,r:6,fill:l[2]});
+      main.appendChild(dot); fadeUp(dot,150*i,350,8);
+      const t1 = txt(140,y,l[0],'label-24',{fill:l[2]});
+      main.appendChild(t1); fadeUp(t1,150*i+80,400,10);
+      const t2 = txt(140,y+26,l[1],'label-14',{fill:'var(--muted)'});
+      main.appendChild(t2); fadeUp(t2,150*i+160,400,8);
+    });
+    after(lines.length*150+600, ()=>{
+      const end = txt(800,760,'end of deck \u2014 press \u2190 to revisit any slide','label-14',{'text-anchor':'middle',fill:'#555'});
+      main.appendChild(end); fadeOnly(end,0,600,1);
+    });
+  }
+});
+
+/* ================================================================
+   NAVIGATION / RENDER ENGINE
+   ================================================================ */
+let cur = 0;
+function renderDots(){
+  const dotsEl = document.getElementById('dots');
+  dotsEl.innerHTML='';
+  slides.forEach((s,i)=>{
+    const d = document.createElement('div');
+    d.className='dot'+(i===cur?' active':'');
+    d.addEventListener('click', ()=>gotoSlide(i));
+    dotsEl.appendChild(d);
+  });
+}
+function gotoSlide(i){
+  if(i<0 || i>=slides.length) return;
+  clearAll();
+  cur=i;
+  clearMain();
+  const s = slides[cur];
+  setTitle(s.title, s.kicker);
+  setCaption(s.caption);
+  s.build(zoneMain);
+  renderDots();
+  document.getElementById('slideNum').textContent = `${cur+1} / ${slides.length}`;
+}
+document.getElementById('prevBtn').addEventListener('click', ()=>gotoSlide(cur-1));
+document.getElementById('nextBtn').addEventListener('click', ()=>gotoSlide(cur+1));
+window.addEventListener('keydown', (e)=>{
+  if(e.key==='ArrowRight' || e.key===' ') { e.preventDefault(); gotoSlide(cur+1); }
+  else if(e.key==='ArrowLeft'){ e.preventDefault(); gotoSlide(cur-1); }
+  else if(e.key==='r' || e.key==='R'){ gotoSlide(cur); }
+});
+document.addEventListener('visibilitychange', ()=>{
+  if(document.hidden) clearAll();
+});
+
+gotoSlide(0);
+})();
+</script>
+</body>
+</html>

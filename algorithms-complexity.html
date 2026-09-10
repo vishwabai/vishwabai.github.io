@@ -1,0 +1,1105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Algorithms — Core Categories of Complexity</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#08090b; --dot:rgba(255,255,255,.055);
+  --ink:#ece9e2; --ink-dim:#9b988f; --ink-faint:#6c6a63;
+  --line:rgba(255,255,255,.15); --line-soft:rgba(255,255,255,.08);
+  --card:rgba(255,255,255,.035); --card-hi:rgba(255,255,255,.065);
+  --blue:#7fa6d6; --amber:#d3ab68; --green:#84b394; --red:#c98476; --violet:#a396cc; --teal:#7cb8b0;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;height:100%;background:var(--bg);overflow:hidden;}
+body{
+  font-family:'Inter',sans-serif;color:var(--ink);
+  background-color:var(--bg);
+  background-image:radial-gradient(circle, var(--dot) 1.3px, transparent 1.3px);
+  background-size:26px 26px;
+}
+#viewport{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding-bottom:92px;box-sizing:border-box;}
+#stage{width:1280px;height:720px;position:relative;transform-origin:center center;flex-shrink:0;
+  background:radial-gradient(ellipse at 50% -10%, rgba(127,166,214,.06), transparent 60%);
+  border:1px solid var(--line-soft);border-radius:10px;overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;}
+.slide.active{display:block;}
+
+.eyebrow{position:absolute;left:64px;top:36px;font:600 12.5px/1 'JetBrains Mono',monospace;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-dim);}
+.title{position:absolute;left:64px;top:62px;width:1150px;font:600 32px/1.28 'Space Grotesk',sans-serif;color:var(--ink);}
+.caption{position:absolute;left:64px;right:64px;bottom:16px;font:400 14px/1.55 'Inter',sans-serif;color:var(--ink-dim);}
+.caption b{color:var(--ink);font-weight:600;}
+.caption .gap-tag{color:var(--amber);}
+.caption .gap-tag b{color:var(--amber);}
+
+.rv{opacity:0;transform:translateY(12px);transition:opacity .55s ease, transform .55s ease;}
+.rv.in{opacity:1;transform:translateY(0);}
+.rv.pop{transform:translateY(6px) scale(.88);}
+.rv.pop.in{transform:translateY(0) scale(1);}
+
+.card{background:var(--card);border:1.3px solid var(--line);border-radius:12px;}
+.formula{font:600 16.5px/1.6 'JetBrains Mono',monospace;color:var(--ink);}
+.formula .op{color:var(--ink-dim);}
+.def-plain{font:400 14px/1.6 'Inter';color:var(--ink-dim);font-style:italic;}
+
+.pill{display:inline-flex;align-items:center;gap:6px;font:600 12px 'JetBrains Mono';letter-spacing:.04em;padding:5px 11px;border-radius:999px;border:1.2px solid var(--line);color:var(--ink-dim);background:rgba(255,255,255,.03);}
+
+.boxrow{position:absolute;display:flex;gap:9px;}
+.box{width:64px;height:52px;border:1.4px solid var(--line);border-radius:8px;display:flex;align-items:center;justify-content:center;
+  font:600 14px 'JetBrains Mono';color:var(--ink-faint);background:rgba(255,255,255,.025);transition:all .35s cubic-bezier(.3,.7,.4,1);}
+.box.active{border-color:var(--blue);color:var(--ink);background:rgba(127,166,214,.16);transform:translateY(-4px);}
+.box.done{opacity:.32;}
+.box.found{border-color:var(--green);color:var(--ink);background:rgba(132,179,148,.2);}
+.box.elim{opacity:.15;text-decoration:line-through;}
+
+.step-badge{font:600 13.5px 'JetBrains Mono';color:var(--ink);background:var(--card);border:1.2px solid var(--line);border-radius:8px;padding:9px 14px;white-space:nowrap;}
+
+.chip{background:var(--card);border:1.3px solid var(--line);border-radius:10px;padding:12px 15px;border-left:3px solid var(--blue);}
+.chip .k{font:600 12.5px 'JetBrains Mono';color:var(--ink);letter-spacing:.02em;}
+.chip .v{font:400 12px/1.4 'Inter';color:var(--ink-dim);margin-top:4px;}
+
+.mn-underline{position:absolute;height:3px;background:var(--blue);transform-origin:left center;transform:scaleX(0);transition:transform .65s ease;border-radius:2px;pointer-events:none;}
+.mn-underline.in{transform:scaleX(1);}
+@keyframes mnPulse{0%{transform:scale(1);}50%{transform:scale(1.14);}100%{transform:scale(1);}}
+.mn-indicate{animation:mnPulse .85s ease;}
+.mn-ring{position:absolute;border:1.6px solid var(--amber);border-radius:14px;opacity:0;transform:scale(.9);transition:opacity .5s ease, transform .5s ease;pointer-events:none;}
+.mn-ring.in{opacity:1;transform:scale(1);}
+.mn-ring.out{opacity:0;}
+
+svg text{font-family:'JetBrains Mono',monospace;}
+.draw-path{fill:none;stroke-linecap:round;stroke-linejoin:round;}
+
+#nav{position:fixed;left:0;right:0;bottom:0;height:92px;display:flex;align-items:center;justify-content:center;gap:16px;
+  background:linear-gradient(to top, rgba(0,0,0,.92), rgba(0,0,0,0));z-index:80;}
+.nav-btn{font:600 13px 'JetBrains Mono';letter-spacing:.05em;color:var(--ink);background:rgba(255,255,255,.05);
+  border:1.3px solid var(--line);border-radius:8px;padding:10px 18px;cursor:pointer;transition:background .2s ease, border-color .2s ease;}
+.nav-btn:hover{background:rgba(255,255,255,.09);border-color:rgba(255,255,255,.28);}
+.nav-btn:disabled{opacity:.3;cursor:default;}
+.nav-btn:disabled:hover{background:rgba(255,255,255,.05);}
+#dots{display:flex;gap:6px;align-items:center;}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--line);cursor:pointer;transition:all .25s ease;}
+.dot.active{background:var(--blue);width:18px;border-radius:4px;}
+#counter{font:500 12px 'JetBrains Mono';color:var(--ink-faint);min-width:52px;text-align:center;}
+
+#collbadge{position:fixed;top:16px;right:16px;z-index:90;font:600 12px 'JetBrains Mono';padding:7px 12px;border-radius:8px;
+  border:1.2px solid var(--line);background:rgba(0,0,0,.75);color:var(--ink-dim);display:none;}
+.coll-outline{position:absolute;border:1.5px dashed #e0625a !important;z-index:70;pointer-events:none;}
+</style>
+</head>
+<body>
+
+<div id="viewport"><div id="stage">
+
+<!-- ============ SLIDE 1 — TITLE ============ -->
+<section class="slide active" id="s1">
+  <div class="rv" data-d="0" style="position:absolute;left:140px;top:180px;width:1000px;text-align:center;font:600 48px/1.28 'Space Grotesk';color:var(--ink);">How Do We Know an<br>Algorithm Is <span style="color:var(--blue);">Good</span>?</div>
+  <div class="rv" data-d="3" style="position:absolute;left:240px;top:322px;width:800px;text-align:center;font:400 16.5px/1.6 'Inter';color:var(--ink-dim);">Algorithms — Core Categories: a first-principles tour of time, space,<br>and the language we use to compare one algorithm against another.</div>
+
+  <div class="rv pop" data-d="5" style="position:absolute;left:900px;top:420px;width:120px;height:120px;">
+    <svg viewBox="0 0 120 120" width="120" height="120">
+      <circle cx="60" cy="60" r="52" fill="none" stroke="var(--line)" stroke-width="1.6"/>
+      <line id="clockHour" x1="60" y1="60" x2="60" y2="34" stroke="var(--blue)" stroke-width="3" stroke-linecap="round"/>
+      <line id="clockMin" x1="60" y1="60" x2="82" y2="60" stroke="var(--ink-dim)" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="60" cy="60" r="3" fill="var(--blue)"/>
+    </svg>
+  </div>
+  <div class="rv" data-d="6" style="position:absolute;left:900px;top:548px;width:120px;text-align:center;font:600 12.5px 'JetBrains Mono';letter-spacing:.12em;color:var(--blue);">TIME</div>
+
+  <div class="rv pop" data-d="5" style="position:absolute;left:250px;top:432px;width:100px;height:96px;display:flex;flex-direction:column-reverse;gap:6px;">
+    <div style="height:18px;border-radius:4px;border:1.4px solid var(--violet);background:rgba(163,150,204,.14);"></div>
+    <div style="height:18px;border-radius:4px;border:1.4px solid var(--violet);background:rgba(163,150,204,.12);width:88%;"></div>
+    <div style="height:18px;border-radius:4px;border:1.4px solid var(--violet);background:rgba(163,150,204,.12);width:74%;"></div>
+    <div style="height:18px;border-radius:4px;border:1.4px solid var(--violet);background:rgba(163,150,204,.18);width:60%;"></div>
+  </div>
+  <div class="rv" data-d="6" style="position:absolute;left:250px;top:548px;width:100px;text-align:center;font:600 12.5px 'JetBrains Mono';letter-spacing:.12em;color:var(--violet);">SPACE</div>
+
+  <div class="rv" data-d="8" style="position:absolute;left:0;right:0;top:656px;text-align:center;font:500 12.5px 'JetBrains Mono';color:var(--ink-faint);letter-spacing:.08em;">PRESS → OR CLICK NEXT TO BEGIN</div>
+</section>
+
+<!-- ============ SLIDE 2 — HOOK ============ -->
+<section class="slide" id="s2">
+  <div class="eyebrow rv" data-d="0">THE PROBLEM</div>
+  <div class="title rv" data-d="1">Finding a Name in a Phone Book</div>
+
+  <div class="rv" data-d="2" style="position:absolute;left:64px;top:140px;font:600 13px 'JetBrains Mono';color:var(--blue);letter-spacing:.04em;">METHOD A — CHECK EVERY PAGE, ONE BY ONE</div>
+  <div class="boxrow" id="s2rowA" style="left:64px;top:172px;"></div>
+  <div class="rv" data-d="3" id="s2badgeA" style="position:absolute;left:958px;top:172px;"><span class="step-badge">Steps: 0</span></div>
+
+  <div class="rv" data-d="5" style="position:absolute;left:64px;top:296px;font:600 13px 'JetBrains Mono';color:var(--amber);letter-spacing:.04em;">METHOD B — JUMP TO THE MIDDLE, HALVE THE REST</div>
+  <div class="boxrow" id="s2rowB" style="left:64px;top:328px;"></div>
+  <div class="rv" data-d="6" id="s2badgeB" style="position:absolute;left:958px;top:328px;"><span class="step-badge">Steps: 0</span></div>
+
+  <div class="rv" data-d="9" style="position:absolute;left:64px;top:420px;width:1140px;font:400 14.5px/1.55 'Inter';color:var(--ink-faint);">Both find the same name. Method B only works because the names are already sorted — that requirement is the price of its speed.</div>
+
+  <div class="caption rv" data-d="10"><b>RECAP —</b> We just watched two methods finish in a very different number of steps. <span class="gap-tag"><b>GAP —</b> But "steps" means something different for 12 names than for 12 million. How do we describe growth so it works for any input size?</span></div>
+</section>
+
+<!-- ============ SLIDE 3 — TIME COMPLEXITY ============ -->
+<section class="slide" id="s3">
+  <div class="eyebrow rv" data-d="0">CONCEPT 1 — TIME COMPLEXITY</div>
+  <div class="title rv" data-d="1">Time Complexity: Steps as a Function of <span style="color:var(--blue);">n</span></div>
+
+  <div class="rv card" data-d="2" style="position:absolute;left:64px;top:150px;width:560px;height:110px;padding:16px 20px;">
+    <div class="formula">T(<span style="color:var(--blue);">n</span>) <span class="op">=</span> number of elementary operations</div>
+    <div class="def-plain" style="margin-top:8px;">Plain version: don't time it with a stopwatch — count how many basic steps run, as the input size n grows. That count is hardware-independent.</div>
+  </div>
+
+  <div class="rv" data-d="3" style="position:absolute;left:64px;top:280px;width:560px;font:400 14px/1.55 'Inter';color:var(--ink-dim);">Why not just use a stopwatch? Because wall-clock time depends on CPU speed, the programming language, even what else is running. T(n) counts operations, so it stays true on any machine.</div>
+
+  <div class="rv card" data-d="4" style="position:absolute;left:668px;top:150px;width:548px;height:340px;padding:18px 22px;">
+    <div class="pill" style="border-color:var(--blue);color:var(--blue);">LINEAR SEARCH — WORST CASE</div>
+    <div id="s3chart" style="position:relative;height:250px;margin-top:16px;"></div>
+  </div>
+
+  <div class="caption rv" data-d="8"><b>RECAP —</b> T(n) counts operations, not seconds. <span class="gap-tag"><b>GAP —</b> But real code for linear search is closer to T(n) = 3n + 5 (a check, a compare, an increment, each loop). Do those exact constants matter once n is huge?</span></div>
+</section>
+
+<!-- ============ SLIDE 4 — BIG O ============ -->
+<section class="slide" id="s4">
+  <div class="eyebrow rv" data-d="0">CONCEPT 2 — BIG O (UPPER BOUND)</div>
+  <div class="title rv" data-d="1">Big <span id="s4Oword" style="color:var(--blue);position:relative;display:inline-block;">O</span>: A Guaranteed Ceiling on Growth</div>
+
+  <div class="rv card" data-d="2" style="position:absolute;left:64px;top:150px;width:520px;height:150px;padding:16px 20px;">
+    <div class="formula" style="font-size:14.5px;">f(n) <span class="op">=</span> O(g(n)) <span class="op">if ∃ c&gt;0, n₀&gt;0 such that</span><br>f(n) <span class="op">≤</span> c·g(n) <span class="op">for all n ≥ n₀</span></div>
+    <div class="def-plain" style="margin-top:10px;">Plain version: from some point on (n₀), the algorithm never grows faster than c times this curve. It's a promised worst-case ceiling.</div>
+  </div>
+
+  <div class="rv" data-d="3" style="position:absolute;left:64px;top:322px;width:520px;">
+    <div class="chip" style="border-left-color:var(--blue);margin-bottom:10px;"><span class="k">3n + 5 = O(n)</span><div class="v">drop the constants (3, 5) — only the shape "grows like n" survives.</div></div>
+    <div class="chip" style="border-left-color:var(--blue);"><span class="k">n² + 3n = O(n²)</span><div class="v">the fastest-growing term wins; n² dominates 3n as n grows.</div></div>
+  </div>
+
+  <div class="rv card" data-d="4" style="position:absolute;left:612px;top:150px;width:604px;height:400px;padding:16px 20px;">
+    <div class="pill" style="border-color:var(--blue);color:var(--blue);">f(n) = 3n + 5 STAYS UNDER c·g(n) = 4n, AFTER n₀</div>
+    <svg id="s4svg" viewBox="0 0 560 300" width="100%" height="270" style="margin-top:8px;"></svg>
+  </div>
+
+  <div class="caption rv" data-d="9"><b>RECAP —</b> O(n) is the worst-case ceiling we just proved for linear search. <span class="gap-tag"><b>GAP —</b> O only promises we won't be slower than this. Is there a guarantee we can't be faster either — a floor?</span></div>
+</section>
+
+<!-- ============ SLIDE 5 — BIG OMEGA ============ -->
+<section class="slide" id="s5">
+  <div class="eyebrow rv" data-d="0">CONCEPT 3 — BIG OMEGA (LOWER BOUND)</div>
+  <div class="title rv" data-d="1">Big Ω: A Guaranteed Floor on Growth</div>
+
+  <div class="rv card" data-d="2" style="position:absolute;left:64px;top:150px;width:520px;height:150px;padding:16px 20px;">
+    <div class="formula" style="font-size:14.5px;">f(n) <span class="op">=</span> Ω(g(n)) <span class="op">if ∃ c&gt;0, n₀&gt;0 such that</span><br>f(n) <span class="op">≥</span> c·g(n) <span class="op">for all n ≥ n₀</span></div>
+    <div class="def-plain" style="margin-top:10px;">Plain version: no matter how lucky the input is, the algorithm needs at least c times this much work. It's a promised minimum.</div>
+  </div>
+
+  <div class="rv" data-d="3" style="position:absolute;left:64px;top:322px;width:520px;">
+    <div class="chip" style="border-left-color:var(--amber);"><span class="k">Summing n numbers is Ω(n)</span><div class="v">you must touch every number at least once — no shortcut skips an element.</div></div>
+  </div>
+
+  <div class="rv card" data-d="4" style="position:absolute;left:612px;top:150px;width:604px;height:400px;padding:16px 20px;">
+    <div class="pill" style="border-color:var(--amber);color:var(--amber);">f(n) NEVER DIPS BELOW c·g(n), AFTER n₀</div>
+    <svg id="s5svg" viewBox="0 0 560 300" width="100%" height="270" style="margin-top:8px;"></svg>
+  </div>
+
+  <div class="caption rv" data-d="9"><b>RECAP —</b> O = ceiling, Ω = floor — two separate promises about the same function. <span class="gap-tag"><b>GAP —</b> What if the ceiling and the floor turn out to be the exact same curve? Is there a name for that tight match?</span></div>
+</section>
+
+<!-- ============ SLIDE 6 — BIG THETA ============ -->
+<section class="slide" id="s6">
+  <div class="eyebrow rv" data-d="0">CONCEPT 4 — BIG THETA (TIGHT BOUND)</div>
+  <div class="title rv" data-d="1">Big Θ: When Floor and Ceiling Meet</div>
+
+  <div class="rv card" data-d="2" style="position:absolute;left:64px;top:150px;width:520px;height:150px;padding:16px 20px;">
+    <div class="formula" style="font-size:14.5px;">f(n) <span class="op">=</span> Θ(g(n)) <span class="op">if</span> f(n)=O(g(n))<br><span class="op">AND</span> f(n)=Ω(g(n))</div>
+    <div class="def-plain" style="margin-top:10px;">Plain version: f(n) is sandwiched between c₁·g(n) and c₂·g(n) forever after n₀. Θ is the algorithm's true, exact growth rate.</div>
+  </div>
+
+  <div class="rv" data-d="3" style="position:absolute;left:64px;top:322px;width:520px;">
+    <div class="chip" style="border-left-color:var(--green);"><span class="k">Linear search, worst case: Θ(n)</span><div class="v">the ceiling and the floor are both "n" — no gap left between them.</div></div>
+  </div>
+
+  <div class="rv card" data-d="4" style="position:absolute;left:612px;top:150px;width:604px;height:400px;padding:16px 20px;">
+    <div class="pill" style="border-color:var(--green);color:var(--green);">f(n) SQUEEZED BETWEEN c₁·g(n) AND c₂·g(n)</div>
+    <svg id="s6svg" viewBox="0 0 560 300" width="100%" height="270" style="margin-top:8px;"></svg>
+  </div>
+
+  <div class="caption rv" data-d="9"><b>RECAP —</b> One algorithm now has three labels: O (ceiling), Ω (floor), Θ (exact fit). <span class="gap-tag"><b>GAP —</b> These describe one algorithm's own growth. But how do different growth-rate classes compare to each other as n gets huge — which one wins the race?</span></div>
+</section>
+
+<!-- ============ SLIDE 7 — GROWTH RACE ============ -->
+<section class="slide" id="s7">
+  <div class="eyebrow rv" data-d="0">SEEING THE DIFFERENCE</div>
+  <div class="title rv" data-d="1">The Growth-Rate Race</div>
+
+  <div class="rv card" data-d="2" style="position:absolute;left:64px;top:148px;width:700px;height:346px;padding:16px 20px;">
+    <div class="pill" style="border-color:var(--ink-dim);">n FROM 0 TO 12 · VALUE ON A LOG SCALE</div>
+    <svg id="s7svg" viewBox="0 0 660 280" width="100%" height="280" style="margin-top:8px;"></svg>
+  </div>
+
+  <div class="rv" data-d="4" style="position:absolute;left:788px;top:148px;width:428px;font:400 13.5px/1.5 'Inter';color:var(--ink-faint);">Notice these curves need a <b style="color:var(--ink);">log scale</b> just to fit on one chart. That gap is exactly why the growth-rate class matters more than any hardware speed-up.</div>
+
+  <div class="rv" data-d="6" style="position:absolute;left:788px;top:230px;width:428px;">
+    <div style="font:600 12px 'JetBrains Mono';color:var(--ink-dim);margin-bottom:8px;">AT n = 30 —</div>
+    <div id="s7num1" class="chip" style="border-left-color:var(--blue);margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;"><span class="k">O(n)</span><span class="k" style="color:var(--blue);" id="s7v1">0</span></div>
+    <div id="s7num2" class="chip" style="border-left-color:var(--amber);margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;"><span class="k">O(n²)</span><span class="k" style="color:var(--amber);" id="s7v2">0</span></div>
+    <div id="s7num3" class="chip" style="border-left-color:var(--red);display:flex;justify-content:space-between;align-items:center;"><span class="k">O(2ⁿ)</span><span class="k" style="color:var(--red);" id="s7v3">0</span></div>
+  </div>
+
+  <div class="caption rv" data-d="9"><b>RECAP —</b> Growth-rate class dwarfs constants once n is large. <span class="gap-tag"><b>GAP —</b> But does every run of the same algorithm actually take the same number of steps? What if input order changes the outcome?</span></div>
+</section>
+
+<!-- ============ SLIDE 8 — BEST / AVG / WORST ============ -->
+<section class="slide" id="s8">
+  <div class="eyebrow rv" data-d="0">CONCEPTS 5, 6, 7 — BEST, AVERAGE, WORST CASE</div>
+  <div class="title rv" data-d="1">Same Algorithm, Different Luck</div>
+
+  <div class="rv" data-d="2" style="position:absolute;left:64px;top:146px;width:900px;font:400 14px/1.5 'Inter';color:var(--ink-dim);">One algorithm — linear search — run three times on the same 8-name list, only the target changes.</div>
+
+  <div style="position:absolute;left:64px;top:186px;font:600 12.5px 'JetBrains Mono';color:var(--green);">BEST CASE — target is first</div>
+  <div class="boxrow" id="s8rowBest" style="left:64px;top:214px;"></div>
+  <div id="s8badgeBest" style="position:absolute;left:640px;top:214px;"><span class="step-badge">1 step · O(1)</span></div>
+
+  <div style="position:absolute;left:64px;top:284px;font:600 12.5px 'JetBrains Mono';color:var(--amber);">AVERAGE CASE — target is around the middle</div>
+  <div class="boxrow" id="s8rowAvg" style="left:64px;top:312px;"></div>
+  <div id="s8badgeAvg" style="position:absolute;left:640px;top:312px;"><span class="step-badge">~n/2 steps · O(n)</span></div>
+
+  <div style="position:absolute;left:64px;top:382px;font:600 12.5px 'JetBrains Mono';color:var(--red);">WORST CASE — target is last, or missing</div>
+  <div class="boxrow" id="s8rowWorst" style="left:64px;top:410px;"></div>
+  <div id="s8badgeWorst" style="position:absolute;left:640px;top:410px;"><span class="step-badge">n steps · O(n)</span></div>
+
+  <div class="rv" data-d="10" style="position:absolute;left:64px;top:474px;width:1140px;font:400 13.5px/1.5 'Inter';color:var(--ink-faint);">When people say "this algorithm is O(n)" with no qualifier, they almost always mean the worst case.</div>
+
+  <div class="caption rv" data-d="11"><b>RECAP —</b> Time isn't one number — it depends on which case you land in. <span class="gap-tag"><b>GAP —</b> We've spent this whole time on TIME. Algorithms also consume something else while they run — what?</span></div>
+</section>
+
+<!-- ============ SLIDE 9 — SPACE COMPLEXITY ============ -->
+<section class="slide" id="s9">
+  <div class="eyebrow rv" data-d="0">CONCEPT 8 — SPACE COMPLEXITY</div>
+  <div class="title rv" data-d="1">Space Complexity: Memory as a Function of <span style="color:var(--violet);">n</span></div>
+
+  <div class="rv card" data-d="2" style="position:absolute;left:64px;top:150px;width:1152px;height:56px;padding:12px 20px;display:flex;align-items:center;gap:14px;">
+    <div class="formula" style="font-size:15px;">S(<span style="color:var(--violet);">n</span>) <span class="op">=</span> extra memory used beyond the input, as a function of n</div>
+    <div class="def-plain" style="font-size:13px;">("auxiliary space" — the input array itself usually isn't counted)</div>
+  </div>
+
+  <div class="rv card" data-d="3" style="position:absolute;left:64px;top:226px;width:560px;height:290px;padding:16px 20px;">
+    <div class="pill" style="border-color:var(--violet);color:var(--violet);">RECURSIVE factorial(5) — CALL STACK GROWS</div>
+    <div id="s9stack" style="position:relative;height:220px;margin-top:12px;display:flex;flex-direction:column-reverse;gap:5px;"></div>
+  </div>
+
+  <div class="rv card" data-d="4" style="position:absolute;left:648px;top:226px;width:568px;height:290px;padding:16px 20px;">
+    <div class="pill" style="border-color:var(--teal);color:var(--teal);">ITERATIVE factorial(5) — ONE VARIABLE, REUSED</div>
+    <div style="display:flex;align-items:center;gap:22px;margin-top:34px;">
+      <svg id="s9loop" viewBox="0 0 70 70" width="70" height="70"><path d="M 35 10 A 25 25 0 1 1 12 35" fill="none" stroke="var(--teal)" stroke-width="3" stroke-linecap="round"/><polygon points="12,25 12,35 22,32" fill="var(--teal)"/></svg>
+      <div>
+        <div style="font:600 15px 'JetBrains Mono';color:var(--ink);">result = result × i</div>
+        <div class="def-plain" style="font-size:13px;margin-top:8px;">same one box, overwritten each loop → S(n) = O(1)</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="caption rv" data-d="10"><b>RECAP —</b> Recursive elegance often costs stack space; a loop can trade that away. <span class="gap-tag"><b>GAP —</b> So far every operation cost the same each time. What if ONE step is occasionally expensive but mostly cheap — does that ruin our worst-case math?</span></div>
+</section>
+
+<!-- ============ SLIDE 10 — AMORTIZED ============ -->
+<section class="slide" id="s10">
+  <div class="eyebrow rv" data-d="0">CONCEPT 9 — AMORTIZED ANALYSIS</div>
+  <div class="title rv" data-d="1">Amortized Analysis: Averaging the Expensive Moments</div>
+
+  <div class="rv" data-d="2" style="position:absolute;left:64px;top:144px;width:1100px;font:400 14px/1.5 'Inter';color:var(--ink-dim);">A dynamic array (Python list, JS array, Java ArrayList) doubles its capacity when full. Watch what one resize costs — and what it costs on average.</div>
+
+  <div class="rv card" data-d="3" style="position:absolute;left:64px;top:190px;width:1152px;height:130px;padding:16px 20px;">
+    <div id="s10arr" style="position:relative;height:56px;"></div>
+    <div id="s10status" style="margin-top:12px;font:500 13px 'JetBrains Mono';color:var(--ink-dim);">capacity: 4</div>
+  </div>
+
+  <div class="rv card" data-d="4" style="position:absolute;left:64px;top:336px;width:700px;height:170px;padding:16px 20px;">
+    <div class="pill" style="border-color:var(--blue);color:var(--blue);">COST PER INSERT — ONE SPIKE, MOSTLY FLAT</div>
+    <div id="s10bars" style="position:relative;height:100px;margin-top:14px;display:flex;align-items:flex-end;gap:8px;"></div>
+  </div>
+
+  <div class="rv card" data-d="5" style="position:absolute;left:780px;top:336px;width:436px;height:170px;padding:16px 20px;">
+    <div class="formula" style="font-size:14.5px;">amortized cost <span class="op">=</span><br>total cost of n ops <span class="op">÷</span> n</div>
+    <div class="def-plain" style="margin-top:10px;font-size:13px;">Copies happen rarely (1, 2, 4, 8…) and each one pays for the growth since the last — spread out, every insert still averages O(1).</div>
+  </div>
+
+  <div class="caption rv" data-d="8"><b>RECAP —</b> One expensive step, spread over many cheap ones, still averages to O(1). <span class="gap-tag"><b>GAP —</b> We've built solid tools for judging ONE algorithm. Can we ever prove no algorithm — not even one nobody has invented yet — can beat some limit?</span></div>
+</section>
+
+<!-- ============ SLIDE 11 — UPPER vs LOWER BOUND (PROBLEM) ============ -->
+<section class="slide" id="s11">
+  <div class="eyebrow rv" data-d="0">CONCEPTS 10, 11 — UPPER &amp; LOWER BOUNDS</div>
+  <div class="title rv" data-d="1">Bounding the Algorithm vs. Bounding the Problem</div>
+
+  <div class="rv card" data-d="2" style="position:absolute;left:64px;top:148px;width:560px;height:150px;padding:16px 20px;">
+    <div class="pill" style="border-color:var(--blue);color:var(--blue);">UPPER BOUND OF AN ALGORITHM</div>
+    <div class="def-plain" style="margin-top:10px;font-size:13.5px;color:var(--ink-dim);">Merge sort takes at most O(n log n) — a ceiling on <b style="color:var(--ink);">this one method</b>. That's the same O(...) from Slide 4, applied to sorting.</div>
+  </div>
+
+  <div class="rv card" data-d="3" style="position:absolute;left:656px;top:148px;width:560px;height:150px;padding:16px 20px;">
+    <div class="pill" style="border-color:var(--amber);color:var(--amber);">LOWER BOUND OF A PROBLEM</div>
+    <div class="def-plain" style="margin-top:10px;font-size:13.5px;color:var(--ink-dim);">No comparison-based sort can <b style="color:var(--ink);">ever</b> beat Ω(n log n) — a floor on <b style="color:var(--ink);">every possible method</b>, proven, not just observed.</div>
+  </div>
+
+  <div class="rv card" data-d="4" style="position:absolute;left:64px;top:316px;width:660px;height:200px;padding:16px 20px;">
+    <div class="pill" style="border-color:var(--ink-dim);">WHY: A DECISION TREE OF COMPARISONS</div>
+    <svg id="s11tree" viewBox="0 0 600 150" width="100%" height="150" style="margin-top:6px;"></svg>
+  </div>
+
+  <div class="rv card" data-d="6" id="s11payoff" style="position:absolute;left:744px;top:316px;width:472px;height:200px;padding:16px 20px;">
+    <div class="def-plain" style="font-size:13.5px;color:var(--ink-dim);">3 items have 3! = 6 possible orderings. Each comparison splits the possibilities in two, so you need at least log₂(6) ≈ 2.6 → <b style="color:var(--ink);">3 comparisons</b>, minimum.</div>
+    <div style="margin-top:14px;font:600 14px 'JetBrains Mono';color:var(--green);">Merge sort's O(n log n) ceiling meets this Ω(n log n) floor → it's asymptotically <span style="color:var(--green);">optimal</span>.</div>
+  </div>
+
+  <div class="caption rv" data-d="9"><b>RECAP —</b> When an algorithm's upper bound meets the problem's lower bound, we call it optimal. <span class="gap-tag"><b>GAP —</b> We can now measure time and space precisely. But can a system minimize both at once — or does saving one always cost the other?</span></div>
+</section>
+
+<!-- ============ SLIDE 12 — TRADE-OFFS ============ -->
+<section class="slide" id="s12">
+  <div class="eyebrow rv" data-d="0">CONCEPT 12 — TIME – SPACE TRADE-OFFS</div>
+  <div class="title rv" data-d="1">Trade-offs: Spending Space to Buy Speed</div>
+
+  <div class="rv" data-d="2" style="position:absolute;left:64px;top:144px;width:1100px;font:400 14px/1.5 'Inter';color:var(--ink-dim);">Same task — look up a phone number — two honest solutions, two different bills.</div>
+
+  <div class="rv card" data-d="3" style="position:absolute;left:64px;top:186px;width:552px;height:220px;padding:18px 22px;">
+    <div class="pill" style="border-color:var(--teal);color:var(--teal);">SORTED ARRAY + BINARY SEARCH</div>
+    <div style="margin-top:18px;">
+      <div style="font:500 12.5px 'JetBrains Mono';color:var(--ink-dim);margin-bottom:6px;">TIME — O(log n)</div>
+      <div style="height:10px;border-radius:5px;background:var(--card);overflow:hidden;"><div class="rv" data-d="4" style="height:100%;width:0;background:var(--teal);border-radius:5px;transition:width 1s ease;" id="s12barA1"></div></div>
+      <div style="font:500 12.5px 'JetBrains Mono';color:var(--ink-dim);margin:14px 0 6px;">EXTRA SPACE — O(1)</div>
+      <div style="height:10px;border-radius:5px;background:var(--card);overflow:hidden;"><div class="rv" data-d="5" style="height:100%;width:0;background:var(--teal);border-radius:5px;transition:width 1s ease;" id="s12barA2"></div></div>
+    </div>
+  </div>
+
+  <div class="rv card" data-d="3" style="position:absolute;left:640px;top:186px;width:552px;height:220px;padding:18px 22px;">
+    <div class="pill" style="border-color:var(--red);color:var(--red);">HASH TABLE</div>
+    <div style="margin-top:18px;">
+      <div style="font:500 12.5px 'JetBrains Mono';color:var(--ink-dim);margin-bottom:6px;">TIME — O(1) average</div>
+      <div style="height:10px;border-radius:5px;background:var(--card);overflow:hidden;"><div class="rv" data-d="4" style="height:100%;width:0;background:var(--red);border-radius:5px;transition:width 1s ease;" id="s12barB1"></div></div>
+      <div style="font:500 12.5px 'JetBrains Mono';color:var(--ink-dim);margin:14px 0 6px;">EXTRA SPACE — O(n)</div>
+      <div style="height:10px;border-radius:5px;background:var(--card);overflow:hidden;"><div class="rv" data-d="5" style="height:100%;width:0;background:var(--red);border-radius:5px;transition:width 1s ease;" id="s12barB2"></div></div>
+    </div>
+  </div>
+
+  <div class="rv card" data-d="6" style="position:absolute;left:64px;top:426px;width:1128px;height:90px;padding:14px 22px;">
+    <div class="pill" style="border-color:var(--amber);color:var(--amber);">ALSO: MEMOIZATION</div>
+    <div class="def-plain" style="margin-top:8px;font-size:13.5px;color:var(--ink-dim);">Naive Fibonacci recomputes the same calls endlessly — O(2ⁿ) time, O(1) space. Cache each answer once (memoize) and it drops to O(n) time — at the cost of O(n) space to hold the cache. Same problem, opposite trade.</div>
+  </div>
+
+  <div class="caption rv" data-d="9"><b>RECAP —</b> Every design sits somewhere on the time–space line; there's rarely a free lunch. <span class="gap-tag"><b>GAP —</b> So where does all of this actually show up outside a classroom?</span></div>
+</section>
+
+<!-- ============ SLIDE 13 — APPLICATIONS ============ -->
+<section class="slide" id="s13">
+  <div class="eyebrow rv" data-d="0">WHERE THIS SHOWS UP</div>
+  <div class="title rv" data-d="1">Complexity Analysis in the Real World</div>
+
+  <div class="rv card pop" data-d="2" style="position:absolute;left:64px;top:150px;width:534px;height:176px;padding:18px 22px;">
+    <div class="pill" style="border-color:var(--blue);color:var(--blue);">SEARCH ENGINES</div>
+    <div class="def-plain" style="margin-top:10px;font-size:13.5px;color:var(--ink-dim);">An inverted index + hashing gives near O(1)/O(log n) lookups across billions of pages instead of scanning the whole web per query.</div>
+  </div>
+  <div class="rv card pop" data-d="3" style="position:absolute;left:614px;top:150px;width:534px;height:176px;padding:18px 22px;">
+    <div class="pill" style="border-color:var(--amber);color:var(--amber);">GPS &amp; MAPS</div>
+    <div class="def-plain" style="margin-top:10px;font-size:13.5px;color:var(--ink-dim);">Dijkstra / A* graph algorithms — their complexity is exactly why a route recalculates fast even with live traffic on millions of roads.</div>
+  </div>
+  <div class="rv card pop" data-d="4" style="position:absolute;left:64px;top:346px;width:534px;height:176px;padding:18px 22px;">
+    <div class="pill" style="border-color:var(--green);color:var(--green);">DATABASE INDEXES</div>
+    <div class="def-plain" style="margin-top:10px;font-size:13.5px;color:var(--ink-dim);">A B-tree index turns an O(n) full-table scan into an O(log n) lookup — the whole reason "add an index" fixes a slow query.</div>
+  </div>
+  <div class="rv card pop" data-d="5" style="position:absolute;left:614px;top:346px;width:534px;height:176px;padding:18px 22px;">
+    <div class="pill" style="border-color:var(--violet);color:var(--violet);">EVERYDAY ARRAYS</div>
+    <div class="def-plain" style="margin-top:10px;font-size:13.5px;color:var(--ink-dim);">Python lists, JS arrays, Java ArrayList — all use the doubling trick from Slide 10, so .append() stays amortized O(1) for you, invisibly.</div>
+  </div>
+
+  <div class="caption rv" data-d="7">Four places you're already relying on Big-O reasoning, whether you knew it or not.</div>
+</section>
+
+<!-- ============ SLIDE 14 — RECAP / CHEAT SHEET ============ -->
+<section class="slide" id="s14">
+  <div class="eyebrow rv" data-d="0">RECAP</div>
+  <div class="title rv" data-d="1">The Whole Toolkit, One Page</div>
+
+  <div id="s14grid" style="position:absolute;left:64px;top:150px;width:1152px;height:400px;"></div>
+
+  <div class="caption rv" data-d="16">Twelve ideas, one page — the vocabulary you now have for judging any algorithm.</div>
+</section>
+
+<!-- ============ SLIDE 15 — CLOSING ============ -->
+<section class="slide" id="s15">
+  <div class="rv" data-d="0" style="position:absolute;left:140px;top:150px;width:1000px;text-align:center;font:600 34px/1.35 'Space Grotesk';color:var(--ink);">Now You Can Read Any Algorithm's Report Card</div>
+  <div class="rv" data-d="2" style="position:absolute;left:190px;top:238px;width:900px;text-align:center;font:400 16px/1.65 'Inter';color:var(--ink-dim);">Time complexity asks "how many steps." Space complexity asks "how much memory."<br>O, Ω, and Θ just describe the <i>shape</i> of that answer — ceiling, floor, or an exact fit.</div>
+
+  <div class="rv card" data-d="4" style="position:absolute;left:190px;top:352px;width:900px;height:118px;padding:18px 24px;">
+    <div style="font:600 12px 'JetBrains Mono';color:var(--ink-dim);letter-spacing:.08em;margin-bottom:10px;">KEEP EXPLORING</div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;">
+      <span class="pill">RECURRENCE RELATIONS &amp; THE MASTER THEOREM</span>
+      <span class="pill">P vs NP &amp; NP-COMPLETENESS</span>
+      <span class="pill">REAL-WORLD BENCHMARKING</span>
+    </div>
+  </div>
+
+  <div class="rv" data-d="6" style="position:absolute;left:0;right:0;top:512px;text-align:center;font:500 12.5px 'JetBrains Mono';color:var(--ink-faint);letter-spacing:.1em;">END</div>
+</section>
+
+</div></div>
+
+<div id="nav">
+  <button class="nav-btn" id="btnPrev">← PREV</button>
+  <div id="dots"></div>
+  <span id="counter">1 / 15</span>
+  <button class="nav-btn" id="btnNext">NEXT →</button>
+</div>
+<div id="collbadge"></div>
+
+<script>
+(function(){
+  var stage = document.getElementById('stage');
+  var viewport = document.getElementById('viewport');
+
+  function fitStage(){
+    var vw = window.innerWidth, vh = window.innerHeight - 92;
+    var scale = Math.min(vw/1280, vh/720) * 0.96;
+    stage.style.transform = 'scale(' + scale + ')';
+  }
+  window.addEventListener('resize', fitStage);
+  fitStage();
+
+  var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
+  var current = 0;
+  var dotsEl = document.getElementById('dots');
+  var counterEl = document.getElementById('counter');
+  slides.forEach(function(s, i){
+    var d = document.createElement('div');
+    d.className = 'dot' + (i===0 ? ' active' : '');
+    d.addEventListener('click', function(){ goTo(i); });
+    dotsEl.appendChild(d);
+  });
+
+  function revealIn(slide, stepMs){
+    stepMs = stepMs || 100;
+    var els = slide.querySelectorAll('.rv');
+    els.forEach(function(el){
+      el.classList.remove('in');
+    });
+    void slide.offsetWidth;
+    els.forEach(function(el){
+      var d = parseInt(el.getAttribute('data-d') || '0', 10);
+      setTimeout(function(){ el.classList.add('in'); }, d*stepMs);
+    });
+  }
+
+  var inits = {};
+  var played = {};
+
+  function goTo(i){
+    if(i < 0 || i >= slides.length) return;
+    slides[current].classList.remove('active');
+    current = i;
+    var el = slides[current];
+    el.classList.add('active');
+    Array.prototype.forEach.call(dotsEl.children, function(d, idx){
+      d.classList.toggle('active', idx === current);
+    });
+    counterEl.textContent = (current+1) + ' / ' + slides.length;
+    document.getElementById('btnPrev').disabled = current === 0;
+    document.getElementById('btnNext').disabled = current === slides.length-1;
+    revealIn(el);
+    var id = el.id;
+    if(inits[id]) setTimeout(function(){ inits[id](el); }, 40);
+  }
+  function next(){ goTo(current+1); }
+  function prev(){ goTo(current-1); }
+
+  document.getElementById('btnNext').addEventListener('click', next);
+  document.getElementById('btnPrev').addEventListener('click', prev);
+  document.getElementById('btnPrev').disabled = true;
+
+  window.addEventListener('keydown', function(e){
+    if(e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown'){ e.preventDefault(); next(); }
+    else if(e.key === 'ArrowLeft' || e.key === 'PageUp'){ e.preventDefault(); prev(); }
+    else if(e.key === 'c' || e.key === 'C'){ mnCheckCollisions(); }
+  });
+
+  // ---------- Manim-style primitives ----------
+  function getScale(){ var r = stage.getBoundingClientRect(); return r.width/1280; }
+
+  window.mnIndicate = function(el){
+    el.classList.remove('mn-indicate');
+    void el.offsetWidth;
+    el.classList.add('mn-indicate');
+  };
+
+  window.mnWriteUnderline = function(el){
+    var r = el.getBoundingClientRect();
+    var sr = stage.getBoundingClientRect();
+    var scale = getScale();
+    var u = document.createElement('div');
+    u.className = 'mn-underline';
+    u.style.left = ((r.left - sr.left)/scale) + 'px';
+    u.style.top = ((r.bottom - sr.top)/scale + 2) + 'px';
+    u.style.width = (r.width/scale) + 'px';
+    el.closest('.slide').appendChild(u);
+    requestAnimationFrame(function(){ requestAnimationFrame(function(){ u.classList.add('in'); }); });
+  };
+
+  window.mnCircumscribe = function(targetEl, hostEl){
+    var r = targetEl.getBoundingClientRect();
+    var hr = hostEl.getBoundingClientRect();
+    var scale = getScale();
+    var pad = 10;
+    var ring = document.createElement('div');
+    ring.className = 'mn-ring';
+    ring.style.left = ((r.left - hr.left)/scale - pad) + 'px';
+    ring.style.top = ((r.top - hr.top)/scale - pad) + 'px';
+    ring.style.width = (r.width/scale + pad*2) + 'px';
+    ring.style.height = (r.height/scale + pad*2) + 'px';
+    hostEl.appendChild(ring);
+    requestAnimationFrame(function(){ requestAnimationFrame(function(){ ring.classList.add('in'); }); });
+    setTimeout(function(){ ring.classList.add('out'); }, 1300);
+    setTimeout(function(){ ring.remove(); }, 1900);
+  };
+
+  function drawPath(path, delay, duration){
+    delay = delay || 0; duration = duration || 1000;
+    try{
+      var len = path.getTotalLength();
+      path.style.strokeDasharray = len;
+      path.style.strokeDashoffset = len;
+      void path.getBoundingClientRect();
+      setTimeout(function(){
+        path.style.transition = 'stroke-dashoffset ' + duration + 'ms ease';
+        path.style.strokeDashoffset = '0';
+      }, delay);
+    }catch(e){}
+  }
+
+  function countUp(el, target, opts){
+    opts = opts || {};
+    var duration = opts.duration || 900, delay = opts.delay || 0, fmt = opts.fmt;
+    setTimeout(function(){
+      var t0 = null;
+      function step(ts){
+        if(!t0) t0 = ts;
+        var p = Math.min(1, (ts - t0)/duration);
+        var eased = 1 - Math.pow(1-p, 3);
+        var val = Math.round(target * eased);
+        el.textContent = fmt ? fmt(val) : val;
+        if(p < 1) requestAnimationFrame(step);
+      }
+      requestAnimationFrame(step);
+    }, delay);
+  }
+  function commas(n){ return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+
+  window.mnCheckCollisions = function(opts){
+    opts = opts || {};
+    var slide = document.querySelector('.slide.active');
+    if(!slide) return;
+    slide.querySelectorAll('.coll-outline').forEach(function(n){ n.remove(); });
+    var scale = getScale();
+    var sr = stage.getBoundingClientRect();
+    var candidates = Array.prototype.slice.call(slide.querySelectorAll('[style*="left"], .eyebrow, .title, .caption'));
+    var boxes = candidates.map(function(el){
+      var r = el.getBoundingClientRect();
+      return { el: el, x:(r.left-sr.left)/scale, y:(r.top-sr.top)/scale, w:r.width/scale, h:r.height/scale };
+    }).filter(function(b){ return b.w > 0 && b.h > 0; });
+    var collisions = [];
+    for(var i=0;i<boxes.length;i++){
+      for(var j=i+1;j<boxes.length;j++){
+        var a = boxes[i], b = boxes[j];
+        if(a.el.contains(b.el) || b.el.contains(a.el)) continue;
+        var overlap = a.x < b.x+b.w && a.x+a.w > b.x && a.y < b.y+b.h && a.y+a.h > b.y;
+        if(overlap) collisions.push([a,b]);
+      }
+    }
+    var badge = document.getElementById('collbadge');
+    badge.style.display = 'block';
+    if(collisions.length === 0){
+      badge.textContent = 'no overlaps';
+      badge.style.color = '#84b394';
+      badge.style.borderColor = '#84b394';
+    } else {
+      badge.textContent = collisions.length + ' overlaps';
+      badge.style.color = '#e0625a';
+      badge.style.borderColor = '#e0625a';
+      console.log('mnCheckCollisions: overlaps on', slide.id, collisions);
+      if(opts.highlight !== false){
+        collisions.forEach(function(pair){
+          pair.forEach(function(b){
+            var o = document.createElement('div');
+            o.className = 'coll-outline';
+            o.style.left = b.x+'px'; o.style.top = b.y+'px';
+            o.style.width = b.w+'px'; o.style.height = b.h+'px';
+            slide.appendChild(o);
+          });
+        });
+      }
+    }
+  };
+
+  // ---------- Slide 1: clock hands ----------
+  (function(){
+    var hour = document.getElementById('clockHour'), min = document.getElementById('clockMin');
+    var a = 0;
+    setInterval(function(){
+      a += 6;
+      min.setAttribute('transform', 'rotate(' + a + ' 60 60)');
+      hour.setAttribute('transform', 'rotate(' + (a/12) + ' 60 60)');
+    }, 200);
+  })();
+
+  // ---------- generic box row builder ----------
+  function buildRow(container, n, labelFn){
+    container.innerHTML = '';
+    var boxes = [];
+    for(var i=0;i<n;i++){
+      var b = document.createElement('div');
+      b.className = 'box';
+      b.textContent = labelFn ? labelFn(i) : (i+1);
+      container.appendChild(b);
+      boxes.push(b);
+    }
+    return boxes;
+  }
+  function stepRow(boxes, order, badgeSel, opts){
+    opts = opts || {};
+    var delay = opts.delay || 260;
+    boxes.forEach(function(b){ b.classList.remove('active','done','found','elim'); });
+    var badge = document.querySelector(badgeSel + ' .step-badge');
+    var count = 0;
+    order.forEach(function(idx, k){
+      setTimeout(function(){
+        if(k>0){
+          var prevIdx = order[k-1];
+          boxes[prevIdx].classList.remove('active');
+          boxes[prevIdx].classList.add(opts.mode === 'binary' ? 'elim' : 'done');
+        }
+        boxes[idx].classList.add('active');
+        count++;
+        if(badge) badge.textContent = 'Steps: ' + count;
+        if(k === order.length-1){
+          setTimeout(function(){
+            boxes[idx].classList.remove('active');
+            boxes[idx].classList.add('found');
+            if(opts.mode === 'binary'){
+              boxes.forEach(function(b,bi){ if(bi!==idx) b.classList.add('elim'); });
+            }
+          }, delay);
+        }
+      }, k*delay);
+    });
+  }
+
+  // ---------- Slide 2: hook ----------
+  inits.s2 = function(){
+    if(played.s2) return; played.s2 = true;
+    var boxesA = buildRow(document.getElementById('s2rowA'), 12, function(i){ return String.fromCharCode(65+i); });
+    var boxesB = buildRow(document.getElementById('s2rowB'), 12, function(i){ return String.fromCharCode(65+i); });
+    var target = 9; // index of "target" letter, near end so linear = worst case
+    var orderLinear = []; for(var i=0;i<=target;i++) orderLinear.push(i);
+    setTimeout(function(){ stepRow(boxesA, orderLinear, '#s2badgeA', {delay:150, mode:'linear'}); }, 500);
+    // binary search order over 12 items to find index 9
+    var orderBinary = [];
+    (function bsearch(lo,hi){
+      if(lo>hi) return;
+      var mid = Math.floor((lo+hi)/2);
+      orderBinary.push(mid);
+      if(mid === target) return;
+      if(target < mid) bsearch(lo, mid-1); else bsearch(mid+1, hi);
+    })(0,11);
+    setTimeout(function(){ stepRow(boxesB, orderBinary, '#s2badgeB', {delay:520, mode:'binary'}); }, 2600);
+  };
+
+  // ---------- Slide 3: linear-growth chart ----------
+  inits.s3 = function(){
+    if(played.s3) return; played.s3 = true;
+    var el = document.getElementById('s3chart');
+    var data = [{n:4,t:4},{n:8,t:8},{n:16,t:16},{n:32,t:32}];
+    var maxT = 32, w = 100/data.length;
+    data.forEach(function(d, i){
+      var col = document.createElement('div');
+      col.style.position = 'absolute';
+      col.style.left = (i*w) + '%';
+      col.style.bottom = '30px';
+      col.style.width = (w*0.55) + '%';
+      col.style.textAlign = 'center';
+      var bar = document.createElement('div');
+      bar.style.width = '100%';
+      bar.style.height = '0px';
+      bar.style.background = 'var(--blue)';
+      bar.style.borderRadius = '4px 4px 0 0';
+      bar.style.transition = 'height 900ms cubic-bezier(.3,.7,.3,1)';
+      bar.style.marginLeft = 'auto'; bar.style.marginRight = 'auto';
+      var lbl = document.createElement('div');
+      lbl.style.marginTop = '8px';
+      lbl.style.font = "500 12px 'JetBrains Mono'";
+      lbl.style.color = 'var(--ink-dim)';
+      lbl.textContent = 'n=' + d.n;
+      var val = document.createElement('div');
+      val.style.marginTop = '-2px';
+      val.style.font = "600 12px 'JetBrains Mono'";
+      val.style.color = 'var(--ink)';
+      val.textContent = 'T=' + d.t;
+      var wrap = document.createElement('div');
+      wrap.style.position='relative';
+      wrap.appendChild(bar);
+      col.appendChild(wrap);
+      col.appendChild(val);
+      col.appendChild(lbl);
+      el.appendChild(col);
+      setTimeout(function(){ bar.style.height = (d.t/maxT*160) + 'px'; }, 200 + i*150);
+    });
+  };
+
+  // ---------- Slide 4/5/6: O / Omega / Theta graphs ----------
+  function axes(svg){
+    var ns='http://www.w3.org/2000/svg';
+    var ax = document.createElementNS(ns,'line');
+    ax.setAttribute('x1','40'); ax.setAttribute('y1','250'); ax.setAttribute('x2','540'); ax.setAttribute('y2','250');
+    ax.setAttribute('stroke','var(--line)'); ax.setAttribute('stroke-width','1.4');
+    svg.appendChild(ax);
+    var ay = document.createElementNS(ns,'line');
+    ay.setAttribute('x1','40'); ay.setAttribute('y1','20'); ay.setAttribute('x2','40'); ay.setAttribute('y2','250');
+    ay.setAttribute('stroke','var(--line)'); ay.setAttribute('stroke-width','1.4');
+    svg.appendChild(ay);
+    var lx = document.createElementNS(ns,'text');
+    lx.setAttribute('x','545'); lx.setAttribute('y','254'); lx.setAttribute('fill','var(--ink-faint)'); lx.setAttribute('font-size','12');
+    lx.textContent = 'n'; svg.appendChild(lx);
+  }
+  function linePath(pts){
+    return pts.map(function(p,i){ return (i===0?'M':'L') + p[0] + ' ' + p[1]; }).join(' ');
+  }
+  function makePath(svg, d, color, width){
+    var ns='http://www.w3.org/2000/svg';
+    var p = document.createElementNS(ns,'path');
+    p.setAttribute('d', d);
+    p.setAttribute('stroke', color);
+    p.setAttribute('stroke-width', width || 2.6);
+    p.classList.add('draw-path');
+    svg.appendChild(p);
+    return p;
+  }
+  function svgLabel(svg, x, y, text, color){
+    var ns='http://www.w3.org/2000/svg';
+    var t = document.createElementNS(ns,'text');
+    t.setAttribute('x',x); t.setAttribute('y',y); t.setAttribute('fill',color); t.setAttribute('font-size','13'); t.setAttribute('font-weight','600');
+    t.textContent = text;
+    svg.appendChild(t);
+    return t;
+  }
+
+  inits.s4 = function(){
+    if(played.s4) return; played.s4 = true;
+    var svg = document.getElementById('s4svg');
+    axes(svg);
+    var pts = [], ptsC = [];
+    for(var n=0;n<=17;n++){
+      var x = 40 + n*29;
+      pts.push([x, 250 - (3*n+5)*1.05]);
+      ptsC.push([x, 250 - (4*n)*1.05]);
+    }
+    var pf = makePath(svg, linePath(pts), 'var(--blue)');
+    var pc = makePath(svg, linePath(ptsC), 'var(--ink-faint)', 1.8);
+    pc.setAttribute('stroke-dasharray', '5,5');
+    var n0x = 40 + 5*29;
+    var ns='http://www.w3.org/2000/svg';
+    var band = document.createElementNS(ns,'rect');
+    band.setAttribute('x', n0x); band.setAttribute('y', 20); band.setAttribute('width', 540-n0x); band.setAttribute('height', 230);
+    band.setAttribute('fill', 'rgba(127,166,214,.06)');
+    svg.insertBefore(band, svg.firstChild.nextSibling);
+    svgLabel(svg, n0x-8, 268, 'n₀', 'var(--amber)');
+    svgLabel(svg, 470, ptsC[15][1]-8, 'c·g(n) = 4n', 'var(--ink-faint)');
+    svgLabel(svg, 430, pts[13][1]+18, 'f(n) = 3n+5', 'var(--blue)');
+    setTimeout(function(){ drawPath(pc, 0, 900); }, 200);
+    setTimeout(function(){ drawPath(pf, 300, 1100); }, 200);
+    setTimeout(function(){ mnCircumscribe(svg, document.getElementById('s4')); }, 1600);
+  };
+
+  inits.s5 = function(){
+    if(played.s5) return; played.s5 = true;
+    var svg = document.getElementById('s5svg');
+    axes(svg);
+    var pts = [], ptsC = [];
+    for(var n=0;n<=17;n++){
+      var x = 40 + n*29;
+      pts.push([x, 250 - (2*n+8)*1.05]);
+      ptsC.push([x, 250 - (1.1*n)*1.05]);
+    }
+    var pc = makePath(svg, linePath(ptsC), 'var(--ink-faint)', 1.8);
+    pc.setAttribute('stroke-dasharray', '5,5');
+    var pf = makePath(svg, linePath(pts), 'var(--amber)');
+    svgLabel(svg, 460, ptsC[15][1]+16, 'c·g(n)', 'var(--ink-faint)');
+    svgLabel(svg, 420, pts[13][1]-10, 'f(n) never dips below', 'var(--amber)');
+    setTimeout(function(){ drawPath(pc, 0, 900); }, 200);
+    setTimeout(function(){ drawPath(pf, 300, 1100); }, 200);
+  };
+
+  inits.s6 = function(){
+    if(played.s6) return; played.s6 = true;
+    var svg = document.getElementById('s6svg');
+    axes(svg);
+    var top=[], bot=[], mid=[];
+    for(var n=0;n<=17;n++){
+      var x = 40 + n*29;
+      top.push([x, 250 - (1.6*n+10)*1.05]);
+      bot.push([x, 250 - (0.9*n)*1.05]);
+      mid.push([x, 250 - (1.25*n+4)*1.05]);
+    }
+    var ns='http://www.w3.org/2000/svg';
+    var poly = document.createElementNS(ns,'polygon');
+    var pts = top.concat(bot.slice().reverse());
+    poly.setAttribute('points', pts.map(function(p){return p.join(',');}).join(' '));
+    poly.setAttribute('fill', 'rgba(132,179,148,.08)');
+    svg.appendChild(poly);
+    var p1 = makePath(svg, linePath(top), 'var(--ink-faint)', 1.6); p1.setAttribute('stroke-dasharray','5,5');
+    var p2 = makePath(svg, linePath(bot), 'var(--ink-faint)', 1.6); p2.setAttribute('stroke-dasharray','5,5');
+    var p3 = makePath(svg, linePath(mid), 'var(--green)', 2.8);
+    svgLabel(svg, 470, top[15][1]-6, 'c₂·g(n)', 'var(--ink-faint)');
+    svgLabel(svg, 470, bot[15][1]+16, 'c₁·g(n)', 'var(--ink-faint)');
+    svgLabel(svg, 380, mid[12][1]-10, 'f(n) — sandwiched', 'var(--green)');
+    setTimeout(function(){ drawPath(p1,0,800); drawPath(p2,0,800); }, 150);
+    setTimeout(function(){ drawPath(p3,400,1000); }, 150);
+  };
+
+  // ---------- Slide 7: growth race ----------
+  inits.s7 = function(){
+    if(played.s7) return; played.s7 = true;
+    var svg = document.getElementById('s7svg');
+    var ns='http://www.w3.org/2000/svg';
+    var ax = document.createElementNS(ns,'line'); ax.setAttribute('x1','50'); ax.setAttribute('y1','250'); ax.setAttribute('x2','630'); ax.setAttribute('y2','250'); ax.setAttribute('stroke','var(--line)'); svg.appendChild(ax);
+    var ay = document.createElementNS(ns,'line'); ay.setAttribute('x1','50'); ay.setAttribute('y1','16'); ay.setAttribute('x2','50'); ay.setAttribute('y2','250'); ay.setAttribute('stroke','var(--line)'); svg.appendChild(ay);
+    var fns = [
+      {name:'O(1)', color:'#7cb8b0', f:function(n){return 1;}},
+      {name:'O(log n)', color:'#84b394', f:function(n){return Math.max(1,Math.log2(n+1));}},
+      {name:'O(n)', color:'#7fa6d6', f:function(n){return n+1;}},
+      {name:'O(n log n)', color:'#a396cc', f:function(n){return (n+1)*Math.max(1,Math.log2(n+1));}},
+      {name:'O(n²)', color:'#d3ab68', f:function(n){return (n+1)*(n+1);}},
+      {name:'O(2ⁿ)', color:'#c98476', f:function(n){return Math.pow(2,n);}}
+    ];
+    var maxLog = Math.log10(Math.pow(2,12)+1);
+    function mapX(n){ return 50 + (n/12)*580; }
+    function mapY(v){ return 250 - (Math.log10(v+1)/maxLog)*228; }
+    fns.forEach(function(fn, idx){
+      var pts = [];
+      for(var n=0;n<=12;n++){ pts.push([mapX(n), mapY(fn.f(n))]); }
+      var p = makePath(svg, linePath(pts), fn.color, 2.4);
+      setTimeout(function(){ drawPath(p, idx*180, 900); }, 100);
+      var last = pts[pts.length-1];
+      var lbl = svgLabel(svg, Math.min(last[0]-4, 560), Math.max(24,last[1]+4), fn.name, fn.color);
+      lbl.style.opacity = 0;
+      lbl.style.transition = 'opacity .4s ease';
+      setTimeout(function(l){ l.style.opacity = 1; }, idx*180+900, lbl);
+    });
+    countUp(document.getElementById('s7v1'), 30, {delay:1600});
+    countUp(document.getElementById('s7v2'), 900, {delay:1900});
+    countUp(document.getElementById('s7v3'), 1073741824, {delay:2200, fmt:commas});
+  };
+
+  // ---------- Slide 8: best/avg/worst ----------
+  inits.s8 = function(){
+    if(played.s8) return; played.s8 = true;
+    var b1 = buildRow(document.getElementById('s8rowBest'), 8);
+    var b2 = buildRow(document.getElementById('s8rowAvg'), 8);
+    var b3 = buildRow(document.getElementById('s8rowWorst'), 8);
+    setTimeout(function(){ stepRow(b1, [0], '#s8badgeBest', {delay:200}); }, 400);
+    setTimeout(function(){ stepRow(b2, [0,1,2,3], '#s8badgeAvg', {delay:220}); }, 1400);
+    setTimeout(function(){ stepRow(b3, [0,1,2,3,4,5,6,7], '#s8badgeWorst', {delay:150}); }, 3000);
+  };
+
+  // ---------- Slide 9: call stack ----------
+  inits.s9 = function(){
+    if(played.s9) return; played.s9 = true;
+    var stackEl = document.getElementById('s9stack');
+    stackEl.innerHTML = '';
+    var frames = ['factorial(1) — base case','factorial(2)','factorial(3)','factorial(4)','factorial(5)'];
+    frames.forEach(function(label, i){
+      var f = document.createElement('div');
+      f.style.height = '38px';
+      f.style.border = '1.4px solid var(--violet)';
+      f.style.borderRadius = '6px';
+      f.style.background = 'rgba(163,150,204,' + (0.06 + i*0.02) + ')';
+      f.style.display = 'flex';
+      f.style.alignItems = 'center';
+      f.style.paddingLeft = '12px';
+      f.style.font = "600 13px 'JetBrains Mono'";
+      f.style.color = 'var(--ink)';
+      f.style.opacity = '0';
+      f.style.transform = 'translateY(8px)';
+      f.style.transition = 'opacity .4s ease, transform .4s ease';
+      f.style.width = (60 + i*10) + '%';
+      f.textContent = label;
+      stackEl.appendChild(f);
+      setTimeout(function(){ f.style.opacity='1'; f.style.transform='translateY(0)'; }, 250 + i*260);
+    });
+    setTimeout(function(){
+      var base = stackEl.children[0];
+      if(base) mnIndicate(base);
+    }, 250 + frames.length*260 + 300);
+  };
+
+  // ---------- Slide 10: amortized ----------
+  inits.s10 = function(){
+    if(played.s10) return; played.s10 = true;
+    var arrEl = document.getElementById('s10arr');
+    var statusEl = document.getElementById('s10status');
+    var barsEl = document.getElementById('s10bars');
+    arrEl.innerHTML = ''; barsEl.innerHTML = '';
+    var slots = [];
+    var capacity = 4;
+    function renderSlots(cap, filled){
+      arrEl.innerHTML = '';
+      for(var i=0;i<cap;i++){
+        var s = document.createElement('div');
+        s.style.position='absolute';
+        s.style.left = (i*58) + 'px';
+        s.style.top = '0';
+        s.style.width='50px'; s.style.height='50px';
+        s.style.border='1.4px solid ' + (i<filled ? 'var(--blue)' : 'var(--line)');
+        s.style.borderRadius='7px';
+        s.style.display='flex'; s.style.alignItems='center'; s.style.justifyContent='center';
+        s.style.font="600 13px 'JetBrains Mono'";
+        s.style.color = i<filled ? 'var(--ink)' : 'var(--ink-faint)';
+        s.style.background = i<filled ? 'rgba(127,166,214,.14)' : 'transparent';
+        s.style.transition='all .3s ease';
+        s.textContent = i<filled ? (i+1) : '';
+        arrEl.appendChild(s);
+      }
+    }
+    renderSlots(4,0);
+    var costs = [1,1,1,1,5,1,1,1];
+    var maxCost = 5;
+    costs.forEach(function(c, i){
+      var col = document.createElement('div');
+      col.style.width='42px'; col.style.height='0px';
+      col.style.background = c>1 ? 'var(--amber)' : 'var(--blue)';
+      col.style.borderRadius='4px 4px 0 0';
+      col.style.transition = 'height 500ms ease';
+      col.style.position='relative';
+      var lbl = document.createElement('div');
+      lbl.style.position='absolute'; lbl.style.top='-18px'; lbl.style.width='100%'; lbl.style.textAlign='center';
+      lbl.style.font = "500 11px 'JetBrains Mono'"; lbl.style.color='var(--ink-dim)';
+      lbl.textContent = '#' + (i+1);
+      col.appendChild(lbl);
+      barsEl.appendChild(col);
+      setTimeout(function(){ col.style.height = (c/maxCost*80) + 'px'; }, 300 + i*180);
+    });
+    var seq = [1,2,3,4,'resize',5,6,7,8];
+    var t = 400, filled = 0, cap = 4;
+    seq.forEach(function(step){
+      if(step === 'resize'){
+        setTimeout(function(){
+          statusEl.textContent = 'capacity: 4 → 8 (copying 4 items…)';
+          cap = 8;
+          renderSlots(cap, filled);
+        }, t);
+        t += 700;
+      } else {
+        setTimeout(function(){
+          filled = step > cap ? cap : step;
+          renderSlots(cap, filled);
+          statusEl.textContent = 'capacity: ' + cap + '  ·  inserted: ' + filled;
+        }, t);
+        t += 380;
+      }
+    });
+  };
+
+  // ---------- Slide 11: decision tree ----------
+  inits.s11 = function(){
+    if(played.s11) return; played.s11 = true;
+    var svg = document.getElementById('s11tree');
+    var ns='http://www.w3.org/2000/svg';
+    var levels = [
+      [[300,20]],
+      [[150,75],[450,75]],
+      [[75,130],[225,130],[375,130],[525,130]]
+    ];
+    var edges = [];
+    levels[0].forEach(function(p, i){
+      levels[1].forEach(function(c, j){ edges.push([p,c]); });
+    });
+    [[levels[1][0], levels[2][0]],[levels[1][0], levels[2][1]],[levels[1][1], levels[2][2]],[levels[1][1], levels[2][3]]].forEach(function(e){
+      edges.push(e);
+    });
+    var lines = edges.map(function(e){
+      var l = document.createElementNS(ns,'line');
+      l.setAttribute('x1', e[0][0]); l.setAttribute('y1', e[0][1]);
+      l.setAttribute('x2', e[1][0]); l.setAttribute('y2', e[1][1]);
+      l.setAttribute('stroke', 'var(--line)'); l.setAttribute('stroke-width','1.4');
+      l.style.opacity = 0; l.style.transition = 'opacity .4s ease';
+      svg.appendChild(l);
+      return l;
+    });
+    var allNodes = levels[0].concat(levels[1]).concat(levels[2]);
+    allNodes.forEach(function(p, i){
+      var c = document.createElementNS(ns,'circle');
+      c.setAttribute('cx', p[0]); c.setAttribute('cy', p[1]); c.setAttribute('r', i===0?9:7);
+      c.setAttribute('fill', i===0 ? 'var(--amber)' : (p[1]===130 ? 'var(--green)' : 'var(--blue)'));
+      c.style.opacity = 0; c.style.transition = 'opacity .4s ease';
+      svg.appendChild(c);
+      setTimeout(function(){ c.style.opacity = 1; }, 150 + i*140);
+    });
+    lines.forEach(function(l, i){ setTimeout(function(){ l.style.opacity = 1; }, 250 + i*90); });
+    var lbl = document.createElementNS(ns,'text');
+    lbl.setAttribute('x','300'); lbl.setAttribute('y','12'); lbl.setAttribute('fill','var(--ink-dim)'); lbl.setAttribute('font-size','11');
+    lbl.setAttribute('text-anchor','middle'); lbl.textContent = 'each level = one comparison';
+    svg.appendChild(lbl);
+    var lbl2 = document.createElementNS(ns,'text');
+    lbl2.setAttribute('x','300'); lbl2.setAttribute('y','145'); lbl2.setAttribute('fill','var(--green)'); lbl2.setAttribute('font-size','11');
+    lbl2.setAttribute('text-anchor','middle'); lbl2.textContent = 'leaves = possible orderings';
+    svg.appendChild(lbl2);
+  };
+
+  // ---------- Slide 12: trade-off bars ----------
+  inits.s12 = function(){
+    if(played.s12) return; played.s12 = true;
+    setTimeout(function(){
+      document.getElementById('s12barA1').style.width = '40%';
+      document.getElementById('s12barA2').style.width = '15%';
+      document.getElementById('s12barB1').style.width = '15%';
+      document.getElementById('s12barB2').style.width = '75%';
+    }, 300);
+  };
+
+  // ---------- Slide 14: cheat sheet grid ----------
+  inits.s14 = function(){
+    if(played.s14) return; played.s14 = true;
+    var grid = document.getElementById('s14grid');
+    var items = [
+      ['Time Complexity','T(n) — steps as a function of n','var(--blue)'],
+      ['Space Complexity','S(n) — extra memory as a function of n','var(--violet)'],
+      ['Big O','f(n) ≤ c·g(n) — the worst-case ceiling','var(--blue)'],
+      ['Big Ω','f(n) ≥ c·g(n) — the guaranteed floor','var(--amber)'],
+      ['Big Θ','O and Ω together — the exact growth rate','var(--green)'],
+      ['Best Case','fewest possible steps for this algorithm','var(--green)'],
+      ['Average Case','expected steps over typical inputs','var(--amber)'],
+      ['Worst Case','most steps possible — usually what "O(n)" means','var(--red)'],
+      ['Amortized Analysis','rare expensive step, averaged over many cheap ones','var(--teal)'],
+      ['Lower Bound','proven minimum work for a whole problem','var(--amber)'],
+      ['Upper Bound','a ceiling for one specific algorithm','var(--blue)'],
+      ['Trade-offs','saving time often costs space, and vice versa','var(--red)']
+    ];
+    var cols = [64, 452, 840], rows = [0, 96, 192, 288];
+    items.forEach(function(it, i){
+      var col = cols[i % 3], row = rows[Math.floor(i/3)];
+      var chip = document.createElement('div');
+      chip.className = 'chip rv pop';
+      chip.setAttribute('data-d', 2 + i);
+      chip.style.position = 'absolute';
+      chip.style.left = col + 'px';
+      chip.style.top = row + 'px';
+      chip.style.width = '340px';
+      chip.style.height = '76px';
+      chip.style.borderLeftColor = it[2];
+      chip.innerHTML = '<div class="k">' + it[0] + '</div><div class="v">' + it[1] + '</div>';
+      grid.appendChild(chip);
+    });
+    setTimeout(function(){ revealIn(document.getElementById('s14'), 90); }, 20);
+  };
+
+  // init first slide
+  goTo(0);
+})();
+</script>
+</body>
+</html>

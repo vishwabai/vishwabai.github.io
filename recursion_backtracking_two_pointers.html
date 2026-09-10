@@ -1,0 +1,1511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Recursion, Backtracking & Two Pointers</title>
+<style>
+  :root{
+    --bg:#0a0a0f;
+    --blue:#4A90C4;
+    --yellow:#D4C55A;
+    --green:#6BAA75;
+    --red:#C4605A;
+    --gray:#8A8F98;
+    --text:#EDEDED;
+    --caption:#9AA0A8;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; width:100%; height:100%;
+    background:#000; overflow:hidden;
+    font-family:'Helvetica Neue',Arial,sans-serif;
+  }
+  #deck-scaler{
+    width:1600px; height:900px;
+    background:var(--bg);
+    position:absolute; top:50%; left:50%;
+    transform-origin:center center;
+  }
+  .slide{ position:absolute; inset:0; display:none; }
+  .slide.active{ display:block; }
+
+  .zone-title{
+    position:absolute; top:40px; left:80px; right:80px; height:80px;
+    display:flex; align-items:center;
+    color:var(--text); font-size:34px; font-weight:600; letter-spacing:.3px;
+  }
+  .zone-title .sub{ color:var(--gray); font-size:18px; font-weight:400; margin-left:16px; }
+  .zone-stage{ position:absolute; top:140px; left:80px; right:80px; height:630px; }
+  .zone-caption{
+    position:absolute; top:790px; left:120px; right:120px; height:90px;
+    display:flex; align-items:center; justify-content:center;
+    color:var(--caption); font-size:20px; line-height:1.35; text-align:center;
+    white-space:normal; overflow-wrap:break-word; overflow:visible;
+  }
+  .capline{ opacity:0; transition:opacity .4s ease; display:inline-block; }
+  .capline.show{ opacity:1; }
+
+  .stageWrap{ position:relative; width:100%; height:100%; }
+  .stageSvg{ position:absolute; inset:0; }
+  .ptrHost{ position:absolute; inset:0; }
+
+  svg text{ font-family:'Helvetica Neue',Arial,sans-serif; }
+  svg rect.arr-cell, svg rect.grid-cell{ transition:fill .4s ease, stroke .4s ease; }
+  svg circle.tree-node{ transition:stroke .4s ease, fill .4s ease, opacity .4s ease; }
+  svg line.tree-edge{ transition:stroke .4s ease, opacity .4s ease; }
+  svg .draw-in{ stroke-dasharray:var(--len); stroke-dashoffset:var(--len); }
+  svg .draw-in.go{ animation:drawShape 800ms cubic-bezier(.65,0,.35,1) forwards; }
+  @keyframes drawShape{ to{ stroke-dashoffset:0; } }
+  .fade-el{ opacity:0; transition:opacity .5s ease, transform .5s ease; transform:translateY(6px); }
+  .fade-el.show{ opacity:1; transform:translateY(0); }
+  .pulse{ animation:pulse .6s ease-in-out; }
+  @keyframes pulse{ 0%{transform:scale(1);} 50%{transform:scale(1.12); filter:drop-shadow(0 0 4px currentColor);} 100%{transform:scale(1);} }
+
+  .ptr{ position:absolute; width:76px; text-align:center; opacity:0;
+        transition:left .55s cubic-bezier(.65,0,.35,1), top .55s cubic-bezier(.65,0,.35,1), opacity .3s ease;
+        transform:translateX(-38px); }
+  .ptr.show{ opacity:1; }
+  .ptr .lbl{ font-size:15px; font-weight:700; }
+  .ptr .tri{ margin:3px auto 0; width:0; height:0; border-left:9px solid transparent; border-right:9px solid transparent; border-top:14px solid; }
+
+  .badge{ position:absolute; padding:7px 16px; border:1.5px solid var(--gray); border-radius:20px;
+          color:var(--text); font-size:15px; opacity:0; transition:opacity .5s ease; white-space:nowrap; }
+  .badge.show{ opacity:1; }
+  .badge.use{ border-color:var(--green); color:var(--green); }
+  .badge.O{ border-color:var(--yellow); color:var(--yellow); font-style:italic; }
+
+  .codeblock{ position:absolute; font-family:'SFMono-Regular',Consolas,'Courier New',monospace; font-size:19px;
+              color:var(--text); line-height:1.75; white-space:pre; opacity:0; transition:opacity .4s ease; }
+  .codeblock.show{ opacity:1; }
+  .kw{ color:var(--blue); }
+  .cm{ color:var(--gray); font-style:italic; }
+  .fn{ color:var(--yellow); }
+
+  .formula{ font-family:Georgia,'Cambria',serif; font-style:italic; color:var(--yellow); font-size:30px;
+            position:absolute; opacity:0; transition:opacity .5s ease; }
+  .formula.show{ opacity:1; }
+
+  .listItem{ position:absolute; color:var(--text); font-size:23px; opacity:0;
+             transition:opacity .5s ease, transform .5s ease; transform:translateX(-14px); }
+  .listItem.show{ opacity:1; transform:translateX(0); }
+  .listItem .n{ color:var(--blue); font-weight:700; margin-right:10px; }
+
+  #nav{ position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+        display:flex; align-items:center; gap:18px; z-index:10; }
+  #nav button{ background:transparent; border:1.5px solid var(--gray); color:var(--text);
+               width:40px; height:40px; border-radius:50%; font-size:18px; cursor:pointer;
+               display:flex; align-items:center; justify-content:center;
+               transition:border-color .2s, color .2s; }
+  #nav button:hover{ border-color:var(--blue); color:var(--blue); }
+  #dots{ display:flex; gap:6px; flex-wrap:wrap; max-width:420px; justify-content:center; }
+  .dot{ width:7px; height:7px; border-radius:50%; background:var(--gray); opacity:.5;
+        transition:background .2s, opacity .2s, transform .2s; }
+  .dot.on{ background:var(--blue); opacity:1; transform:scale(1.3); }
+  #slideCounter{ color:var(--gray); font-size:13px; letter-spacing:.5px; min-width:56px; text-align:center; }
+</style>
+</head>
+<body>
+<div id="deck-scaler"><div id="slides"></div></div>
+
+<div id="nav">
+  <button id="prevBtn" aria-label="Previous">&lsaquo;</button>
+  <div id="dots"></div>
+  <span id="slideCounter">1 / 1</span>
+  <button id="nextBtn" aria-label="Next">&rsaquo;</button>
+</div>
+
+<script>
+/* ============================== GEOMETRY HELPERS ============================== */
+const NS='http://www.w3.org/2000/svg';
+function ns(tag){ return document.createElementNS(NS,tag); }
+function wait(ms){ return new Promise(r=>setTimeout(r,ms)); }
+function beat(fn,ms){ if(fn) fn(); return wait(ms+150); }
+function clearHost(el){ while(el && el.firstChild) el.removeChild(el.firstChild); }
+
+function mkText(x,y,str,opts={}){
+  const t=ns('text'); t.setAttribute('x',x); t.setAttribute('y',y);
+  t.setAttribute('text-anchor',opts.anchor||'middle');
+  t.setAttribute('fill',opts.fill||'var(--text)');
+  t.setAttribute('font-size',opts.size||20);
+  t.setAttribute('font-weight',opts.weight||400);
+  if(opts.style) t.setAttribute('font-style',opts.style);
+  if(opts.cls) t.setAttribute('class',opts.cls);
+  t.textContent=str;
+  return t;
+}
+function mkRect(x,y,w,h,opts={}){
+  const r=ns('rect'); r.setAttribute('x',x); r.setAttribute('y',y);
+  r.setAttribute('width',w); r.setAttribute('height',h);
+  r.setAttribute('rx',opts.rx!==undefined?opts.rx:8);
+  r.setAttribute('fill',opts.fill||'none');
+  r.setAttribute('stroke',opts.stroke||'var(--blue)');
+  r.setAttribute('stroke-width',opts.sw||2.5);
+  if(opts.cls) r.setAttribute('class',opts.cls);
+  return r;
+}
+function mkLine(x1,y1,x2,y2,opts={}){
+  const l=ns('line'); l.setAttribute('x1',x1); l.setAttribute('y1',y1);
+  l.setAttribute('x2',x2); l.setAttribute('y2',y2);
+  l.setAttribute('stroke',opts.stroke||'var(--gray)');
+  l.setAttribute('stroke-width',opts.sw||2);
+  if(opts.cls) l.setAttribute('class',opts.cls);
+  if(opts.dash) l.setAttribute('stroke-dasharray',opts.dash);
+  return l;
+}
+function mkCircle(cx,cy,r,opts={}){
+  const c=ns('circle'); c.setAttribute('cx',cx); c.setAttribute('cy',cy); c.setAttribute('r',r);
+  c.setAttribute('fill',opts.fill||'none');
+  c.setAttribute('stroke',opts.stroke||'var(--blue)');
+  c.setAttribute('stroke-width',opts.sw||2.5);
+  if(opts.cls) c.setAttribute('class',opts.cls);
+  return c;
+}
+function prepDraw(el){ const len=el.getTotalLength(); el.style.setProperty('--len',len); }
+
+function drawArray(svg, values, o={}){
+  const x0=o.x0!==undefined?o.x0:200, y=o.y!==undefined?o.y:300, cw=o.cw||90, ch=o.ch||90,
+        gap=o.gap!==undefined?o.gap:16, color=o.color||'var(--blue)', fontSize=o.fontSize||28;
+  const cells=[];
+  values.forEach((v,i)=>{
+    const x=x0+i*(cw+gap);
+    const rect=mkRect(x,y,cw,ch,{stroke:color,cls:'arr-cell',fill:'rgba(255,255,255,0.02)'});
+    svg.appendChild(rect);
+    const t=mkText(x+cw/2,y+ch/2+9,String(v),{size:fontSize});
+    svg.appendChild(t);
+    if(o.showIndex!==false) svg.appendChild(mkText(x+cw/2,y+ch+26,String(i),{size:15,fill:'var(--gray)'}));
+    cells.push({x,y,cw,ch,cx:x+cw/2,cy:y+ch/2,rect,textEl:t,val:v});
+  });
+  return cells;
+}
+function drawGrid(svg,rows,cols,o={}){
+  const x0=o.x0!==undefined?o.x0:520, y0=o.y0!==undefined?o.y0:100, cell=o.cell||100, color=o.color||'var(--gray)';
+  const cells=[];
+  for(let r=0;r<rows;r++){
+    const row=[];
+    for(let c=0;c<cols;c++){
+      const x=x0+c*cell, y=y0+r*cell;
+      const rect=mkRect(x,y,cell,cell,{stroke:color,rx:4,cls:'grid-cell',fill:'rgba(255,255,255,0.02)'});
+      svg.appendChild(rect);
+      row.push({x,y,cw:cell,ch:cell,cx:x+cell/2,cy:y+cell/2,rect,textEl:null});
+    }
+    cells.push(row);
+  }
+  return cells;
+}
+function setCellText(svg,cellObj,str,opts={}){
+  if(cellObj.textEl){ cellObj.textEl.textContent=str; if(opts.fill) cellObj.textEl.setAttribute('fill',opts.fill); return cellObj.textEl; }
+  const t=mkText(cellObj.cx,cellObj.cy+9,str,opts);
+  svg.appendChild(t); cellObj.textEl=t; return t;
+}
+function highlight(cellObj,{stroke,fill}={}){
+  if(stroke) cellObj.rect.setAttribute('stroke',stroke);
+  if(fill) cellObj.rect.setAttribute('fill',fill);
+}
+
+/* pointer tokens */
+function addPtr(host,label,color){
+  const el=document.createElement('div'); el.className='ptr';
+  const lab=document.createElement('div'); lab.className='lbl'; lab.style.color=color; lab.textContent=label;
+  const tri=document.createElement('div'); tri.className='tri'; tri.style.borderTopColor=color;
+  el.appendChild(lab); el.appendChild(tri);
+  host.appendChild(el);
+  return el;
+}
+function placePtr(el,cellObj,level=0,below=false){
+  const totalH=20+3+14;
+  el.style.left=cellObj.cx+'px';
+  if(!below) el.style.top=(cellObj.y-totalH-6-level*40)+'px';
+  else el.style.top=(cellObj.y+cellObj.ch+10+level*40)+'px';
+  requestAnimationFrame(()=>el.classList.add('show'));
+}
+
+function animateNumber(el,from,to,ms,decimals=0){
+  const t0=performance.now();
+  function step(t){
+    const p=Math.min(1,(t-t0)/ms);
+    const val=from+(to-from)*(1-Math.pow(1-p,3));
+    el.textContent=val.toFixed(decimals);
+    if(p<1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+/* trees */
+const TREE_R=24;
+function layoutTree(node,x0,x1,y,yGap,depth=0){
+  node.x=(x0+x1)/2; node.y=y; node.depth=depth;
+  if(node.children&&node.children.length){
+    const w=(x1-x0)/node.children.length;
+    node.children.forEach((c,i)=>layoutTree(c,x0+i*w,x0+(i+1)*w,y+yGap,yGap,depth+1));
+  }
+}
+function collectNodes(node,arr){ arr=arr||[]; arr.push(node); if(node.children) node.children.forEach(c=>collectNodes(c,arr)); return arr; }
+function drawTreeEdges(svg,node){
+  if(node.children) node.children.forEach(c=>{
+    const line=mkLine(node.x,node.y+TREE_R,c.x,c.y-TREE_R,{stroke:'var(--gray)',cls:'tree-edge'});
+    svg.appendChild(line); c._edge=line;
+    drawTreeEdges(svg,c);
+  });
+}
+function drawTreeNode(svg,node,opts){
+  opts=opts||{};
+  const circle=mkCircle(node.x,node.y,TREE_R,{stroke:node.color||'var(--blue)',fill:'var(--bg)',cls:'tree-node'});
+  svg.appendChild(circle); node._circle=circle;
+  const text=mkText(node.x,node.y+5,node.label,{size:opts.fontSize||13});
+  svg.appendChild(text); node._text=text;
+}
+function drawTreeAll(svg,root,opts){
+  drawTreeEdges(svg,root);
+  collectNodes(root).forEach(n=>drawTreeNode(svg,n,opts));
+}
+
+/* caption narration */
+function capEl(root){ return root.querySelector('.capline'); }
+async function narrateSimple(root,text,ms){
+  const c=capEl(root); c.textContent=text; c.style.color='var(--caption)';
+  await beat(()=>c.classList.add('show'), ms||500);
+}
+async function narrateRGF(root,recap,gap,fill){
+  const c=capEl(root);
+  c.textContent=recap; c.style.color='var(--caption)'; c.classList.add('show');
+  await wait(1500);
+  c.classList.remove('show'); await wait(350);
+  c.textContent=gap; c.style.color='var(--yellow)'; c.classList.add('show');
+  await wait(2000);
+  c.classList.remove('show'); await wait(350);
+  c.textContent=fill; c.style.color='var(--green)'; c.classList.add('show');
+  await wait(300);
+}
+function resetCap(root){ const c=capEl(root); c.classList.remove('show'); c.textContent=''; }
+
+function svgOf(root){ return root.querySelector('.stageSvg'); }
+function ptrOf(root){ return root.querySelector('.ptrHost'); }
+function resetStage(root){ clearHost(svgOf(root)); clearHost(ptrOf(root)); resetCap(root); }
+
+function addBadge(root,text,x,y,cls){
+  const el=document.createElement('div'); el.className='badge'+(cls?(' '+cls):'');
+  el.style.left=x+'px'; el.style.top=y+'px'; el.textContent=text;
+  root.querySelector('.stageWrap').appendChild(el);
+  return el;
+}
+function addCode(root,lines,x,y,size){
+  const el=document.createElement('div'); el.className='codeblock';
+  el.style.left=x+'px'; el.style.top=y+'px'; if(size) el.style.fontSize=size+'px';
+  el.innerHTML=lines.join('\n');
+  root.querySelector('.stageWrap').appendChild(el);
+  return el;
+}
+function addFormula(root,text,x,y,size){
+  const el=document.createElement('div'); el.className='formula';
+  el.style.left=x+'px'; el.style.top=y+'px'; if(size) el.style.fontSize=size+'px';
+  el.textContent=text;
+  root.querySelector('.stageWrap').appendChild(el);
+  return el;
+}
+function addList(root,items,x,y0,lineH){
+  lineH=lineH||44;
+  const els=items.map((s,i)=>{
+    const el=document.createElement('div'); el.className='listItem';
+    el.style.left=x+'px'; el.style.top=(y0+i*lineH)+'px';
+    el.innerHTML=s;
+    root.querySelector('.stageWrap').appendChild(el);
+    return el;
+  });
+  return els;
+}
+
+/* ============================== SLIDE MARKUP ============================== */
+const slideDefs = [
+  {t:"Recursion, Backtracking &amp; Two Pointers", sub:"two ways to explore a problem space"},
+  {t:"Roadmap"},
+  {t:"A function that calls itself"},
+  {t:"Two parts, every single time"},
+  {t:"Recursion branches: the recursion tree"},
+  {t:"But look closer\u2026 we're repeating work"},
+  {t:"Divide, conquer, combine"},
+  {t:"How fast? The Master Theorem"},
+  {t:"Backtracking: recursion that can undo"},
+  {t:"The three-step pattern"},
+  {t:"State-space search &amp; constraint satisfaction"},
+  {t:"Same skeleton, many costumes"},
+  {t:"Classic Backtracking Problems"},
+  {t:"N-Queens: no two queens attack"},
+  {t:"Sudoku: fill, check, undo"},
+  {t:"Subsets: include or exclude"},
+  {t:"Permutations: order matters"},
+  {t:"Combinations: choose k, order doesn't"},
+  {t:"Combination Sum: reuse allowed"},
+  {t:"Word Search: DFS on a grid"},
+  {t:"Maze: find a path, or prove there isn't one"},
+  {t:"Partitioning: every piece must be valid"},
+  {t:"Recap: Recursion &amp; Backtracking"},
+  {t:"A different kind of efficiency"},
+  {t:"Opposite-direction pointers"},
+  {t:"Same-direction pointers"},
+  {t:"Fast &amp; slow: Floyd's tortoise and hare"},
+  {t:"Partitioning: three regions, one pass"},
+  {t:"Sliding window \u2014 a two-pointer subarray"},
+  {t:"Common Two-Pointer Patterns"},
+  {t:"Pair Sum: sorted array, target value"},
+  {t:"Three Sum: fix one, two-pointer the rest"},
+  {t:"Remove Duplicates: write &amp; read pointers"},
+  {t:"Container With Most Water"},
+  {t:"Linked-List Cycle Detection"},
+  {t:"Recap: The Whole Deck"},
+];
+const container=document.getElementById('slides');
+slideDefs.forEach((d,i)=>{
+  const sec=document.createElement('section');
+  sec.className='slide'; sec.dataset.slide=i;
+  sec.innerHTML=`
+    <div class="zone-title">${d.t}${d.sub?`<span class="sub">${d.sub}</span>`:''}</div>
+    <div class="zone-stage"><div class="stageWrap">
+      <svg class="stageSvg" viewBox="0 0 1440 630" width="100%" height="100%"></svg>
+      <div class="ptrHost"></div>
+    </div></div>
+    <div class="zone-caption"><span class="capline"></span></div>`;
+  container.appendChild(sec);
+});
+
+/* ============================== SCENES ============================== */
+const scenes = {};
+
+/* ---------- 0: Title ---------- */
+scenes[0] = {
+  enter: async (root) => {
+    const svg=svgOf(root);
+    // nested self-similar squares (recursion = self-similarity)
+    const sizes=[420,300,190,110,55];
+    const cx=560, cy=330;
+    const rects=sizes.map((s,i)=>{
+      const r=mkRect(cx-s/2,cy-s/2,s,s,{stroke:i%2? 'var(--blue)':'var(--green)', rx:14, cls:'draw-in'});
+      svg.appendChild(r); return r;
+    });
+    for(const r of rects){ prepDraw(r); await beat(()=>r.classList.add('go'),500); }
+    // arrow pair -> two pointers hint
+    const l1=mkLine(1020,260,1180,260,{stroke:'var(--yellow)',sw:3,cls:'draw-in'});
+    const l2=mkLine(1180,400,1020,400,{stroke:'var(--yellow)',sw:3,cls:'draw-in'});
+    svg.appendChild(l1); svg.appendChild(l2);
+    const tri1=mkText(1180,268,'\u25B6',{size:22,fill:'var(--yellow)'});
+    const tri2=mkText(1020,392,'\u25C0',{size:22,fill:'var(--yellow)'});
+    svg.appendChild(tri1); svg.appendChild(tri2);
+    prepDraw(l1); prepDraw(l2);
+    await beat(()=>{ l1.classList.add('go'); l2.classList.add('go'); },700);
+    const lab=mkText(1100,340,'converge',{size:16,fill:'var(--gray)'});
+    lab.classList.add('fade-el'); svg.appendChild(lab);
+    await beat(()=>lab.classList.add('show'),400);
+    await narrateSimple(root,"Break a big problem into smaller versions of itself \u2014 then explore it end to end.",500);
+  },
+  exit: (root)=> resetStage(root)
+};
+
+/* ---------- 1: Roadmap ---------- */
+scenes[1] = {
+  enter: async (root)=>{
+    const svg=svgOf(root);
+    svg.appendChild(mkRect(90,60,600,520,{stroke:'var(--blue)',rx:14}));
+    svg.appendChild(mkRect(750,60,600,520,{stroke:'var(--green)',rx:14}));
+    svg.appendChild(mkText(390,110,'Recursion & Backtracking',{size:23,weight:600}));
+    svg.appendChild(mkText(1050,110,'Two Pointers',{size:23,weight:600}));
+    const left=["Recursion trees","Divide & conquer","Backtracking template","State-space search & CSP","9 classic problems"];
+    const right=["5 pointer patterns","Sliding window","Pair / Three Sum","Dedup & containers","Cycle detection"];
+    const leftEls=addList(root,left.map((s,i)=>`<span class="n">${i+1}</span>${s}`),140,165,72);
+    const rightEls=addList(root,right.map((s,i)=>`<span class="n">${i+1}</span>${s}`),800,165,72);
+    for(const el of leftEls){ await beat(()=>el.classList.add('show'),260); }
+    for(const el of rightEls){ await beat(()=>el.classList.add('show'),260); }
+    await narrateSimple(root,"We'll build each idea from a concrete hook, then apply it to real problems.",500);
+  },
+  exit:(root)=> resetStage(root)
+};
+
+/* ---------- 2: factorial call stack ---------- */
+scenes[2] = {
+  enter: async (root)=>{
+    const svg=svgOf(root);
+    const n=4;
+    const labels=[`factorial(${n})`,`factorial(${n-1})`,`factorial(${n-2})`,`factorial(${n-3})`,`factorial(0) = 1`];
+    const boxW=560, boxH=64, xStep=52, yStep=100, x0=110, y0=40;
+    const boxes=[], texts=[];
+    for(let i=0;i<labels.length;i++){
+      const x=x0+i*xStep, y=y0+i*yStep;
+      const isBase=i===labels.length-1;
+      const rect=mkRect(x,y,boxW,boxH,{stroke:isBase?'var(--green)':'var(--blue)',rx:8,cls:'fade-el'});
+      svg.appendChild(rect);
+      const t=mkText(x+24,y+boxH/2+8,labels[i],{anchor:'start',size:22,fill: isBase?'var(--green)':'var(--text)'});
+      svg.appendChild(t);
+      boxes.push(rect); texts.push(t);
+      await beat(()=>{ rect.classList.add('show'); t.classList.add('show'); },380);
+    }
+    await beat(()=>{ boxes[boxes.length-1].classList.add('pulse'); },500);
+    // unwind
+    const results=[1,1,2,6,24];
+    const mults=['','1 \u00d7 1 = 1','2 \u00d7 1 = 2','3 \u00d7 2 = 6','4 \u00d7 6 = 24'];
+    for(let i=labels.length-2;i>=0;i--){
+      await beat(()=>{
+        texts[i].textContent=mults[i+1];
+        boxes[i].setAttribute('stroke','var(--yellow)');
+        boxes[i].classList.add('pulse');
+      },550);
+    }
+    await beat(()=>{ boxes[0].setAttribute('stroke','var(--green)'); },200);
+    await narrateSimple(root,"Every recursive call waits \u2014 until the base case finally gives it something to return.",500);
+  },
+  exit:(root)=> resetStage(root)
+};
+
+/* ---------- 3: base/recursive case ---------- */
+scenes[3] = {
+  enter: async (root)=>{
+    const svg=svgOf(root);
+    const f1=addFormula(root,"base case:  f(0) = 1",520,120,28);
+    const f2=addFormula(root,"recursive case:  f(n) = n \u00d7 f(n \u2212 1)",380,220,28);
+    await beat(()=>f1.classList.add('show'),500);
+    await beat(()=>f2.classList.add('show'),500);
+    // loop-back diagram
+    const box=mkRect(560,330,320,110,{stroke:'var(--blue)',rx:10,cls:'draw-in'});
+    svg.appendChild(box); prepDraw(box);
+    const label=mkText(720,395,'f(n)',{size:26});
+    label.classList.add('fade-el'); svg.appendChild(label);
+    await beat(()=>box.classList.add('go'),700);
+    await beat(()=>label.classList.add('show'),350);
+    const loop=ns('path');
+    loop.setAttribute('d','M 880,360 C 1000,300 1000,470 880,410');
+    loop.setAttribute('fill','none'); loop.setAttribute('stroke','var(--yellow)'); loop.setAttribute('stroke-width','2.5');
+    loop.classList.add('draw-in'); svg.appendChild(loop); prepDraw(loop);
+    const loopLbl=mkText(1030,390,'n \u2212 1',{size:16,fill:'var(--yellow)'});
+    loopLbl.classList.add('fade-el'); svg.appendChild(loopLbl);
+    await beat(()=>loop.classList.add('go'),650);
+    await beat(()=>loopLbl.classList.add('show'),350);
+    const out=mkLine(560,385,420,385,{stroke:'var(--green)',sw:2.5,cls:'draw-in'});
+    svg.appendChild(out); prepDraw(out);
+    const outLbl=mkText(400,385,'stop',{anchor:'end',size:18,fill:'var(--green)'});
+    outLbl.classList.add('fade-el'); svg.appendChild(outLbl);
+    await beat(()=>out.classList.add('go'),500);
+    await beat(()=>outLbl.classList.add('show'),350);
+    await narrateSimple(root,"Skip either part and recursion either never stops, or never starts.",500);
+  },
+  exit:(root)=> resetStage(root)
+};
+
+/* ---------- 4: fibonacci recursion tree ---------- */
+function buildFibTree(n){
+  if(n<=1) return {label:`fib(${n})`,color:'var(--green)',children:[]};
+  const node={label:`fib(${n})`,color:'var(--blue)',children:[]};
+  node.children=[buildFibTree(n-1),buildFibTree(n-2)];
+  return node;
+}
+scenes[4] = {
+  enter: async (root)=>{
+    const svg=svgOf(root);
+    const root5=buildFibTree(5);
+    layoutTree(root5,60,1380,50,110);
+    const all=collectNodes(root5);
+    drawTreeEdges(svg,root5);
+    all.forEach(n=>{ n._edge && (n._edge.style.opacity=0); });
+    all.forEach(n=>drawTreeNode(svg,n,{fontSize:12}));
+    all.forEach(n=>{ n._circle.style.opacity=0; n._text.style.opacity=0; });
+    const counter=addBadge(root,'calls: 0',1180,50);
+    let count=0;
+    const byDepth={};
+    all.forEach(n=>{ (byDepth[n.depth]=byDepth[n.depth]||[]).push(n); });
+    const maxDepth=Math.max(...Object.keys(byDepth).map(Number));
+    for(let d=0; d<=maxDepth; d++){
+      const level=byDepth[d]||[];
+      for(const n of level){
+        if(n._edge) n._edge.style.opacity=1;
+        n._circle.style.opacity=1; n._text.style.opacity=1;
+        count++; counter.textContent='calls: '+count;
+      }
+      await wait(320);
+    }
+    await narrateSimple(root,"Each call spawns more calls \u2014 the tree's shape IS the algorithm's work.",500);
+  },
+  exit:(root)=>{ resetStage(root); }
+};
+
+/* ---------- 5: RGF - redundant work ---------- */
+scenes[5] = {
+  enter: async (root)=>{
+    const svg=svgOf(root);
+    const root5=buildFibTree(5);
+    layoutTree(root5,60,1380,50,110);
+    drawTreeAll(svg,root5,{fontSize:12});
+    // find duplicate fib(3) nodes (two of them) and fib(2) nodes to highlight in red
+    const all=collectNodes(root5);
+    const fib3=all.filter(n=>n.label==='fib(3)');
+    const fib2=all.filter(n=>n.label==='fib(2)');
+    await wait(300);
+    for(const n of fib3){ n._circle.setAttribute('stroke','var(--red)'); n._circle.classList.add('pulse'); }
+    await wait(500);
+    for(const n of fib2){ n._circle.setAttribute('stroke','var(--red)'); }
+    const tag=mkText(720,600,'same subtree, computed more than once',{size:18,fill:'var(--red)'});
+    tag.classList.add('fade-el'); svg.appendChild(tag);
+    await beat(()=>tag.classList.add('show'),500);
+    await narrateRGF(root,
+      "So far: a recursion tree shows how one call fans out into many.",
+      "But fib(3) and fib(2) get computed again and again \u2014 why does that matter?",
+      "It's exponential blow-up: O(2\u207F) calls. Divide-and-conquer only stays fast when subproblems don't overlap.");
+  },
+  exit:(root)=> resetStage(root)
+};
+
+/* ---------- 6: divide and conquer / merge sort ---------- */
+scenes[6] = {
+  enter: async (root)=>{
+    const svg=svgOf(root);
+    const arr=[8,3,5,1];
+    const cells=drawArray(svg,arr,{x0:520,y:60,cw:90,ch:70,gap:14,fontSize:24,showIndex:false});
+    await wait(300);
+    // split lines
+    const mid=mkLine(770,60,770,160,{stroke:'var(--gray)',sw:2,dash:'4 4'});
+    svg.appendChild(mid);
+    const leftBox=mkRect(500,190,220,80,{stroke:'var(--blue)',rx:8,cls:'draw-in'});
+    const rightBox=mkRect(760,190,220,80,{stroke:'var(--blue)',rx:8,cls:'draw-in'});
+    svg.appendChild(leftBox); svg.appendChild(rightBox);
+    prepDraw(leftBox); prepDraw(rightBox);
+    await beat(()=>{ leftBox.classList.add('go'); rightBox.classList.add('go'); },700);
+    svg.appendChild(mkText(610,235,'[8, 3]',{size:22}));
+    svg.appendChild(mkText(870,235,'[5, 1]',{size:22}));
+    await wait(200);
+    const l2=mkRect(490,320,110,70,{stroke:'var(--green)',rx:8,cls:'draw-in'});
+    const l3=mkRect(620,320,110,70,{stroke:'var(--green)',rx:8,cls:'draw-in'});
+    const r2=mkRect(750,320,110,70,{stroke:'var(--green)',rx:8,cls:'draw-in'});
+    const r3=mkRect(880,320,110,70,{stroke:'var(--green)',rx:8,cls:'draw-in'});
+    [l2,l3,r2,r3].forEach(b=>{svg.appendChild(b); prepDraw(b);});
+    await beat(()=>[l2,l3,r2,r3].forEach(b=>b.classList.add('go')),600);
+    svg.appendChild(mkText(545,362,'8',{size:20}));
+    svg.appendChild(mkText(675,362,'3',{size:20}));
+    svg.appendChild(mkText(805,362,'5',{size:20}));
+    svg.appendChild(mkText(935,362,'1',{size:20}));
+    await wait(300);
+    // merge back sorted, bottom row
+    const mergedVals=[1,3,5,8];
+    const mCells=drawArray(svg,mergedVals,{x0:520,y:460,cw:90,ch:70,gap:14,fontSize:24,showIndex:false});
+    mCells.forEach(c=>{ c.rect.style.opacity=0; c.textEl.style.opacity=0; });
+    const lbl=mkText(720,440,'merge (compare, take smaller)',{size:16,fill:'var(--gray)'});
+    lbl.classList.add('fade-el'); svg.appendChild(lbl);
+    await beat(()=>lbl.classList.add('show'),350);
+    for(const c of mCells){
+      c.rect.style.transition='opacity .35s ease'; c.textEl.style.transition='opacity .35s ease';
+      await beat(()=>{ c.rect.style.opacity=1; c.textEl.style.opacity=1; },260);
+    }
+    const f=addFormula(root,"T(n) = 2T(n/2) + O(n)",1040,560,24);
+    await beat(()=>f.classList.add('show'),400);
+    await narrateSimple(root,"Split the problem, solve each half the same way, then combine the answers.",500);
+  },
+  exit:(root)=> resetStage(root)
+};
+
+/* ---------- 7: master theorem ---------- */
+scenes[7] = {
+  enter: async (root)=>{
+    const svg=svgOf(root);
+    const f=addFormula(root,"T(n) = a\u00b7T(n/b) + f(n)",480,60,30);
+    await beat(()=>f.classList.add('show'),500);
+    const rows=[
+      ['Work splitting dominates (a > b^k)', 'T(n) = \u0398(n^{log_b a})'],
+      ['Balanced (a = b^k)', 'T(n) = \u0398(n^k \u00b7 log n)'],
+      ['Combine step dominates (a < b^k)', 'T(n) = \u0398(f(n))'],
+    ];
+    let y=180;
+    for(const [cond,res] of rows){
+      const box=mkRect(140,y,1160,110,{stroke:'var(--gray)',rx:10,cls:'fade-el'});
+      svg.appendChild(box);
+      const c1=mkText(180,y+50,cond,{anchor:'start',size:20,fill:'var(--text)',cls:'fade-el'});
+      const c2=mkText(180,y+86,res,{anchor:'start',size:20,fill:'var(--yellow)',style:'italic',cls:'fade-el'});
+      svg.appendChild(c1); svg.appendChild(c2);
+      await beat(()=>{ box.classList.add('show'); c1.classList.add('show'); c2.classList.add('show'); },420);
+      y+=140;
+    }
+    await narrateSimple(root,"A shortcut to read off complexity \u2014 without unrolling the whole recursion by hand.",500);
+  },
+  exit:(root)=> resetStage(root)
+};
+
+/* ---------- 8: backtracking definition ---------- */
+scenes[8] = {
+  enter: async (root)=>{
+    const svg=svgOf(root);
+    const t={label:'start',children:[
+      {label:'A',children:[{label:'A1',children:[]},{label:'A2',children:[]}]},
+      {label:'B',children:[{label:'B1',children:[]}]},
+    ]};
+    layoutTree(t,200,1240,80,180);
+    drawTreeAll(svg,t,{fontSize:14});
+    // mark A2 and B1 as dead ends, A1 as solution
+    const A=t.children[0], B=t.children[1];
+    const A1=A.children[0], A2=A.children[1], B1=B.children[0];
+    const dot=document.createElement('div');
+    dot.style.cssText='position:absolute;width:16px;height:16px;border-radius:50%;background:var(--yellow);transition:left .5s cubic-bezier(.65,0,.35,1), top .5s cubic-bezier(.65,0,.35,1);';
+    root.querySelector('.stageWrap').appendChild(dot);
+    function place(n){ dot.style.left=(n.x-8)+'px'; dot.style.top=(n.y-8)+'px'; }
+    place(t); await wait(300);
+    place(A); await wait(650);
+    place(A2); await wait(650);
+    const x1=mkText(A2.x,A2.y+45,'\u2717 dead end',{size:15,fill:'var(--red)'});
+    x1.classList.add('fade-el'); svg.appendChild(x1);
+    A2._circle.setAttribute('stroke','var(--red)');
+    await beat(()=>x1.classList.add('show'),450);
+    place(A); await wait(650); // backtrack
+    place(A1); await wait(650);
+    A1._circle.setAttribute('stroke','var(--green)');
+    const ok=mkText(A1.x,A1.y+45,'\u2713 solution',{size:15,fill:'var(--green)'});
+    ok.classList.add('fade-el'); svg.appendChild(ok);
+    await beat(()=>ok.classList.add('show'),450);
+    await narrateSimple(root,"Try a choice, recurse; if it fails, undo it and try the next.",500);
+  },
+  exit:(root)=>{ resetStage(root); const d=root.querySelector('.stageWrap > div[style]'); if(d) d.remove(); }
+};
+
+/* ---------- 9: backtracking template ---------- */
+scenes[9] = {
+  enter: async (root)=>{
+    const lines=[
+      '<span class="fn">backtrack</span>(state):',
+      '  <span class="kw">if</span> state is a solution:',
+      '      record(state); <span class="kw">return</span>',
+      '  <span class="kw">for</span> choice <span class="kw">in</span> choices:',
+      '      make(choice)        <span class="cm">// choose</span>',
+      '      backtrack(state)    <span class="cm">// explore</span>',
+      '      undo(choice)        <span class="cm">// un-choose</span>',
+    ];
+    const code=addCode(root,lines,220,80,26);
+    await beat(()=>code.classList.add('show'),700);
+    const tags=[['choose','var(--blue)',300],['explore','var(--green)',300],['un-choose','var(--yellow)',300]];
+    await narrateSimple(root,"Every backtracking problem \u2014 N-Queens, Sudoku, subsets \u2014 is this same loop.",600);
+  },
+  exit:(root)=> resetStage(root)
+};
+
+/* ---------- 10: state-space search & CSP ---------- */
+scenes[10] = {
+  enter: async (root)=>{
+    const svg=svgOf(root);
+    // small state graph on the left
+    const pts=[[220,150],[420,90],[420,260],[620,180],[620,340]];
+    const edges=[[0,1],[0,2],[1,3],[2,3],[2,4]];
+    const nodes=pts.map((p,i)=>{ const c=mkCircle(p[0],p[1],18,{stroke:'var(--blue)',fill:'var(--bg)',cls:'fade-el'}); svg.appendChild(c); return c; });
+    for(const [a,b] of edges){
+      const l=mkLine(pts[a][0],pts[a][1],pts[b][0],pts[b][1],{stroke:'var(--gray)',cls:'draw-in'});
+      svg.insertBefore(l,svg.firstChild); prepDraw(l);
+      await beat(()=>l.classList.add('go'),260);
+    }
+    for(const n of nodes) await beat(()=>n.classList.add('show'),120);
+    const lbl=mkText(420,420,'state-space: states + moves between them',{size:16,fill:'var(--gray)'});
+    lbl.classList.add('fade-el'); svg.appendChild(lbl);
+    await beat(()=>lbl.classList.add('show'),400);
+    // CSP triple on right
+    const boxes=[['Variables','x\u2081, x\u2082, \u2026 x\u2099'],['Domains','possible values each xi can take'],['Constraints','rules that limit which values coexist']];
+    let y=140;
+    for(const [h,d] of boxes){
+      const box=mkRect(920,y,420,110,{stroke:'var(--green)',rx:10,cls:'fade-el'});
+      svg.appendChild(box);
+      const t1=mkText(950,y+42,h,{anchor:'start',size:20,weight:600,cls:'fade-el'});
+      const t2=mkText(950,y+78,d,{anchor:'start',size:15,fill:'var(--caption)',cls:'fade-el'});
+      svg.appendChild(t1); svg.appendChild(t2);
+      await beat(()=>{ box.classList.add('show'); t1.classList.add('show'); t2.classList.add('show'); },350);
+      y+=140;
+    }
+    await narrateSimple(root,"Backtracking is constraint-satisfaction: assign variables, prune illegal branches early.",500);
+  },
+  exit:(root)=> resetStage(root)
+};
+
+/* ---------- 11: RGF transition to classic problems ---------- */
+scenes[11] = {
+  enter: async (root)=>{
+    const svg=svgOf(root);
+    const words=['choose','explore','un-choose'];
+    let x=280;
+    const els=[];
+    for(const w of words){
+      const t=mkText(x,340,w,{size:30,fill:'var(--blue)',cls:'fade-el'});
+      svg.appendChild(t); els.push(t); x+=300;
+      await beat(()=>t.classList.add('show'),350);
+    }
+    await wait(400);
+    els.forEach(e=>e.style.opacity=.25);
+    const q=mkText(720,440,'N-Queens?  Sudoku?  a maze?',{size:22,fill:'var(--yellow)',cls:'fade-el'});
+    svg.appendChild(q);
+    await beat(()=>q.classList.add('show'),500);
+    await narrateRGF(root,
+      "We now know the choose \u2192 explore \u2192 un-choose loop.",
+      "But how does that loop actually look on a real board, grid, or string?",
+      "Let's trace it through nine classic problems \u2014 same pattern, different 'choices'.");
+  },
+  exit:(root)=> resetStage(root)
+};
+
+/* ---------- 12: divider - classic problems ---------- */
+scenes[12] = {
+  enter: async (root)=>{
+    const items=['N-Queens','Sudoku','Subsets','Permutations','Combinations','Combination Sum','Word Search','Maze Problems','Partition Problems'];
+    const col1=items.slice(0,5), col2=items.slice(5);
+    const els1=addList(root,col1.map((s,i)=>`<span class="n">${i+1}</span>${s}`),200,90,80);
+    const els2=addList(root,col2.map((s,i)=>`<span class="n">${i+6}</span>${s}`),820,90,80);
+    for(let i=0;i<Math.max(els1.length,els2.length);i++){
+      if(els1[i]) els1[i].classList.add('show');
+      if(els2[i]) els2[i].classList.add('show');
+      await wait(260);
+    }
+    await narrateSimple(root,"Nine problems. One recurring engine underneath all of them.",500);
+  },
+  exit:(root)=> resetStage(root)
+};
+
+/* ---------- 13: N-Queens ---------- */
+scenes[13] = {
+  enter: async (root)=>{
+    const svg=svgOf(root);
+    const n=4;
+    const cell=90, x0=520, y0=70;
+    const grid=drawGrid(svg,n,n,{x0,y0,cell});
+    const seq=[ {r:0,c:1,ok:true}, {r:1,c:3,ok:true}, {r:2,c:0,ok:true}, {r:3,c:0,ok:false},
+                {r:3,c:1,ok:false}, {r:3,c:2,ok:true} ];
+    // place row0 col1
+    async function placeQueen(r,c,ok){
+      const cellObj=grid[r][c];
+      setCellText(svg,cellObj,'\u2655',{size:34,fill: ok?'var(--green)':'var(--red)'});
+      highlight(cellObj,{stroke: ok?'var(--green)':'var(--red)'});
+      cellObj.rect.classList.add('pulse');
+      await wait(500);
+      if(!ok){
+        await wait(250);
+        cellObj.textEl.textContent='';
+        highlight(cellObj,{stroke:'var(--gray)',fill:'rgba(255,255,255,0.02)'});
+      }
+    }
+    await placeQueen(0,1,true);
+    await placeQueen(1,3,true);
+    await placeQueen(2,0,true);
+    const status=addBadge(root,'trying column 0 in row 3\u2026',150,140);
+    await beat(()=>status.classList.add('show'),300);
+    await placeQueen(3,0,false);
+    status.textContent='conflict \u2014 try column 1';
+    await placeQueen(3,1,false);
+    status.textContent='conflict \u2014 try column 2';
+    await placeQueen(3,2,true);
+    status.textContent='all rows placed \u2014 solution found';
+    addBadge(root,'search space pruned from 4\u2074 by row/col/diagonal checks',150,220,'O').classList.add('show');
+    addBadge(root,'used in: scheduling, register allocation, resource placement',150,280,'use').classList.add('show');
+    await narrateSimple(root,"Place a queen per row; if it attacks another, backtrack and shift columns.",500);
+  },
+  exit:(root)=> resetStage(root)
+};
+
+/* ---------- 14: Sudoku ---------- */
+scenes[14] = {
+  enter: async (root)=>{
+    const svg=svgOf(root);
+    const n=4;
+    const cell=95, x0=520, y0=70;
+    const grid=drawGrid(svg,n,n,{x0,y0,cell,color:'var(--gray)'});
+    const given=[[1,'',4,''],['',4,'','2'],['',1,'',4],[4,'','1','']];
+    for(let r=0;r<n;r++) for(let c=0;c<n;c++) if(given[r][c]!=='') setCellText(svg,grid[r][c],String(given[r][c]),{size:28,fill:'var(--text)'});
+    const status=addBadge(root,'',150,150);
+    status.classList.add('show');
+    const target=grid[0][1];
+    async function tryDigit(d,ok){
+      status.textContent=`cell (0,1): try ${d}`;
+      setCellText(svg,target,String(d),{size:28,fill: ok?'var(--green)':'var(--red)'});
+      highlight(target,{stroke: ok?'var(--green)':'var(--red)'});
+      target.rect.classList.add('pulse');
+      await wait(600);
+      if(!ok){ setCellText(svg,target,'',{}); highlight(target,{stroke:'var(--gray)'}); }
+    }
+    await tryDigit(1,false);
+    status.textContent='cell (0,1): 1 already in row \u2192 backtrack';
+    await wait(300);
+    await tryDigit(4,false);
+    status.textContent='cell (0,1): 4 already in column \u2192 backtrack';
+    await wait(300);
+    await tryDigit(3,true);
+    status.textContent='3 is valid \u2014 move to next empty cell';
+    addBadge(root,'used in: puzzle solvers, timetabling, exam-seat allocation',150,240,'use').classList.add('show');
+    await narrateSimple(root,"Try the smallest valid digit; when every digit fails, backtrack to the previous cell.",500);
+  },
+  exit:(root)=> resetStage(root)
+};
+
+/* ---------- 15: Subsets ---------- */
+scenes[15] = {
+  enter: async (root)=>{
+    const svg=svgOf(root);
+    function build(items,i){
+      if(i===items.length) return {label:'\u2205',children:[],leaf:true};
+      const rest=build(items,i+1);
+      const inc={label:'+'+items[i],children:[],color:'var(--green)'};
+      const exc={label:'skip',children:[],color:'var(--gray)'};
+      // deep clone rest for two branches by rebuilding
+      function clone(n){ return {label:n.label,color:n.color,leaf:n.leaf,children:(n.children||[]).map(clone)}; }
+      inc.children=[clone(rest)]; exc.children=[clone(rest)];
+      return {label:`{${items.slice(0,i).join(',')}}`,children:[inc,exc]};
+    }
+    const items=[1,2,3];
+    const t=build(items,0);
+    layoutTree(t,60,1380,50,150);
+    drawTreeAll(svg,t,{fontSize:12});
+    const all=collectNodes(t);
+    for(const n of all){ n._circle.style.opacity=0; n._text.style.opacity=0; if(n._edge) n._edge.style.opacity=0; }
+    const byDepth={}; all.forEach(n=>(byDepth[n.depth]=byDepth[n.depth]||[]).push(n));
+    for(let d=0; d<=Math.max(...Object.keys(byDepth).map(Number)); d++){
+      for(const n of byDepth[d]){ if(n._edge) n._edge.style.opacity=1; n._circle.style.opacity=1; n._text.style.opacity=1; }
+      await wait(280);
+    }
+    const f=addFormula(root,"n elements \u00d7 2 choices each = 2\u207F subsets",420,600,22);
+    await beat(()=>f.classList.add('show'),400);
+    await narrateSimple(root,"Each element is either in the subset or not \u2014 that IS the recursion tree.",500);
+  },
+  exit:(root)=> resetStage(root)
+};
+
+/* ---------- 16: Permutations ---------- */
+scenes[16] = {
+  enter: async (root)=>{
+    const svg=svgOf(root);
+    function build(remaining,used){
+      if(remaining.length===0) return {label:'['+used.join(',')+']',children:[],color:'var(--green)'};
+      const children=remaining.map((v,i)=>{
+        const nextRem=remaining.slice(0,i).concat(remaining.slice(i+1));
+        return build(nextRem, used.concat([v]));
+      });
+      return {label: used.length? '['+used.join(',')+']':'start', children};
+    }
+    const t=build([1,2,3],[]);
+    layoutTree(t,40,1400,50,180);
+    drawTreeAll(svg,t,{fontSize:11});
+    const all=collectNodes(t);
+    for(const n of all){ n._circle.style.opacity=0; n._text.style.opacity=0; if(n._edge) n._edge.style.opacity=0; }
+    const byDepth={}; all.forEach(n=>(byDepth[n.depth]=byDepth[n.depth]||[]).push(n));
+    for(let d=0; d<=Math.max(...Object.keys(byDepth).map(Number)); d++){
+      for(const n of byDepth[d]){ if(n._edge) n._edge.style.opacity=1; n._circle.style.opacity=1; n._text.style.opacity=1; }
+      await wait(260);
+    }
+    const f=addFormula(root,"n \u00d7 (n\u22121) \u00d7 \u2026 \u00d7 1 = n! orderings",480,600,22);
+    await beat(()=>f.classList.add('show'),400);
+    await narrateSimple(root,"n choices, then n\u22121, then n\u22122\u2026 every ordering is a leaf.",500);
+  },
+  exit:(root)=> resetStage(root)
+};
+
+/* ---------- 17: Combinations ---------- */
+scenes[17] = {
+  enter: async (root)=>{
+    const svg=svgOf(root);
+    // choose 2 of [1,2,3,4], only move forward in index
+    function build(start,items,k,chosen){
+      if(chosen.length===k) return {label:'{'+chosen.join(',')+'}',children:[],color:'var(--green)'};
+      const children=[];
+      for(let i=start;i<items.length;i++){
+        children.push(build(i+1,items,k,chosen.concat([items[i]])));
+      }
+      return {label: chosen.length? '{'+chosen.join(',')+'}':'start', children};
+    }
+    const t=build(0,[1,2,3,4],2,[]);
+    layoutTree(t,40,1400,50,170);
+    drawTreeAll(svg,t,{fontSize:12});
+    const all=collectNodes(t);
+    for(const n of all){ n._circle.style.opacity=0; n._text.style.opacity=0; if(n._edge) n._edge.style.opacity=0; }
+    const byDepth={}; all.forEach(n=>(byDepth[n.depth]=byDepth[n.depth]||[]).push(n));
+    for(let d=0; d<=Math.max(...Object.keys(byDepth).map(Number)); d++){
+      for(const n of byDepth[d]){ if(n._edge) n._edge.style.opacity=1; n._circle.style.opacity=1; n._text.style.opacity=1; }
+      await wait(300);
+    }
+    const f=addFormula(root,"C(n,k) = n! / (k!(n\u2212k)!)",560,600,22);
+    await beat(()=>f.classList.add('show'),400);
+    await narrateSimple(root,"Only ever move forward through the list \u2014 that's what stops double-counting.",500);
+  },
+  exit:(root)=> resetStage(root)
+};
+
+/* ---------- 18: Combination Sum ---------- */
+scenes[18] = {
+  enter: async (root)=>{
+    const svg=svgOf(root);
+    const cands=[2,3,6,7];
+    function build(start,target,path){
+      if(target===0) return {label:'['+path.join(',')+'] \u2713',children:[],color:'var(--green)'};
+      if(target<0) return {label:'\u2717',children:[],color:'var(--red)'};
+      const children=[];
+      for(let i=start;i<cands.length;i++){
+        if(target-cands[i] < -1) continue;
+        children.push(build(i,target-cands[i],path.concat([cands[i]])));
+      }
+      return {label: path.length? '['+path.join(',')+'] t='+target : 'target=7', children: children.slice(0,3)};
+    }
+    const t=build(0,7,[]);
+    layoutTree(t,40,1400,50,170);
+    drawTreeAll(svg,t,{fontSize:11});
+    const all=collectNodes(t);
+    for(const n of all){ n._circle.style.opacity=0; n._text.style.opacity=0; if(n._edge) n._edge.style.opacity=0; }
+    const byDepth={}; all.forEach(n=>(byDepth[n.depth]=byDepth[n.depth]||[]).push(n));
+    for(let d=0; d<=Math.max(...Object.keys(byDepth).map(Number)); d++){
+      for(const n of (byDepth[d]||[])){ if(n._edge) n._edge.style.opacity=1; n._circle.style.opacity=1; n._text.style.opacity=1; }
+      await wait(320);
+    }
+    await narrateSimple(root,"The same candidate can repeat \u2014 the shrinking target to exactly 0 ends the branch.",500);
+  },
+  exit:(root)=> resetStage(root)
+};
+
+/* ---------- 19: Word Search ---------- */
+scenes[19] = {
+  enter: async (root)=>{
+    const svg=svgOf(root);
+    const letters=[['A','B','C','E'],['S','F','C','S'],['A','D','E','E']];
+    const cell=100, x0=470, y0=90;
+    const grid=drawGrid(svg,3,4,{x0,y0,cell});
+    for(let r=0;r<3;r++) for(let c=0;c<4;c++) setCellText(svg,grid[r][c],letters[r][c],{size:30});
+    const status=addBadge(root,'searching for "ABCCED"',150,140); status.classList.add('show');
+    const path=[[0,0],[0,1],[0,2],[1,2],[2,2],[2,3]]; // A B C C E ... then dead end at 2,3='E' but need D
+    // proper word ABCCED path: (0,0)A (0,1)B (0,2)C (1,2)C (2,2)E (2,1)D
+    const realPath=[[0,0],[0,1],[0,2],[1,2],[2,2],[2,1]];
+    for(const [r,c] of realPath){
+      const cellObj=grid[r][c];
+      highlight(cellObj,{stroke:'var(--green)',fill:'rgba(107,170,117,0.18)'});
+      cellObj.rect.classList.add('pulse');
+      await wait(420);
+    }
+    status.textContent='word found \u2014 path highlighted';
+    await wait(300);
+    // show a dead end + backtrack example
+    const dead=grid[1][3];
+    highlight(dead,{stroke:'var(--red)'});
+    dead.rect.classList.add('pulse');
+    const xlbl=mkText(dead.cx,dead.y-10,'no match \u2192 unmark & backtrack',{size:14,fill:'var(--red)'});
+    xlbl.classList.add('fade-el'); svg.appendChild(xlbl);
+    await beat(()=>xlbl.classList.add('show'),450);
+    await narrateSimple(root,"Mark a cell visited while exploring; unmark it the instant you backtrack out.",500);
+  },
+  exit:(root)=> resetStage(root)
+};
+
+/* ---------- 20: Maze ---------- */
+scenes[20] = {
+  enter: async (root)=>{
+    const svg=svgOf(root);
+    const cell=95, x0=490, y0=70, rows=5, cols=5;
+    const grid=drawGrid(svg,rows,cols,{x0,y0,cell});
+    const walls=[[0,2],[1,2],[2,2],[2,0],[3,3],[1,4]];
+    walls.forEach(([r,c])=>{ highlight(grid[r][c],{stroke:'var(--gray)',fill:'rgba(138,143,152,0.3)'}); });
+    setCellText(svg,grid[0][0],'S',{fill:'var(--yellow)',size:26});
+    setCellText(svg,grid[4][4],'E',{fill:'var(--yellow)',size:26});
+    const tryPath=[[0,0],[0,1],[1,1],[2,1],[3,1],[3,2],[3,3]]; // dead end at 3,3 wall actually - adjust
+    const attempt=[[0,0],[0,1],[1,1],[2,1],[3,1],[3,0],[4,0]]; // dead-endish then correct
+    const correct=[[0,0],[0,1],[1,1],[2,1],[3,1],[4,1],[4,2],[4,3],[3,4],[4,4]];
+    for(const [r,c] of correct){
+      if(r>=rows||c>=cols) continue;
+      const cellObj=grid[r][c];
+      if(walls.some(w=>w[0]===r&&w[1]===c)) continue;
+      highlight(cellObj,{stroke:'var(--green)',fill:'rgba(107,170,117,0.16)'});
+      await wait(300);
+    }
+    await narrateSimple(root,"Exactly the same undo-and-retry loop \u2014 now the 'board' is a maze.",500);
+  },
+  exit:(root)=> resetStage(root)
+};
+
+/* ---------- 21: Partition problems ---------- */
+scenes[21] = {
+  enter: async (root)=>{
+    const svg=svgOf(root);
+    const s='aab';
+    function isPal(str){ return str===str.split('').reverse().join(''); }
+    function build(start,path){
+      if(start===s.length) return {label:'['+path.join('|')+']',children:[],color:'var(--green)'};
+      const children=[];
+      for(let end=start+1; end<=s.length; end++){
+        const piece=s.slice(start,end);
+        if(isPal(piece)) children.push(build(end, path.concat([piece])));
+      }
+      return {label: path.length? path.join('|') : 'aab', children};
+    }
+    const t=build(0,[]);
+    layoutTree(t,120,1320,60,170);
+    drawTreeAll(svg,t,{fontSize:14});
+    const all=collectNodes(t);
+    for(const n of all){ n._circle.style.opacity=0; n._text.style.opacity=0; if(n._edge) n._edge.style.opacity=0; }
+    const byDepth={}; all.forEach(n=>(byDepth[n.depth]=byDepth[n.depth]||[]).push(n));
+    for(let d=0; d<=Math.max(...Object.keys(byDepth).map(Number)); d++){
+      for(const n of byDepth[d]){ if(n._edge) n._edge.style.opacity=1; n._circle.style.opacity=1; n._text.style.opacity=1; }
+      await wait(350);
+    }
+    const f=addFormula(root,'valid cut: s[start..end] is a palindrome',380,560,20);
+    await beat(()=>f.classList.add('show'),400);
+    await narrateSimple(root,"Cut the string one prefix at a time \u2014 backtrack when a prefix isn't valid.",500);
+  },
+  exit:(root)=> resetStage(root)
+};
+
+/* ---------- 22: Recap recursion & backtracking ---------- */
+scenes[22] = {
+  enter: async (root)=>{
+    const svg=svgOf(root);
+    const rows=[
+      ['Recursion tree','visualizes every call a function makes'],
+      ['Divide & conquer','T(n)=aT(n/b)+f(n) \u2014 split, solve, combine'],
+      ['Backtracking','choose \u2192 explore \u2192 un-choose, prune dead branches'],
+      ['CSP framing','variables + domains + constraints'],
+      ['9 problems','same loop: boards, grids, strings, sets'],
+    ];
+    let y=90;
+    for(const [h,d] of rows){
+      const box=mkRect(140,y,1160,88,{stroke:'var(--gray)',rx:8,cls:'fade-el'});
+      svg.appendChild(box);
+      const t1=mkText(180,y+38,h,{anchor:'start',size:21,weight:600,fill:'var(--blue)',cls:'fade-el'});
+      const t2=mkText(500,y+38,d,{anchor:'start',size:18,fill:'var(--caption)',cls:'fade-el'});
+      svg.appendChild(t1); svg.appendChild(t2);
+      await beat(()=>{ box.classList.add('show'); t1.classList.add('show'); t2.classList.add('show'); },320);
+      y+=100;
+    }
+    await narrateSimple(root,"Same three-line loop, applied again and again \u2014 the pattern is what to memorize.",500);
+  },
+  exit:(root)=> resetStage(root)
+};
+
+/* ---------- 23: RGF intro to two pointers ---------- */
+scenes[23] = {
+  enter: async (root)=>{
+    const svg=svgOf(root);
+    // left: nested loop grid busy
+    const n=5;
+    const cell=44, x0=140, y0=90;
+    const grid=drawGrid(svg,n,n,{x0,y0,cell,color:'var(--red)'});
+    for(let r=0;r<n;r++) for(let c=0;c<n;c++) highlight(grid[r][c],{fill:'rgba(196,96,90,0.12)'});
+    const t1=mkText(x0+n*cell/2,y0-24,'nested loops: O(n\u00b2) pairs',{size:16,fill:'var(--red)'});
+    svg.appendChild(t1);
+    // right: array with two pointers converging
+    const cells=drawArray(svg,[4,7,2,9,1,6],{x0:820,y:200,cw:80,ch:80,gap:12,fontSize:22});
+    const t2=mkText(1080,150,'two pointers: O(n) sweep',{size:16,fill:'var(--green)'});
+    svg.appendChild(t2);
+    const ph=ptrOf(root);
+    const L=addPtr(ph,'L','var(--blue)'), R=addPtr(ph,'R','var(--green)');
+    placePtr(L,cells[0],0); placePtr(R,cells[cells.length-1],0);
+    await wait(500);
+    let li=0, ri=cells.length-1;
+    while(li<ri-1){
+      li++; ri--;
+      placePtr(L,cells[li],0); placePtr(R,cells[ri],0);
+      await wait(500);
+    }
+    await narrateRGF(root,
+      "Recursion explores branching possibilities.",
+      "But for scanning a single array, do we really need nested loops?",
+      "Two pointers: walk with 2 indices, doing the work of nested loops in one linear pass.");
+  },
+  exit:(root)=> resetStage(root)
+};
+
+/* ---------- 24: opposite-direction ---------- */
+scenes[24] = {
+  enter: async (root)=>{
+    const svg=svgOf(root);
+    const vals=[1,3,4,6,8,10,13];
+    const cells=drawArray(svg,vals,{x0:210,y:300,cw:100,ch:90,gap:14,fontSize:26});
+    const ph=ptrOf(root);
+    const L=addPtr(ph,'left','var(--blue)'), R=addPtr(ph,'right','var(--green)');
+    placePtr(L,cells[0]); placePtr(R,cells[cells.length-1]);
+    await wait(600);
+    let li=0, ri=cells.length-1;
+    while(li<ri){
+      li++; if(li>=ri) break;
+      placePtr(L,cells[li]);
+      await wait(550);
+      ri--; if(li>ri) break;
+      placePtr(R,cells[ri]);
+      await wait(550);
+    }
+    highlight(cells[li],{stroke:'var(--yellow)'});
+    const lbl=mkText(720,470,'pointers meet \u2014 the whole array has been compared',{size:17,fill:'var(--yellow)'});
+    lbl.classList.add('fade-el'); svg.appendChild(lbl);
+    await beat(()=>lbl.classList.add('show'),400);
+    await narrateSimple(root,"Start at both ends; step inward based on a comparison, one array pass total.",500);
+  },
+  exit:(root)=> resetStage(root)
+};
+
+/* ---------- 25: same-direction ---------- */
+scenes[25] = {
+  enter: async (root)=>{
+    const svg=svgOf(root);
+    const vals=[2,2,3,3,3,5,7];
+    const cells=drawArray(svg,vals,{x0:180,y:300,cw:100,ch:90,gap:14,fontSize:26});
+    const ph=ptrOf(root);
+    const slow=addPtr(ph,'slow','var(--blue)'), fast=addPtr(ph,'fast','var(--green)');
+    placePtr(slow,cells[0]); placePtr(fast,cells[0],1);
+    await wait(600);
+    for(let f=1; f<cells.length; f++){
+      placePtr(fast,cells[f],1);
+      await wait(420);
+      if(cells[f].val !== cells[f-1].val || f===1){
+        // in this simplified demo, advance slow whenever fast finds a change
+      }
+    }
+    // move slow forward at unique-value steps for illustration
+    const uniqueIdx=[0,2,5,6];
+    for(const idx of uniqueIdx){ placePtr(slow,cells[idx]); await wait(420); }
+    const lbl=mkText(720,470,'fast explores ahead; slow marks how far progress is confirmed',{size:16,fill:'var(--gray)'});
+    lbl.classList.add('fade-el'); svg.appendChild(lbl);
+    await beat(()=>lbl.classList.add('show'),400);
+    await narrateSimple(root,"Both pointers move forward \u2014 one records progress, one explores ahead.",500);
+  },
+  exit:(root)=> resetStage(root)
+};
+
+/* ---------- 26: fast/slow Floyd ---------- */
+function drawLinkedList(svg, n, cyclePoint){
+  const y=340, gap=180, r=32, x0=200;
+  const nodes=[];
+  for(let i=0;i<n;i++){
+    const x=x0+i*gap;
+    const c=mkCircle(x,y,r,{stroke:'var(--blue)'});
+    svg.appendChild(c);
+    svg.appendChild(mkText(x,y+6,String(i),{size:18}));
+    nodes.push({x,y,r,c});
+  }
+  for(let i=0;i<n-1;i++){
+    svg.appendChild(mkLine(nodes[i].x+r,nodes[i].y,nodes[i+1].x-r,nodes[i+1].y,{stroke:'var(--gray)',sw:2}));
+    const tri=mkText(nodes[i].x+r+ (gap-2*r)/2, nodes[i].y-10, '\u2192',{size:18,fill:'var(--gray)'});
+    svg.appendChild(tri);
+  }
+  if(cyclePoint!==undefined){
+    const from=nodes[n-1], to=nodes[cyclePoint];
+    const path=ns('path');
+    const midY=y+140;
+    path.setAttribute('d',`M ${from.x},${from.y+r} C ${from.x},${midY} ${to.x},${midY} ${to.x},${to.y+r}`);
+    path.setAttribute('fill','none'); path.setAttribute('stroke','var(--gray)'); path.setAttribute('stroke-width','2');
+    svg.appendChild(path);
+  }
+  return nodes;
+}
+scenes[26] = {
+  enter: async (root)=>{
+    const svg=svgOf(root);
+    const nodes=drawLinkedList(svg,6,2);
+    const ph=ptrOf(root);
+    const slow=addPtr(ph,'slow','var(--blue)'), fast=addPtr(ph,'fast','var(--green)');
+    function fakeCell(n){ return {cx:n.x, cy:n.y, y:n.y-45, ch:90}; }
+    placePtr(slow,fakeCell(nodes[0])); placePtr(fast,fakeCell(nodes[0]));
+    await wait(600);
+    // cycle: node4 -> node2 (index n-1=5 loops to 2); simulate positions sequence
+    const cyclePath=[0,1,2,3,4,5,2,3,4,5,2]; // after node5, loops back to node2
+    let slowIdx=0, fastIdx=0;
+    for(let step=1; step<7; step++){
+      fastIdx = Math.min(step*2, cyclePath.length-1);
+      slowIdx = Math.min(step, cyclePath.length-1);
+      placePtr(slow, fakeCell(nodes[cyclePath[slowIdx]]));
+      placePtr(fast, fakeCell(nodes[cyclePath[fastIdx]]));
+      await wait(550);
+      if(cyclePath[slowIdx]===cyclePath[fastIdx] && step>1){
+        highlight({rect:nodes[cyclePath[slowIdx]].c},{});
+        nodes[cyclePath[slowIdx]].c.setAttribute('stroke','var(--yellow)');
+        nodes[cyclePath[slowIdx]].c.classList.add('pulse');
+        break;
+      }
+    }
+    const lbl=mkText(720,560,'they meet \u2192 a cycle exists',{size:18,fill:'var(--yellow)'});
+    lbl.classList.add('fade-el'); svg.appendChild(lbl);
+    await beat(()=>lbl.classList.add('show'),400);
+    await narrateSimple(root,"If there's a loop, the fast pointer always eventually laps the slow one.",500);
+  },
+  exit:(root)=> resetStage(root)
+};
+
+/* ---------- 27: partitioning (Dutch flag) ---------- */
+scenes[27] = {
+  enter: async (root)=>{
+    const svg=svgOf(root);
+    const vals=[3,1,2,3,0,4,1];
+    const pivot=2;
+    const cells=drawArray(svg,vals,{x0:170,y:280,cw:100,ch:90,gap:12,fontSize:24});
+    const ph=ptrOf(root);
+    const low=addPtr(ph,'low','var(--red)'), mid=addPtr(ph,'mid','var(--yellow)'), high=addPtr(ph,'high','var(--green)');
+    placePtr(low,cells[0]); placePtr(mid,cells[0],1); placePtr(high,cells[cells.length-1]);
+    const lbl=mkText(720,150,'pivot = 2   ( < red | = yellow | > green )',{size:18,fill:'var(--gray)'});
+    lbl.classList.add('fade-el'); svg.appendChild(lbl);
+    await beat(()=>lbl.classList.add('show'),400);
+    // simplified pre-computed pass outcome
+    const order=[
+      {i:0, region:'>' }, {i:1, region:'<'}, {i:2, region:'='}, {i:3,region:'='},
+      {i:4, region:'<'}, {i:5, region:'>'}, {i:6, region:'<'}
+    ];
+    let li=0, mi=0, hi=cells.length-1;
+    for(let step=0; step<vals.length; step++){
+      if(mi>hi) break;
+      const region = vals[mi] < pivot ? '<' : (vals[mi]===pivot ? '=' : '>');
+      if(region==='<'){ highlight(cells[mi],{stroke:'var(--red)'}); placePtr(low,cells[Math.min(li+1,cells.length-1)]); li++; placePtr(mid,cells[Math.min(mi+1,hi)],1); mi++; }
+      else if(region==='='){ highlight(cells[mi],{stroke:'var(--yellow)'}); placePtr(mid,cells[Math.min(mi+1,hi)],1); mi++; }
+      else { highlight(cells[mi],{stroke:'var(--green)'}); placePtr(high,cells[Math.max(hi-1,0)]); hi--; }
+      await wait(480);
+      if(mi>hi) break;
+    }
+    await narrateSimple(root,"One sweep sorts values into 'less', 'equal', 'greater' \u2014 no extra array needed.",500);
+  },
+  exit:(root)=> resetStage(root)
+};
+
+/* ---------- 28: sliding window ---------- */
+scenes[28] = {
+  enter: async (root)=>{
+    const svg=svgOf(root);
+    const vals=[4,2,1,7,8,1,2,8,1];
+    const cells=drawArray(svg,vals,{x0:150,y:300,cw:80,ch:80,gap:10,fontSize:22});
+    const winRect=mkRect(cells[0].x-4,cells[0].y-4,cells[0].cw+8,cells[0].ch+8,{stroke:'var(--yellow)',rx:10,sw:3});
+    winRect.style.transition='x .5s cubic-bezier(.65,0,.35,1), width .5s cubic-bezier(.65,0,.35,1)';
+    svg.appendChild(winRect);
+    const label=mkText(720,470,'grow window while sum < target',{size:17,fill:'var(--gray)'});
+    label.classList.add('fade-el'); svg.appendChild(label);
+    await beat(()=>label.classList.add('show'),400);
+    let l=0, r=0;
+    function setWin(l,r){
+      const x=cells[l].x-4, x2=cells[r].x+cells[r].cw+4;
+      winRect.setAttribute('x',x); winRect.setAttribute('width', x2-x);
+    }
+    setWin(0,0); await wait(500);
+    // grow to r=3 (sum=4+2+1+7=14)
+    for(r=1;r<=3;r++){ setWin(l,r); await wait(450); }
+    label.textContent='sum \u2265 target \u2014 shrink from the left';
+    for(l=1;l<=2;l++){ setWin(l,r); await wait(450); }
+    label.textContent='grow again \u2014 the window slides across the array';
+    for(r=4;r<=5;r++){ setWin(l,r); await wait(450); }
+    await narrateSimple(root,"Grow the window while it's valid; shrink it from the left the moment it isn't.",500);
+  },
+  exit:(root)=> resetStage(root)
+};
+
+/* ---------- 29: divider - common patterns ---------- */
+scenes[29] = {
+  enter: async (root)=>{
+    const items=['Pair Sum','Three Sum','Remove Duplicates','Container With Most Water','Linked-List Cycle Detection'];
+    const els=addList(root,items.map((s,i)=>`<span class="n">${i+1}</span>${s}`),480,140,80);
+    for(const el of els){ await beat(()=>el.classList.add('show'),320); }
+    await narrateSimple(root,"Five problems that fall directly out of the pointer patterns we just saw.",500);
+  },
+  exit:(root)=> resetStage(root)
+};
+
+/* ---------- 30: pair sum ---------- */
+scenes[30] = {
+  enter: async (root)=>{
+    const svg=svgOf(root);
+    const vals=[2,7,11,15,18];
+    const target=26;
+    const cells=drawArray(svg,vals,{x0:250,y:300,cw:90,ch:90,gap:14,fontSize:24});
+    const ph=ptrOf(root);
+    const L=addPtr(ph,'L','var(--blue)'), R=addPtr(ph,'R','var(--green)');
+    placePtr(L,cells[0]); placePtr(R,cells[cells.length-1]);
+    const status=addBadge(root,`target = ${target}`,600,140); status.classList.add('show');
+    let li=0, ri=cells.length-1;
+    while(li<ri){
+      const sum=cells[li].val+cells[ri].val;
+      status.textContent=`${cells[li].val} + ${cells[ri].val} = ${sum}`;
+      await wait(600);
+      if(sum===target){ highlight(cells[li],{stroke:'var(--yellow)'}); highlight(cells[ri],{stroke:'var(--yellow)'}); status.textContent=`found! ${cells[li].val} + ${cells[ri].val} = ${target}`; break; }
+      else if(sum<target){ li++; placePtr(L,cells[li]); }
+      else { ri--; placePtr(R,cells[ri]); }
+      await wait(300);
+    }
+    await narrateSimple(root,"Sum too small \u2192 move left up. Too big \u2192 move right down. Monotonic, so it always works.",500);
+  },
+  exit:(root)=> resetStage(root)
+};
+
+/* ---------- 31: three sum ---------- */
+scenes[31] = {
+  enter: async (root)=>{
+    const svg=svgOf(root);
+    const vals=[-4,-1,-1,0,1,2];
+    const cells=drawArray(svg,vals,{x0:150,y:300,cw:90,ch:90,gap:12,fontSize:22});
+    const ph=ptrOf(root);
+    const F=addPtr(ph,'fix','var(--yellow)'), L=addPtr(ph,'L','var(--blue)'), R=addPtr(ph,'R','var(--green)');
+    const status=addBadge(root,'',150,150); status.classList.add('show');
+    let fi=0;
+    placePtr(F,cells[fi]); placePtr(L,cells[fi+1]); placePtr(R,cells[cells.length-1]);
+    await wait(500);
+    let li=fi+1, ri=cells.length-1;
+    while(li<ri){
+      const sum=cells[fi].val+cells[li].val+cells[ri].val;
+      status.textContent=`fix=${cells[fi].val}: ${cells[li].val}+${cells[ri].val} \u2192 sum=${sum}`;
+      await wait(600);
+      if(sum===0){ [cells[fi],cells[li],cells[ri]].forEach(c=>highlight(c,{stroke:'var(--yellow)'})); status.textContent='triplet sums to 0 \u2014 found!'; break; }
+      else if(sum<0){ li++; placePtr(L,cells[li]); } else { ri--; placePtr(R,cells[ri]); }
+      await wait(250);
+    }
+    const f=addFormula(root,'O(n\u00b2) total, not O(n\u00b3)',900,150,22);
+    await beat(()=>f.classList.add('show'),400);
+    await narrateSimple(root,"Fix the first number, then solve 'pair sum' on the rest.",500);
+  },
+  exit:(root)=> resetStage(root)
+};
+
+/* ---------- 32: remove duplicates ---------- */
+scenes[32] = {
+  enter: async (root)=>{
+    const svg=svgOf(root);
+    const vals=[1,1,2,2,2,3,4,4];
+    const cells=drawArray(svg,vals,{x0:150,y:300,cw:90,ch:90,gap:10,fontSize:22});
+    const ph=ptrOf(root);
+    const w=addPtr(ph,'write','var(--blue)'), rp=addPtr(ph,'read','var(--green)');
+    placePtr(w,cells[0]); placePtr(rp,cells[0],1);
+    await wait(500);
+    let wi=0;
+    for(let ri=1; ri<cells.length; ri++){
+      placePtr(rp,cells[ri],1);
+      await wait(400);
+      if(cells[ri].val !== cells[wi].val){
+        wi++;
+        setCellText(svg,cells[wi],String(cells[ri].val),{});
+        highlight(cells[wi],{stroke:'var(--blue)'});
+        placePtr(w,cells[wi]);
+        await wait(300);
+      } else {
+        highlight(cells[ri],{stroke:'var(--gray)',fill:'rgba(138,143,152,0.15)'});
+      }
+    }
+    for(let i=wi+1;i<cells.length;i++) cells[i].rect.style.opacity=.25;
+    const lbl=mkText(720,470,`new length = ${wi+1}`,{size:18,fill:'var(--yellow)'});
+    lbl.classList.add('fade-el'); svg.appendChild(lbl);
+    await beat(()=>lbl.classList.add('show'),400);
+    await narrateSimple(root,"Overwrite in place \u2014 the array shrinks itself as 'read' finds new values.",500);
+  },
+  exit:(root)=> resetStage(root)
+};
+
+/* ---------- 33: container with most water ---------- */
+scenes[33] = {
+  enter: async (root)=>{
+    const svg=svgOf(root);
+    const heights=[3,7,2,6,8,4,5];
+    const n=heights.length, x0=220, gap=140, baseY=560, unit=48;
+    const bars=heights.map((h,i)=>{
+      const x=x0+i*gap;
+      const bh=h*unit;
+      const r=mkRect(x-20,baseY-bh,40,bh,{stroke:'var(--blue)',rx:4});
+      svg.appendChild(r);
+      svg.appendChild(mkText(x,baseY+26,String(h),{size:16,fill:'var(--gray)'}));
+      return {x,h,bh,r};
+    });
+    const ph=ptrOf(root);
+    function fakeCell(b){ return {cx:b.x, y:baseY-b.bh-40, ch:0}; }
+    const L=addPtr(ph,'L','var(--blue)'), R=addPtr(ph,'R','var(--green)');
+    placePtr(L,fakeCell(bars[0])); placePtr(R,fakeCell(bars[n-1]));
+    const status=addBadge(root,'',150,110); status.classList.add('show');
+    const areaRect=mkRect(0,0,0,0,{stroke:'var(--yellow)',fill:'rgba(212,197,90,0.08)'});
+    svg.insertBefore(areaRect,svg.firstChild);
+    let li=0, ri=n-1, maxArea=0;
+    while(li<ri){
+      const h=Math.min(bars[li].h,bars[ri].h);
+      const area=h*(ri-li);
+      maxArea=Math.max(maxArea,area);
+      areaRect.setAttribute('x',bars[li].x); areaRect.setAttribute('width',bars[ri].x-bars[li].x);
+      areaRect.setAttribute('y',baseY-h*unit); areaRect.setAttribute('height',h*unit);
+      status.textContent=`width=${ri-li} \u00d7 height=${h} = ${area}  (max so far: ${maxArea})`;
+      await wait(650);
+      if(bars[li].h < bars[ri].h){ li++; placePtr(L,fakeCell(bars[li])); } else { ri--; placePtr(R,fakeCell(bars[ri])); }
+    }
+    await narrateSimple(root,"Always move the shorter wall \u2014 moving the taller one can only shrink the area.",500);
+  },
+  exit:(root)=> resetStage(root)
+};
+
+/* ---------- 34: linked list cycle detection formalized ---------- */
+scenes[34] = {
+  enter: async (root)=>{
+    const svg=svgOf(root);
+    const nodes=drawLinkedList(svg,6,2);
+    const ph=ptrOf(root);
+    const slow=addPtr(ph,'slow','var(--blue)'), fast=addPtr(ph,'fast','var(--green)');
+    function fakeCell(n){ return {cx:n.x, y:n.y-45, ch:90}; }
+    placePtr(slow,fakeCell(nodes[0])); placePtr(fast,fakeCell(nodes[0]));
+    await wait(500);
+    const cyclePath=[0,1,2,3,4,5,2,3,4,5,2];
+    for(let step=1; step<7; step++){
+      const fastIdx = Math.min(step*2, cyclePath.length-1);
+      const slowIdx = Math.min(step, cyclePath.length-1);
+      placePtr(slow, fakeCell(nodes[cyclePath[slowIdx]]));
+      placePtr(fast, fakeCell(nodes[cyclePath[fastIdx]]));
+      await wait(500);
+      if(cyclePath[slowIdx]===cyclePath[fastIdx] && step>1){
+        nodes[cyclePath[slowIdx]].c.setAttribute('stroke','var(--yellow)');
+        nodes[cyclePath[slowIdx]].c.classList.add('pulse');
+        break;
+      }
+    }
+    const f=addFormula(root,'time O(n), space O(1) \u2014 no hash set needed',780,560,20);
+    await beat(()=>f.classList.add('show'),400);
+    addBadge(root,'used in: cycle detection in graphs, resource-deadlock checks',150,120,'use').classList.add('show');
+    await narrateSimple(root,"Floyd's algorithm: if a cycle exists, the fast pointer laps the slow one within it.",500);
+  },
+  exit:(root)=> resetStage(root)
+};
+
+/* ---------- 35: final recap ---------- */
+scenes[35] = {
+  enter: async (root)=>{
+    const svg=svgOf(root);
+    svg.appendChild(mkRect(90,60,600,540,{stroke:'var(--blue)',rx:14}));
+    svg.appendChild(mkRect(750,60,600,540,{stroke:'var(--green)',rx:14}));
+    svg.appendChild(mkText(390,110,'Recursion & Backtracking',{size:21,weight:600}));
+    svg.appendChild(mkText(1050,110,'Two Pointers',{size:21,weight:600}));
+    const left=["Recursion trees & D&C","Backtracking template","CSP framing","9 classic problems"];
+    const right=["5 pointer patterns","Sliding window","Pair/Three Sum, dedup","Floyd's cycle detection"];
+    const l=addList(root,left,140,170,90);
+    const r=addList(root,right,800,170,90);
+    for(let i=0;i<Math.max(l.length,r.length);i++){
+      if(l[i]) l[i].classList.add('show');
+      if(r[i]) r[i].classList.add('show');
+      await wait(300);
+    }
+    await narrateSimple(root,"Recursion explores branching choice-spaces. Two pointers sweep linear structures in one pass \u2014 both trade brute force for structure.",700);
+  },
+  exit:(root)=> resetStage(root)
+};
+
+/* ============================== DECK CONTROLLER ============================== */
+function fitScale(){
+  const vw=(window.visualViewport && window.visualViewport.width) || window.innerWidth;
+  const vh=(window.visualViewport && window.visualViewport.height) || window.innerHeight;
+  const s=Math.min(vw/1600, vh/900);
+  const scaler=document.getElementById('deck-scaler');
+  scaler.style.transform=`translate(-50%,-50%) scale(${s})`;
+}
+window.addEventListener('resize',fitScale);
+window.addEventListener('orientationchange',fitScale);
+if(window.visualViewport) window.visualViewport.addEventListener('resize',fitScale);
+fitScale();
+
+class SlideDeck{
+  constructor(){
+    this.slides=Array.from(document.querySelectorAll('.slide'));
+    this.i=0;
+    this.dotsEl=document.getElementById('dots');
+    this.counterEl=document.getElementById('slideCounter');
+    this.slides.forEach(()=>{ const d=document.createElement('div'); d.className='dot'; this.dotsEl.appendChild(d); });
+    document.getElementById('nextBtn').onclick=()=>this.go(this.i+1);
+    document.getElementById('prevBtn').onclick=()=>this.go(this.i-1);
+    window.addEventListener('keydown',e=>{
+      if(e.key==='ArrowRight'||e.key===' ') this.go(this.i+1);
+      if(e.key==='ArrowLeft') this.go(this.i-1);
+    });
+    this.show(0);
+  }
+  show(idx){
+    this.slides.forEach((s,k)=>s.classList.toggle('active',k===idx));
+    Array.from(this.dotsEl.children).forEach((d,k)=>d.classList.toggle('on',k===idx));
+    this.counterEl.textContent=`${idx+1} / ${this.slides.length}`;
+    const scene=scenes[idx];
+    if(scene && scene.enter) scene.enter(this.slides[idx]);
+  }
+  go(idx){
+    if(idx<0||idx>=this.slides.length) return;
+    const prevScene=scenes[this.i];
+    if(prevScene && prevScene.exit) prevScene.exit(this.slides[this.i]);
+    this.i=idx;
+    this.show(idx);
+  }
+}
+new SlideDeck();
+</script>
+</body>
+</html>

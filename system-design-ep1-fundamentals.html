@@ -1,0 +1,1028 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>System Design · Episode 1 — Fundamentals</title>
+<style>
+  :root{
+    --bg:#07080d;
+    --bg2:#0b0d14;
+    --ink:#eef1f7;
+    --dim:#7d8494;
+    --dim2:#565d6d;
+    --blue:#5b9bd9;
+    --amber:#d9a55b;
+    --green:#5fbfa0;
+    --red:#d97a6b;
+    --purple:#a08bd0;
+    --line:#252a38;
+    --panel:#0e1119;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{
+    width:100%; height:100%; background:var(--bg); overflow:hidden;
+    font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif;
+  }
+  #viewport{
+    position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+    background:radial-gradient(ellipse at 50% 0%, #0d1018 0%, #07080d 65%);
+  }
+  #stagewrap{
+    position:relative; width:1600px; height:900px;
+    transform-origin:center center;
+    background:var(--bg);
+    box-shadow:0 0 120px rgba(0,0,0,0.6);
+    border-radius:6px;
+    overflow:hidden;
+  }
+  .slide{
+    position:absolute; inset:0; display:none;
+    padding:0; opacity:0;
+  }
+  .slide.active{ display:block; opacity:1; }
+
+  /* faint grid backdrop */
+  .grid-bg{
+    position:absolute; inset:0; opacity:0.35; pointer-events:none;
+    background-image:
+      linear-gradient(to right, var(--line) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--line) 1px, transparent 1px);
+    background-size:80px 80px;
+    -webkit-mask-image: radial-gradient(ellipse at center, black 40%, transparent 78%);
+            mask-image: radial-gradient(ellipse at center, black 40%, transparent 78%);
+  }
+
+  .eyebrow{
+    position:absolute; top:56px; left:90px; font-size:16px; letter-spacing:4px;
+    color:var(--dim2); text-transform:uppercase; font-weight:600;
+    opacity:0; transform:translateY(-10px);
+  }
+  .title{
+    position:absolute; top:88px; left:90px; font-size:44px; font-weight:700;
+    color:var(--ink); opacity:0; transform:translateY(14px);
+    max-width:1200px;
+  }
+  .subtitle{
+    position:absolute; top:150px; left:90px; font-size:19px; color:var(--dim);
+    opacity:0; transform:translateY(10px); max-width:1200px; line-height:1.5;
+  }
+  .show-eyebrow{ animation:fadeUp .5s ease forwards; }
+  .show-title{ animation:fadeUp .6s ease forwards; animation-delay:.08s; }
+  .show-subtitle{ animation:fadeUp .6s ease forwards; animation-delay:.2s; }
+
+  @keyframes fadeUp{ from{opacity:0; transform:translateY(16px);} to{opacity:1; transform:translateY(0);} }
+  @keyframes fadeIn{ from{opacity:0;} to{opacity:1;} }
+  @keyframes popIn{ from{opacity:0; transform:scale(.85);} to{opacity:1; transform:scale(1);} }
+  @keyframes drawLine{ to{ stroke-dashoffset:0; } }
+  @keyframes floatY{ 0%,100%{transform:translateY(0);} 50%{transform:translateY(-8px);} }
+  @keyframes pulseSoft{ 0%,100%{ opacity:1; } 50%{ opacity:.45; } }
+  @keyframes spin360{ to{ transform:rotate(360deg); } }
+  @keyframes dashMove{ to{ stroke-dashoffset:-40; } }
+
+  .stage{ position:absolute; left:90px; right:90px; top:210px; bottom:110px; }
+
+  .footer{
+    position:absolute; left:90px; right:90px; bottom:40px; height:36px;
+    display:flex; align-items:center; justify-content:space-between;
+    color:var(--dim2); font-size:13px; letter-spacing:1px;
+  }
+  .footer .tag{ color:var(--dim); }
+  .barline{ position:absolute; left:90px; right:90px; bottom:82px; height:1px; background:var(--line); }
+
+  .badge{
+    display:inline-flex; align-items:center; gap:8px; font-size:13px; font-weight:700;
+    letter-spacing:2px; padding:6px 14px; border-radius:20px; border:1px solid var(--line);
+    color:var(--dim); opacity:0;
+  }
+  .badge.recap{ border-color:#2a4a5f; color:var(--blue); }
+  .badge.gap{ border-color:#5f4a2a; color:var(--amber); }
+  .badge.fill{ border-color:#2a5f43; color:var(--green); }
+  .show-badge{ animation:popIn .4s ease forwards; }
+
+  .callout{
+    position:absolute; font-size:20px; color:var(--ink); opacity:0; line-height:1.5;
+  }
+  .show-callout{ animation:fadeUp .5s ease forwards; }
+
+  .formula-box{
+    position:absolute; padding:18px 26px; border:1px solid var(--line); border-radius:10px;
+    background:var(--panel); color:var(--ink); font-size:22px; opacity:0;
+    box-shadow:0 0 30px rgba(0,0,0,.4);
+  }
+  .formula-box .lbl{ font-size:12px; letter-spacing:2px; color:var(--dim2); display:block; margin-bottom:8px; text-transform:uppercase;}
+  .show-formula{ animation:popIn .5s ease forwards; }
+
+  .navzone{ position:absolute; inset:0; z-index:50; }
+  .navzone .side{ position:absolute; top:0; bottom:0; width:50%; }
+  .navzone .left{ left:0; cursor:pointer; }
+  .navzone .right{ right:0; cursor:pointer; }
+
+  #hud{
+    position:fixed; bottom:22px; left:0; right:0; display:flex; align-items:center;
+    justify-content:center; gap:18px; z-index:100; font-family:inherit;
+  }
+  #hud button{
+    background:var(--panel); border:1px solid var(--line); color:var(--ink);
+    width:40px; height:40px; border-radius:50%; cursor:pointer; font-size:18px;
+    display:flex; align-items:center; justify-content:center; transition:.15s;
+  }
+  #hud button:hover{ border-color:var(--blue); color:var(--blue); }
+  #hud .count{ color:var(--dim); font-size:14px; letter-spacing:2px; min-width:80px; text-align:center;}
+  #progress{ position:fixed; top:0; left:0; height:3px; background:var(--blue); z-index:100; transition:width .3s ease; box-shadow:0 0 8px var(--blue); }
+
+  .node{
+    position:absolute; border-radius:12px; border:1px solid var(--line); background:var(--panel);
+    display:flex; align-items:center; justify-content:center; color:var(--ink); font-size:16px;
+    font-weight:600; opacity:0;
+  }
+  .show-node{ animation:popIn .45s ease forwards; }
+
+  .dot{ position:absolute; border-radius:50%; opacity:0; }
+  .show-dot{ animation:popIn .4s ease forwards; }
+
+  svg text{ fill:var(--ink); font-family:inherit; }
+  .svg-dim{ fill:var(--dim); }
+  .svg-line{ stroke:var(--line); }
+
+  .tag-pill{
+    position:absolute; font-size:13px; padding:4px 10px; border-radius:14px;
+    border:1px solid var(--line); color:var(--dim); background:var(--panel); opacity:0;
+  }
+  .show-pill{ animation:popIn .4s ease forwards; }
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+<div id="viewport">
+  <div id="stagewrap">
+
+    <!-- SLIDE 0: TITLE -->
+    <section class="slide" data-idx="0">
+      <div class="grid-bg"></div>
+      <div class="stage" style="top:0;">
+        <svg viewBox="0 0 1420 690" style="width:100%;height:100%;">
+          <circle id="s0-c1" cx="710" cy="300" r="4" fill="none" stroke="var(--blue)" stroke-width="1.5" opacity="0"/>
+          <circle id="s0-c2" cx="710" cy="300" r="4" fill="none" stroke="var(--amber)" stroke-width="1.5" opacity="0"/>
+          <circle id="s0-c3" cx="710" cy="300" r="4" fill="none" stroke="var(--green)" stroke-width="1.5" opacity="0"/>
+          <g id="s0-nodes"></g>
+        </svg>
+      </div>
+      <div style="position:absolute; top:300px; left:0; right:0; text-align:center;">
+        <div class="eyebrow" style="position:static; display:inline-block;" id="s0-eye">SYSTEM DESIGN · EPISODE 1</div>
+        <div class="title" style="position:static; font-size:64px; text-align:center; margin-top:14px;" id="s0-title">Fundamentals</div>
+        <div class="subtitle" style="position:static; text-align:center; margin-top:16px; font-size:20px;" id="s0-sub">How engineers reason about scale, before they draw a single box.</div>
+      </div>
+      <div class="footer"><span class="tag">Feynman method: build every idea from a gap, not a definition</span><span>01 / 17</span></div>
+    </section>
+
+    <!-- SLIDE 1: Requirements Gathering -->
+    <section class="slide" data-idx="1">
+      <div class="grid-bg"></div>
+      <div class="eyebrow" id="s1-eye">THE STARTING POINT</div>
+      <div class="title" id="s1-title">Requirements Gathering</div>
+      <div class="subtitle" id="s1-sub">"Design a URL shortener." That's not a spec — it's a prompt. The design begins in the questions.</div>
+      <div class="stage">
+        <svg viewBox="0 0 1420 620" style="width:100%; height:100%;">
+          <!-- vague box -->
+          <g id="s1-vague">
+            <rect x="60" y="60" width="300" height="90" rx="10" fill="var(--panel)" stroke="var(--line)"/>
+            <text x="210" y="100" text-anchor="middle" font-size="18" font-weight="700">"Design X"</text>
+            <text x="210" y="126" text-anchor="middle" font-size="13" class="svg-dim">an ambiguous prompt</text>
+          </g>
+          <!-- arrow -->
+          <line id="s1-arrow" x1="380" y1="105" x2="480" y2="105" stroke="var(--dim2)" stroke-width="2" marker-end="url(#arrow1)" stroke-dasharray="120" stroke-dashoffset="120"/>
+          <defs>
+            <marker id="arrow1" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="var(--dim2)"/></marker>
+          </defs>
+          <!-- questions branching -->
+          <g id="s1-q1" opacity="0"><rect x="520" y="10" width="380" height="60" rx="8" fill="var(--panel)" stroke="var(--blue)"/><text x="540" y="46" font-size="16">Who are the users, and at what scale?</text></g>
+          <g id="s1-q2" opacity="0"><rect x="520" y="90" width="380" height="60" rx="8" fill="var(--panel)" stroke="var(--amber)"/><text x="540" y="126" font-size="16">What 2–3 use cases actually matter?</text></g>
+          <g id="s1-q3" opacity="0"><rect x="520" y="170" width="380" height="60" rx="8" fill="var(--panel)" stroke="var(--green)"/><text x="540" y="206" font-size="16">What constraints exist — cost, time, team?</text></g>
+
+          <!-- RECAP GAP FILL narrative -->
+          <g id="s1-recap" opacity="0">
+            <text x="60" y="300" font-size="17" fill="var(--blue)" font-weight="700">RECAP</text>
+            <text x="60" y="330" font-size="19">Every system starts as a vague sentence.</text>
+          </g>
+          <g id="s1-gap" opacity="0">
+            <text x="60" y="390" font-size="17" fill="var(--amber)" font-weight="700">GAP</text>
+            <text x="60" y="420" font-size="19">But a sentence has no numbers — so how do we know what to even build?</text>
+          </g>
+          <g id="s1-fill" opacity="0">
+            <text x="60" y="480" font-size="17" fill="var(--green)" font-weight="700">FILL</text>
+            <text x="60" y="510" font-size="19">We split the ambiguity into two clean buckets: what it must do, and how well it must do it.</text>
+          </g>
+
+          <!-- two buckets appearing -->
+          <g id="s1-fr" opacity="0">
+            <rect x="700" y="440" width="330" height="120" rx="10" fill="var(--panel)" stroke="var(--blue)"/>
+            <text x="720" y="475" font-size="17" font-weight="700" fill="var(--blue)">Functional</text>
+            <text x="720" y="502" font-size="14" class="svg-dim">what the system does</text>
+            <text x="720" y="528" font-size="14" class="svg-dim">"submit a URL, get a short one"</text>
+          </g>
+          <g id="s1-nfr" opacity="0">
+            <rect x="1050" y="440" width="330" height="120" rx="10" fill="var(--panel)" stroke="var(--amber)"/>
+            <text x="1070" y="475" font-size="17" font-weight="700" fill="var(--amber)">Non-Functional</text>
+            <text x="1070" y="502" font-size="14" class="svg-dim">how well it must perform</text>
+            <text x="1070" y="528" font-size="14" class="svg-dim">latency, scale, availability</text>
+          </g>
+        </svg>
+      </div>
+      <div class="footer"><span class="tag">Scoping what's OUT is as important as scoping what's in</span><span>02 / 17</span></div>
+    </section>
+
+    <!-- SLIDE 2: Functional vs Non-functional (deep dive) -->
+    <section class="slide" data-idx="2">
+      <div class="grid-bg"></div>
+      <div class="eyebrow" id="s2-eye">TWO KINDS OF TRUTH</div>
+      <div class="title" id="s2-title">Functional vs Non-Functional</div>
+      <div class="subtitle" id="s2-sub">One shapes the feature list. The other shapes the architecture.</div>
+      <div class="stage">
+        <svg viewBox="0 0 1420 620" style="width:100%;height:100%;">
+          <line x1="710" y1="0" x2="710" y2="560" stroke="var(--line)" stroke-width="1"/>
+          <g id="s2-left">
+            <text x="100" y="50" font-size="22" font-weight="700" fill="var(--blue)">Functional</text>
+            <text x="100" y="80" font-size="15" class="svg-dim">the WHAT — user-facing behavior</text>
+            <rect x="100" y="120" width="500" height="56" rx="8" fill="var(--panel)" stroke="var(--line)"/>
+            <text x="120" y="154" font-size="16">A user can shorten a long URL</text>
+            <rect x="100" y="190" width="500" height="56" rx="8" fill="var(--panel)" stroke="var(--line)"/>
+            <text x="120" y="224" font-size="16">Visiting the short URL redirects correctly</text>
+            <rect x="100" y="260" width="500" height="56" rx="8" fill="var(--panel)" stroke="var(--line)"/>
+            <text x="120" y="294" font-size="16">A user can view click analytics</text>
+          </g>
+          <g id="s2-right">
+            <text x="820" y="50" font-size="22" font-weight="700" fill="var(--amber)">Non-Functional</text>
+            <text x="820" y="80" font-size="15" class="svg-dim">the HOW WELL — quality constraints</text>
+            <rect x="820" y="120" width="500" height="56" rx="8" fill="var(--panel)" stroke="var(--line)"/>
+            <text x="840" y="154" font-size="16">Redirect must respond in &lt; 100ms</text>
+            <rect x="820" y="190" width="500" height="56" rx="8" fill="var(--panel)" stroke="var(--line)"/>
+            <text x="840" y="224" font-size="16">99.99% availability</text>
+            <rect x="820" y="260" width="500" height="56" rx="8" fill="var(--panel)" stroke="var(--line)"/>
+            <text x="840" y="294" font-size="16">Must scale to 50,000 redirects/sec</text>
+          </g>
+          <g id="s2-insight" opacity="0">
+            <rect x="330" y="380" width="760" height="130" rx="10" fill="var(--panel)" stroke="var(--green)"/>
+            <text x="360" y="418" font-size="17" font-weight="700" fill="var(--green)">The trap</text>
+            <text x="360" y="448" font-size="16">Two systems with identical functional lists</text>
+            <text x="360" y="474" font-size="16">can require completely different architectures —</text>
+            <text x="360" y="498" font-size="16">the non-functional line is what actually decides the design.</text>
+          </g>
+        </svg>
+      </div>
+      <div class="footer"><span class="tag">NFRs usually force the hard trade-offs: SQL vs NoSQL, sync vs async</span><span>03 / 17</span></div>
+    </section>
+
+    <!-- SLIDE 3: Capacity / Traffic Estimation -->
+    <section class="slide" data-idx="3">
+      <div class="grid-bg"></div>
+      <div class="eyebrow" id="s3-eye">BACK OF THE ENVELOPE</div>
+      <div class="title" id="s3-title">Capacity &amp; Traffic Estimation</div>
+      <div class="subtitle" id="s3-sub">You don't need exact numbers. You need the right order of magnitude.</div>
+      <div class="stage">
+        <svg viewBox="0 0 1420 620" style="width:100%;height:100%;">
+          <g id="s3-chain">
+            <g id="s3-b1"><rect x="30" y="240" width="230" height="90" rx="10" fill="var(--panel)" stroke="var(--blue)"/>
+              <text x="145" y="275" text-anchor="middle" font-size="15" class="svg-dim">Users (DAU)</text>
+              <text id="s3-n1" x="145" y="305" text-anchor="middle" font-size="24" font-weight="700">0</text></g>
+            <path d="M270 285 L330 285" stroke="var(--dim2)" stroke-width="2" marker-end="url(#a3)"/>
+            <g id="s3-b2"><rect x="340" y="240" width="230" height="90" rx="10" fill="var(--panel)" stroke="var(--amber)"/>
+              <text x="455" y="275" text-anchor="middle" font-size="15" class="svg-dim">× 10 req/day</text>
+              <text id="s3-n2" x="455" y="305" text-anchor="middle" font-size="22" font-weight="700">0</text></g>
+            <path d="M580 285 L640 285" stroke="var(--dim2)" stroke-width="2" marker-end="url(#a3)"/>
+            <g id="s3-b3"><rect x="650" y="240" width="230" height="90" rx="10" fill="var(--panel)" stroke="var(--green)"/>
+              <text x="765" y="275" text-anchor="middle" font-size="15" class="svg-dim">÷ 86,400 sec/day</text>
+              <text id="s3-n3" x="765" y="305" text-anchor="middle" font-size="22" font-weight="700">0</text></g>
+            <path d="M890 285 L950 285" stroke="var(--dim2)" stroke-width="2" marker-end="url(#a3)"/>
+            <g id="s3-b4"><rect x="960" y="230" width="280" height="110" rx="10" fill="var(--panel)" stroke="var(--red)"/>
+              <text x="1100" y="262" text-anchor="middle" font-size="15" class="svg-dim">× 3 peak factor</text>
+              <text id="s3-n4" x="1100" y="300" text-anchor="middle" font-size="26" font-weight="700" fill="var(--red)">0</text>
+              <text x="1100" y="325" text-anchor="middle" font-size="13" class="svg-dim">peak requests / sec</text></g>
+          </g>
+          <defs><marker id="a3" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="var(--dim2)"/></marker></defs>
+
+          <g id="s3-formula" opacity="0">
+            <rect x="200" y="420" width="1020" height="90" rx="10" fill="var(--panel)" stroke="var(--line)"/>
+            <text x="230" y="453" font-size="13" letter-spacing="2" class="svg-dim">FORMULA</text>
+            <text x="230" y="486" font-size="20">Peak RPS = (DAU × requests/user/day ÷ 86,400) × peak factor</text>
+          </g>
+          <g id="s3-why" opacity="0">
+            <text x="230" y="560" font-size="16" fill="var(--dim)">This single number decides: one server, or a load-balanced fleet?</text>
+          </g>
+        </svg>
+      </div>
+      <div class="footer"><span class="tag">Storage estimation follows the same pattern: size × volume/day × retention</span><span>04 / 17</span></div>
+    </section>
+
+    <!-- SLIDE 4: Storage Estimation -->
+    <section class="slide" data-idx="4">
+      <div class="grid-bg"></div>
+      <div class="eyebrow" id="s4-eye">HOW MUCH DISK DO WE NEED</div>
+      <div class="title" id="s4-title">Storage Estimation</div>
+      <div class="subtitle" id="s4-sub">Every message, photo, or event is a brick. How tall is the wall after 5 years?</div>
+      <div class="stage">
+        <svg viewBox="0 0 1420 620" style="width:100%;height:100%;">
+          <g id="s4-stack"></g>
+          <g id="s4-labels" opacity="0">
+            <text x="60" y="60" font-size="16">1 KB / message</text>
+            <text x="60" y="90" font-size="16">× 1B messages / day</text>
+            <text x="60" y="120" font-size="16">× 365 × 5 years</text>
+          </g>
+          <g id="s4-result" opacity="0">
+            <rect x="700" y="40" width="600" height="120" rx="10" fill="var(--panel)" stroke="var(--purple)"/>
+            <text x="730" y="80" font-size="15" class="svg-dim">RAW DATA</text>
+            <text x="730" y="120" font-size="30" font-weight="700" fill="var(--purple)">≈ 1.8 PB</text>
+            <text x="730" y="145" font-size="14" class="svg-dim">before replication &amp; index overhead</text>
+          </g>
+          <g id="s4-real" opacity="0">
+            <rect x="700" y="180" width="600" height="120" rx="10" fill="var(--panel)" stroke="var(--red)"/>
+            <text x="730" y="220" font-size="15" class="svg-dim">REALISTIC FOOTPRINT (×2.5)</text>
+            <text x="730" y="260" font-size="30" font-weight="700" fill="var(--red)">≈ 4–5 PB</text>
+            <text x="730" y="285" font-size="14" class="svg-dim">this number picks your storage class</text>
+          </g>
+          <g id="s4-choice" opacity="0">
+            <text x="60" y="440" font-size="17" fill="var(--green)" font-weight="700">PRACTICAL CHOICE</text>
+            <text x="60" y="470" font-size="17">Petabyte scale → object storage (S3), not a single Postgres disk.</text>
+            <text x="60" y="498" font-size="17">Megabyte scale → a plain relational database is plenty.</text>
+          </g>
+        </svg>
+      </div>
+      <div class="footer"><span class="tag">The estimate decides the technology class before you draw one box</span><span>05 / 17</span></div>
+    </section>
+
+    <!-- SLIDE 5: Latency -->
+    <section class="slide" data-idx="5">
+      <div class="grid-bg"></div>
+      <div class="eyebrow" id="s5-eye">THE USER'S STOPWATCH</div>
+      <div class="title" id="s5-title">Latency</div>
+      <div class="subtitle" id="s5-sub">Averages lie. What matters is the worst 1% of your users, every single time.</div>
+      <div class="stage">
+        <svg viewBox="0 0 1420 620" style="width:100%;height:100%;">
+          <!-- distribution curve -->
+          <path id="s5-curve" d="M60,420 C 260,420 300,80 480,80 C 660,80 700,420 1360,420"
+                fill="none" stroke="var(--blue)" stroke-width="3" stroke-dasharray="1600" stroke-dashoffset="1600"/>
+          <line x1="60" y1="420" x2="1360" y2="420" stroke="var(--line)"/>
+          <!-- tail shading -->
+          <path id="s5-tail" d="M1150,420 C1250,400 1320,340 1360,420 Z" fill="var(--red)" opacity="0"/>
+
+          <g id="s5-p50" opacity="0">
+            <line x1="470" y1="80" x2="470" y2="440" stroke="var(--green)" stroke-dasharray="4,4"/>
+            <text x="470" y="465" text-anchor="middle" font-size="15" fill="var(--green)">p50 — 12ms</text>
+          </g>
+          <g id="s5-p95" opacity="0">
+            <line x1="820" y1="230" x2="820" y2="440" stroke="var(--amber)" stroke-dasharray="4,4"/>
+            <text x="820" y="465" text-anchor="middle" font-size="15" fill="var(--amber)">p95 — 80ms</text>
+          </g>
+          <g id="s5-p99" opacity="0">
+            <line x1="1150" y1="395" x2="1150" y2="440" stroke="var(--red)" stroke-dasharray="4,4"/>
+            <text x="1150" y="465" text-anchor="middle" font-size="15" fill="var(--red)">p99 — 5,000ms</text>
+          </g>
+
+          <g id="s5-insight" opacity="0">
+            <text x="60" y="530" font-size="18">Same average latency. But 1 in 100 users waits 400× longer.</text>
+            <text x="60" y="562" font-size="16" class="svg-dim">At 1M requests/day, that's 10,000 broken experiences — every day.</text>
+          </g>
+          <g id="s5-chain" opacity="0">
+            <text x="900" y="530" font-size="16" fill="var(--dim)">Chained calls compound tail latency:</text>
+            <text x="900" y="558" font-size="16" fill="var(--dim)">5 services × 20ms p99 ≠ 100ms p99 — it's often worse.</text>
+          </g>
+        </svg>
+      </div>
+      <div class="footer"><span class="tag">Always ask: p50, p95, or p99? Never just "the latency"</span><span>06 / 17</span></div>
+    </section>
+
+    <!-- SLIDE 6: Throughput -->
+    <section class="slide" data-idx="6">
+      <div class="grid-bg"></div>
+      <div class="eyebrow" id="s6-eye">RATE, NOT SPEED</div>
+      <div class="title" id="s6-title">Throughput</div>
+      <div class="subtitle" id="s6-sub">Latency asks "how long for one." Throughput asks "how many, per second."</div>
+      <div class="stage">
+        <svg viewBox="0 0 1420 620" style="width:100%;height:100%;">
+          <!-- pipe with packets flowing -->
+          <rect x="80" y="240" width="1260" height="90" rx="45" fill="var(--panel)" stroke="var(--line)"/>
+          <g id="s6-packets"></g>
+          <text x="80" y="220" font-size="15" class="svg-dim">throughput = packets passing per second →</text>
+
+          <g id="s6-lat-vs-thr" opacity="0">
+            <rect x="150" y="400" width="480" height="130" rx="10" fill="var(--panel)" stroke="var(--blue)"/>
+            <text x="180" y="435" font-size="17" font-weight="700" fill="var(--blue)">Batching trick</text>
+            <text x="180" y="465" font-size="15" class="svg-dim">Group 10 requests into 1 batch call.</text>
+            <text x="180" y="490" font-size="15" class="svg-dim">Throughput ↑ — but each request's</text>
+            <text x="180" y="512" font-size="15" class="svg-dim">own latency can even ↑ slightly.</text>
+          </g>
+          <g id="s6-target" opacity="0">
+            <rect x="700" y="400" width="540" height="130" rx="10" fill="var(--panel)" stroke="var(--green)"/>
+            <text x="730" y="435" font-size="17" font-weight="700" fill="var(--green)">Capacity planning, in one line</text>
+            <text x="730" y="468" font-size="16">Design so that</text>
+            <text x="730" y="495" font-size="17" font-weight="700">sustained throughput capacity &gt; peak load</text>
+            <text x="730" y="518" font-size="14" class="svg-dim">— with real headroom, not zero margin.</text>
+          </g>
+        </svg>
+      </div>
+      <div class="footer"><span class="tag">Latency and throughput are independent dials, not the same knob</span><span>07 / 17</span></div>
+    </section>
+
+    <!-- SLIDE 7: Availability -->
+    <section class="slide" data-idx="7">
+      <div class="grid-bg"></div>
+      <div class="eyebrow" id="s7-eye">THE NINES</div>
+      <div class="title" id="s7-title">Availability</div>
+      <div class="subtitle" id="s7-sub">Every extra "9" costs roughly 10× more engineering effort — and buys 10× less downtime.</div>
+      <div class="stage">
+        <svg viewBox="0 0 1420 620" style="width:100%;height:100%;">
+          <g id="s7-ladder"></g>
+          <g id="s7-composition" opacity="0">
+            <text x="820" y="90" font-size="17" font-weight="700" fill="var(--red)">The multiplication trap</text>
+            <rect x="820" y="120" width="90" height="70" rx="8" fill="var(--panel)" stroke="var(--blue)"/>
+            <text x="865" y="150" text-anchor="middle" font-size="14">A</text><text x="865" y="172" text-anchor="middle" font-size="13" class="svg-dim">99.9%</text>
+            <text x="925" y="163" font-size="22">×</text>
+            <rect x="960" y="120" width="90" height="70" rx="8" fill="var(--panel)" stroke="var(--amber)"/>
+            <text x="1005" y="150" text-anchor="middle" font-size="14">B</text><text x="1005" y="172" text-anchor="middle" font-size="13" class="svg-dim">99.9%</text>
+            <text x="1065" y="163" font-size="22">×</text>
+            <rect x="1100" y="120" width="90" height="70" rx="8" fill="var(--panel)" stroke="var(--green)"/>
+            <text x="1145" y="150" text-anchor="middle" font-size="14">C</text><text x="1145" y="172" text-anchor="middle" font-size="13" class="svg-dim">99.9%</text>
+            <text x="820" y="240" font-size="18">Chain of 3 services ⇒ ceiling ≈ <tspan fill="var(--red)" font-weight="700">99.8%</tspan></text>
+            <text x="820" y="270" font-size="15" class="svg-dim">A deep microservice chain must fight hard just to stand still.</text>
+          </g>
+        </svg>
+      </div>
+      <div class="footer"><span class="tag">99.99% ≈ 52 min/year down · 99.999% ≈ 5 min/year down</span><span>08 / 17</span></div>
+    </section>
+
+    <!-- SLIDE 8: Reliability, Durability, Availability triad -->
+    <section class="slide" data-idx="8">
+      <div class="grid-bg"></div>
+      <div class="eyebrow" id="s8-eye">THREE WORDS PEOPLE CONFUSE</div>
+      <div class="title" id="s8-title">Reliability vs Durability vs Availability</div>
+      <div class="subtitle" id="s8-sub">"Up" is not "correct" is not "safe." They fail independently.</div>
+      <div class="stage">
+        <svg viewBox="0 0 1420 620" style="width:100%;height:100%;">
+          <g id="s8-a"><circle cx="380" cy="200" r="120" fill="var(--blue)" opacity="0.08" stroke="var(--blue)"/>
+            <text x="380" y="140" text-anchor="middle" font-size="17" font-weight="700" fill="var(--blue)">Available</text>
+            <text x="380" y="200" text-anchor="middle" font-size="14" class="svg-dim">reachable, responds</text>
+            <text x="380" y="225" text-anchor="middle" font-size="14" class="svg-dim">right now</text></g>
+          <g id="s8-b"><circle cx="710" cy="200" r="120" fill="var(--amber)" opacity="0.08" stroke="var(--amber)"/>
+            <text x="710" y="140" text-anchor="middle" font-size="17" font-weight="700" fill="var(--amber)">Reliable</text>
+            <text x="710" y="200" text-anchor="middle" font-size="14" class="svg-dim">returns correct</text>
+            <text x="710" y="225" text-anchor="middle" font-size="14" class="svg-dim">results</text></g>
+          <g id="s8-c"><circle cx="1040" cy="200" r="120" fill="var(--green)" opacity="0.08" stroke="var(--green)"/>
+            <text x="1040" y="140" text-anchor="middle" font-size="17" font-weight="700" fill="var(--green)">Durable</text>
+            <text x="1040" y="200" text-anchor="middle" font-size="14" class="svg-dim">data survives</text>
+            <text x="1040" y="225" text-anchor="middle" font-size="14" class="svg-dim">crashes forever</text></g>
+
+          <g id="s8-example" opacity="0">
+            <rect x="230" y="400" width="960" height="150" rx="10" fill="var(--panel)" stroke="var(--line)"/>
+            <text x="260" y="435" font-size="15" letter-spacing="2" class="svg-dim">CLASSIC MISMATCH</text>
+            <text x="260" y="470" font-size="17">A service that's <tspan fill="var(--blue)" font-weight="700">reachable</tspan> but silently drops writes:</text>
+            <text x="260" y="498" font-size="17">100% available, 0% reliable.</text>
+            <text x="260" y="526" font-size="17">A cache that's instant but wiped on restart: fast, but <tspan fill="var(--green)" font-weight="700">not durable</tspan> at all.</text>
+          </g>
+        </svg>
+      </div>
+      <div class="footer"><span class="tag">Durability = replicated persistent storage · Reliability = correctness under failure</span><span>09 / 17</span></div>
+    </section>
+
+    <!-- SLIDE 9: Consistency (teaser) -->
+    <section class="slide" data-idx="9">
+      <div class="grid-bg"></div>
+      <div class="eyebrow" id="s9-eye">A PREVIEW</div>
+      <div class="title" id="s9-title">Consistency</div>
+      <div class="subtitle" id="s9-sub">What is a read even allowed to see, once data lives on more than one machine?</div>
+      <div class="stage">
+        <svg viewBox="0 0 1420 620" style="width:100%;height:100%;">
+          <g id="s9-nodes">
+            <circle cx="300" cy="200" r="70" fill="var(--panel)" stroke="var(--blue)"/><text x="300" y="205" text-anchor="middle" font-size="15">Node A</text>
+            <circle cx="700" cy="200" r="70" fill="var(--panel)" stroke="var(--amber)"/><text x="700" y="205" text-anchor="middle" font-size="15">Node B</text>
+            <circle cx="1100" cy="200" r="70" fill="var(--panel)" stroke="var(--green)"/><text x="1100" y="205" text-anchor="middle" font-size="15">Node C</text>
+          </g>
+          <g id="s9-write" opacity="0">
+            <text x="300" y="150" text-anchor="middle" font-size="14" fill="var(--red)">write: x=5</text>
+          </g>
+          <g id="s9-question" opacity="0">
+            <text x="700" y="150" text-anchor="middle" font-size="14" class="svg-dim">read x = ?</text>
+            <text x="1100" y="150" text-anchor="middle" font-size="14" class="svg-dim">read x = ?</text>
+          </g>
+          <g id="s9-answer" opacity="0">
+            <rect x="230" y="330" width="960" height="180" rx="10" fill="var(--panel)" stroke="var(--line)"/>
+            <text x="260" y="365" font-size="15" letter-spacing="2" class="svg-dim">THE SPECTRUM</text>
+            <text x="260" y="400" font-size="18"><tspan fill="var(--blue)" font-weight="700">Strong</tspan> — every node instantly agrees. Costly, but never surprising.</text>
+            <text x="260" y="435" font-size="18"><tspan fill="var(--amber)" font-weight="700">Eventual</tspan> — nodes catch up "eventually." Fast, sometimes stale.</text>
+            <text x="260" y="470" font-size="18">A full episode is coming for this — it's the deepest topic in the field.</text>
+          </g>
+        </svg>
+      </div>
+      <div class="footer"><span class="tag">Full treatment — Lamport/vector clocks, CAP, PACELC — in the Distributed Systems episode</span><span>10 / 17</span></div>
+    </section>
+
+    <!-- SLIDE 10: Scalability -->
+    <section class="slide" data-idx="10">
+      <div class="grid-bg"></div>
+      <div class="eyebrow" id="s10-eye">GROWING WITHOUT BREAKING</div>
+      <div class="title" id="s10-title">Scalability</div>
+      <div class="subtitle" id="s10-sub">When load doubles, do you buy a bigger machine — or hire another one?</div>
+      <div class="stage">
+        <svg viewBox="0 0 1420 620" style="width:100%;height:100%;">
+          <text x="330" y="50" text-anchor="middle" font-size="18" font-weight="700" fill="var(--blue)">Vertical (scale up)</text>
+          <g id="s10-vert"></g>
+          <text x="1080" y="50" text-anchor="middle" font-size="18" font-weight="700" fill="var(--green)">Horizontal (scale out)</text>
+          <g id="s10-horiz"></g>
+          <line x1="710" y1="0" x2="710" y2="420" stroke="var(--line)"/>
+          <g id="s10-notes" opacity="0">
+            <text x="90" y="460" font-size="15" class="svg-dim">Simple. Hard ceiling. No fault-tolerance benefit.</text>
+            <text x="840" y="460" font-size="15" class="svg-dim">Needs stateless services + partitioned data.</text>
+            <text x="840" y="486" font-size="15" class="svg-dim">Nearly unbounded — and free fault tolerance.</text>
+          </g>
+          <g id="s10-verdict" opacity="0">
+            <rect x="330" y="530" width="760" height="70" rx="10" fill="var(--panel)" stroke="var(--line)"/>
+            <text x="360" y="572" font-size="17">Most large systems go horizontal-first — for the redundancy, not just the capacity.</text>
+          </g>
+        </svg>
+      </div>
+      <div class="footer"><span class="tag">Horizontal scaling requires the system to be designed for distribution up front</span><span>11 / 17</span></div>
+    </section>
+
+    <!-- SLIDE 11: Maintainability -->
+    <section class="slide" data-idx="11">
+      <div class="grid-bg"></div>
+      <div class="eyebrow" id="s11-eye">THE INVISIBLE COST</div>
+      <div class="title" id="s11-title">Maintainability</div>
+      <div class="subtitle" id="s11-sub">Most engineering time is spent maintaining systems, not building them.</div>
+      <div class="stage">
+        <svg viewBox="0 0 1420 620" style="width:100%;height:100%;">
+          <!-- iceberg -->
+          <line x1="80" y1="260" x2="1340" y2="260" stroke="var(--blue)" stroke-dasharray="6,6" opacity="0.6"/>
+          <text x="1340" y="245" text-anchor="end" font-size="13" fill="var(--blue)">waterline — what a demo shows</text>
+          <polygon id="s11-berg" points="710,60 810,260 610,260" fill="var(--panel)" stroke="var(--dim)" opacity="0"/>
+          <text id="s11-tip" x="710" y="200" text-anchor="middle" font-size="15" opacity="0">features that ship</text>
+          <polygon id="s11-berg2" points="710,260 1050,560 370,560" fill="var(--panel)" stroke="var(--dim2)" opacity="0"/>
+          <g id="s11-under" opacity="0">
+            <text x="710" y="330" text-anchor="middle" font-size="15" class="svg-dim">operability — dashboards, runbooks, alerts</text>
+            <text x="710" y="380" text-anchor="middle" font-size="15" class="svg-dim">simplicity — avoiding accidental complexity</text>
+            <text x="710" y="430" text-anchor="middle" font-size="15" class="svg-dim">evolvability — changing it without a rewrite</text>
+            <text x="710" y="480" text-anchor="middle" font-size="15" class="svg-dim">someone else must understand this in 2 years</text>
+          </g>
+        </svg>
+      </div>
+      <div class="footer"><span class="tag">The most under-weighted "ility" in interviews — the dominant cost in reality</span><span>12 / 17</span></div>
+    </section>
+
+    <!-- SLIDE 12: Fault Tolerance -->
+    <section class="slide" data-idx="12">
+      <div class="grid-bg"></div>
+      <div class="eyebrow" id="s12-eye">FAILURE IS THE DEFAULT</div>
+      <div class="title" id="s12-title">Fault Tolerance</div>
+      <div class="subtitle" id="s12-sub">At scale, a machine failing isn't an incident. It's Tuesday.</div>
+      <div class="stage">
+        <svg viewBox="0 0 1420 620" style="width:100%;height:100%;">
+          <rect x="80" y="60" width="220" height="70" rx="8" fill="var(--panel)" stroke="var(--blue)"/><text x="190" y="100" text-anchor="middle" font-size="15">Load Balancer</text>
+          <g id="s12-servers">
+            <rect id="s12-s1" x="450" y="20" width="180" height="70" rx="8" fill="var(--panel)" stroke="var(--green)"/><text x="540" y="60" text-anchor="middle" font-size="14">Server 1</text>
+            <rect id="s12-s2" x="450" y="110" width="180" height="70" rx="8" fill="var(--panel)" stroke="var(--green)"/><text x="540" y="150" text-anchor="middle" font-size="14">Server 2</text>
+            <rect id="s12-s3" x="450" y="200" width="180" height="70" rx="8" fill="var(--panel)" stroke="var(--green)"/><text x="540" y="240" text-anchor="middle" font-size="14">Server 3</text>
+          </g>
+          <g id="s12-lines">
+            <line x1="300" y1="95" x2="450" y2="55" stroke="var(--dim2)"/>
+            <line x1="300" y1="95" x2="450" y2="145" stroke="var(--dim2)"/>
+            <line x1="300" y1="95" x2="450" y2="235" stroke="var(--dim2)"/>
+          </g>
+          <g id="s12-fail" opacity="0">
+            <text x="540" y="45" text-anchor="middle" font-size="22">✕</text>
+          </g>
+          <g id="s12-reroute" opacity="0">
+            <line x1="300" y1="95" x2="450" y2="55" stroke="var(--red)" stroke-width="2" stroke-dasharray="4,4"/>
+          </g>
+          <g id="s12-toolbox" opacity="0">
+            <rect x="800" y="60" width="540" height="330" rx="10" fill="var(--panel)" stroke="var(--line)"/>
+            <text x="830" y="100" font-size="16" letter-spacing="2" class="svg-dim">THE TOOLBOX</text>
+            <text x="830" y="140" font-size="17"><tspan fill="var(--blue)" font-weight="700">Redundancy</tspan> — no single point of failure</text>
+            <text x="830" y="180" font-size="17"><tspan fill="var(--amber)" font-weight="700">Timeouts</tspan> — don't wait forever for a dead node</text>
+            <text x="830" y="220" font-size="17"><tspan fill="var(--green)" font-weight="700">Retries</tspan> — assume transient failure, try again</text>
+            <text x="830" y="260" font-size="17"><tspan fill="var(--red)" font-weight="700">Circuit breakers</tspan> — stop calling a service that's down</text>
+            <text x="830" y="300" font-size="17"><tspan fill="var(--purple)" font-weight="700">Bulkheads</tspan> — isolate failure so it can't cascade</text>
+          </g>
+        </svg>
+      </div>
+      <div class="footer"><span class="tag">Design assuming components WILL fail, not treating it as an edge case</span><span>13 / 17</span></div>
+    </section>
+
+    <!-- SLIDE 13: Disaster Recovery -->
+    <section class="slide" data-idx="13">
+      <div class="grid-bg"></div>
+      <div class="eyebrow" id="s13-eye">WHEN THE WHOLE REGION GOES DARK</div>
+      <div class="title" id="s13-title">Disaster Recovery</div>
+      <div class="subtitle" id="s13-sub">Two questions decide the entire DR budget: how much data can we lose, how long can we be down?</div>
+      <div class="stage">
+        <svg viewBox="0 0 1420 620" style="width:100%;height:100%;">
+          <line x1="100" y1="220" x2="1300" y2="220" stroke="var(--line)" stroke-width="2"/>
+          <circle id="s13-lastbackup" cx="450" cy="220" r="9" fill="var(--blue)" opacity="0"/>
+          <text x="450" y="190" text-anchor="middle" font-size="14" fill="var(--blue)" opacity="0" id="s13-lb-lbl">last good backup</text>
+          <circle id="s13-outage" cx="850" cy="220" r="9" fill="var(--red)" opacity="0"/>
+          <text x="850" y="190" text-anchor="middle" font-size="14" fill="var(--red)" opacity="0" id="s13-out-lbl">outage occurs</text>
+          <circle id="s13-restore" cx="1150" cy="220" r="9" fill="var(--green)" opacity="0"/>
+          <text x="1150" y="190" text-anchor="middle" font-size="14" fill="var(--green)" opacity="0" id="s13-res-lbl">fully restored</text>
+
+          <g id="s13-rpo" opacity="0">
+            <path d="M450,250 L850,250" stroke="var(--amber)" stroke-width="4"/>
+            <text x="650" y="280" text-anchor="middle" font-size="16" fill="var(--amber)" font-weight="700">RPO — data you can afford to lose</text>
+          </g>
+          <g id="s13-rto" opacity="0">
+            <path d="M850,320 L1150,320" stroke="var(--purple)" stroke-width="4"/>
+            <text x="1000" y="350" text-anchor="middle" font-size="16" fill="var(--purple)" font-weight="700">RTO — time you can afford to be down</text>
+          </g>
+
+          <g id="s13-tiers" opacity="0">
+            <rect x="120" y="420" width="330" height="130" rx="10" fill="var(--panel)" stroke="var(--dim2)"/>
+            <text x="150" y="455" font-size="16" font-weight="700">Cold</text><text x="150" y="482" font-size="14" class="svg-dim">backups only</text><text x="150" y="506" font-size="14" class="svg-dim">cheap, slow recovery</text>
+            <rect x="490" y="420" width="330" height="130" rx="10" fill="var(--panel)" stroke="var(--amber)"/>
+            <text x="520" y="455" font-size="16" font-weight="700">Warm</text><text x="520" y="482" font-size="14" class="svg-dim">standby replicas</text><text x="520" y="506" font-size="14" class="svg-dim">moderate cost &amp; speed</text>
+            <rect x="860" y="420" width="330" height="130" rx="10" fill="var(--panel)" stroke="var(--green)"/>
+            <text x="890" y="455" font-size="16" font-weight="700">Hot</text><text x="890" y="482" font-size="14" class="svg-dim">active-active, multi-region</text><text x="890" y="506" font-size="14" class="svg-dim">expensive, near-instant</text>
+          </g>
+        </svg>
+      </div>
+      <div class="footer"><span class="tag">DR strategy is a direct dial against cost — pick the tier your business can justify</span><span>14 / 17</span></div>
+    </section>
+
+    <!-- SLIDE 14: Observability -->
+    <section class="slide" data-idx="14">
+      <div class="grid-bg"></div>
+      <div class="eyebrow" id="s14-eye">SEEING WHAT YOU DIDN'T ANTICIPATE</div>
+      <div class="title" id="s14-title">Observability</div>
+      <div class="subtitle" id="s14-sub">Monitoring watches for failures you predicted. Observability lets you debug the ones you didn't.</div>
+      <div class="stage">
+        <svg viewBox="0 0 1420 620" style="width:100%;height:100%;">
+          <g id="s14-p1"><circle cx="330" cy="220" r="100" fill="var(--blue)" opacity="0.08" stroke="var(--blue)"/>
+            <text x="330" y="205" text-anchor="middle" font-size="18" font-weight="700" fill="var(--blue)">Logs</text>
+            <text x="330" y="235" text-anchor="middle" font-size="13" class="svg-dim">discrete events,</text>
+            <text x="330" y="255" text-anchor="middle" font-size="13" class="svg-dim">forensic detail</text></g>
+          <g id="s14-p2"><circle cx="710" cy="220" r="100" fill="var(--amber)" opacity="0.08" stroke="var(--amber)"/>
+            <text x="710" y="205" text-anchor="middle" font-size="18" font-weight="700" fill="var(--amber)">Metrics</text>
+            <text x="710" y="235" text-anchor="middle" font-size="13" class="svg-dim">aggregated trends,</text>
+            <text x="710" y="255" text-anchor="middle" font-size="13" class="svg-dim">good for alerting</text></g>
+          <g id="s14-p3"><circle cx="1090" cy="220" r="100" fill="var(--green)" opacity="0.08" stroke="var(--green)"/>
+            <text x="1090" y="205" text-anchor="middle" font-size="18" font-weight="700" fill="var(--green)">Traces</text>
+            <text x="1090" y="235" text-anchor="middle" font-size="13" class="svg-dim">one request's path</text>
+            <text x="1090" y="255" text-anchor="middle" font-size="13" class="svg-dim">across every service</text></g>
+
+          <g id="s14-example" opacity="0">
+            <rect x="230" y="400" width="960" height="150" rx="10" fill="var(--panel)" stroke="var(--line)"/>
+            <text x="260" y="435" font-size="15" letter-spacing="2" class="svg-dim">HOW THEY COMBINE</text>
+            <text x="260" y="470" font-size="17">A metric spike says <tspan fill="var(--amber)">"p99 jumped."</tspan></text>
+            <text x="260" y="498" font-size="17">A trace shows <tspan fill="var(--green)">which hop</tspan> got slow. A log shows <tspan fill="var(--blue)">exactly why</tspan>.</text>
+            <text x="260" y="526" font-size="16" class="svg-dim">At scale, this is the only way to reason about systems too complex to hold in your head.</text>
+          </g>
+        </svg>
+      </div>
+      <div class="footer"><span class="tag">Not optional tooling — the only lens into systems bigger than one mind</span><span>15 / 17</span></div>
+    </section>
+
+    <!-- SLIDE 15: Full Concept Map / Recap -->
+    <section class="slide" data-idx="15">
+      <div class="grid-bg"></div>
+      <div class="eyebrow" id="s15-eye">ZOOMING OUT</div>
+      <div class="title" id="s15-title">How It All Connects</div>
+      <div class="subtitle" id="s15-sub">Every "-ility" you just learned is one answer to the same underlying question.</div>
+      <div class="stage">
+        <svg viewBox="0 0 1420 620" style="width:100%;height:100%;">
+          <circle cx="710" cy="300" r="110" fill="var(--panel)" stroke="var(--red)" id="s15-core"/>
+          <text x="710" y="290" text-anchor="middle" font-size="18" font-weight="700" fill="var(--red)">Requirements</text>
+          <text x="710" y="315" text-anchor="middle" font-size="14" class="svg-dim">functional +</text>
+          <text x="710" y="335" text-anchor="middle" font-size="14" class="svg-dim">non-functional</text>
+
+          <g id="s15-orbit"></g>
+        </svg>
+      </div>
+      <div class="footer"><span class="tag">One requirement, many "-ilities" answering it from different angles</span><span>16 / 17</span></div>
+    </section>
+
+    <!-- SLIDE 16: Closing / cliffhanger -->
+    <section class="slide" data-idx="16">
+      <div class="grid-bg"></div>
+      <div class="eyebrow" id="s16-eye">EPISODE 1 — COMPLETE</div>
+      <div class="title" id="s16-title">The Single-Machine Mindset, Retired</div>
+      <div class="subtitle" id="s16-sub" style="max-width:1100px;">You now have the vocabulary to reason about ONE well-designed machine — its speed, its uptime, its honesty.</div>
+      <div class="stage">
+        <svg viewBox="0 0 1420 620" style="width:100%;height:100%;">
+          <g id="s16-recap" opacity="0">
+            <text x="60" y="60" font-size="17" fill="var(--blue)" font-weight="700">RECAP</text>
+            <text x="60" y="94" font-size="20">One machine. One clock. One consistent view of the truth.</text>
+          </g>
+          <g id="s16-gap" opacity="0">
+            <text x="60" y="170" font-size="17" fill="var(--amber)" font-weight="700">GAP</text>
+            <text x="60" y="204" font-size="20">But real systems don't run on one machine — they run on hundreds,</text>
+            <text x="60" y="234" font-size="20">across data centers, with no shared clock and an unreliable network.</text>
+            <text x="60" y="264" font-size="20" font-weight="700" fill="var(--amber)">So what happens to "consistency" when there is no single truth to agree on?</text>
+          </g>
+          <g id="s16-fill" opacity="0">
+            <text x="60" y="350" font-size="17" fill="var(--green)" font-weight="700">FILL — NEXT EPISODE</text>
+            <rect x="60" y="380" width="1300" height="160" rx="12" fill="var(--panel)" stroke="var(--green)"/>
+            <text x="90" y="425" font-size="22" font-weight="700">Distributed Systems</text>
+            <text x="90" y="458" font-size="16" class="svg-dim">Network partitions · logical &amp; vector clocks · CAP &amp; PACELC</text>
+            <text x="90" y="485" font-size="16" class="svg-dim">Consensus &amp; leader election · replication &amp; partitioning</text>
+            <text x="90" y="512" font-size="16" class="svg-dim">Distributed transactions · locks, leases &amp; failure detectors</text>
+          </g>
+        </svg>
+      </div>
+      <div class="footer"><span class="tag">Say "next episode" any time to continue the series</span><span>17 / 17</span></div>
+    </section>
+
+  </div>
+</div>
+
+<div class="navzone">
+  <div class="side left" onclick="prevSlide()"></div>
+  <div class="side right" onclick="nextSlide()"></div>
+</div>
+
+<div id="hud">
+  <button onclick="prevSlide()">‹</button>
+  <div class="count" id="hudcount">1 / 17</div>
+  <button onclick="nextSlide()">›</button>
+</div>
+
+<script>
+const TOTAL = 17;
+let idx = 0;
+
+function fit(){
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const scale = Math.min(vw/1600, vh/900) * 0.94;
+  document.getElementById('stagewrap').style.transform = `scale(${scale})`;
+}
+window.addEventListener('resize', fit);
+fit();
+
+function resetSlideAnims(el){
+  el.querySelectorAll('[id]').forEach(n=>{});
+}
+
+function animateCount(el, target, duration, suffix){
+  suffix = suffix || '';
+  const start = performance.now();
+  function step(t){
+    const p = Math.min((t-start)/duration, 1);
+    const eased = 1 - Math.pow(1-p, 3);
+    const val = Math.round(target*eased);
+    el.textContent = val.toLocaleString() + suffix;
+    if(p<1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+const slideAnimations = {
+  0: function(root){
+    const nodesG = root.querySelector('#s0-nodes');
+    nodesG.innerHTML='';
+    const colors=['#5b9bd9','#d9a55b','#5fbfa0','#d97a6b','#a08bd0'];
+    const labels=['Latency','Availability','Scalability','Durability','Observability'];
+    labels.forEach((lab,i)=>{
+      const ang = (i/labels.length)*Math.PI*2 - Math.PI/2;
+      const x = 710+Math.cos(ang)*230, y=300+Math.sin(ang)*180;
+      const c = document.createElementNS('http://www.w3.org/2000/svg','circle');
+      c.setAttribute('cx',x); c.setAttribute('cy',y); c.setAttribute('r',6);
+      c.setAttribute('fill',colors[i%colors.length]); c.setAttribute('opacity',0);
+      c.style.animation=`popIn .5s ease forwards`; c.style.animationDelay=(0.6+i*0.15)+'s';
+      nodesG.appendChild(c);
+      const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+      line.setAttribute('x1',710); line.setAttribute('y1',300); line.setAttribute('x2',x); line.setAttribute('y2',y);
+      line.setAttribute('stroke','#252a38'); line.setAttribute('opacity',0);
+      line.style.animation=`fadeIn .5s ease forwards`; line.style.animationDelay=(0.5+i*0.15)+'s';
+      nodesG.insertBefore(line, nodesG.firstChild);
+      const t = document.createElementNS('http://www.w3.org/2000/svg','text');
+      t.setAttribute('x',x); t.setAttribute('y', y> 300? y+26:y-16); t.setAttribute('text-anchor','middle');
+      t.setAttribute('font-size','13'); t.setAttribute('fill','#7d8494'); t.textContent=lab; t.setAttribute('opacity',0);
+      t.style.animation=`fadeIn .5s ease forwards`; t.style.animationDelay=(0.7+i*0.15)+'s';
+      nodesG.appendChild(t);
+    });
+    ['s0-eye','s0-title','s0-sub'].forEach((id,i)=>{
+      const e=root.querySelector('#'+id); e.style.opacity=0;
+      e.style.animation='fadeUp .6s ease forwards'; e.style.animationDelay=(i*0.15)+'s';
+    });
+  },
+  1: function(root){
+    ['s1-eye','s1-title','s1-sub'].forEach((id,i)=>{ show(root,id,i*0.12); });
+    anim(root,'#s1-arrow','drawLine .5s ease forwards','.5s');
+    fadeGroup(root,'#s1-q1','.9s'); fadeGroup(root,'#s1-q2','1.05s'); fadeGroup(root,'#s1-q3','1.2s');
+    fadeGroup(root,'#s1-recap','1.6s'); fadeGroup(root,'#s1-gap','2.0s'); fadeGroup(root,'#s1-fill','2.5s');
+    fadeGroup(root,'#s1-fr','2.9s'); fadeGroup(root,'#s1-nfr','3.05s');
+  },
+  2: function(root){
+    ['s2-eye','s2-title','s2-sub'].forEach((id,i)=>show(root,id,i*0.12));
+    fadeGroup(root,'#s2-left','.5s'); fadeGroup(root,'#s2-right','.7s'); fadeGroup(root,'#s2-insight','1.3s');
+  },
+  3: function(root){
+    ['s3-eye','s3-title','s3-sub'].forEach((id,i)=>show(root,id,i*0.12));
+    fadeGroup(root,'#s3-b1','.4s'); fadeGroup(root,'#s3-b2','.7s'); fadeGroup(root,'#s3-b3','1.0s'); fadeGroup(root,'#s3-b4','1.3s');
+    setTimeout(()=>animateCount(root.querySelector('#s3-n1'),2000000,700),400);
+    setTimeout(()=>animateCount(root.querySelector('#s3-n2'),20000000,700),700);
+    setTimeout(()=>animateCount(root.querySelector('#s3-n3'),231,700),1000);
+    setTimeout(()=>animateCount(root.querySelector('#s3-n4'),694,900),1300);
+    fadeGroup(root,'#s3-formula','1.8s'); fadeGroup(root,'#s3-why','2.2s');
+  },
+  4: function(root){
+    ['s4-eye','s4-title','s4-sub'].forEach((id,i)=>show(root,id,i*0.12));
+    const g = root.querySelector('#s4-stack'); g.innerHTML='';
+    const colors=['#5b9bd9','#d9a55b','#5fbfa0','#a08bd0','#d97a6b','#5b9bd9','#d9a55b'];
+    for(let i=0;i<7;i++){
+      const r=document.createElementNS('http://www.w3.org/2000/svg','rect');
+      r.setAttribute('x',80); r.setAttribute('y',540-i*70); r.setAttribute('width',180); r.setAttribute('height',60);
+      r.setAttribute('rx',6); r.setAttribute('fill','#0e1119'); r.setAttribute('stroke',colors[i]); r.setAttribute('opacity',0);
+      r.style.animation='popIn .4s ease forwards'; r.style.animationDelay=(0.3+i*0.12)+'s';
+      g.appendChild(r);
+    }
+    fadeGroup(root,'#s4-labels','.5s'); fadeGroup(root,'#s4-result','1.4s'); fadeGroup(root,'#s4-real','1.8s'); fadeGroup(root,'#s4-choice','2.3s');
+  },
+  5: function(root){
+    ['s5-eye','s5-title','s5-sub'].forEach((id,i)=>show(root,id,i*0.12));
+    const curve = root.querySelector('#s5-curve');
+    curve.style.animation='drawLine 1.4s ease forwards'; curve.style.animationDelay='.3s';
+    fadeGroup(root,'#s5-tail','1.6s');
+    fadeGroup(root,'#s5-p50','1.9s'); fadeGroup(root,'#s5-p95','2.1s'); fadeGroup(root,'#s5-p99','2.3s');
+    fadeGroup(root,'#s5-insight','2.7s'); fadeGroup(root,'#s5-chain','3.0s');
+  },
+  6: function(root){
+    ['s6-eye','s6-title','s6-sub'].forEach((id,i)=>show(root,id,i*0.12));
+    const g = root.querySelector('#s6-packets'); g.innerHTML='';
+    for(let i=0;i<8;i++){
+      const c = document.createElementNS('http://www.w3.org/2000/svg','circle');
+      c.setAttribute('cy',285); c.setAttribute('r',16); c.setAttribute('fill','#5b9bd9'); c.setAttribute('opacity',0);
+      c.setAttribute('cx',100);
+      g.appendChild(c);
+      const delay=0.4+i*0.18;
+      c.style.transition='none';
+      setTimeout(()=>{
+        c.style.opacity=1;
+        c.style.transition='cx 1.6s linear, opacity .2s';
+        c.setAttribute('cx',1300);
+        setTimeout(()=>{c.style.opacity=0;}, 1500);
+      }, delay*1000);
+    }
+    fadeGroup(root,'#s6-lat-vs-thr','1.0s'); fadeGroup(root,'#s6-target','1.4s');
+  },
+  7: function(root){
+    ['s7-eye','s7-title','s7-sub'].forEach((id,i)=>show(root,id,i*0.12));
+    const g = root.querySelector('#s7-ladder'); g.innerHTML='';
+    const rows=[
+      ['90%','36.5 days / year','#d97a6b'],
+      ['99%','3.65 days / year','#d9a55b'],
+      ['99.9%','8.7 hours / year','#a08bd0'],
+      ['99.99%','52 minutes / year','#5b9bd9'],
+      ['99.999%','5 minutes / year','#5fbfa0'],
+    ];
+    rows.forEach((r,i)=>{
+      const y=60+i*80;
+      const rect=document.createElementNS('http://www.w3.org/2000/svg','rect');
+      rect.setAttribute('x',60); rect.setAttribute('y',y); rect.setAttribute('width',700-i*30); rect.setAttribute('height',56);
+      rect.setAttribute('rx',8); rect.setAttribute('fill','#0e1119'); rect.setAttribute('stroke',r[2]); rect.setAttribute('opacity',0);
+      rect.style.animation='fadeUp .5s ease forwards'; rect.style.animationDelay=(0.3+i*0.18)+'s';
+      g.appendChild(rect);
+      const t1=document.createElementNS('http://www.w3.org/2000/svg','text');
+      t1.setAttribute('x',85); t1.setAttribute('y',y+36); t1.setAttribute('font-size','20'); t1.setAttribute('font-weight','700'); t1.setAttribute('fill',r[2]);
+      t1.textContent=r[0]; t1.setAttribute('opacity',0);
+      t1.style.animation='fadeUp .5s ease forwards'; t1.style.animationDelay=(0.4+i*0.18)+'s';
+      g.appendChild(t1);
+      const t2=document.createElementNS('http://www.w3.org/2000/svg','text');
+      t2.setAttribute('x',220); t2.setAttribute('y',y+36); t2.setAttribute('font-size','16'); t2.setAttribute('fill','#eef1f7');
+      t2.textContent='downtime allowed: '+r[1]; t2.setAttribute('opacity',0);
+      t2.style.animation='fadeUp .5s ease forwards'; t2.style.animationDelay=(0.45+i*0.18)+'s';
+      g.appendChild(t2);
+    });
+    fadeGroup(root,'#s7-composition','2.0s');
+  },
+  8: function(root){
+    ['s8-eye','s8-title','s8-sub'].forEach((id,i)=>show(root,id,i*0.12));
+    fadeGroup(root,'#s8-a','.4s'); fadeGroup(root,'#s8-b','.6s'); fadeGroup(root,'#s8-c','.8s');
+    fadeGroup(root,'#s8-example','1.4s');
+  },
+  9: function(root){
+    ['s9-eye','s9-title','s9-sub'].forEach((id,i)=>show(root,id,i*0.12));
+    fadeGroup(root,'#s9-nodes','.4s');
+    fadeGroup(root,'#s9-write','.9s'); fadeGroup(root,'#s9-question','1.3s'); fadeGroup(root,'#s9-answer','1.9s');
+  },
+  10: function(root){
+    ['s10-eye','s10-title','s10-sub'].forEach((id,i)=>show(root,id,i*0.12));
+    const v = root.querySelector('#s10-vert'); v.innerHTML='';
+    const sizes=[[60,50],[90,44],[130,36],[190,26]];
+    let y=380;
+    sizes.forEach((s,i)=>{
+      const r=document.createElementNS('http://www.w3.org/2000/svg','rect');
+      r.setAttribute('x',330-s[0]/2); r.setAttribute('y',y-s[1]); r.setAttribute('width',s[0]); r.setAttribute('height',s[1]);
+      r.setAttribute('rx',6); r.setAttribute('fill','#0e1119'); r.setAttribute('stroke','#5b9bd9'); r.setAttribute('opacity',0);
+      r.style.animation='popIn .4s ease forwards'; r.style.animationDelay=(0.4+i*0.25)+'s';
+      v.appendChild(r); y-=s[1];
+    });
+    const h = root.querySelector('#s10-horiz'); h.innerHTML='';
+    for(let i=0;i<5;i++){
+      const r=document.createElementNS('http://www.w3.org/2000/svg','rect');
+      r.setAttribute('x',900+i*100); r.setAttribute('y',330); r.setAttribute('width',70); r.setAttribute('height',70);
+      r.setAttribute('rx',8); r.setAttribute('fill','#0e1119'); r.setAttribute('stroke','#5fbfa0'); r.setAttribute('opacity',0);
+      r.style.animation='popIn .4s ease forwards'; r.style.animationDelay=(0.4+i*0.18)+'s';
+      h.appendChild(r);
+    }
+    fadeGroup(root,'#s10-notes','1.8s'); fadeGroup(root,'#s10-verdict','2.3s');
+  },
+  11: function(root){
+    ['s11-eye','s11-title','s11-sub'].forEach((id,i)=>show(root,id,i*0.12));
+    fadeGroup(root,'#s11-berg','.5s'); fadeGroup(root,'#s11-tip','1.0s');
+    fadeGroup(root,'#s11-berg2','1.3s'); fadeGroup(root,'#s11-under','1.9s');
+  },
+  12: function(root){
+    ['s12-eye','s12-title','s12-sub'].forEach((id,i)=>show(root,id,i*0.12));
+    fadeGroup(root,'#s12-servers','.4s'); fadeGroup(root,'#s12-lines','.6s');
+    setTimeout(()=>{
+      const s1=root.querySelector('#s12-s1'); s1.setAttribute('stroke','#d97a6b'); s1.style.animation='pulseSoft 1s ease infinite';
+      const fail=root.querySelector('#s12-fail'); fail.style.animation='popIn .4s ease forwards';
+      const re=root.querySelector('#s12-reroute'); re.style.animation='fadeIn .4s ease forwards';
+    }, 1300);
+    fadeGroup(root,'#s12-toolbox','2.2s');
+  },
+  13: function(root){
+    ['s13-eye','s13-title','s13-sub'].forEach((id,i)=>show(root,id,i*0.12));
+    fadeGroup(root,'#s13-lastbackup','.5s'); fadeGroup(root,'#s13-lb-lbl','.5s');
+    fadeGroup(root,'#s13-outage','1.0s'); fadeGroup(root,'#s13-out-lbl','1.0s');
+    fadeGroup(root,'#s13-restore','1.5s'); fadeGroup(root,'#s13-res-lbl','1.5s');
+    fadeGroup(root,'#s13-rpo','1.9s'); fadeGroup(root,'#s13-rto','2.3s');
+    fadeGroup(root,'#s13-tiers','2.8s');
+  },
+  14: function(root){
+    ['s14-eye','s14-title','s14-sub'].forEach((id,i)=>show(root,id,i*0.12));
+    fadeGroup(root,'#s14-p1','.4s'); fadeGroup(root,'#s14-p2','.6s'); fadeGroup(root,'#s14-p3','.8s');
+    fadeGroup(root,'#s14-example','1.4s');
+  },
+  15: function(root){
+    ['s15-eye','s15-title','s15-sub'].forEach((id,i)=>show(root,id,i*0.12));
+    const g = root.querySelector('#s15-orbit'); g.innerHTML='';
+    const items=[
+      ['Latency','#5b9bd9'],['Throughput','#d9a55b'],['Availability','#5fbfa0'],
+      ['Reliability','#a08bd0'],['Durability','#d97a6b'],['Consistency','#5b9bd9'],
+      ['Scalability','#d9a55b'],['Maintainability','#5fbfa0'],['Fault Tolerance','#a08bd0'],
+      ['Disaster Recovery','#d97a6b'],['Observability','#5b9bd9']
+    ];
+    const n=items.length;
+    items.forEach((it,i)=>{
+      const ang=(i/n)*Math.PI*2 - Math.PI/2;
+      const rad=270;
+      const x=710+Math.cos(ang)*rad, y=300+Math.sin(ang)*rad*0.72;
+      const line=document.createElementNS('http://www.w3.org/2000/svg','line');
+      line.setAttribute('x1',710); line.setAttribute('y1',300); line.setAttribute('x2',x); line.setAttribute('y2',y);
+      line.setAttribute('stroke','#252a38'); line.setAttribute('opacity',0);
+      line.style.animation='fadeIn .4s ease forwards'; line.style.animationDelay=(0.4+i*0.08)+'s';
+      g.appendChild(line);
+      const c=document.createElementNS('http://www.w3.org/2000/svg','circle');
+      c.setAttribute('cx',x); c.setAttribute('cy',y); c.setAttribute('r',7); c.setAttribute('fill',it[1]); c.setAttribute('opacity',0);
+      c.style.animation='popIn .4s ease forwards'; c.style.animationDelay=(0.5+i*0.08)+'s';
+      g.appendChild(c);
+      const t=document.createElementNS('http://www.w3.org/2000/svg','text');
+      t.setAttribute('x',x); t.setAttribute('y', y>300 ? y+22 : y-14); t.setAttribute('text-anchor','middle');
+      t.setAttribute('font-size','13'); t.setAttribute('fill','#eef1f7'); t.textContent=it[0]; t.setAttribute('opacity',0);
+      t.style.animation='fadeIn .4s ease forwards'; t.style.animationDelay=(0.6+i*0.08)+'s';
+      g.appendChild(t);
+    });
+  },
+  16: function(root){
+    ['s16-eye','s16-title','s16-sub'].forEach((id,i)=>show(root,id,i*0.12));
+    fadeGroup(root,'#s16-recap','.5s'); fadeGroup(root,'#s16-gap','1.2s'); fadeGroup(root,'#s16-fill','2.3s');
+  }
+};
+
+function show(root,id,delay){
+  const e = root.querySelector('#'+id);
+  if(!e) return;
+  e.style.opacity = 0;
+  e.style.animation = 'fadeUp .6s ease forwards';
+  e.style.animationDelay = delay+'s';
+}
+function fadeGroup(root, sel, delay){
+  const e = root.querySelector(sel);
+  if(!e) return;
+  e.style.opacity = 0;
+  e.style.animation = 'fadeUp .55s ease forwards';
+  e.style.animationDelay = delay;
+}
+function anim(root, sel, animStr, delay){
+  const e = root.querySelector(sel);
+  if(!e) return;
+  e.style.animation = animStr;
+  e.style.animationDelay = delay;
+}
+
+function renderSlide(){
+  document.querySelectorAll('.slide').forEach(s=>s.classList.remove('active'));
+  const cur = document.querySelector(`.slide[data-idx="${idx}"]`);
+  cur.classList.add('active');
+  if(slideAnimations[idx]) slideAnimations[idx](cur);
+  document.getElementById('hudcount').textContent = `${idx+1} / ${TOTAL}`;
+  document.getElementById('progress').style.width = ((idx+1)/TOTAL*100)+'%';
+}
+function nextSlide(){ if(idx<TOTAL-1){ idx++; renderSlide(); } }
+function prevSlide(){ if(idx>0){ idx--; renderSlide(); } }
+document.addEventListener('keydown', e=>{
+  if(e.key==='ArrowRight' || e.key===' ') nextSlide();
+  if(e.key==='ArrowLeft') prevSlide();
+});
+
+renderSlide();
+</script>
+</body>
+</html>

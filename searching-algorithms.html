@@ -1,0 +1,1033 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Searching Algorithms — A Visual Deep Dive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0a0a0f;
+  --panel:#121218;
+  --panel2:#15151d;
+  --purple:#6c5ce7;
+  --purple-l:#a29bfe;
+  --pink:#fd79a8;
+  --green:#55efc4;
+  --yellow:#ffe58a;
+  --red:#ff7675;
+  --gray:#3a3a45;
+  --text:#eae8f5;
+  --muted:#8d8ba6;
+  --line:#232330;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;background:#000;color:var(--text);font-family:'Inter',sans-serif;overflow:hidden;height:100%;}
+.stage{width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 30%, #0d0d14 0%, #000 75%);}
+.viewport{width:1600px;height:900px;position:relative;transform-origin:center center;flex-shrink:0;}
+.slide{
+  position:absolute;inset:0;
+  width:1600px;height:900px;
+  background:var(--bg);
+  border-radius:14px;
+  border:1px solid var(--line);
+  padding:56px 76px;
+  display:none;
+  flex-direction:column;
+  gap:18px;
+  opacity:0;
+  transform:translateX(40px) scale(.985);
+  transition:opacity .5s ease, transform .5s ease;
+  overflow:hidden;
+}
+.slide.active{display:flex;opacity:1;transform:translateX(0) scale(1);}
+.slide.leaving-back{transform:translateX(-40px) scale(.985);}
+
+/* ---------- header ---------- */
+.eyebrow{font-size:14px;letter-spacing:.04em;color:var(--purple-l);font-weight:600;}
+.head h2{margin:2px 0 0 0;font-size:40px;font-weight:800;color:var(--text);letter-spacing:-.01em;}
+.hook{margin:6px 0 0 0;font-size:19px;color:var(--muted);font-style:italic;max-width:1200px;line-height:1.5;}
+.precond{display:inline-block;margin-top:8px;font-size:13px;color:var(--yellow);background:rgba(255,229,138,.08);border:1px solid rgba(255,229,138,.25);padding:4px 12px;border-radius:20px;}
+
+/* ---------- viz area ---------- */
+.viz-wrap{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;position:relative;}
+.array-wrap{display:flex;justify-content:center;align-items:flex-start;gap:12px;flex-wrap:wrap;max-width:1440px;}
+.col{display:flex;flex-direction:column;align-items:center;gap:6px;}
+.box{
+  width:62px;height:62px;border-radius:10px;
+  border:2px solid var(--purple);
+  background:#14141d;
+  display:flex;align-items:center;justify-content:center;
+  font-family:'JetBrains Mono',monospace;font-size:19px;font-weight:600;color:var(--text);
+  box-shadow:0 0 10px rgba(108,92,231,.12);
+  transition:background .35s ease, border-color .35s ease, box-shadow .35s ease, transform .35s ease, opacity .35s ease;
+}
+.box.mid{border-color:var(--pink);background:#241522;box-shadow:0 0 16px rgba(253,121,168,.28);transform:scale(1.1);}
+.box.found{border-color:var(--green);background:#0f2620;box-shadow:0 0 18px rgba(85,239,196,.32);transform:scale(1.14);}
+.box.eliminated{opacity:.22;transform:scale(.9);box-shadow:none;}
+.idx{font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;}
+.ptr-stack{display:flex;flex-direction:column;gap:3px;align-items:center;min-height:4px;}
+.ptr{font-size:11px;padding:2px 8px;border-radius:6px;font-weight:700;white-space:nowrap;font-family:'JetBrains Mono',monospace;letter-spacing:.03em;animation:pop .3s ease;}
+@keyframes pop{from{transform:scale(.6);opacity:0;}to{transform:scale(1);opacity:1;}}
+.ptr-low{background:rgba(85,239,196,.14);color:var(--green);}
+.ptr-high{background:rgba(255,118,117,.14);color:var(--red);}
+.ptr-mid{background:rgba(253,121,168,.16);color:var(--pink);}
+.ptr-j{background:rgba(255,229,138,.16);color:var(--yellow);}
+.caption{font-size:17px;color:var(--purple-l);min-height:26px;text-align:center;font-weight:500;max-width:1200px;}
+
+/* ---------- panels ---------- */
+.panels{display:flex;gap:22px;height:190px;}
+.panel{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 20px;overflow:auto;}
+.panel h4{margin:0 0 10px 0;font-size:13px;letter-spacing:.05em;color:var(--purple-l);font-weight:700;}
+.panel ul{margin:0;padding-left:18px;font-size:14px;line-height:1.55;color:#d6d4ea;}
+.panel li{margin-bottom:6px;}
+.cx-grid{display:grid;grid-template-columns:auto 1fr;gap:7px 16px;font-size:14.5px;font-family:'JetBrains Mono',monospace;}
+.cx-grid .k{color:var(--muted);}
+.cx-grid .v{color:var(--green);font-weight:600;}
+.formula-box{font-family:'JetBrains Mono',monospace;font-size:14.5px;background:#0e0e15;border:1px solid var(--line);border-radius:8px;padding:8px 12px;color:var(--pink);margin:4px 0 10px 0;display:inline-block;}
+
+/* replay button */
+.replay{position:absolute;top:0;right:0;background:var(--panel2);border:1px solid var(--line);color:var(--purple-l);font-size:13px;padding:8px 16px;border-radius:20px;cursor:pointer;font-weight:600;transition:.2s;}
+.replay:hover{background:var(--purple);color:#fff;}
+
+/* ---------- transition slides ---------- */
+.trans{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;text-align:center;}
+.trans .r{font-size:16px;color:var(--muted);}
+.trans .r b{color:var(--green);}
+.trans .g{font-size:34px;font-weight:700;color:var(--text);max-width:1150px;line-height:1.35;opacity:0;transform:translateY(14px);transition:opacity .6s ease, transform .6s ease;}
+.trans .g.show{opacity:1;transform:translateY(0);}
+.trans .g .q{color:var(--pink);}
+.trans .f{font-size:17px;color:var(--purple-l);opacity:0;transition:opacity .6s ease;}
+.trans .f.show{opacity:1;}
+
+/* ---------- title / hook ---------- */
+.title-slide{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;text-align:center;}
+.title-slide h1{font-size:64px;font-weight:800;margin:0;letter-spacing:-.02em;background:linear-gradient(90deg,var(--purple-l),var(--pink));-webkit-background-clip:text;background-clip:text;color:transparent;}
+.title-slide p{font-size:20px;color:var(--muted);max-width:800px;margin:0;}
+.title-slide .badges{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;justify-content:center;}
+.badge{font-size:13px;padding:6px 14px;border-radius:20px;border:1px solid var(--line);color:var(--purple-l);background:var(--panel);}
+
+/* ---------- table slide ---------- */
+.table-wrap{flex:1;overflow:auto;}
+table.cmp{width:100%;border-collapse:collapse;font-size:13.5px;}
+table.cmp th{text-align:left;color:var(--purple-l);font-weight:700;padding:8px 10px;border-bottom:2px solid var(--line);position:sticky;top:0;background:var(--bg);}
+table.cmp td{padding:8px 10px;border-bottom:1px solid var(--line);color:#d6d4ea;font-family:'JetBrains Mono',monospace;}
+table.cmp tr{opacity:0;transform:translateY(8px);transition:opacity .4s ease,transform .4s ease;}
+table.cmp tr.show{opacity:1;transform:translateY(0);}
+table.cmp td.name{font-family:'Inter',sans-serif;font-weight:600;color:var(--text);}
+.tag{font-size:11px;padding:2px 8px;border-radius:10px;background:rgba(108,92,231,.14);color:var(--purple-l);}
+
+/* ---------- mistakes / recap ---------- */
+.list-grid{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:16px;align-content:center;}
+.mcard{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 20px;opacity:0;transform:translateY(10px);transition:opacity .45s ease,transform .45s ease;}
+.mcard.show{opacity:1;transform:translateY(0);}
+.mcard .t{font-weight:700;color:var(--red);font-size:15px;margin-bottom:6px;}
+.mcard .t.ok{color:var(--green);}
+.mcard p{margin:0;font-size:13.5px;color:#d6d4ea;line-height:1.5;}
+
+.recap-list{flex:1;display:flex;flex-direction:column;justify-content:center;gap:11px;overflow:auto;}
+.rline{display:flex;gap:14px;align-items:baseline;opacity:0;transform:translateX(-10px);transition:opacity .4s ease,transform .4s ease;}
+.rline.show{opacity:1;transform:translateX(0);}
+.rline .n{font-family:'JetBrains Mono',monospace;color:var(--pink);font-size:14px;width:26px;flex-shrink:0;}
+.rline .t{font-weight:700;color:var(--text);font-size:15px;width:190px;flex-shrink:0;}
+.rline .d{color:var(--muted);font-size:14px;}
+
+/* ---------- nav ---------- */
+.nav{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:16px;z-index:50;}
+.navbtn{width:42px;height:42px;border-radius:50%;border:1px solid var(--line);background:var(--panel2);color:var(--purple-l);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.2s;}
+.navbtn:hover{background:var(--purple);color:#fff;}
+.navbtn:disabled{opacity:.3;cursor:default;}
+.dots{display:flex;gap:6px;}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--line);transition:.2s;}
+.dot.active{background:var(--purple-l);width:18px;border-radius:4px;}
+.counter{position:fixed;top:22px;right:28px;font-size:13px;color:var(--muted);font-family:'JetBrains Mono',monospace;z-index:50;}
+.hint{position:fixed;top:22px;left:28px;font-size:12px;color:var(--muted);z-index:50;}
+
+@media (prefers-reduced-motion: reduce){
+  .slide, .box, .g, .f, tr, .mcard, .rline{transition:none !important;}
+}
+</style>
+</head>
+<body>
+
+<div class="hint">← → to navigate · Space to replay</div>
+<div class="counter" id="counter">1 / 24</div>
+
+<div class="stage">
+  <div class="viewport" id="viewport">
+
+    <!-- 1: TITLE -->
+    <section class="slide" id="s0">
+      <div class="title-slide">
+        <div class="eyebrow">DSA VISUAL SERIES</div>
+        <h1>Searching Algorithms</h1>
+        <p>How do you find one thing inside a pile of things — fast? We'll build the answer from first principles, the way Feynman would: no magic, just the idea, and why it has to work.</p>
+        <div class="badges">
+          <span class="badge">7 core algorithms</span>
+          <span class="badge">7 binary-search patterns</span>
+          <span class="badge">theory + formulas + real uses</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2: HOOK -->
+    <section class="slide" id="s1">
+      <div class="trans">
+        <div class="r">Every app you use searches for something, constantly.</div>
+        <div class="g show">A phone book with a million names. A username database. A sorted log of a billion events.<br>How do you find <span class="q">one</span> entry without reading all of them?</div>
+        <div class="f show">That single question — "how much do I have to look at?" — is the entire subject. Let's start with the dumbest possible answer, then earn our way to the smart ones.</div>
+      </div>
+    </section>
+
+    <!-- 3: LINEAR SEARCH -->
+    <section class="slide algo" id="s2" data-key="linear"></section>
+
+    <!-- 4: TRANSITION linear -> binary -->
+    <section class="slide" id="s4">
+      <div class="trans">
+        <div class="r">RECAP: linear search checks every element — <b>O(n)</b>, guaranteed correct, works on anything.</div>
+        <div class="g">But if the data is already <span class="q">sorted</span>, we know something about every element we haven't looked at yet.<br>Why check them one at a time — why not throw away <span class="q">half</span> of them in a single comparison?</div>
+        <div class="f">That's the entire idea behind binary search. One comparison, half the haystack gone.</div>
+      </div>
+    </section>
+
+    <!-- 5: BINARY SEARCH -->
+    <section class="slide algo" id="s5" data-key="binary"></section>
+
+    <!-- 6: complexity chart -->
+    <section class="slide" id="s6">
+      <div class="head">
+        <div class="eyebrow">WHY log n IS NOT JUST A FORMULA</div>
+        <h2>Linear vs. Binary — growth, made visible</h2>
+        <p class="hook">The gap doesn't just grow. It <i>explodes</i>. This is the entire reason binary search matters in practice.</p>
+      </div>
+      <div class="viz-wrap">
+        <div id="chartHost" style="width:1200px;height:420px;"></div>
+        <div class="caption" id="chartCaption">n = 16 → linear needs up to 16 checks, binary needs 4.</div>
+      </div>
+    </section>
+
+    <!-- 7: TRANSITION binary -> patterns -->
+    <section class="slide" id="s7">
+      <div class="trans">
+        <div class="r">RECAP: binary search finds <b>an</b> index where the target lives, in O(log n).</div>
+        <div class="g">But real data has duplicates. <span class="q">Which</span> occurrence did we find — the first? The last? What if the target isn't even in the array — where should it be <i>inserted</i>?</div>
+        <div class="f">Binary search isn't one algorithm — it's a search strategy. Change what happens when you find a match, and you get a whole family of tools.</div>
+      </div>
+    </section>
+
+    <!-- 8: FIRST OCCURRENCE -->
+    <section class="slide algo" id="s8" data-key="first_occ"></section>
+    <!-- 9: LAST OCCURRENCE -->
+    <section class="slide algo" id="s9" data-key="last_occ"></section>
+    <!-- 10: LOWER BOUND -->
+    <section class="slide algo" id="s10" data-key="lower_bound"></section>
+    <!-- 11: UPPER BOUND -->
+    <section class="slide algo" id="s11" data-key="upper_bound"></section>
+    <!-- 12: SEARCH ON ANSWER -->
+    <section class="slide algo" id="s12" data-key="search_answer"></section>
+    <!-- 13: ROTATED ARRAY -->
+    <section class="slide algo" id="s13" data-key="rotated"></section>
+    <!-- 14: PEAK FINDING -->
+    <section class="slide algo" id="s14" data-key="peak"></section>
+
+    <!-- 15: TRANSITION patterns -> specialized -->
+    <section class="slide" id="s15">
+      <div class="trans">
+        <div class="r">RECAP: binary-search patterns assume O(1) random access and a sorted array in memory.</div>
+        <div class="g">What if the array is spread across <span class="q">slow, sequential</span> storage? What if values are numeric and <span class="q">evenly spread out</span>, so you could guess the position instead of guessing the middle? What if the array is <span class="q">unbounded</span> — you don't even know where it ends?</div>
+        <div class="f">Each of these constraints spawns its own specialized search. Same spirit — "throw away useless work" — different shape.</div>
+      </div>
+    </section>
+
+    <!-- 16: JUMP SEARCH -->
+    <section class="slide algo" id="s16" data-key="jump"></section>
+    <!-- 17: INTERPOLATION SEARCH -->
+    <section class="slide algo" id="s17" data-key="interpolation"></section>
+    <!-- 18: EXPONENTIAL SEARCH -->
+    <section class="slide algo" id="s18" data-key="exponential"></section>
+    <!-- 19: FIBONACCI SEARCH -->
+    <section class="slide algo" id="s19" data-key="fibonacci"></section>
+    <!-- 20: TERNARY SEARCH -->
+    <section class="slide algo" id="s20" data-key="ternary"></section>
+
+    <!-- 21: COMPARISON TABLE -->
+    <section class="slide" id="s21">
+      <div class="head">
+        <div class="eyebrow">THE PAYOFF</div>
+        <h2>Every algorithm, side by side</h2>
+        <p class="hook">Same question each time: what do you need to be true about the data, and what do you get in return?</p>
+      </div>
+      <div class="table-wrap">
+        <table class="cmp" id="cmpTable">
+          <thead><tr><th>Algorithm</th><th>Precondition</th><th>Time</th><th>Space</th><th>Best For</th></tr></thead>
+          <tbody id="cmpBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 22: MISTAKES -->
+    <section class="slide" id="s22">
+      <div class="head">
+        <div class="eyebrow">PITFALLS</div>
+        <h2>Where these algorithms actually break</h2>
+      </div>
+      <div class="list-grid" id="mistakeGrid"></div>
+    </section>
+
+    <!-- 23: RECAP -->
+    <section class="slide" id="s23">
+      <div class="head">
+        <div class="eyebrow">FEYNMAN RECAP</div>
+        <h2>One line each — could you explain it to a friend?</h2>
+      </div>
+      <div class="recap-list" id="recapList"></div>
+    </section>
+
+    <!-- 24: NEXT -->
+    <section class="slide" id="s24">
+      <div class="trans">
+        <div class="r">RECAP: every algorithm today — binary, jump, interpolation, exponential, Fibonacci — <b>assumed the array was already sorted.</b></div>
+        <div class="g">But arrays don't arrive sorted. Someone — or something — has to <span class="q">put them in order</span> first. How?</div>
+        <div class="f">That's next: Sorting Algorithms — from the O(n²) basics to merge sort, quicksort, heapsort, and the non-comparison tricks that beat the "n log n" limit entirely.</div>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<div class="nav">
+  <button class="navbtn" id="prevBtn">‹</button>
+  <div class="dots" id="dots"></div>
+  <button class="navbtn" id="nextBtn">›</button>
+</div>
+
+<script>
+/* ============================================================
+   CORE ENGINE
+============================================================ */
+const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+function sleep(ms){ return new Promise(r=>setTimeout(r, REDUCED ? 0 : ms)); }
+let RUN_TOKEN = 0;
+function alive(t){ return t === RUN_TOKEN; }
+
+function buildArrayViz(host, arr){
+  host.innerHTML = '<div class="array-wrap"></div><div class="caption"></div>';
+  const wrap = host.querySelector('.array-wrap');
+  const cols = arr.map((v,i)=>{
+    const col = document.createElement('div');
+    col.className = 'col';
+    col.innerHTML = '<div class="box">'+v+'</div><div class="idx">'+i+'</div><div class="ptr-stack"></div>';
+    wrap.appendChild(col);
+    return col;
+  });
+  const cap = host.querySelector('.caption');
+  return {
+    box(i){ return cols[i].querySelector('.box'); },
+    mark(i,cls){ if(i>=0&&i<cols.length) this.box(i).classList.add(cls); },
+    unmark(i,cls){ if(i>=0&&i<cols.length) this.box(i).classList.remove(cls); },
+    clearAll(cls){ cols.forEach(c=>c.querySelector('.box').classList.remove(cls)); },
+    ptr(name,i){
+      cols.forEach(c=>{ const e=c.querySelector('.ptr-'+name); if(e) e.remove(); });
+      if(i===null||i===undefined||i<0||i>=cols.length) return;
+      const el = document.createElement('div');
+      el.className = 'ptr ptr-'+name;
+      el.textContent = name.toUpperCase();
+      cols[i].querySelector('.ptr-stack').appendChild(el);
+    },
+    say(t){ cap.textContent = t; }
+  };
+}
+
+/* ============================================================
+   ALGORITHM ANIMATIONS
+============================================================ */
+async function animLinear(v, t){
+  const arr=[5,2,9,1,7,3,8,4,6,10], target=7;
+  v.say('Unsorted list. No shortcuts available — check left to right.');
+  await sleep(700);
+  for(let i=0;i<arr.length;i++){
+    if(!alive(t)) return;
+    v.mark(i,'mid');
+    v.say('Index '+i+': is '+arr[i]+' the target ('+target+')?');
+    await sleep(520);
+    v.unmark(i,'mid');
+    if(arr[i]===target){ v.mark(i,'found'); v.say('Found '+target+' at index '+i+' — took '+(i+1)+' comparisons.'); return; }
+    v.mark(i,'eliminated');
+    await sleep(120);
+  }
+  v.say('Reached the end — not present.');
+}
+
+async function animBinary(v, t){
+  const arr=[2,4,6,9,11,13,17,20,25,31,38,45], target=17;
+  let lo=0, hi=arr.length-1;
+  v.say('Sorted array. Start with the widest possible range.');
+  await sleep(650);
+  while(lo<=hi){
+    if(!alive(t)) return;
+    const mid = lo + Math.floor((hi-lo)/2);
+    v.ptr('low',lo); v.ptr('high',hi); v.ptr('mid',mid);
+    v.mark(mid,'mid');
+    v.say('mid = '+lo+' + ('+hi+'−'+lo+')/2 = '+mid+'  →  arr['+mid+'] = '+arr[mid]);
+    await sleep(750);
+    v.unmark(mid,'mid');
+    if(arr[mid]===target){ v.mark(mid,'found'); v.say('Match! Found '+target+' at index '+mid+'.'); v.ptr('low',null); v.ptr('high',null); v.ptr('mid',null); return; }
+    if(arr[mid]<target){ for(let k=lo;k<=mid;k++) v.mark(k,'eliminated'); lo=mid+1; v.say(arr[mid]+' < '+target+' → target must be to the right. Discard the left half.'); }
+    else { for(let k=mid;k<=hi;k++) v.mark(k,'eliminated'); hi=mid-1; v.say(arr[mid]+' > '+target+' → target must be to the left. Discard the right half.'); }
+    await sleep(500);
+  }
+  v.say('Range collapsed — target not present.');
+}
+
+async function binaryFamily(v, arr, target, t, mode){
+  let lo=0, hi=arr.length-1, res=-1;
+  v.say('Same halving idea — but we keep going after a match, to find the '+(mode==='first'?'first':'last')+' one.');
+  await sleep(650);
+  while(lo<=hi){
+    if(!alive(t)) return;
+    const mid = lo + Math.floor((hi-lo)/2);
+    v.ptr('low',lo); v.ptr('high',hi); v.ptr('mid',mid);
+    v.mark(mid,'mid');
+    await sleep(650);
+    v.unmark(mid,'mid');
+    if(arr[mid]===target){
+      res = mid; v.mark(mid,'found');
+      if(mode==='first'){ v.say('Match at '+mid+' — but is there an earlier one? Keep searching left.'); hi=mid-1; }
+      else { v.say('Match at '+mid+' — but is there a later one? Keep searching right.'); lo=mid+1; }
+    } else if(arr[mid]<target){
+      for(let k=lo;k<=mid;k++) v.mark(k,'eliminated'); lo=mid+1; v.say(arr[mid]+' < '+target+' → move right.');
+    } else {
+      for(let k=mid;k<=hi;k++) v.mark(k,'eliminated'); hi=mid-1; v.say(arr[mid]+' > '+target+' → move left.');
+    }
+    await sleep(480);
+  }
+  v.ptr('low',null); v.ptr('high',null); v.ptr('mid',null);
+  if(res>=0){ v.clearAll('eliminated'); v.mark(res,'found'); v.say((mode==='first'?'First':'Last')+' occurrence confirmed at index '+res+'.'); }
+  else v.say('Target not present at all.');
+}
+async function animFirstOcc(v,t){ await binaryFamily(v,[2,4,4,4,4,7,9,11,15],4,t,'first'); }
+async function animLastOcc(v,t){ await binaryFamily(v,[2,4,4,4,4,7,9,11,15],4,t,'last'); }
+
+async function boundSearch(v, arr, target, t, upper){
+  let lo=0, hi=arr.length;
+  v.say(upper ? 'Find the first index whose value is STRICTLY greater than '+target+'.'
+              : 'Find the first index whose value is greater-than-or-equal to '+target+'.');
+  await sleep(650);
+  while(lo<hi){
+    if(!alive(t)) return;
+    const mid = lo + Math.floor((hi-lo)/2);
+    v.ptr('low',lo); v.ptr('high', Math.min(hi,arr.length-1)); v.ptr('mid',mid);
+    v.mark(mid,'mid');
+    await sleep(600);
+    v.unmark(mid,'mid');
+    const cond = upper ? arr[mid] <= target : arr[mid] < target;
+    if(cond){ v.mark(mid,'eliminated'); lo=mid+1; v.say('arr['+mid+']='+arr[mid]+(upper?' ≤ ':' < ')+target+' → boundary is further right.'); }
+    else { hi=mid; v.say('arr['+mid+']='+arr[mid]+(upper?' > ':' ≥ ')+target+' → boundary could be here or to the left.'); }
+    await sleep(450);
+  }
+  v.ptr('low',null); v.ptr('high',null); v.ptr('mid',null);
+  if(lo<arr.length) v.mark(lo,'found');
+  v.say('Boundary index = '+lo+ (lo<arr.length ? '  (arr['+lo+']='+arr[lo]+')' : '  (past the end — insert here)'));
+}
+async function animLowerBound(v,t){ await boundSearch(v,[1,3,3,5,7,7,7,9,12],7,t,false); }
+async function animUpperBound(v,t){ await boundSearch(v,[1,3,3,5,7,7,7,9,12],7,t,true); }
+
+async function animSearchAnswer(v,t){
+  const weights=[3,7,4,2,8,5,6,3], D=4;
+  const capacities=[8,9,10,11,12,13,14,15,16,17,18,19,20];
+  function daysNeeded(cap){ let days=1, load=0; for(const w of weights){ if(load+w>cap){ days++; load=0; } load+=w; } return days; }
+  let lo=0, hi=capacities.length-1, ans=hi;
+  v.say('Binary search over the ANSWER (ship capacity), not over the weights array.');
+  await sleep(750);
+  while(lo<=hi){
+    if(!alive(t)) return;
+    const mid = lo + Math.floor((hi-lo)/2);
+    const cap = capacities[mid], d = daysNeeded(cap);
+    v.ptr('low',lo); v.ptr('high',hi); v.ptr('mid',mid);
+    v.mark(mid,'mid');
+    v.say('Try capacity '+cap+' → needs '+d+' days (limit '+D+' days)');
+    await sleep(750);
+    v.unmark(mid,'mid');
+    if(d<=D){ v.mark(mid,'found'); ans=mid; for(let k=mid;k<=hi;k++) v.mark(k,'eliminated'); hi=mid-1; v.say('Feasible — try an even smaller capacity.'); }
+    else { for(let k=lo;k<=mid;k++) v.mark(k,'eliminated'); lo=mid+1; v.say('Too slow — capacity must be bigger.'); }
+    await sleep(480);
+  }
+  v.ptr('low',null); v.ptr('high',null); v.ptr('mid',null);
+  v.clearAll('eliminated'); v.mark(ans,'found');
+  v.say('Minimum feasible capacity = '+capacities[ans]+'. The array we searched was never the data — it was the space of possible answers.');
+}
+
+async function animRotated(v,t){
+  const arr=[15,18,2,3,6,8,10,12], target=6;
+  let lo=0, hi=arr.length-1;
+  v.say('Sorted, then rotated at an unknown pivot. One half is ALWAYS properly sorted.');
+  await sleep(700);
+  while(lo<=hi){
+    if(!alive(t)) return;
+    const mid = lo + Math.floor((hi-lo)/2);
+    v.ptr('low',lo); v.ptr('high',hi); v.ptr('mid',mid);
+    v.mark(mid,'mid'); await sleep(650);
+    if(arr[mid]===target){ v.say('Found '+target+' at index '+mid+'.'); v.unmark(mid,'mid'); v.mark(mid,'found'); v.ptr('low',null);v.ptr('high',null);v.ptr('mid',null); return; }
+    v.unmark(mid,'mid');
+    if(arr[lo]<=arr[mid]){
+      if(arr[lo]<=target && target<arr[mid]){ for(let k=mid;k<=hi;k++) v.mark(k,'eliminated'); hi=mid-1; v.say('Left half ['+lo+'..'+mid+'] is sorted and contains '+target+'.'); }
+      else { for(let k=lo;k<=mid;k++) v.mark(k,'eliminated'); lo=mid+1; v.say('Left half is sorted but does not contain '+target+' — go right.'); }
+    } else {
+      if(arr[mid]<target && target<=arr[hi]){ for(let k=lo;k<=mid;k++) v.mark(k,'eliminated'); lo=mid+1; v.say('Right half ['+mid+'..'+hi+'] is sorted and contains '+target+'.'); }
+      else { for(let k=mid;k<=hi;k++) v.mark(k,'eliminated'); hi=mid-1; v.say('Right half is sorted but does not contain '+target+' — go left.'); }
+    }
+    await sleep(500);
+  }
+  v.say('Not present.');
+}
+
+async function animPeak(v,t){
+  const arr=[1,3,8,12,9,7,10,15,6,2];
+  let lo=0, hi=arr.length-1;
+  v.say('A peak is guaranteed to exist. Always step toward the taller neighbor.');
+  await sleep(700);
+  while(lo<hi){
+    if(!alive(t)) return;
+    const mid = lo + Math.floor((hi-lo)/2);
+    v.ptr('low',lo); v.ptr('high',hi); v.ptr('mid',mid);
+    v.mark(mid,'mid'); await sleep(650); v.unmark(mid,'mid');
+    if(arr[mid]<arr[mid+1]){ for(let k=lo;k<=mid;k++) v.mark(k,'eliminated'); lo=mid+1; v.say('Right neighbor is taller → peak is to the right.'); }
+    else { for(let k=mid+1;k<=hi;k++) v.mark(k,'eliminated'); hi=mid; v.say('Left side is taller or equal → peak is here or to the left.'); }
+    await sleep(480);
+  }
+  v.ptr('low',null); v.ptr('high',null); v.ptr('mid',null);
+  v.mark(lo,'found'); v.say('Peak at index '+lo+' (value '+arr[lo]+'). Not necessarily the global maximum — just locally higher than both neighbors.');
+}
+
+async function animJump(v,t){
+  const arr=[1,3,5,7,9,11,13,15,17,19,21,23,25], target=19;
+  const n=arr.length, step=Math.floor(Math.sqrt(n));
+  v.say('Block size = √'+n+' ≈ '+step+'. Jump in blocks instead of one step at a time.');
+  await sleep(700);
+  let prev=0, curr=Math.min(step,n)-1;
+  while(curr<n && arr[curr]<target){
+    if(!alive(t)) return;
+    for(let k=prev;k<=curr;k++) v.mark(k,'eliminated');
+    v.ptr('j',curr);
+    v.say('arr['+curr+']='+arr[curr]+' < '+target+' → jump forward by '+step+'.');
+    await sleep(550);
+    prev = curr+1; curr = Math.min(curr+step, n-1);
+    if(prev>n-1) break;
+  }
+  v.say('Overshot — target lives in block ['+prev+'..'+Math.min(curr,n-1)+']. Now scan it linearly.');
+  await sleep(550);
+  for(let i=prev;i<=Math.min(curr,n-1);i++){
+    if(!alive(t)) return;
+    v.mark(i,'mid'); await sleep(420); v.unmark(i,'mid');
+    if(arr[i]===target){ v.mark(i,'found'); v.say('Found '+target+' at index '+i+'.'); return; }
+    v.mark(i,'eliminated');
+  }
+  v.say('Not present.');
+}
+
+async function animInterpolation(v,t){
+  const arr=[10,20,30,40,50,60,70,80,90,100,110,120], target=90;
+  let lo=0, hi=arr.length-1;
+  v.say('Data is numeric and evenly spread — estimate position instead of guessing the middle.');
+  await sleep(700);
+  while(lo<=hi && target>=arr[lo] && target<=arr[hi]){
+    if(!alive(t)) return;
+    if(arr[hi]===arr[lo]){ if(arr[lo]===target){ v.mark(lo,'found'); v.say('Found at '+lo+'.'); } return; }
+    const pos = lo + Math.floor(((target-arr[lo])*(hi-lo))/(arr[hi]-arr[lo]));
+    v.ptr('low',lo); v.ptr('high',hi); v.ptr('mid',pos);
+    v.mark(pos,'mid');
+    v.say('pos = lo + (target−arr[lo])·(hi−lo)/(arr[hi]−arr[lo]) = '+pos);
+    await sleep(750);
+    v.unmark(pos,'mid');
+    if(arr[pos]===target){ v.mark(pos,'found'); v.say('Found '+target+' at index '+pos+' — often in ONE probe on uniform data.'); v.ptr('low',null);v.ptr('high',null);v.ptr('mid',null); return; }
+    if(arr[pos]<target){ for(let k=lo;k<=pos;k++) v.mark(k,'eliminated'); lo=pos+1; }
+    else { for(let k=pos;k<=hi;k++) v.mark(k,'eliminated'); hi=pos-1; }
+    await sleep(480);
+  }
+  v.say('Not present.');
+}
+
+async function animExponential(v,t){
+  const arr=[2,3,5,8,13,21,34,55,89,144,233,377,610], target=144;
+  const n=arr.length;
+  if(arr[0]===target){ v.mark(0,'found'); v.say('Found at index 0.'); return; }
+  let bound=1;
+  v.say('Unbounded / unknown-size list — double the search bound until we overshoot.');
+  await sleep(700);
+  while(bound<n && arr[bound]<=target){
+    if(!alive(t)) return;
+    v.mark(bound,'mid'); v.ptr('j',bound);
+    v.say('arr['+bound+']='+arr[bound]+' ≤ '+target+' → double it: check '+(bound*2)+' next.');
+    await sleep(550); v.unmark(bound,'mid'); v.mark(bound,'eliminated');
+    bound *= 2;
+  }
+  const lo0 = Math.floor(bound/2), hi0 = Math.min(bound, n-1);
+  v.say('Overshot. Range narrowed to ['+lo0+'..'+hi0+'] — now binary search inside it.');
+  await sleep(600);
+  let lo=lo0, hi=hi0;
+  while(lo<=hi){
+    if(!alive(t)) return;
+    const mid = lo + Math.floor((hi-lo)/2);
+    v.ptr('low',lo); v.ptr('high',hi); v.ptr('mid',mid);
+    v.mark(mid,'mid'); await sleep(600); v.unmark(mid,'mid');
+    if(arr[mid]===target){ v.mark(mid,'found'); v.say('Found at index '+mid+'.'); return; }
+    if(arr[mid]<target) lo=mid+1; else hi=mid-1;
+    await sleep(420);
+  }
+  v.say('Not present.');
+}
+
+async function animFibonacci(v,t){
+  const arr=[10,22,35,40,45,50,80,82,85,90,100], target=85;
+  const n=arr.length;
+  let fib2=0, fib1=1, fib=fib1+fib2;
+  while(fib<n){ fib2=fib1; fib1=fib; fib=fib1+fib2; }
+  v.say('Smallest Fibonacci number ≥ '+n+' is '+fib+'. Probe using only addition and subtraction — no division.');
+  await sleep(750);
+  let offset=-1;
+  while(fib>1){
+    if(!alive(t)) return;
+    const i = Math.min(offset+fib2, n-1);
+    v.ptr('mid',i); v.mark(i,'mid');
+    v.say('Probe index '+i+' (a Fibonacci-sized step from the offset)');
+    await sleep(620); v.unmark(i,'mid');
+    if(arr[i]<target){ fib=fib1; fib1=fib2; fib2=fib-fib1; offset=i; v.mark(i,'eliminated'); v.say(arr[i]+' < '+target+' → shift window forward.'); }
+    else if(arr[i]>target){ fib=fib2; fib1=fib1-fib2; fib2=fib-fib1; v.mark(i,'eliminated'); v.say(arr[i]+' > '+target+' → shrink window from the front.'); }
+    else { v.mark(i,'found'); v.say('Found '+target+' at index '+i+'.'); return; }
+    await sleep(460);
+  }
+  if(offset+1<n && arr[offset+1]===target){ v.mark(offset+1,'found'); v.say('Found at index '+(offset+1)+'.'); return; }
+  v.say('Not present.');
+}
+
+async function animTernary(v,t){
+  const arr=[2,5,8,12,16,21,27,34,42,51], target=34;
+  let lo=0, hi=arr.length-1;
+  v.say('Split the range into THREE parts using two midpoints instead of one.');
+  await sleep(700);
+  while(lo<=hi){
+    if(!alive(t)) return;
+    const m1 = lo + Math.floor((hi-lo)/3);
+    const m2 = hi - Math.floor((hi-lo)/3);
+    v.ptr('low',lo); v.ptr('high',hi); v.ptr('mid',m1);
+    v.mark(m1,'mid'); v.mark(m2,'mid');
+    v.say('m1='+m1+' (arr='+arr[m1]+'),  m2='+m2+' (arr='+arr[m2]+')');
+    await sleep(750);
+    if(arr[m1]===target){ v.mark(m1,'found'); v.say('Found at '+m1+'.'); return; }
+    if(arr[m2]===target){ v.mark(m2,'found'); v.say('Found at '+m2+'.'); return; }
+    v.unmark(m1,'mid'); v.unmark(m2,'mid');
+    if(target<arr[m1]){ for(let k=m1;k<=hi;k++) v.mark(k,'eliminated'); hi=m1-1; v.say('Target < arr[m1] → keep only the first third.'); }
+    else if(target>arr[m2]){ for(let k=lo;k<=m2;k++) v.mark(k,'eliminated'); lo=m2+1; v.say('Target > arr[m2] → keep only the last third.'); }
+    else { for(let k=lo;k<m1;k++) v.mark(k,'eliminated'); for(let k=m2+1;k<=hi;k++) v.mark(k,'eliminated'); lo=m1+1; hi=m2-1; v.say('Target between m1 and m2 → keep the middle third.'); }
+    await sleep(480);
+  }
+  v.say('Not present.');
+}
+
+/* ============================================================
+   ALGO SLIDE CONFIG + RENDERER
+============================================================ */
+const ALGO = {
+  linear:{
+    title:'Linear Search', eyebrow:'THE BASELINE',
+    hook:'"If you don\'t know which room your keys are in, you check every room."',
+    precond:'Works on ANY array — sorted or not',
+    run:animLinear,
+    formula:['Comparisons (worst case) = n','Comparisons (avg, if found) = (n+1) / 2'],
+    complexity:{Time:'O(n)',Space:'O(1)',Best:'O(1)',Worst:'O(n)'},
+    uses:['Unsorted data, or data with no random access (linked lists)','One-off search on very small lists','When simplicity beats speed — and n is tiny']
+  },
+  binary:{
+    title:'Binary Search', eyebrow:'THE WORKHORSE',
+    hook:'Every comparison throws away half the remaining possibilities. That\'s the whole trick.',
+    precond:'Requires: array sorted, random access (O(1) indexing)',
+    run:animBinary,
+    formula:['mid = low + (high − low) / 2   (avoids overflow vs. (low+high)/2)','After k halvings: n / 2^k = 1  ⟹  k = log₂(n)'],
+    complexity:{Time:'O(log n)',Space:'O(1) iterative / O(log n) recursive',Best:'O(1)',Worst:'O(log n)'},
+    uses:['Dictionary / index lookups in databases','git bisect — binary-searching commit history for a bug','Sorted arrays, ranges, and version search']
+  },
+  first_occ:{
+    title:'First Occurrence', eyebrow:'BINARY SEARCH PATTERN',
+    hook:'Found a match — don\'t stop. Keep searching the LEFT half for an earlier one.',
+    precond:'Requires: sorted array (may contain duplicates)',
+    run:animFirstOcc,
+    formula:['On match: record index, then set hi = mid − 1','Loop continues until lo > hi'],
+    complexity:{Time:'O(log n)',Space:'O(1)',Best:'O(log n)',Worst:'O(log n)'},
+    uses:['Counting occurrences: last − first + 1','Range queries on sorted logs / timestamps','Finding the start of a repeated block']
+  },
+  last_occ:{
+    title:'Last Occurrence', eyebrow:'BINARY SEARCH PATTERN',
+    hook:'Mirror image of "first occurrence" — on match, push the search window RIGHT instead.',
+    precond:'Requires: sorted array (may contain duplicates)',
+    run:animLastOcc,
+    formula:['On match: record index, then set lo = mid + 1','Loop continues until lo > hi'],
+    complexity:{Time:'O(log n)',Space:'O(1)',Best:'O(log n)',Worst:'O(log n)'},
+    uses:['Counting occurrences, paired with first occurrence','Finding the end boundary of a repeated run','SQL-style range scans on sorted indexes']
+  },
+  lower_bound:{
+    title:'Lower Bound', eyebrow:'BINARY SEARCH PATTERN',
+    hook:'Doesn\'t need a match at all — finds where the target WOULD be inserted, keeping order.',
+    precond:'Requires: sorted array. Works even if target is absent.',
+    run:animLowerBound,
+    formula:['Find smallest i such that arr[i] ≥ target','If arr[i] < target → lo = i+1, else hi = i'],
+    complexity:{Time:'O(log n)',Space:'O(1)',Best:'O(log n)',Worst:'O(log n)'},
+    uses:['C++ std::lower_bound, Python bisect_left','Sorted insertion point for maintaining order','"How many elements are strictly less than x?"']
+  },
+  upper_bound:{
+    title:'Upper Bound', eyebrow:'BINARY SEARCH PATTERN',
+    hook:'Same idea, one bit stricter: first index whose value is STRICTLY greater than the target.',
+    precond:'Requires: sorted array. Works even if target is absent.',
+    run:animUpperBound,
+    formula:['Find smallest i such that arr[i] > target','upper_bound(x) − lower_bound(x) = count of x in the array'],
+    complexity:{Time:'O(log n)',Space:'O(1)',Best:'O(log n)',Worst:'O(log n)'},
+    uses:['C++ std::upper_bound, Python bisect_right','Exact duplicate counting','Insert-after-all-equal-elements semantics']
+  },
+  search_answer:{
+    title:'Search on Answer', eyebrow:'BINARY SEARCH PATTERN · PARADIGM SHIFT',
+    hook:'The biggest leap in this whole family: binary search doesn\'t need an array of DATA. It needs a monotonic YES/NO answer.',
+    precond:'Requires: a feasibility check that flips from false → true exactly once as the candidate answer grows',
+    run:animSearchAnswer,
+    formula:['Define feasible(x): true/false, monotonic in x','Binary search over the ANSWER RANGE [lo, hi], not the input array'],
+    complexity:{Time:'O(log(range) · cost of feasible())',Space:'O(1)',Best:'—',Worst:'depends on feasible()'},
+    uses:['"Ship packages within D days" — minimize max capacity','"Koko eating bananas" — minimize eating speed','Any "minimize the maximum" / "maximize the minimum" problem']
+  },
+  rotated:{
+    title:'Rotated Array Search', eyebrow:'BINARY SEARCH PATTERN',
+    hook:'The array is sorted, then someone spun it. At every step, one half is STILL perfectly sorted — find it, then decide.',
+    precond:'Requires: array was sorted, then rotated at an unknown pivot',
+    run:animRotated,
+    formula:['If arr[lo] ≤ arr[mid] → left half is sorted','Else → right half is sorted. Check if target lies in the sorted half.'],
+    complexity:{Time:'O(log n)',Space:'O(1)',Best:'O(1)',Worst:'O(log n)'},
+    uses:['Circular buffers and ring logs','Searching in a rotated / wrapped-around version history','Classic interview problem (LeetCode "Search in Rotated Sorted Array")']
+  },
+  peak:{
+    title:'Peak Finding', eyebrow:'BINARY SEARCH PATTERN',
+    hook:'No sorted order needed — just local comparisons. Always walk toward the taller neighbor.',
+    precond:'Requires: arr[-1] = arr[n] = −∞ (conceptually) so a peak always exists',
+    run:animPeak,
+    formula:['If arr[mid] < arr[mid+1] → peak is to the right','Else → peak is at mid or to the left'],
+    complexity:{Time:'O(log n)',Space:'O(1)',Best:'O(1)',Worst:'O(log n)'},
+    uses:['Local-maxima detection in signals','Hill-climbing initialization in optimization','Extends to O(n log n) for 2D peak finding in matrices']
+  },
+  jump:{
+    title:'Jump Search', eyebrow:'SPECIALIZED SEARCH',
+    hook:'Binary search needs cheap random access. If jumping around is expensive, take fixed-size hops instead.',
+    precond:'Requires: sorted array; ideal when random access is costly (e.g. sequential storage)',
+    run:animJump,
+    formula:['Optimal block size = √n','Total work = n/step + step, minimized when step = √n → O(√n)'],
+    complexity:{Time:'O(√n)',Space:'O(1)',Best:'O(1)',Worst:'O(√n)'},
+    uses:['Sorted data on tape drives / slow sequential media','Systems where a "jump" is cheap but a "seek" is not','Middle ground between linear and binary search']
+  },
+  interpolation:{
+    title:'Interpolation Search', eyebrow:'SPECIALIZED SEARCH',
+    hook:'A phone book trick: to find "Zebra", you flip near the END, not the middle. Guess proportionally.',
+    precond:'Requires: sorted array AND roughly uniformly-distributed numeric values',
+    run:animInterpolation,
+    formula:['pos = lo + (target − arr[lo]) · (hi − lo) / (arr[hi] − arr[lo])'],
+    complexity:{Time:'O(log log n) avg (uniform data)',Space:'O(1)',Best:'O(1)',Worst:'O(n) — clustered data'},
+    uses:['Uniformly spread numeric keys (timestamps, IDs)','Large sorted numeric datasets where distribution is known','Database index probing on evenly-spaced keys']
+  },
+  exponential:{
+    title:'Exponential Search', eyebrow:'SPECIALIZED SEARCH',
+    hook:'You don\'t know how big the array is — maybe it\'s a stream. Double your reach until you\'ve gone far enough.',
+    precond:'Requires: sorted array; ideal for unbounded / unknown-length or infinite lists',
+    run:animExponential,
+    formula:['Probe indices 1, 2, 4, 8, 16, … until arr[bound] > target','Then binary search inside [bound/2, bound]'],
+    complexity:{Time:'O(log i)  (i = position of target)',Space:'O(1)',Best:'O(1)',Worst:'O(log n)'},
+    uses:['Searching unbounded / streamed sorted sequences','When the target is likely near the start (small i)','Used inside some standard library search implementations']
+  },
+  fibonacci:{
+    title:'Fibonacci Search', eyebrow:'SPECIALIZED SEARCH',
+    hook:'Same O(log n) as binary search, but it never divides — only adds and subtracts.',
+    precond:'Requires: sorted array; historically useful without hardware division',
+    run:animFibonacci,
+    formula:['Find smallest Fibonacci F(k) ≥ n','Probe offsets using F(k−1), F(k−2) — pure addition/subtraction'],
+    complexity:{Time:'O(log n)',Space:'O(1)',Best:'O(1)',Worst:'O(log n)'},
+    uses:['CPUs / embedded systems without a division instruction','Better locality of reference on magnetic tape (probes stay closer together)','Historical significance in early computer science']
+  },
+  ternary:{
+    title:'Ternary Search', eyebrow:'SPECIALIZED SEARCH',
+    hook:'Cut the range into THREE pieces instead of two. More comparisons per step — so why bother?',
+    precond:'On arrays: sorted data. Real power: optimizing UNIMODAL functions.',
+    run:animTernary,
+    formula:['m1 = lo + (hi−lo)/3,   m2 = hi − (hi−lo)/3','For unimodal f(x): compare f(m1) vs f(m2) to discard a third'],
+    complexity:{Time:'O(log₃ n) on arrays',Space:'O(1)',Best:'O(1)',Worst:'O(log n) — more comparisons than binary'},
+    uses:['Finding the max/min of a unimodal (single-peak) function','Not preferred for plain array search — binary search does fewer comparisons','Common in competitive programming optimization problems']
+  }
+};
+
+function renderAlgoSlide(section){
+  const key = section.dataset.key;
+  const cfg = ALGO[key];
+  section.innerHTML =
+    '<button class="replay" data-replay="'+key+'">↻ Replay</button>'+
+    '<div class="head">'+
+      '<div class="eyebrow">'+cfg.eyebrow+'</div>'+
+      '<h2>'+cfg.title+'</h2>'+
+      '<p class="hook">'+cfg.hook+'</p>'+
+      '<span class="precond">'+cfg.precond+'</span>'+
+    '</div>'+
+    '<div class="viz-wrap"><div class="algo-host"></div></div>'+
+    '<div class="panels">'+
+      '<div class="panel"><h4>HOW IT WORKS</h4><div class="formula-box">'+cfg.formula.join('</div><div class="formula-box">')+'</div></div>'+
+      '<div class="panel"><h4>COMPLEXITY</h4><div class="cx-grid">'+
+        Object.keys(cfg.complexity).map(k=>'<div class="k">'+k+'</div><div class="v">'+cfg.complexity[k]+'</div>').join('')+
+      '</div></div>'+
+      '<div class="panel"><h4>USED IN PRACTICE</h4><ul>'+cfg.uses.map(u=>'<li>'+u+'</li>').join('')+'</ul></div>'+
+    '</div>';
+}
+
+function playAlgoSlide(section){
+  const key = section.dataset.key;
+  const cfg = ALGO[key];
+  const host = section.querySelector('.algo-host');
+  const myToken = ++RUN_TOKEN;
+  // Determine an initial array to render (extract from function by re-running is wasteful;
+  // instead each anim function builds its own viz via closures — so give it a host + build inline)
+  const viz = buildArrayViz(host, cfg._displayArr || cfg._peek(host));
+  cfg.run(viz, myToken);
+}
+
+// Each anim function references its own array internally; expose a lightweight
+// "peek" by re-declaring the arrays here so the slide can render before animation starts.
+const DISPLAY_ARR = {
+  linear:[5,2,9,1,7,3,8,4,6,10],
+  binary:[2,4,6,9,11,13,17,20,25,31,38,45],
+  first_occ:[2,4,4,4,4,7,9,11,15],
+  last_occ:[2,4,4,4,4,7,9,11,15],
+  lower_bound:[1,3,3,5,7,7,7,9,12],
+  upper_bound:[1,3,3,5,7,7,7,9,12],
+  search_answer:[8,9,10,11,12,13,14,15,16,17,18,19,20],
+  rotated:[15,18,2,3,6,8,10,12],
+  peak:[1,3,8,12,9,7,10,15,6,2],
+  jump:[1,3,5,7,9,11,13,15,17,19,21,23,25],
+  interpolation:[10,20,30,40,50,60,70,80,90,100,110,120],
+  exponential:[2,3,5,8,13,21,34,55,89,144,233,377,610],
+  fibonacci:[10,22,35,40,45,50,80,82,85,90,100],
+  ternary:[2,5,8,12,16,21,27,34,42,51]
+};
+
+function playAlgo(key, host){
+  const myToken = ++RUN_TOKEN;
+  const viz = buildArrayViz(host, DISPLAY_ARR[key]);
+  ALGO[key].run(viz, myToken);
+}
+
+/* ============================================================
+   COMPARISON TABLE / MISTAKES / RECAP DATA
+============================================================ */
+const CMP_ROWS = [
+  ['Linear Search','none (any array)','O(n)','O(1)','Unsorted / small data'],
+  ['Binary Search','sorted + random access','O(log n)','O(1)','General sorted lookup'],
+  ['First Occurrence','sorted, duplicates ok','O(log n)','O(1)','Start of a duplicate run'],
+  ['Last Occurrence','sorted, duplicates ok','O(log n)','O(1)','End of a duplicate run'],
+  ['Lower Bound','sorted','O(log n)','O(1)','Insertion point, ≥ target'],
+  ['Upper Bound','sorted','O(log n)','O(1)','Insertion point, &gt; target'],
+  ['Search on Answer','monotonic feasibility','O(log(range))','O(1)','Minimize-max / maximize-min'],
+  ['Rotated Array Search','sorted then rotated','O(log n)','O(1)','Rotated / circular data'],
+  ['Peak Finding','local comparisons only','O(log n)','O(1)','Local maxima'],
+  ['Jump Search','sorted','O(√n)','O(1)','Costly random access'],
+  ['Interpolation Search','sorted, uniform values','O(log log n) avg','O(1)','Evenly spread numeric keys'],
+  ['Exponential Search','sorted, unbounded ok','O(log i)','O(1)','Unknown-size / streamed data'],
+  ['Fibonacci Search','sorted','O(log n)','O(1)','No hardware division'],
+  ['Ternary Search','sorted / unimodal fn','O(log₃ n)','O(1)','Unimodal function optimization']
+];
+
+const MISTAKES = [
+  {t:'"Binary search only works on arrays"', ok:false, d:'It works on any monotonic search space — see Search on Answer. Thinking "array" instead of "sorted decision space" blocks half the pattern family.'},
+  {t:'mid = (low + high) / 2', ok:false, d:'Classic overflow bug in fixed-width integers when low+high exceeds the max int. Use mid = low + (high−low)/2 instead.'},
+  {t:'Off-by-one in hi = mid vs hi = mid − 1', ok:false, d:'Mixing an inclusive-high loop (lo ≤ hi) with an exclusive-high update (hi = mid) causes infinite loops or missed elements. Pick one convention and stay consistent.'},
+  {t:'Interpolation search on skewed data', ok:false, d:'Its O(log log n) average assumes near-uniform distribution. On clustered/skewed data it degrades to O(n) — worse than plain binary search.'},
+  {t:'Assuming rotated-array search needs to "find the pivot first"', ok:false, d:'You never need to locate the pivot explicitly — just detect which half is sorted at each step and reason from there.'},
+  {t:'Forgetting binary search patterns need a monotonic predicate', ok:false, d:'Lower/upper bound and search-on-answer all rely on the comparison flipping exactly once. If the predicate isn\'t monotonic, binary search silently gives a wrong answer — it won\'t error out.'}
+];
+
+const RECAP = [
+  ['Linear Search','Check everything, in order, until you find it or run out.'],
+  ['Binary Search','Halve the search space with every single comparison.'],
+  ['First / Last Occurrence','Don\'t stop at the first match — keep narrowing toward an edge.'],
+  ['Lower / Upper Bound','Find where something belongs, even if it isn\'t there yet.'],
+  ['Search on Answer','Binary search the ANSWER, when checking one is cheap and monotonic.'],
+  ['Rotated Array Search','One half is always sorted — find it, then decide.'],
+  ['Peak Finding','Walk toward the taller neighbor; a peak always exists.'],
+  ['Jump Search','Take √n-sized hops when random access is expensive.'],
+  ['Interpolation Search','Guess proportionally, like flipping to "Z" in a phone book.'],
+  ['Exponential Search','Double your reach until you overshoot an unknown-sized list.'],
+  ['Fibonacci Search','All the power of binary search, using only + and −.'],
+  ['Ternary Search','Three-way split — built for unimodal functions, not arrays.']
+];
+
+/* ============================================================
+   SLIDE NAVIGATION
+============================================================ */
+const slides = Array.from(document.querySelectorAll('.slide'));
+const TOTAL = slides.length;
+let current = 0;
+
+// pre-render algo slides' static markup once
+slides.forEach(s=>{ if(s.classList.contains('algo')) renderAlgoSlide(s); });
+
+// build comparison table rows
+(function(){
+  const body = document.getElementById('cmpBody');
+  CMP_ROWS.forEach(r=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td class="name">'+r[0]+'</td><td>'+r[1]+'</td><td>'+r[2]+'</td><td>'+r[3]+'</td><td style="font-family:Inter,sans-serif;">'+r[4]+'</td>';
+    body.appendChild(tr);
+  });
+})();
+
+// build mistakes grid
+(function(){
+  const grid = document.getElementById('mistakeGrid');
+  MISTAKES.forEach(m=>{
+    const card = document.createElement('div');
+    card.className='mcard';
+    card.innerHTML = '<div class="t">⚠ '+m.t+'</div><p>'+m.d+'</p>';
+    grid.appendChild(card);
+  });
+})();
+
+// build recap list
+(function(){
+  const list = document.getElementById('recapList');
+  RECAP.forEach((r,i)=>{
+    const row = document.createElement('div');
+    row.className='rline';
+    row.innerHTML = '<span class="n">'+String(i+1).padStart(2,'0')+'</span><span class="t">'+r[0]+'</span><span class="d">'+r[1]+'</span>';
+    list.appendChild(row);
+  });
+})();
+
+// dots
+const dotsHost = document.getElementById('dots');
+slides.forEach((_,i)=>{
+  const d = document.createElement('div');
+  d.className='dot'+(i===0?' active':'');
+  dotsHost.appendChild(d);
+});
+const dotEls = Array.from(dotsHost.children);
+
+function scaleViewport(){
+  const vp = document.getElementById('viewport');
+  const scale = Math.min(window.innerWidth/1600, window.innerHeight/900) * 0.96;
+  vp.style.transform = 'scale('+scale+')';
+}
+window.addEventListener('resize', scaleViewport);
+scaleViewport();
+
+function triggerSlideEffects(idx){
+  const s = slides[idx];
+  RUN_TOKEN++; // invalidate any running algo animation
+
+  if(s.classList.contains('algo')){
+    const host = s.querySelector('.algo-host');
+    playAlgo(s.dataset.key, host);
+  }
+  if(s.id === 's1' || s.id.startsWith('s4') || s.id==='s7' || s.id==='s15' || s.id==='s24'){
+    const g = s.querySelector('.g'), f = s.querySelector('.f');
+    if(g){ g.classList.remove('show'); void g.offsetWidth; g.classList.add('show'); }
+    if(f){ f.classList.remove('show'); void f.offsetWidth; setTimeout(()=>f.classList.add('show'), REDUCED?0:500); }
+  }
+  if(s.id === 's21'){
+    const rows = s.querySelectorAll('tbody tr');
+    rows.forEach((r,i)=>{ r.classList.remove('show'); setTimeout(()=>r.classList.add('show'), REDUCED?0:i*70); });
+  }
+  if(s.id === 's22'){
+    const cards = s.querySelectorAll('.mcard');
+    cards.forEach((c,i)=>{ c.classList.remove('show'); setTimeout(()=>c.classList.add('show'), REDUCED?0:i*110); });
+  }
+  if(s.id === 's23'){
+    const lines = s.querySelectorAll('.rline');
+    lines.forEach((l,i)=>{ l.classList.remove('show'); setTimeout(()=>l.classList.add('show'), REDUCED?0:i*130); });
+  }
+  if(s.id === 's6'){
+    drawChart();
+  }
+}
+
+function goTo(idx, dir){
+  if(idx<0 || idx>=TOTAL || idx===current) return;
+  slides[current].classList.remove('active');
+  slides[current].classList.remove('leaving-back');
+  if(dir==='back') slides[current].classList.add('leaving-back');
+  current = idx;
+  const s = slides[current];
+  s.classList.remove('leaving-back');
+  // force reflow so transition replays even if same classes
+  void s.offsetWidth;
+  s.classList.add('active');
+  dotEls.forEach((d,i)=>d.classList.toggle('active', i===current));
+  document.getElementById('counter').textContent = (current+1)+' / '+TOTAL;
+  document.getElementById('prevBtn').disabled = current===0;
+  document.getElementById('nextBtn').disabled = current===TOTAL-1;
+  setTimeout(()=>triggerSlideEffects(current), REDUCED?0:60);
+}
+
+document.getElementById('nextBtn').addEventListener('click', ()=>goTo(current+1,'fwd'));
+document.getElementById('prevBtn').addEventListener('click', ()=>goTo(current-1,'back'));
+window.addEventListener('keydown', (e)=>{
+  if(e.key==='ArrowRight' || e.key===' '&&e.shiftKey) { goTo(current+1,'fwd'); }
+  else if(e.key==='ArrowLeft'){ goTo(current-1,'back'); }
+  else if(e.key===' '){ e.preventDefault(); triggerSlideEffects(current); }
+});
+document.addEventListener('click', (e)=>{
+  const btn = e.target.closest('.replay');
+  if(btn){ const s = slides[current]; playAlgo(btn.dataset.replay, s.querySelector('.algo-host')); }
+});
+
+// touch swipe
+let touchX=null;
+document.addEventListener('touchstart', e=>{ touchX = e.touches[0].clientX; });
+document.addEventListener('touchend', e=>{
+  if(touchX===null) return;
+  const dx = e.changedTouches[0].clientX - touchX;
+  if(dx>60) goTo(current-1,'back');
+  else if(dx<-60) goTo(current+1,'fwd');
+  touchX=null;
+});
+
+/* ============================================================
+   MINI COMPLEXITY CHART (SVG, no deps)
+============================================================ */
+function drawChart(){
+  const host = document.getElementById('chartHost');
+  if(host.dataset.drawn) return;
+  host.dataset.drawn = '1';
+  const ns = Array.from({length:9},(_,i)=>Math.pow(2,i+1)); // 2..512
+  const linearVals = ns;
+  const binaryVals = ns.map(n=>Math.ceil(Math.log2(n)));
+  const w=1200,h=420,padL=60,padB=40,padT=20,padR=20;
+  const plotW=w-padL-padR, plotH=h-padT-padB;
+  const maxV = Math.max(...linearVals);
+  const x = i => padL + (i/(ns.length-1))*plotW;
+  const y = v => padT + plotH - (v/maxV)*plotH;
+  function pathFor(vals){ return vals.map((v,i)=>(i===0?'M':'L')+x(i)+','+y(v)).join(' '); }
+  let svg = '<svg viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h+'">';
+  // gridlines
+  for(let g=0; g<=4; g++){
+    const gy = padT + (g/4)*plotH;
+    svg += '<line x1="'+padL+'" y1="'+gy+'" x2="'+(w-padR)+'" y2="'+gy+'" stroke="#232330" stroke-width="1"/>';
+  }
+  svg += '<path d="'+pathFor(linearVals)+'" fill="none" stroke="#ff7675" stroke-width="2.5"/>';
+  svg += '<path d="'+pathFor(binaryVals)+'" fill="none" stroke="#55efc4" stroke-width="2.5"/>';
+  ns.forEach((n,i)=>{
+    svg += '<circle cx="'+x(i)+'" cy="'+y(linearVals[i])+'" r="4" fill="#ff7675"/>';
+    svg += '<circle cx="'+x(i)+'" cy="'+y(binaryVals[i])+'" r="4" fill="#55efc4"/>';
+    svg += '<text x="'+x(i)+'" y="'+(h-padB+22)+'" fill="#8d8ba6" font-size="11" text-anchor="middle" font-family="JetBrains Mono">'+n+'</text>';
+  });
+  svg += '<text x="'+padL+'" y="16" fill="#ff7675" font-size="13" font-family="Inter">■ Linear — O(n)</text>';
+  svg += '<text x="'+(padL+160)+'" y="16" fill="#55efc4" font-size="13" font-family="Inter">■ Binary — O(log n)</text>';
+  svg += '</svg>';
+  host.innerHTML = svg;
+}
+
+/* init */
+slides[0].classList.add('active');
+document.getElementById('prevBtn').disabled = true;
+setTimeout(()=>triggerSlideEffects(0), 100);
+</script>
+</body>
+</html>

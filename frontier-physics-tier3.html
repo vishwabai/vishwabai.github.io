@@ -1,0 +1,1348 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Frontier Physics · Tier 3 — an animated deck</title>
+<style>
+  :root{
+    --bg:#07070b; --ink:#e7e9ee; --dim:#8b93a3; --faint:#454b58;
+    --blue:#5b8fb0; --teal:#5fae95; --sand:#d3ac6b; --clay:#c77b6b;
+    --plum:#9a7fb0; --green:#79a86b;
+  }
+  *{box-sizing:border-box; margin:0; padding:0}
+  html,body{height:100%; background:#000; overflow:hidden; font-family:"Segoe UI",Inter,system-ui,-apple-system,sans-serif; color:var(--ink)}
+  .wrap{position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:radial-gradient(1200px 700px at 50% 40%, #0c0d13 0%, #000 75%)}
+  .stage{
+    position:relative;
+    width:min(100vw, 177.78vh);
+    height:min(56.25vw, 100vh);
+    background:var(--bg);
+    box-shadow:0 0 0 1px #14161d, 0 30px 80px rgba(0,0,0,.6);
+    overflow:hidden;
+  }
+  canvas{position:absolute; inset:0; width:100%; height:100%; display:block}
+  .hud{position:absolute; inset:0; pointer-events:none}
+  .section-label{
+    position:absolute; left:3.2%; top:5%;
+    font-size:1.05vh; letter-spacing:.34em; text-transform:uppercase;
+    color:var(--dim); font-weight:600;
+  }
+  .section-label .accent{display:inline-block; width:2.4vh; height:1px; background:currentColor; vertical-align:middle; margin-right:1vh; opacity:.6}
+  .title{
+    position:absolute; left:3.2%; right:3.2%; top:8.4%;
+    font-size:3.2vh; font-weight:600; letter-spacing:.01em; line-height:1.1;
+  }
+  .subtitle{position:absolute; left:3.2%; right:3.2%; top:14.4%; font-size:1.55vh; color:var(--dim); font-weight:400}
+  /* narration band */
+  .narration{
+    position:absolute; left:3.2%; right:3.2%; bottom:6.4%;
+    min-height:8vh;
+    display:flex; align-items:flex-end; gap:1.6vh;
+  }
+  .chip{
+    flex:0 0 auto; font-size:1.15vh; letter-spacing:.22em; text-transform:uppercase; font-weight:700;
+    padding:.55vh 1vh; border:1px solid currentColor; border-radius:3px; opacity:.9;
+    margin-bottom:.2vh;
+  }
+  .k-recap{color:var(--teal)} .k-gap{color:var(--clay)} .k-fill{color:var(--blue)}
+  .k-note{color:var(--dim)} .k-apply{color:var(--green)} .k-idea{color:var(--sand)} .k-plum{color:var(--plum)}
+  .ntext{font-size:2.05vh; line-height:1.32; font-weight:400; color:var(--ink); max-width:88%}
+  .ntext .q{color:var(--clay); font-weight:600}
+  .ntext b{color:var(--sand); font-weight:600}
+  .nblock{transition:opacity .5s ease, transform .5s ease}
+  .nblock.hidden{opacity:0; transform:translateY(8px)}
+  /* controls */
+  .controls{position:absolute; right:2.4%; bottom:2%; display:flex; align-items:center; gap:1.1vh; pointer-events:auto}
+  .btn{
+    -webkit-appearance:none; appearance:none; cursor:pointer;
+    background:#11131a; color:var(--ink); border:1px solid #262a34; border-radius:5px;
+    font-size:1.4vh; padding:.85vh 1.5vh; letter-spacing:.02em; font-family:inherit;
+    transition:background .15s, border-color .15s, opacity .15s;
+  }
+  .btn:hover{background:#181b24; border-color:#39404d}
+  .btn:disabled{opacity:.32; cursor:default}
+  .btn.primary{border-color:#39505f; color:#cfe2ec}
+  .counter{position:absolute; left:2.6%; bottom:2.4%; font-size:1.35vh; color:var(--dim); letter-spacing:.05em; pointer-events:none}
+  .progress{position:absolute; left:0; top:0; height:2px; background:linear-gradient(90deg,var(--blue),var(--teal)); width:0%; transition:width .35s ease}
+  .dots{position:absolute; left:50%; bottom:2.4%; transform:translateX(-50%); display:flex; gap:.7vh; pointer-events:none}
+  .dot{width:.7vh; height:.7vh; border-radius:50%; background:#2a2f3a; transition:background .3s, transform .3s}
+  .dot.on{background:var(--blue); transform:scale(1.25)}
+  .dot.sec{background:#4a4030}
+  .hint{position:absolute; right:2.6%; top:5%; font-size:1.15vh; color:var(--faint); letter-spacing:.12em; text-transform:uppercase}
+  .flash{animation:fl .5s ease}
+  @keyframes fl{from{opacity:.25}to{opacity:1}}
+  .kbd{display:inline-block; border:1px solid #333a46; border-bottom-width:2px; border-radius:4px; padding:0 .6vh; font-size:1.05vh; color:var(--dim)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="stage" id="stage">
+    <canvas id="c"></canvas>
+    <div class="hud">
+      <div class="progress" id="prog"></div>
+      <div class="section-label" id="sec"><span class="accent"></span><span id="sect"></span></div>
+      <div class="title" id="title"></div>
+      <div class="subtitle" id="subtitle"></div>
+      <div class="hint">click / <span class="kbd">→</span> next · <span class="kbd">R</span> replay</div>
+      <div class="narration">
+        <div class="nblock hidden" id="nblock">
+          <div style="display:flex; align-items:flex-end; gap:1.6vh">
+            <span class="chip k-note" id="chip">NOTE</span>
+            <span class="ntext" id="ntext"></span>
+          </div>
+        </div>
+      </div>
+      <div class="counter" id="counter"></div>
+      <div class="dots" id="dots"></div>
+    </div>
+    <div class="controls">
+      <button class="btn" id="prev">‹ Prev</button>
+      <button class="btn" id="replay">↻ Replay</button>
+      <button class="btn primary" id="next">Next ›</button>
+    </div>
+  </div>
+</div>
+<script>
+/* =========================================================================
+   FRONTIER PHYSICS · TIER 3 — standalone animated deck (no dependencies)
+   Engine: canvas 2D, timeline-per-slide, RECAP→GAP→FILL narration beats.
+   ========================================================================= */
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+const W = 1280, H = 720;                 // logical resolution (16:9)
+function resize(){
+  const dpr = Math.min(2, window.devicePixelRatio||1);
+  cv.width = W*dpr; cv.height = H*dpr;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+resize(); addEventListener('resize', resize);
+
+/* ---- palette (muted, non-glowing) ---- */
+const C = {
+  bg:'#07070b', ink:'#e7e9ee', dim:'#8b93a3', faint:'#525866',
+  blue:'#5b8fb0', teal:'#5fae95', sand:'#d3ac6b', clay:'#c77b6b',
+  plum:'#9a7fb0', green:'#79a86b', grid:'#191d26', line:'#333a46'
+};
+
+/* ---- math + easing ---- */
+const clamp=(x,a,b)=>x<a?a:x>b?b:x;
+const lerp=(a,b,t)=>a+(b-a)*t;
+const ease=x=>{x=clamp(x,0,1); return x<0.5?4*x*x*x:1-Math.pow(-2*x+2,3)/2;};
+const easeOut=x=>{x=clamp(x,0,1); return 1-Math.pow(1-x,3);};
+const seg=(t,start,dur)=>ease(clamp((t-start)/dur,0,1));       // build-in 0..1
+const segL=(t,start,dur)=>clamp((t-start)/dur,0,1);            // linear 0..1
+const TAU=Math.PI*2;
+
+/* ---- primitive draw helpers ---- */
+function line(x1,y1,x2,y2,color,w=1.5,alpha=1,dash=null){
+  ctx.save(); ctx.globalAlpha=alpha; ctx.strokeStyle=color; ctx.lineWidth=w;
+  if(dash) ctx.setLineDash(dash);
+  ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke(); ctx.restore();
+}
+function arrow(x1,y1,x2,y2,color,w=2,alpha=1,head=9){
+  ctx.save(); ctx.globalAlpha=alpha; ctx.strokeStyle=color; ctx.fillStyle=color; ctx.lineWidth=w;
+  ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+  const a=Math.atan2(y2-y1,x2-x1);
+  ctx.beginPath();
+  ctx.moveTo(x2,y2);
+  ctx.lineTo(x2-head*Math.cos(a-0.4), y2-head*Math.sin(a-0.4));
+  ctx.lineTo(x2-head*Math.cos(a+0.4), y2-head*Math.sin(a+0.4));
+  ctx.closePath(); ctx.fill(); ctx.restore();
+}
+function dot(x,y,r,color,alpha=1){ ctx.save(); ctx.globalAlpha=alpha; ctx.fillStyle=color; ctx.beginPath(); ctx.arc(x,y,r,0,TAU); ctx.fill(); ctx.restore(); }
+function ring(x,y,r,color,w=2,alpha=1){ ctx.save(); ctx.globalAlpha=alpha; ctx.strokeStyle=color; ctx.lineWidth=w; ctx.beginPath(); ctx.arc(x,y,r,0,TAU); ctx.stroke(); ctx.restore(); }
+function rrect(x,y,w,h,r,{stroke,fill,alpha=1,lw=1.5}={}){
+  ctx.save(); ctx.globalAlpha=alpha; ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
+  if(fill){ctx.fillStyle=fill; ctx.fill();} if(stroke){ctx.strokeStyle=stroke; ctx.lineWidth=lw; ctx.stroke();}
+  ctx.restore();
+}
+function label(x,y,text,{color=C.ink,size=16,align='center',baseline='middle',alpha=1,weight=400,italic=false,font='sans'}={}){
+  ctx.save(); ctx.globalAlpha=alpha; ctx.fillStyle=color;
+  const fam = font==='serif' ? 'Georgia, "Times New Roman", serif' : '"Segoe UI", Inter, system-ui, sans-serif';
+  ctx.font=`${italic?'italic ':''}${weight} ${size}px ${fam}`;
+  ctx.textAlign=align; ctx.textBaseline=baseline; ctx.fillText(text,x,y); ctx.restore();
+}
+function glowDot(x,y,r,color,alpha=1){ // very subtle, restrained glow
+  ctx.save(); ctx.globalAlpha=alpha*0.35; ctx.fillStyle=color;
+  ctx.beginPath(); ctx.arc(x,y,r*2.4,0,TAU); ctx.fill();
+  ctx.globalAlpha=alpha; ctx.beginPath(); ctx.arc(x,y,r,0,TAU); ctx.fill(); ctx.restore();
+}
+// hex -> rgba
+function rgba(hex,a){ const n=parseInt(hex.slice(1),16); return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`; }
+
+/* ---- slide registry ---- */
+const SLIDES=[];
+function addSlide(o){ SLIDES.push(o); }
+
+/* ---- shared scene helpers ---- */
+function person(x,y,s,color,alpha=1){
+  ctx.save(); ctx.globalAlpha=alpha; ctx.strokeStyle=color; ctx.fillStyle=color; ctx.lineWidth=s*0.14;
+  ctx.beginPath(); ctx.arc(x,y-s*0.75,s*0.2,0,TAU); ctx.fill();               // head
+  ctx.beginPath(); ctx.moveTo(x,y-s*0.55); ctx.lineTo(x,y-s*0.1); ctx.stroke();// torso
+  ctx.beginPath(); ctx.moveTo(x-s*0.22,y-s*0.4); ctx.lineTo(x+s*0.22,y-s*0.4); ctx.stroke(); // arms
+  ctx.beginPath(); ctx.moveTo(x,y-s*0.1); ctx.lineTo(x-s*0.18,y+s*0.28);
+  ctx.moveTo(x,y-s*0.1); ctx.lineTo(x+s*0.18,y+s*0.28); ctx.stroke();          // legs
+  ctx.restore();
+}
+// sinusoidal wave polyline helper
+function wave(x0,x1,yc,amp,k,phase,color,w=2,alpha=1,steps=120){
+  ctx.save(); ctx.globalAlpha=alpha; ctx.strokeStyle=color; ctx.lineWidth=w; ctx.beginPath();
+  for(let i=0;i<=steps;i++){ const x=lerp(x0,x1,i/steps); const y=yc-amp*Math.sin(k*(x-x0)+phase); i?ctx.lineTo(x,y):ctx.moveTo(x,y); }
+  ctx.stroke(); ctx.restore();
+}
+
+/* =====================================================================
+   0 · COVER
+   ===================================================================== */
+addSlide({
+  cover:true,
+  enter(){ this.st={stars:Array.from({length:90},()=>({x:Math.random()*W,y:Math.random()*H,r:Math.random()*1.3+.2,s:Math.random()*.3+.05}))}; },
+  draw(t){
+    // drifting starfield
+    for(const s of this.st.stars){ s.x-=s.s; if(s.x<0)s.x=W; dot(s.x,s.y,s.r,'#5a6270', 0.5+0.4*Math.sin(t+ s.y)); }
+    // faint curved grid dip forming
+    const cx=W/2, cy=430, sp=54, prog=seg(t,0.3,2.2);
+    ctx.save(); ctx.globalAlpha=0.5*prog;
+    for(let gv=-4;gv<=4;gv++){ ctx.strokeStyle=C.grid; ctx.lineWidth=1; ctx.beginPath();
+      for(let gu=-9;gu<=9;gu++){ const r=Math.hypot(gu,gv); const d=42/(r*0.5+1.1);
+        const sx=cx+gu*sp, sy=cy+gv*sp*0.42+d; gu===-9?ctx.moveTo(sx,sy):ctx.lineTo(sx,sy);} ctx.stroke(); }
+    for(let gu=-9;gu<=9;gu+=1){ ctx.strokeStyle=C.grid; ctx.beginPath();
+      for(let gv=-4;gv<=4;gv++){ const r=Math.hypot(gu,gv); const d=42/(r*0.5+1.1);
+        const sx=cx+gu*sp, sy=cy+gv*sp*0.42+d; gv===-4?ctx.moveTo(sx,sy):ctx.lineTo(sx,sy);} ctx.stroke(); }
+    ctx.restore();
+    // title
+    label(W/2,250,'FRONTIER PHYSICS', {size:64,weight:600,color:C.ink,alpha:seg(t,0.4,1.2),font:'serif',align:'center'});
+    label(W/2,305,'T I E R   3', {size:22,weight:600,color:C.sand,alpha:seg(t,0.9,1),align:'center'});
+    line(W/2-230,335,W/2+230,335,C.line,1,seg(t,1.1,1));
+    label(W/2,362,'General Relativity · Quantum Fields · Condensed Matter · Nuclei · Chaos', {size:16,color:C.dim,alpha:seg(t,1.4,1.2),align:'center'});
+    label(W/2,640,'one language underneath it all: symmetry, fields, and the geometry of change', {size:15,color:C.faint,italic:true,alpha:seg(t,2.2,1.4),align:'center'});
+  },
+  beats:[{at:0.2,k:'idea',t:'Five frontiers of physics — each one is really a story about <b>how a field responds to a change.</b> We build them one gap at a time.'}]
+});
+
+/* =====================================================================
+   I · GENERAL RELATIVITY — section cover
+   ===================================================================== */
+addSlide({
+  section:'I · General Relativity', title:'What is gravity, really?',
+  subtitle:'Newton gave us a force. Einstein gave us a shape.',
+  enter(){},
+  draw(t){
+    const cx=W/2, cy=380;
+    // an apple falling next to a bending grid — teaser
+    const grid=seg(t,0.4,1.6);
+    ctx.save(); ctx.globalAlpha=0.55*grid;
+    for(let gv=-3;gv<=3;gv++){ ctx.strokeStyle=C.grid; ctx.beginPath();
+      for(let gu=-8;gu<=8;gu++){ const r=Math.hypot(gu,gv); const d=60/(r*0.55+1); const sx=cx+gu*48, sy=cy+gv*48*0.42+d; gu===-8?ctx.moveTo(sx,sy):ctx.lineTo(sx,sy);} ctx.stroke(); }
+    ctx.restore();
+    dot(cx,cy+10,14,C.sand,0.4+0.5*grid);
+    label(cx,cy+40,'mass', {size:13,color:C.dim,alpha:grid});
+    label(W/2,560,'"A person falling off a roof feels no gravity."  — the thought that started it all',{size:16,italic:true,color:C.faint,alpha:seg(t,1.6,1.4)});
+  },
+  beats:[
+    {at:0.3,k:'gap',t:'Newton\u2019s law predicts orbits beautifully \u2014 <span class="q">but why does gravity pull every object with the exact same acceleration, regardless of mass?</span>'},
+    {at:5,k:'note',t:'That single coincidence is the crack we pry open. Follow it and gravity stops being a force at all.'}
+  ]
+});
+
+/* ---- Equivalence principle ---- */
+addSlide({
+  section:'I · General Relativity', title:'The Equivalence Principle',
+  subtitle:'Standing on Earth vs. accelerating in a rocket — can any experiment tell them apart?',
+  enter(){},
+  draw(t){
+    const pw=300, ph=310, top=200;
+    const lx=300, rx=980;
+    const tt=(t%3.0);
+    const drop=y0=>{ const tau=clamp(tt,0,1.55); return y0 + 0.5*380*tau*tau; };
+    // ---- LEFT: rocket in space ----
+    rrect(lx-pw/2, top, pw, ph, 8, {stroke:C.line, lw:1.5, alpha:seg(t,0.2,0.8)});
+    label(lx,top-16,'DEEP SPACE · engine on', {size:13,color:C.dim,alpha:seg(t,0.3,0.8),letterSpacing:2});
+    person(lx-70, top+250, 66, C.blue, seg(t,0.5,0.8));
+    // ball
+    const by=Math.min(drop(top+70), top+250);
+    dot(lx+40, by, 9, C.sand, seg(t,0.9,0.6));
+    // acceleration arrow (rocket pushes floor up)
+    arrow(lx+120, top+250, lx+120, top+250-90*seg(t,1.2,1), C.clay, 3, seg(t,1.2,1));
+    label(lx+150, top+205,'a', {size:20,color:C.clay,italic:true,font:'serif',alpha:seg(t,1.4,1)});
+    // flame
+    const fl=6+4*Math.sin(t*20);
+    ctx.save(); ctx.globalAlpha=seg(t,0.5,1); ctx.fillStyle=C.clay;
+    ctx.beginPath(); ctx.moveTo(lx-14,top+ph); ctx.lineTo(lx+14,top+ph); ctx.lineTo(lx,top+ph+22+fl); ctx.closePath(); ctx.fill(); ctx.restore();
+
+    // ---- RIGHT: room on Earth ----
+    rrect(rx-pw/2, top, pw, ph, 8, {stroke:C.line, lw:1.5, alpha:seg(t,0.2,0.8)});
+    label(rx,top-16,'ON EARTH · at rest', {size:13,color:C.dim,alpha:seg(t,0.3,0.8)});
+    person(rx-70, top+250, 66, C.teal, seg(t,0.5,0.8));
+    dot(rx+40, Math.min(drop(top+70),top+250), 9, C.sand, seg(t,0.9,0.6));
+    arrow(rx+120, top+250, rx+120, top+250-90*seg(t,1.2,1), C.clay, 3, seg(t,1.2,1));
+    label(rx+150, top+205,'g', {size:20,color:C.clay,italic:true,font:'serif',alpha:seg(t,1.4,1)});
+    // ground hatching
+    ctx.save(); ctx.globalAlpha=seg(t,0.4,1); ctx.strokeStyle=C.faint;
+    for(let i=0;i<12;i++){ line(rx-pw/2+i*26, top+ph, rx-pw/2+i*26+14, top+ph+14, C.faint,1); } ctx.restore();
+
+    // equality
+    label(W/2, top+120,'\u2261', {size:60,color:C.sand,alpha:seg(t,2.2,1),font:'serif'});
+    label(W/2, top+180,'identical', {size:14,color:C.dim,alpha:seg(t,2.4,1)});
+  },
+  beats:[
+    {at:0.2,k:'recap',t:'The clue: gravity accelerates <b>everything</b> the same way \u2014 feather and hammer alike.'},
+    {at:3.2,k:'gap',t:'So drop a ball in a windowless box. <span class="q">Is the box sitting on a planet, or accelerating through empty space?</span>'},
+    {at:6.5,k:'fill',t:'No local experiment can tell. <b>Gravity and acceleration are the same thing.</b> That\u2019s the Equivalence Principle.'},
+    {at:10,k:'apply',t:'Consequence: gravity bends light and slows clocks \u2014 because it\u2019s just geometry of the frame. Verified to 15 decimal places.'}
+  ]
+});
+
+/* ---- Spacetime curvature ---- */
+addSlide({
+  section:'I · General Relativity', title:'Matter Curves Spacetime',
+  subtitle:'The rubber-sheet: a mass dips the grid, and free motion follows the dip.',
+  enter(){},
+  draw(t){
+    const cx=W/2, cy=400, sp=58, prog=seg(t,0.3,1.8);
+    const proj=(u,v)=>{ const r=Math.hypot(u,v); const d=95/(r*0.5+0.9); return {x:cx+u*sp, y:cy+v*sp*0.42+d, d}; };
+    // grid rows/cols
+    ctx.save(); ctx.globalAlpha=0.85*prog;
+    for(let gv=-4;gv<=4;gv++){ ctx.strokeStyle=C.grid; ctx.lineWidth=1.2; ctx.beginPath();
+      for(let gu=-9;gu<=9;gu++){ const p=proj(gu,gv); gu===-9?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y);} ctx.stroke(); }
+    for(let gu=-9;gu<=9;gu++){ ctx.strokeStyle=C.grid; ctx.beginPath();
+      for(let gv=-4;gv<=4;gv++){ const p=proj(gu,gv); gv===-4?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y);} ctx.stroke(); }
+    ctx.restore();
+    // central mass
+    const m=proj(0,0); glowDot(m.x,m.y+4,17,C.sand,prog); label(m.x,m.y+38,'M',{size:16,color:C.dim,italic:true,font:'serif',alpha:prog});
+    // orbiting test body (geodesic)
+    const orbP=seg(t,1.8,1);
+    if(orbP>0){ const th=t*1.15; const rr=3.0+0.35*Math.sin(t*1.3); const p=proj(rr*Math.cos(th), rr*Math.sin(th));
+      // trail
+      ctx.save(); ctx.globalAlpha=0.5*orbP; ctx.strokeStyle=C.blue; ctx.lineWidth=1.4; ctx.beginPath();
+      for(let a=0;a<TAU;a+=0.08){ const q=proj(rr*Math.cos(th-a), rr*Math.sin(th-a)); a===0?ctx.moveTo(q.x,q.y):ctx.lineTo(q.x,q.y);} ctx.stroke(); ctx.restore();
+      dot(p.x,p.y-4,7,C.blue,orbP);
+    }
+    label(W/2,585,'no string, no pull \u2014 the ball just rolls straight, and \u201cstraight\u201d is now curved',{size:15,italic:true,color:C.faint,alpha:seg(t,3,1.4)});
+  },
+  beats:[
+    {at:0.2,k:'recap',t:'We turned gravity into geometry. Now picture spacetime as a flexible <b>grid</b>.'},
+    {at:3,k:'gap',t:'A mass sits on it. <span class="q">If there\u2019s no force, why does a passing planet curve toward it?</span>'},
+    {at:6.5,k:'fill',t:'Because the grid itself is dented. The planet travels the <b>straightest possible line</b> \u2014 which, on a curved sheet, loops into an orbit.'},
+    {at:10,k:'apply',t:'GPS depends on this: satellite clocks run ~38 \u00b5s/day fast. Ignore curvature and your position drifts ~10 km/day.'}
+  ]
+});
+
+/* ---- Geodesics ---- */
+addSlide({
+  section:'I · General Relativity', title:'Geodesics: \u201cStraight\u201d on a Curved World',
+  subtitle:'Two travelers never turn — yet on a sphere they collide. Curvature made visible.',
+  enter(){},
+  draw(t){
+    // LEFT: flat plane, parallels stay parallel
+    const lx=340, ly=380;
+    label(lx,200,'FLAT SPACE',{size:14,color:C.dim,alpha:seg(t,0.3,0.8)});
+    ctx.save(); ctx.globalAlpha=0.5*seg(t,0.3,1); ctx.strokeStyle=C.grid;
+    for(let i=-3;i<=3;i++){ line(lx-160,ly+i*30,lx+160,ly+i*30,C.grid,1); line(lx+i*45,ly-100,lx+i*45,ly+100,C.grid,1);} ctx.restore();
+    const p=segL(t,1,4);
+    arrow(lx-90,ly+40,lx-90,ly+40-160*p,C.teal,2.5,seg(t,1,0.5));
+    arrow(lx+90,ly+40,lx+90,ly+40-160*p,C.teal,2.5,seg(t,1,0.5));
+    label(lx,ly+95,'parallel forever',{size:13,color:C.teal,alpha:seg(t,2,1)});
+
+    // RIGHT: sphere, meridians converge
+    const sx=960, sy=380, R=140;
+    ring(sx,sy,R,C.line,1.5,seg(t,0.3,1));
+    label(sx,200,'CURVED SPACE',{size:14,color:C.dim,alpha:seg(t,0.3,0.8)});
+    // latitude/longitude arcs
+    ctx.save(); ctx.globalAlpha=0.4*seg(t,0.4,1); ctx.strokeStyle=C.grid; ctx.lineWidth=1;
+    for(let k=-2;k<=2;k++){ ctx.beginPath(); ctx.ellipse(sx,sy,R,R*Math.abs(0.28*k)+0.5,0,0,TAU); ctx.stroke(); }
+    for(let k=-2;k<=2;k++){ ctx.beginPath(); ctx.ellipse(sx,sy,R*Math.abs(0.32*k)+0.5,R,0,0,TAU); ctx.stroke(); }
+    ctx.restore();
+    // two travelers start at equator, walk toward north pole along meridians
+    const q=segL(t,1,4);
+    const lat0=0, lat1=lat0 - q*(Math.PI/2-0.1);            // from equator up
+    const lonA=-0.55, lonB=0.55;
+    const sph=(lat,lon)=>({x:sx+R*Math.cos(lat)*Math.sin(lon), y:sy-R*Math.sin(lat)});
+    // meridian trails
+    for(const lon of [lonA,lonB]){ ctx.save(); ctx.globalAlpha=0.7*seg(t,1,0.5); ctx.strokeStyle=C.teal; ctx.lineWidth=2; ctx.beginPath();
+      for(let s=0;s<=q;s+=0.02){ const la=lat0 - s*(Math.PI/2-0.1); const pt=sph(la,lon); s===0?ctx.moveTo(pt.x,pt.y):ctx.lineTo(pt.x,pt.y);} ctx.stroke(); ctx.restore(); }
+    const A=sph(lat1,lonA), B=sph(lat1,lonB);
+    dot(A.x,A.y,6,C.blue,seg(t,1,0.5)); dot(B.x,B.y,6,C.blue,seg(t,1,0.5));
+    // gap between them
+    const gap=Math.hypot(A.x-B.x,A.y-B.y);
+    line(A.x,A.y,B.x,B.y,C.clay,1.4,0.5*seg(t,1.5,1),[4,4]);
+    label((A.x+B.x)/2,(A.y+B.y)/2-12,gap<10?'they meet!':'gap shrinking',{size:12,color:C.clay,alpha:seg(t,1.5,1)});
+    label(sx,sy+R+40,'they walked dead straight \u2014 curvature bent them together',{size:14,italic:true,color:C.faint,alpha:seg(t,3,1.2)});
+  },
+  beats:[
+    {at:0.2,k:'recap',t:'\u201cStraightest possible path\u201d has a name: a <b>geodesic.</b>'},
+    {at:3,k:'gap',t:'On flat ground, two people walking straight stay parallel. <span class="q">Do straight lines ever meet?</span>'},
+    {at:6.5,k:'fill',t:'On a sphere they must \u2014 think of longitude lines meeting at the pole. <b>Converging geodesics = curvature.</b> That convergence <i>is</i> tidal gravity.'},
+    {at:10,k:'apply',t:'Gravitational lensing: light rides geodesics, so galaxies bend background starlight into rings \u2014 a cosmic magnifying glass.'}
+  ]
+});
+
+/* ---- Einstein equations ---- */
+addSlide({
+  section:'I · General Relativity', title:'Einstein\u2019s Field Equations',
+  subtitle:'The whole theory in one balanced sentence.',
+  enter(){},
+  draw(t){
+    const cx=W/2, cy=330;
+    // LHS mini curved grid (geometry)
+    const gx=380, gy=cy;
+    const proj=(u,v)=>{ const r=Math.hypot(u,v); const d=40/(r*0.5+0.9); return {x:gx+u*22, y:gy+v*22*0.5+d}; };
+    ctx.save(); ctx.globalAlpha=0.8*seg(t,0.4,1.2);
+    for(let gv=-3;gv<=3;gv++){ ctx.strokeStyle=C.grid; ctx.beginPath(); for(let gu=-4;gu<=4;gu++){const p=proj(gu,gv); gu===-4?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y);} ctx.stroke(); }
+    for(let gu=-4;gu<=4;gu++){ ctx.strokeStyle=C.grid; ctx.beginPath(); for(let gv=-3;gv<=3;gv++){const p=proj(gu,gv); gv===-3?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y);} ctx.stroke(); }
+    ctx.restore();
+    label(gx,cy+95,'geometry (curvature)',{size:13,color:C.blue,alpha:seg(t,0.8,1)});
+    // equation
+    label(cx, cy, 'G', {size:52,color:C.blue,font:'serif',italic:true,alpha:seg(t,0.6,1),align:'center'});
+    label(cx+22, cy+14, '\u03bc\u03bd', {size:20,color:C.blue,font:'serif',alpha:seg(t,0.6,1),align:'left'});
+    label(cx+95, cy, '=', {size:46,color:C.ink,alpha:seg(t,1.2,1),align:'center'});
+    label(cx+240, cy, '8\u03c0G', {size:30,color:C.dim,font:'serif',alpha:seg(t,1.6,1),align:'center'});
+    line(cx+185,cy+22,cx+295,cy+22,C.dim,1.5,seg(t,1.6,1));
+    label(cx+240, cy+42, 'c\u2074', {size:24,color:C.dim,font:'serif',alpha:seg(t,1.6,1),align:'center'});
+    label(cx+360, cy, 'T', {size:52,color:C.sand,font:'serif',italic:true,alpha:seg(t,2,1),align:'center'});
+    label(cx+382, cy+14, '\u03bc\u03bd', {size:20,color:C.sand,font:'serif',alpha:seg(t,2,1),align:'left'});
+    // RHS matter blobs
+    const mx=920, my=cy;
+    const mp=seg(t,2,1.2);
+    if(mp>0){ for(let i=0;i<5;i++){ const a=i/5*TAU+t*0.4; dot(mx+Math.cos(a)*30, my+Math.sin(a)*22, 6, C.sand, mp);} glowDot(mx,my,10,C.sand,mp); }
+    label(mx,cy+95,'matter & energy',{size:13,color:C.sand,alpha:seg(t,2.2,1)});
+    // the sentence
+    label(W/2, 560,'\u201cMatter tells spacetime how to curve; curved spacetime tells matter how to move.\u201d',{size:19,italic:true,color:C.ink,alpha:seg(t,3,1.4),font:'serif'});
+    label(W/2, 590,'\u2014 J. A. Wheeler',{size:14,color:C.faint,alpha:seg(t,3.4,1.2)});
+  },
+  beats:[
+    {at:0.2,k:'recap',t:'Curvature on one side. Matter-energy on the other.'},
+    {at:2.4,k:'fill',t:'Einstein\u2019s equations set them <b>equal</b>: the shape of spacetime is dictated, point by point, by what\u2019s in it.'},
+    {at:6,k:'gap',t:'<span class="q">But zoom into a single point of \u201cmatter\u201d \u2014 what is it made of?</span> Newton\u2019s billiard-ball particles won\u2019t survive the next domain.'},
+    {at:10,k:'apply',t:'Solve these for the whole universe \u2192 cosmology: expansion, the Big Bang, black holes, gravitational waves (detected 2015).'}
+  ]
+});
+
+/* =====================================================================
+   II · QUANTUM FIELD THEORY — section cover
+   ===================================================================== */
+addSlide({
+  section:'II · Quantum Field Theory', title:'A Particle Is Not a Thing',
+  subtitle:'It is a disturbance. The question is: a disturbance in what?',
+  enter(){},
+  draw(t){
+    const y0=400, x0=180, x1=1100;
+    // faint 2D grid behind
+    ctx.save(); ctx.globalAlpha=0.25*seg(t,0.3,1); ctx.strokeStyle=C.grid;
+    for(let gy=250;gy<=520;gy+=34) line(x0,gy,x1,gy,C.grid,1);
+    for(let gx=x0;gx<=x1;gx+=48) line(gx,250,gx,520,C.grid,1);
+    ctx.restore();
+    // a single travelling ripple
+    const xc=lerp(x0+80,x1-80,(t*0.16)%1);
+    ctx.save(); ctx.globalAlpha=seg(t,0.6,1); ctx.strokeStyle=C.blue; ctx.lineWidth=2.2; ctx.beginPath();
+    for(let x=x0;x<=x1;x+=3){ const env=Math.exp(-Math.pow((x-xc)/70,2)); const y=y0-36*env*Math.sin(0.12*(x-xc)-t*6); x===x0?ctx.moveTo(x,y):ctx.lineTo(x,y);} ctx.stroke(); ctx.restore();
+    dot(xc,y0,4,C.sand,seg(t,0.6,1));
+  },
+  beats:[
+    {at:0.3,k:'recap',t:'Relativity told us <b>what</b> curves. Now: what fills the curved stage?'},
+    {at:3,k:'gap',t:'Newton\u2019s tiny billiard balls can\u2019t be right \u2014 <span class="q">why is every electron in the universe perfectly identical, to infinite precision?</span>'},
+    {at:6.5,k:'note',t:'Manufactured objects always vary. Perfect sameness means electrons aren\u2019t objects at all. So what are they?'}
+  ]
+});
+
+/* ---- Fields, not particles ---- */
+addSlide({
+  section:'II · Quantum Field Theory', title:'Everything Is a Field',
+  subtitle:'Space is filled with fields; a particle is one quantized ripple in one of them.',
+  enter(){},
+  draw(t){
+    const y0=380, x0=150, x1=1130;
+    line(x0,y0,x1,y0,C.line,1,0.4*seg(t,0.2,1),[3,5]);
+    label(x1+2,y0,'\u03c6(x)',{size:15,color:C.dim,italic:true,font:'serif',align:'left',alpha:seg(t,0.4,1)});
+    // ground state: gentle vacuum jitter
+    ctx.save(); ctx.globalAlpha=0.4*seg(t,0.3,1); ctx.strokeStyle=C.grid; ctx.lineWidth=1.4; ctx.beginPath();
+    for(let x=x0;x<=x1;x+=4){ const y=y0-3*Math.sin(0.5*x+t*3)*Math.cos(0.2*x-t*2); x===x0?ctx.moveTo(x,y):ctx.lineTo(x,y);} ctx.stroke(); ctx.restore();
+    // one excitation appears then travels = a particle
+    const born=seg(t,2,1.2);
+    const xc1=lerp(x0+120,x1-260,clamp((t-2)*0.10,0,1));
+    ctx.save(); ctx.globalAlpha=born; ctx.strokeStyle=C.blue; ctx.lineWidth=2.4; ctx.beginPath();
+    for(let x=x0;x<=x1;x+=3){ const env=Math.exp(-Math.pow((x-xc1)/58,2)); const y=y0-40*env*Math.sin(0.14*(x-xc1)-t*7); x===x0?ctx.moveTo(x,y):ctx.lineTo(x,y);} ctx.stroke(); ctx.restore();
+    if(born>0.5){ dot(xc1,y0-2,5,C.blue,born); label(xc1,y0+34,'1 electron',{size:12,color:C.blue,alpha:(born-0.5)*2}); }
+    // a second, identical excitation
+    const born2=seg(t,5,1.2);
+    if(born2>0){ const xc2=lerp(x1-160,x0+260,clamp((t-5)*0.09,0,1));
+      ctx.save(); ctx.globalAlpha=born2; ctx.strokeStyle=C.teal; ctx.lineWidth=2.4; ctx.beginPath();
+      for(let x=x0;x<=x1;x+=3){ const env=Math.exp(-Math.pow((x-xc2)/58,2)); const y=y0-40*env*Math.sin(0.14*(x-xc2)+t*7); x===x0?ctx.moveTo(x,y):ctx.lineTo(x,y);} ctx.stroke(); ctx.restore();
+      dot(xc2,y0-2,5,C.teal,born2); label(xc2,y0+34,'another \u2014 identical',{size:12,color:C.teal,alpha:born2});
+    }
+    label(W/2,540,'same field \u2192 same ripple \u2192 truly indistinguishable particles',{size:16,italic:true,color:C.faint,alpha:seg(t,7,1.4)});
+  },
+  beats:[
+    {at:0.2,k:'fill',t:'Reality\u2019s bottom layer is a set of <b>fields</b> \u2014 one for electrons, one for photons, one per particle type \u2014 filling all of space.'},
+    {at:2.4,k:'note',t:'Poke the electron field and a localized ripple appears. <b>That ripple is a particle.</b>'},
+    {at:5.2,k:'fill',t:'Every electron is a ripple in the <i>same</i> field \u2014 which is exactly why they\u2019re identical. The riddle dissolves.'},
+    {at:8.5,k:'gap',t:'<span class="q">But ripples in the classical world can be any size. Why does charge and energy come in fixed lumps?</span>'}
+  ]
+});
+
+/* ---- Second quantization ---- */
+addSlide({
+  section:'II · Quantum Field Theory', title:'Quantized: Energy Comes in Whole Packets',
+  subtitle:'The field is a ladder. You climb it one quantum at a time.',
+  enter(){},
+  draw(t){
+    const lx=460, base=520, gap=68, N=4;
+    // ladder rungs
+    for(let n=0;n<=N;n++){ const y=base-n*gap; const a=seg(t,0.3+n*0.2,0.8);
+      line(lx-110,y,lx+110,y,C.line,1.6,a);
+      label(lx-140,y,`n=${n}`,{size:14,color:C.dim,align:'right',alpha:a});
+      label(lx+140,y,`${n} particle${n===1?'':'s'}`,{size:12,color:C.faint,align:'left',alpha:a});
+    }
+    label(lx,base-N*gap-40,'energy',{size:13,color:C.dim,alpha:seg(t,0.3,1)});
+    arrow(lx-110,base+18,lx-110,base-N*gap-20,C.faint,1.5,seg(t,0.3,1),7);
+    // spacing bracket
+    label(lx-190,base-gap*0.5,'\u210f\u03c9',{size:16,color:C.sand,italic:true,font:'serif',alpha:seg(t,1,1),align:'right'});
+    // token that climbs and descends via creation/annihilation
+    const seq=[0,1,2,3,2,3,4,3,2,1,2,3];
+    const phase=Math.max(0,t-2);
+    const step=Math.floor(phase/1.1)%(seq.length-1);
+    const frac=ease((phase/1.1)%1);
+    const nFrom=seq[step], nTo=seq[step+1];
+    const nNow=lerp(nFrom,nTo,frac);
+    const up=nTo>nFrom;
+    const y=base-nNow*gap;
+    if(t>2){ glowDot(lx,y,9,up?C.blue:C.clay,1);
+      // operator label
+      const opY=base-(nFrom+nTo)/2*gap;
+      arrow(lx+40,base-nFrom*gap, lx+40, base-nTo*gap, up?C.blue:C.clay, 2, 0.8, 7);
+      label(lx+70, opY, up?'a\u2020 creates':'a annihilates', {size:14,color:up?C.blue:C.clay,align:'left',italic:true,font:'serif'});
+    }
+    label(W/2,610,'you can add half a wavelength \u2014 but never half a particle',{size:15,italic:true,color:C.faint,alpha:seg(t,4,1.4)});
+  },
+  beats:[
+    {at:0.2,k:'recap',t:'A field ripple can\u2019t be any amplitude. Its energy sits on a <b>ladder</b> of evenly spaced rungs.'},
+    {at:2.4,k:'fill',t:'Each rung up = one more quantum. The <b>creation operator a\u2020</b> adds a particle; <b>a</b> removes one. This is second quantization.'},
+    {at:6,k:'note',t:'Whole rungs only \u2014 so charge, energy, spin arrive in discrete lumps. That\u2019s where \u201cquantum\u201d comes from.'},
+    {at:9,k:'gap',t:'<span class="q">Two electrons repel. If there\u2019s no force field pulling them \u2014 only ripples \u2014 how is the push actually delivered?</span>'}
+  ]
+});
+
+/* ---- Feynman diagram ---- */
+addSlide({
+  section:'II · Quantum Field Theory', title:'Forces Are Exchanged Particles',
+  subtitle:'A Feynman diagram: two electrons repel by tossing a photon between them.',
+  enter(){},
+  draw(t){
+    const cx=W/2, botY=520, midY=350, topY=210;
+    const vL={x:cx-70,y:midY}, vR={x:cx+70,y:midY};
+    // time axis
+    arrow(210,botY,210,topY-10,C.faint,1.4,seg(t,0.2,1),7);
+    label(196,(botY+topY)/2,'time',{size:13,color:C.dim,align:'right',alpha:seg(t,0.2,1)});
+    // incoming electrons (bottom -> vertices)
+    const inP=segL(t,0.6,1.4);
+    arrow(cx-220,botY, lerp(cx-220,vL.x,inP), lerp(botY,vL.y,inP), C.blue,2.4,seg(t,0.6,0.5));
+    arrow(cx+220,botY, lerp(cx+220,vR.x,inP), lerp(botY,vR.y,inP), C.blue,2.4,seg(t,0.6,0.5));
+    label(cx-230,botY+22,'e\u207b',{size:16,color:C.blue,alpha:seg(t,0.7,1),font:'serif'});
+    label(cx+230,botY+22,'e\u207b',{size:16,color:C.blue,alpha:seg(t,0.7,1),font:'serif'});
+    // vertices
+    if(t>2){ dot(vL.x,vL.y,4,C.ink,seg(t,2,0.5)); dot(vR.x,vR.y,4,C.ink,seg(t,2,0.5)); }
+    // exchanged photon (wavy) between vertices
+    const wp=seg(t,2.3,1);
+    if(wp>0){ ctx.save(); ctx.globalAlpha=wp; ctx.strokeStyle=C.sand; ctx.lineWidth=2; ctx.beginPath();
+      const n=Math.floor((vR.x-vL.x))/1; for(let x=vL.x;x<=vR.x;x+=2){ const u=(x-vL.x)/(vR.x-vL.x); const y=midY-9*Math.sin(u*Math.PI*6); x===vL.x?ctx.moveTo(x,y):ctx.lineTo(x,y);} ctx.stroke(); ctx.restore();
+      label(cx,midY-26,'\u03b3  (photon)',{size:14,color:C.sand,italic:true,font:'serif',alpha:wp});
+    }
+    // outgoing electrons (vertices -> top, spreading = repelled)
+    const outP=segL(t,3.4,1.4);
+    if(outP>0){ arrow(vL.x,vL.y, lerp(vL.x,cx-240,outP), lerp(vL.y,topY,outP), C.teal,2.4,1);
+      arrow(vR.x,vR.y, lerp(vR.x,cx+240,outP), lerp(vR.y,topY,outP), C.teal,2.4,1);
+      label(cx-250,topY-14,'e\u207b',{size:16,color:C.teal,alpha:outP,font:'serif'});
+      label(cx+250,topY-14,'e\u207b',{size:16,color:C.teal,alpha:outP,font:'serif'});
+      label(cx,topY-14,'(pushed apart)',{size:13,color:C.dim,alpha:outP});
+    }
+    label(W/2,585,'no invisible force \u2014 just a photon handed off, like two skaters throwing a ball',{size:15,italic:true,color:C.faint,alpha:seg(t,5.5,1.4)});
+  },
+  beats:[
+    {at:0.2,k:'recap',t:'Two electron-ripples approach. Time runs upward.'},
+    {at:2.2,k:'fill',t:'At each vertex an electron emits or absorbs a <b>photon</b> \u2014 a ripple in the electromagnetic field. That exchange <i>is</i> the electric force.'},
+    {at:5,k:'note',t:'Every diagram is one term in an infinite sum. Add them up and you predict the outcome \u2014 this is how forces work at the deepest level.'},
+    {at:8,k:'apply',t:'QED predicts the electron\u2019s magnetic moment to 12 digits, matching experiment \u2014 the most accurate prediction in all of science. Powers particle colliders & precision clocks.'}
+  ]
+});
+
+/* =====================================================================
+   III · CONDENSED MATTER — section cover
+   ===================================================================== */
+addSlide({
+  section:'III · Condensed Matter', title:'Now Take 10\u00b2\u00b3 of Them',
+  subtitle:'One electron is quantum mechanics. A trillion trillion, in formation, is something new.',
+  enter(){ this.st={pts:Array.from({length:64},()=>({x:Math.random()*W,y:250+Math.random()*260}))}; },
+  draw(t){
+    const cols=8,rows=6,sp=52,ox=W/2-(cols-1)*sp/2,oy=250;
+    const form=ease(clamp((t-0.6)/2.2,0,1));
+    let idx=0;
+    for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){ const p=this.st.pts[idx++];
+      const tx=ox+c*sp, ty=oy+r*sp;
+      const x=lerp(p.x,tx,form), y=lerp(p.y,ty,form);
+      if(form>0.15){ for(const [dc,dr] of [[1,0],[0,1]]){ if(c+dc<cols&&r+dr<rows){ line(x,y, lerp(p.x,ox+(c+dc)*sp,form), lerp(p.y,oy+(r+dr)*sp,form), C.grid,1,0.5*form); }}}
+      dot(x,y,4,C.blue,0.5+0.5*form);
+    }
+    label(W/2,560,'order out of the crowd \u2014 the moment atoms lock into a lattice, brand-new laws appear',{size:15,italic:true,color:C.faint,alpha:seg(t,3,1.4)});
+  },
+  beats:[
+    {at:0.3,k:'recap',t:'We can describe one quantum ripple. Solids are <b>10\u00b2\u00b3 of them</b>, packed into a repeating grid.'},
+    {at:3,k:'gap',t:'You can\u2019t track that many. <span class="q">So how does anyone predict whether a material is a metal, a magnet, or a superconductor?</span>'},
+    {at:6.5,k:'note',t:'The trick is to stop tracking particles and start exploiting the <b>repetition</b>. Symmetry is the shortcut.'}
+  ]
+});
+
+/* ---- Crystal + reciprocal lattice ---- */
+addSlide({
+  section:'III · Condensed Matter', title:'The Crystal & Its Shadow',
+  subtitle:'A repeating lattice has a hidden dual \u2014 the reciprocal lattice, where wave physics lives.',
+  enter(){},
+  draw(t){
+    // real-space lattice
+    const rx=330, ry=380, sp=44;
+    label(rx,215,'REAL SPACE',{size:14,color:C.dim,alpha:seg(t,0.3,0.8)});
+    for(let i=-2;i<=2;i++)for(let j=-2;j<=2;j++){ const a=seg(t,0.3+ (Math.abs(i)+Math.abs(j))*0.08,0.6);
+      dot(rx+i*sp, ry+j*sp, 4.5, C.blue, a); }
+    // lattice vectors
+    arrow(rx,ry,rx+sp,ry,C.sand,2,seg(t,1,1),7); label(rx+sp/2,ry+16,'a\u2081',{size:14,color:C.sand,italic:true,font:'serif',alpha:seg(t,1.1,1)});
+    arrow(rx,ry,rx,ry-sp,C.sand,2,seg(t,1,1),7); label(rx-16,ry-sp/2,'a\u2082',{size:14,color:C.sand,italic:true,font:'serif',alpha:seg(t,1.1,1)});
+    label(rx,ry+130,'atoms, spacing a',{size:13,color:C.faint,alpha:seg(t,1.4,1)});
+    // fourier arrow
+    arrow(560,ry, 720,ry, C.teal,2,seg(t,2,1),9);
+    label(640,ry-16,'Fourier',{size:14,color:C.teal,italic:true,alpha:seg(t,2.1,1)});
+    label(640,ry+22,'(= diffraction)',{size:12,color:C.faint,alpha:seg(t,2.3,1)});
+    // reciprocal lattice (tighter -> here shown wider spacing to imply inverse)
+    const kx=960, ky=380, ksp=56;
+    label(kx,215,'RECIPROCAL SPACE',{size:14,color:C.dim,alpha:seg(t,2.4,0.8)});
+    for(let i=-2;i<=2;i++)for(let j=-2;j<=2;j++){ const a=seg(t,2.4+ (Math.abs(i)+Math.abs(j))*0.08,0.6);
+      const rr=(i===0&&j===0)?6:3.4; dot(kx+i*ksp, ky+j*ksp, rr, (i===0&&j===0)?C.sand:C.teal, a); }
+    arrow(kx,ky,kx+ksp,ky,C.plum,2,seg(t,3,1),7); label(kx+ksp/2,ky+16,'b\u2081',{size:14,color:C.plum,italic:true,font:'serif',alpha:seg(t,3.1,1)});
+    arrow(kx,ky,kx,ky-ksp,C.plum,2,seg(t,3,1),7); label(kx-16,ky-ksp/2,'b\u2082',{size:14,color:C.plum,italic:true,font:'serif',alpha:seg(t,3.1,1)});
+    label(kx,ky+130,'spacing \u221d 1/a',{size:13,color:C.faint,alpha:seg(t,3.4,1)});
+    label(W/2,560,'big in real space \u2192 small in reciprocal space \u2014 X-ray spots map the atoms you can\u2019t see',{size:15,italic:true,color:C.faint,alpha:seg(t,4.4,1.4)});
+  },
+  beats:[
+    {at:0.2,k:'recap',t:'A crystal is one motif copied on a periodic <b>lattice</b>, described by vectors a\u2081, a\u2082.'},
+    {at:2.2,k:'fill',t:'Take its Fourier transform and you get a second lattice \u2014 the <b>reciprocal lattice</b>. Every wave in the solid is naturally labeled by a point here.'},
+    {at:5,k:'note',t:'Distances invert: wide-spaced atoms give close-spaced reciprocal points. This is literally what an X-ray diffraction pattern shows.'},
+    {at:8,k:'gap',t:'<span class="q">An electron wave enters this perfect grid of atoms. Shouldn\u2019t it scatter off every single one and grind to a halt?</span>'}
+  ]
+});
+
+/* ---- Bloch's theorem ---- */
+addSlide({
+  section:'III · Condensed Matter', title:'Bloch\u2019s Theorem',
+  subtitle:'In a perfect lattice, electrons flow as free waves \u2014 they do not scatter at all.',
+  enter(){},
+  draw(t){
+    const x0=180, x1=1100, d=84, baseY=500;
+    // ion cores + periodic potential
+    const cores=[]; for(let x=x0+d/2;x<=x1;x+=d) cores.push(x);
+    ctx.save(); ctx.globalAlpha=0.5*seg(t,0.3,1); ctx.strokeStyle=C.grid; ctx.lineWidth=1.4; ctx.beginPath();
+    for(let x=x0;x<=x1;x+=3){ let v=0; for(const c of cores) v+=Math.exp(-Math.pow((x-c)/22,2)); const y=baseY - 18*v; x===x0?ctx.moveTo(x,y):ctx.lineTo(x,y);} ctx.stroke(); ctx.restore();
+    for(const c of cores){ dot(c,baseY,6,C.sand,seg(t,0.4,1)); }
+    label(x1+4,baseY,'ions',{size:13,color:C.dim,align:'left',alpha:seg(t,0.4,1)});
+    // Bloch wave psi = e^{ikx} u(x): carrier * periodic envelope
+    const yc=320, w=seg(t,1.2,1.2);
+    ctx.save(); ctx.globalAlpha=w; ctx.strokeStyle=C.blue; ctx.lineWidth=2.4; ctx.beginPath();
+    for(let x=x0;x<=x1;x+=2){ const u=0.55+0.45*Math.cos(TAU*(x-x0)/d);           // lattice-periodic part
+      const y=yc-42*u*Math.sin(0.09*(x-x0)-t*4); x===x0?ctx.moveTo(x,y):ctx.lineTo(x,y);} ctx.stroke(); ctx.restore();
+    // probability peaks aligned to atoms
+    if(w>0.5){ ctx.save(); ctx.globalAlpha=0.3*(w-0.5)*2; ctx.fillStyle=C.blue;
+      for(const c of cores){ ctx.beginPath(); ctx.ellipse(c,yc,10,44,0,0,TAU); ctx.fill(); } ctx.restore(); }
+    // formula
+    label(W/2,215,'\u03c8(x) = e^{ikx} \u00b7 u(x)',{size:26,color:C.ink,font:'serif',italic:true,alpha:seg(t,2.4,1)});
+    label(W/2,246,'free travelling wave  \u00d7  something with the lattice\u2019s period',{size:14,color:C.dim,alpha:seg(t,2.8,1)});
+    label(W/2,585,'the grid isn\u2019t an obstacle \u2014 it\u2019s the medium. Resistance comes only when the grid is imperfect.',{size:15,italic:true,color:C.faint,alpha:seg(t,4,1.4)});
+  },
+  beats:[
+    {at:0.2,k:'recap',t:'Naively, an electron should bounce off all 10\u00b2\u00b3 ions. Every metal should be an insulator.'},
+    {at:2.2,k:'fill',t:'Bloch\u2019s theorem: in a <i>periodic</i> potential the solutions are <b>plane waves dressed with the lattice\u2019s period</b> \u2014 \u03c8 = e^{ikx}u(x). They glide through untouched.'},
+    {at:6,k:'note',t:'So a perfect crystal has <b>zero</b> resistance. Real resistance = defects, impurities, and vibrations breaking the perfection.'},
+    {at:9,k:'gap',t:'<span class="q">Vibrations? The atoms aren\u2019t nailed down \u2014 they jiggle. Is that jiggle also quantized?</span>'}
+  ]
+});
+
+/* ---- Phonons ---- */
+addSlide({
+  section:'III · Condensed Matter', title:'Phonons: Sound Is a Particle Too',
+  subtitle:'A lattice vibration, quantized, behaves like a particle carrying heat and sound.',
+  enter(){},
+  draw(t){
+    const N=15, sp=62, x0=W/2-(N-1)*sp/2, yc=380, A=26, k=0.55, w=3.2;
+    const disp=n=>A*Math.sin(k*n - w*t)*seg(t,0.6,1.2);
+    // bonds
+    ctx.save(); ctx.globalAlpha=0.6*seg(t,0.3,1); ctx.strokeStyle=C.grid; ctx.lineWidth=1.6; ctx.beginPath();
+    for(let n=0;n<N;n++){ const x=x0+n*sp, y=yc+disp(n); n===0?ctx.moveTo(x,y):ctx.lineTo(x,y);} ctx.stroke(); ctx.restore();
+    // atoms
+    for(let n=0;n<N;n++){ const x=x0+n*sp, y=yc+disp(n); dot(x,y,7,C.teal,seg(t,0.3+n*0.03,0.6));
+      line(x,yc-70,x,yc+70,C.grid,1,0.15); }                    // equilibrium guides
+    // travelling packet marker = the phonon quantum
+    const qp=seg(t,2.4,1);
+    if(qp>0){ const xc=x0 + ((t*1.6)%(N-2)+1)*sp; ring(xc,yc+disp((xc-x0)/sp),22,C.sand,1.6,0.6*qp);
+      label(xc,yc-42,'1 phonon',{size:13,color:C.sand,alpha:qp}); }
+    label(W/2,215,'quantized vibration  \u2192  a \u201cparticle\u201d of sound & heat',{size:16,color:C.dim,alpha:seg(t,0.6,1)});
+    label(W/2,560,'phonons carry heat through a solid \u2014 and scatter electrons, which is where resistance is born',{size:15,italic:true,color:C.faint,alpha:seg(t,4,1.4)});
+  },
+  beats:[
+    {at:0.2,k:'recap',t:'The lattice isn\u2019t rigid \u2014 atoms are springs. A disturbance travels as a <b>wave</b>.'},
+    {at:2.4,k:'fill',t:'Quantize that wave (same ladder trick as fields) and its energy comes in packets: a <b>phonon</b> \u2014 the particle of sound and heat.'},
+    {at:6,k:'note',t:'Electrons ride freely through a perfect lattice, but they <i>do</i> scatter off phonons. Heat up a metal \u2192 more phonons \u2192 more resistance.'},
+    {at:9,k:'gap',t:'<span class="q">If electrons flow so freely, why is diamond an insulator and copper a conductor \u2014 both perfect crystals?</span>'}
+  ]
+});
+
+/* ---- Band theory ---- */
+addSlide({
+  section:'III · Condensed Matter', title:'Energy Bands & the Band Gap',
+  subtitle:'Bring atoms together and their sharp levels smear into bands \u2014 with forbidden gaps between.',
+  enter(){},
+  draw(t){
+    const xa=320, xb=1000, E2=300, E1=470;
+    const S=x=>clamp((x-xa)/(xb-xa),0,1);
+    const hw=s=>82*s;
+    const p=seg(t,0.5,2.6);
+    const xNow=xa+p*(xb-xa);
+    // axes
+    arrow(xa-4,540,xa-4,250,C.faint,1.4,seg(t,0.2,1),7); label(xa-24,270,'E',{size:15,color:C.dim,italic:true,font:'serif',alpha:seg(t,0.2,1),align:'right'});
+    arrow(xa-4,540,xb+30,540,C.faint,1.4,seg(t,0.2,1),7); label(xb+10,560,'atoms closer \u2192',{size:12,color:C.dim,alpha:seg(t,0.2,1),align:'right'});
+    // discrete levels at left
+    line(xa-4,E1,xa+18,E1,C.sand,2,seg(t,0.3,1)); line(xa-4,E2,xa+18,E2,C.sand,2,seg(t,0.3,1));
+    label(xa+24,E1,'atomic level',{size:11,color:C.faint,align:'left',alpha:seg(t,0.4,1)});
+    // band polygons up to xNow
+    const build=(center)=>{ let top=[],bot=[]; for(let x=xa;x<=xNow;x+=6){ const s=S(x); top.push([x,center-hw(s)]); bot.push([x,center+hw(s)]); } return {top,bot}; };
+    const drawBand=(center,fill,stroke)=>{ const b=build(center); if(b.top.length<2)return;
+      ctx.save(); ctx.beginPath(); ctx.moveTo(b.top[0][0],b.top[0][1]);
+      for(const q of b.top)ctx.lineTo(q[0],q[1]); for(let i=b.bot.length-1;i>=0;i--)ctx.lineTo(b.bot[i][0],b.bot[i][1]); ctx.closePath();
+      ctx.globalAlpha=0.85; if(fill){ctx.fillStyle=fill; ctx.fill();} if(stroke){ctx.strokeStyle=stroke; ctx.lineWidth=1.5; ctx.stroke();} ctx.restore(); };
+    drawBand(E1, rgba(C.blue,0.30), C.blue);      // valence (filled)
+    drawBand(E2, rgba(C.faint,0.18), C.dim);      // conduction (empty)
+    // labels
+    label(xb+8,E1,'valence band',{size:12,color:C.blue,align:'left',alpha:p});
+    label(xb+8,E1+18,'(full)',{size:11,color:C.faint,align:'left',alpha:p});
+    label(xb+8,E2,'conduction band',{size:12,color:C.dim,align:'left',alpha:p});
+    label(xb+8,E2+18,'(empty)',{size:11,color:C.faint,align:'left',alpha:p});
+    // gap arrow at right where it opens
+    if(p>0.9){ const yTop=E2+hw(1), yBot=E1-hw(1); arrow(xb-40,yBot,xb-40,yTop,C.clay,1.6,1,6); arrow(xb-40,yTop,xb-40,yBot,C.clay,1.6,1,6);
+      label(xb-52,(yTop+yBot)/2,'E_g',{size:14,color:C.clay,italic:true,font:'serif',align:'right'}); }
+    // equilibrium spacing marker
+    if(t>2){ const xe=xa+0.82*(xb-xa); line(xe,250,xe,540,C.faint,1,0.5,[4,5]); label(xe,238,'a\u2080',{size:12,color:C.dim,alpha:seg(t,2.2,1)}); }
+    // sweeping line
+    if(p<1) line(xNow,250,xNow,540,C.teal,1.5,0.7);
+  },
+  beats:[
+    {at:0.2,k:'recap',t:'Isolated atoms have <b>sharp, discrete</b> energy levels. Now push 10\u00b2\u00b3 of them together.'},
+    {at:2.4,k:'fill',t:'Levels can\u2019t coincide (Pauli), so each smears into a dense <b>band</b>. Between bands sit <b>forbidden gaps</b> \u2014 energies no electron can have.'},
+    {at:6,k:'note',t:'Fill the bands with electrons: <b>partly-filled top band \u2192 metal</b> (copper). <b>Full band + big gap \u2192 insulator</b> (diamond). <b>Small gap \u2192 semiconductor</b> (silicon).'},
+    {at:9.5,k:'gap',t:'<span class="q">In a metal there are billions of electrons \u2014 but which ones actually carry the current?</span>'}
+  ]
+});
+
+/* ---- Fermi surface ---- */
+addSlide({
+  section:'III · Condensed Matter', title:'The Fermi Surface',
+  subtitle:'Electrons fill momentum-space like water. Only the ones at the waterline do anything.',
+  enter(){},
+  draw(t){
+    const cx=520, cy=385, g=26, R=8;
+    const kF=5.3*g, r=kF*seg(t,0.5,2.4);
+    // axes
+    arrow(cx,cy+240,cx,cy-240,C.faint,1.2,seg(t,0.2,1),6); label(cx+14,cy-230,'k_y',{size:12,color:C.dim,italic:true,font:'serif',alpha:seg(t,0.2,1),align:'left'});
+    arrow(cx-240,cy,cx+240,cy,C.faint,1.2,seg(t,0.2,1),6); label(cx+228,cy+18,'k_x',{size:12,color:C.dim,italic:true,font:'serif',alpha:seg(t,0.2,1)});
+    // allowed states
+    for(let i=-R;i<=R;i++)for(let j=-R;j<=R;j++){ const px=cx+i*g, py=cy+j*g; const d=Math.hypot(i*g,j*g); if(d>R*g)continue;
+      if(d<=r){ const nearSurf=Math.abs(d-r)<g*1.1 && r>kF*0.9; dot(px,py,3.2,nearSurf?C.sand:C.blue, nearSurf?1:0.85); }
+      else dot(px,py,2.2,C.grid,0.7);
+    }
+    // Fermi circle
+    ring(cx,cy,r,C.sand,2, seg(t,0.6,1));
+    if(seg(t,2.6,1)>0.3){ label(cx, cy-kF-24,'Fermi surface',{size:14,color:C.sand,alpha:seg(t,2.6,1)}); }
+    label(cx,cy+kF+30,'filled \u201cFermi sea\u201d',{size:13,color:C.blue,alpha:seg(t,1.5,1)});
+    // right explanation
+    label(980,320,'apply a voltage',{size:14,color:C.dim,align:'center',alpha:seg(t,3.4,1)});
+    arrow(900,360,1060,360,C.teal,2,seg(t,3.6,1),8);
+    label(980,392,'the whole sea shifts slightly;',{size:13,color:C.faint,align:'center',alpha:seg(t,3.8,1)});
+    label(980,412,'only surface electrons find',{size:13,color:C.faint,align:'center',alpha:seg(t,3.9,1)});
+    label(980,432,'empty states to move into',{size:13,color:C.faint,align:'center',alpha:seg(t,4,1)});
+  },
+  beats:[
+    {at:0.2,k:'recap',t:'Electrons are fermions \u2014 they stack, filling every momentum state from the bottom up.'},
+    {at:2.4,k:'fill',t:'They fill a \u201c<b>Fermi sea</b>\u201d in momentum space. Its edge is the <b>Fermi surface</b> \u2014 the single most important object in metal physics.'},
+    {at:6,k:'note',t:'Deep electrons are boxed in. Only those <i>at the surface</i> have empty neighbors to jump to \u2014 so they alone carry current, heat, and magnetism.'},
+    {at:9,k:'apply',t:'The shape of the Fermi surface predicts a metal\u2019s conductivity, heat capacity & magnetism \u2014 mapped experimentally by quantum oscillations.'}
+  ]
+});
+
+/* ---- Semiconductor p-n junction ---- */
+addSlide({
+  section:'III · Condensed Matter', title:'The p\u2013n Junction: a One-Way Valve',
+  subtitle:'Dope silicon two ways, join them, and you get the device that runs the world.',
+  enter(){},
+  draw(t){
+    const bx=220, bw=840, by=255, bh=225, xj=bx+bw/2;
+    // regions
+    rrect(bx,by,bw/2,bh,0,{fill:rgba(C.sand,0.06),stroke:C.line,lw:1.4,alpha:seg(t,0.2,1)});
+    rrect(xj,by,bw/2,bh,0,{fill:rgba(C.blue,0.06),stroke:C.line,lw:1.4,alpha:seg(t,0.2,1)});
+    label(bx+bw*0.24,by-14,'p-type  (mobile holes +)',{size:14,color:C.sand,alpha:seg(t,0.3,1)});
+    label(bx+bw*0.76,by-14,'n-type  (mobile electrons \u2212)',{size:14,color:C.blue,alpha:seg(t,0.3,1)});
+    // depletion region
+    const dep=seg(t,1.2,1)*34;
+    if(dep>1){ rrect(xj-dep,by,dep*2,bh,0,{fill:rgba(C.faint,0.16),alpha:0.8});
+      for(let k=0;k<4;k++){ label(xj-dep*0.5,by+40+k*45,'\u2212',{size:16,color:C.clay,alpha:0.7}); label(xj+dep*0.5,by+40+k*45,'+',{size:16,color:C.teal,alpha:0.7}); }
+      // built-in field
+      arrow(xj+dep+2,by+bh-24, xj-dep-2,by+bh-24, C.plum,1.6,0.7,7); label(xj,by+bh-8,'built-in field',{size:11,color:C.plum,alpha:0.8}); }
+    // band bending (faint) across top
+    ctx.save(); ctx.globalAlpha=0.5*seg(t,1.5,1); ctx.strokeStyle=C.dim; ctx.lineWidth=1.4; ctx.setLineDash([4,4]); ctx.beginPath();
+    for(let x=bx+10;x<=bx+bw-10;x+=4){ const u=clamp((x-(xj-40))/80,0,1); const y=by+30 + 26*ease(u); x===bx+10?ctx.moveTo(x,y):ctx.lineTo(x,y);} ctx.stroke(); ctx.setLineDash([]); ctx.restore();
+    label(bx+70,by+34,'band edge',{size:11,color:C.dim,alpha:seg(t,1.6,1),align:'left'});
+    // forward-bias carriers streaming to junction + recombination flashes
+    const fwd=seg(t,2.6,1);
+    if(fwd>0){ const M=6;
+      for(let k=0;k<M;k++){ const u=((t*0.22 + k/M)%1);
+        const hx=lerp(bx+30, xj-6, u), hy=by+70+ (k%3)*45; dot(hx,hy,5,C.sand,fwd*(1-0.6*u)); label(hx,hy,'+',{size:10,color:'#1a140a',alpha:fwd*(1-0.6*u)});
+        const ex=lerp(bx+bw-30, xj+6, u), ey=by+55+ (k%3)*48; dot(ex,ey,5,C.blue,fwd*(1-0.6*u)); label(ex,ey,'\u2212',{size:10,color:'#0a1016',alpha:fwd*(1-0.6*u)});
+        if(u>0.88){ ring(xj, (hy+ey)/2, (u-0.88)*90, C.sand,1.4, (1-(u-0.88)/0.12)*fwd); }   // recombination photon (LED)
+      }
+      // current arrow (external)
+      arrow(bx+bw+16,by+bh+30, bx-16,by+bh+30, C.green,2, fwd,9); label(W/2,by+bh+50,'current flows  \u2192  forward bias  \u00b7  photons out = LED',{size:14,color:C.green,alpha:fwd});
+    }
+    label(W/2,585,'flip the voltage and the depletion zone widens shut \u2014 no current. A valve for electrons.',{size:15,italic:true,color:C.faint,alpha:seg(t,5.5,1.4)});
+  },
+  beats:[
+    {at:0.2,k:'recap',t:'Silicon\u2019s small gap lets us <b>dope</b> it: add donors for spare electrons (n), acceptors for \u201choles\u201d (p).'},
+    {at:2,k:'fill',t:'Join them: carriers diffuse and cancel at the seam, leaving a <b>depletion zone</b> with a built-in field \u2014 a barrier.'},
+    {at:4.5,k:'note',t:'Push with forward voltage \u2192 barrier drops \u2192 current + light. Reverse \u2192 barrier grows \u2192 blocked. That asymmetry is a <b>diode</b>.'},
+    {at:8,k:'apply',t:'Stack two junctions \u2192 the <b>transistor</b>: the switch behind every chip, ~10\u00b9\u00b3 made per second. Also solar cells, LEDs, lasers.'}
+  ]
+});
+
+/* ---- Superconductivity ---- */
+addSlide({
+  section:'III · Condensed Matter', title:'Superconductivity',
+  subtitle:'Cool it enough and electrons pair up \u2014 resistance vanishes, magnets float.',
+  enter(){ this.st={}; },
+  draw(t){
+    const drawLattice=(ox,oy,jit)=>{ for(let c=0;c<6;c++)for(let r=0;r<3;r++){ const x=ox+c*60, y=oy+r*58 + (jit?Math.sin(t*8+c*1.3+r)*3:0)+(jit?Math.cos(t*7+c)*2:0); dot(x,y,6,C.sand,0.8); } };
+    // LEFT: T > Tc
+    const lbx=170,lby=290;
+    rrect(150,262,380,215,6,{stroke:C.line,lw:1.4,alpha:seg(t,0.2,1)});
+    label(340,250,'T > T_c  \u00b7  normal metal',{size:14,color:C.dim,alpha:seg(t,0.3,1)});
+    drawLattice(lbx+30,lby,true);
+    // zig-zag scattering electron
+    const cols=[lbx+30,lbx+90,lbx+150,lbx+210,lbx+270,lbx+330];
+    const yTop=lby+8,yBot=lby+108;
+    const segT=1.1; const phase=(t%(cols.length*segT))/segT; const i=Math.floor(phase); const f=ease(phase-i);
+    if(i<cols.length-1){ const x=lerp(cols[i],cols[i+1],f); const y=lerp(i%2?yBot:yTop, i%2?yTop:yBot, f);
+      // trail
+      dot(x,y,5,C.blue,1);
+      if(f<0.12) ring(cols[i], i%2?yBot:yTop, 10+f*40, C.clay,1.4, 1-f/0.12);   // collision spark
+    }
+    label(340,455,'scatters off vibrations \u2192  R > 0  \u2192  heat',{size:13,color:C.clay,alpha:seg(t,1,1)});
+
+    // RIGHT: T < Tc
+    const rbx=740,rby=290;
+    rrect(720,262,380,215,6,{stroke:C.line,lw:1.4,alpha:seg(t,2,1)});
+    label(910,250,'T < T_c  \u00b7  superconductor',{size:14,color:C.dim,alpha:seg(t,2.1,1)});
+    drawLattice(rbx+30,rby,false);
+    // Cooper pair gliding straight
+    const gp=seg(t,2.4,1);
+    if(gp>0){ const gx=rbx+20 + ((t*130)%420); const gy=rby+58;
+      line(gx-14,gy,gx+14,gy,C.teal,1.4,0.7);
+      dot(gx-13,gy,5,C.blue,gp); dot(gx+13,gy,5,C.blue,gp);
+      label(gx,gy+22,'Cooper pair',{size:11,color:C.teal,alpha:gp}); }
+    label(910,455,'pairs glide unimpeded \u2192  R = 0',{size:13,color:C.teal,alpha:seg(t,3,1)});
+    // Meissner levitation
+    const mp=seg(t,3.6,1.2);
+    if(mp>0){ const my=rby+140 + Math.sin(t*2)*4;
+      // expelled field lines
+      ctx.save(); ctx.globalAlpha=0.5*mp; ctx.strokeStyle=C.plum; ctx.lineWidth=1.3;
+      for(const s of [-1,1]){ ctx.beginPath(); ctx.moveTo(rbx+180+s*20,my-10); ctx.quadraticCurveTo(rbx+180+s*70,my+30, rbx+180+s*20,my+70); ctx.stroke(); } ctx.restore();
+      rrect(rbx+160,my-8,40,16,3,{fill:rgba(C.clay,0.8)}); rrect(rbx+160,my-8,20,16,3,{fill:rgba(C.blue,0.7)});
+      label(rbx+180,my-18,'magnet floats',{size:11,color:C.plum,alpha:mp}); }
+    label(W/2,585,'below a critical temperature, resistance isn\u2019t just small \u2014 it is exactly, provably zero',{size:15,italic:true,color:C.faint,alpha:seg(t,5,1.4)});
+  },
+  beats:[
+    {at:0.2,k:'recap',t:'Normally, electrons scatter off phonons \u2014 that\u2019s resistance, and it makes heat.'},
+    {at:2.4,k:'fill',t:'Cool certain metals below T_c and electrons bind into <b>Cooper pairs</b> via the lattice. Pairs move in lockstep \u2014 nothing to scatter off. <b>R = 0.</b>'},
+    {at:5.5,k:'note',t:'Bonus: a superconductor expels magnetic fields (Meissner effect), so magnets levitate above it.'},
+    {at:8.5,k:'apply',t:'MRI magnets, maglev trains, and superconducting qubits all run on this. The dream: a room-temperature superconductor.'}
+  ]
+});
+
+/* =====================================================================
+   IV · NUCLEAR & PARTICLE — section cover
+   ===================================================================== */
+addSlide({
+  section:'IV · Nuclear & Particle', title:'Inside the Atom\u2019s Heart',
+  subtitle:'Bands and lattices were the electrons\u2019 story. Now we go to the nucleus \u2014 and below.',
+  enter(){},
+  draw(t){
+    const cx=W/2, cy=380;
+    // zoom-in rings
+    for(let i=3;i>=1;i--){ ring(cx,cy,60*i, C.grid,1, seg(t,0.2+ (3-i)*0.15,0.8)); }
+    // nucleus of nucleons
+    const nuc=seg(t,1,1.2);
+    for(let i=0;i<14;i++){ const a=i/14*TAU + t*0.3; const r=14+ (i%3)*8; dot(cx+Math.cos(a)*r, cy+Math.sin(a)*r, 7, i%2?C.clay:C.blue, nuc); }
+    label(cx,cy+90,'protons + neutrons',{size:13,color:C.dim,alpha:seg(t,1.4,1)});
+    // orbiting electron hint
+    const eA=t*1.4; dot(cx+Math.cos(eA)*180, cy+Math.sin(eA)*95, 4, C.teal, seg(t,0.4,1));
+    label(W/2,560,'100,000\u00d7 smaller than the atom \u2014 yet it holds 99.9% of the mass and all the energy',{size:15,italic:true,color:C.faint,alpha:seg(t,2.4,1.4)});
+  },
+  beats:[
+    {at:0.3,k:'recap',t:'Chemistry and electronics live in the electron cloud. But the cloud is almost all empty space.'},
+    {at:3,k:'gap',t:'<span class="q">A nucleus crams same-charge protons into a speck. They should blast apart \u2014 what holds them, and how do we probe something we can never see?</span>'},
+    {at:6.5,k:'note',t:'We can\u2019t look. We can only <b>throw things at it</b> and watch how they bounce. That\u2019s the whole game.'}
+  ]
+});
+
+/* ---- Cross-sections ---- */
+addSlide({
+  section:'IV · Nuclear & Particle', title:'Cross-Section: the Size of a Chance',
+  subtitle:'We measure how likely a reaction is by an effective target area \u2014 a \u201cbarn.\u201d',
+  enter(){ this.st={hits:0}; },
+  draw(t){
+    const planeX=680, sigR=30;
+    const nuclei=[{y:300},{y:380},{y:460}];
+    // targets with cross-section disks
+    for(const n of nuclei){ ctx.save(); ctx.globalAlpha=0.16*seg(t,0.4,1); ctx.fillStyle=C.sand; ctx.beginPath(); ctx.arc(planeX,n.y,sigR,0,TAU); ctx.fill(); ctx.restore();
+      ring(planeX,n.y,sigR,C.sand,1,0.5*seg(t,0.4,1)); dot(planeX,n.y,7,C.clay,seg(t,0.3,1)); }
+    label(planeX,250,'target nuclei',{size:13,color:C.dim,alpha:seg(t,0.4,1)});
+    label(planeX+50,300,'\u03c3',{size:20,color:C.sand,italic:true,font:'serif',alpha:seg(t,0.8,1),align:'left'});
+    // incident beam lanes
+    label(300,250,'incident beam \u2192',{size:13,color:C.blue,alpha:seg(t,0.5,1)});
+    const lanes=[290,315,345,380,415,445,470];
+    let hitCount=0;
+    for(let k=0;k<lanes.length;k++){ const y=lanes[k];
+      const inDisk = nuclei.some(n=>Math.abs(n.y-y)<sigR);
+      const u=((t*0.22 + k*0.13)%1);
+      const x=lerp(200, 1080, u);
+      if(inDisk && x>=planeX){ // scatter after the plane
+        hitCount++;
+        const dev=(y< (nuclei.find(n=>Math.abs(n.y-y)<sigR).y)?-1:1);
+        const yy=y + dev*(x-planeX)*0.25;
+        dot(x, yy, 4, C.teal, 0.9);
+        if(x-planeX<20) ring(planeX,y,10+(x-planeX),C.sand,1.3, 1-(x-planeX)/20);
+      } else {
+        dot(x,y,4, inDisk?C.blue:'#4a5160', inDisk?0.9:0.6);
+      }
+    }
+    label(300,510,'most particles sail straight through empty space',{size:13,color:C.faint,align:'left',alpha:seg(t,2,1)});
+    // formula
+    label(W/2,560,'reaction rate  =  \u03c3 \u00b7 (beam flux) \u00b7 (number of targets)',{size:17,color:C.ink,font:'serif',alpha:seg(t,3,1)});
+    label(W/2,588,'1 barn = 10\u207b\u00b2\u2078 m\u00b2  \u2014  \u201ccouldn\u2019t hit the broad side of a barn\u201d',{size:13,italic:true,color:C.faint,alpha:seg(t,3.6,1.2)});
+  },
+  beats:[
+    {at:0.2,k:'recap',t:'We probe the invisible by scattering. Fire a beam at a foil and count what deflects.'},
+    {at:2.6,k:'fill',t:'Give each nucleus an <b>effective area \u03c3</b> \u2014 the cross-section. Hit within it \u2192 reaction. Bigger \u03c3 \u2192 more likely.'},
+    {at:5.6,k:'note',t:'\u03c3 isn\u2019t the literal size \u2014 it\u2019s the <i>probability</i> dressed as an area. It even depends on the beam\u2019s energy.'},
+    {at:8.5,k:'gap',t:'<span class="q">Some nuclei don\u2019t need to be hit \u2014 they fall apart on their own. What sets the clock on that?</span>'}
+  ]
+});
+
+/* ---- Decay chains ---- */
+addSlide({
+  section:'IV · Nuclear & Particle', title:'Decay Chains',
+  subtitle:'An unstable nucleus steps toward stability, shedding \u03b1 and \u03b2 particles along the way.',
+  enter(){
+    const steps=['a','b','a','a','b','a','a','b','a','a','b','a','b','a']; // 8\u03b1 + 6\u03b2
+    let Z=92,N=146; const path=[{Z,N,mode:null}];
+    for(const s of steps){ if(s==='a'){Z-=2;N-=2;} else {Z+=1;N-=1;} path.push({Z,N,mode:s}); }
+    this.st={path};
+  },
+  draw(t){
+    const map=(N,Z)=>({x:280+(N-120)*24, y:490-(Z-80)*22});
+    // stability band (faint diagonal)
+    ctx.save(); ctx.globalAlpha=0.12; ctx.fillStyle=C.teal; ctx.beginPath();
+    ctx.moveTo(map(120,79).x,map(120,79).y); ctx.lineTo(map(148,94).x,map(148,94).y);
+    ctx.lineTo(map(148,90).x,map(148,90).y); ctx.lineTo(map(120,76).x,map(120,76).y); ctx.closePath(); ctx.fill(); ctx.restore();
+    label(map(146,92).x,map(146,92).y-6,'valley of stability',{size:11,color:C.teal,alpha:0.7,align:'right'});
+    // axes
+    label(280,520,'N (neutrons) \u2192',{size:12,color:C.dim,align:'left'});
+    label(255,250,'Z',{size:14,color:C.dim,italic:true,font:'serif'});
+    const path=this.st.path;
+    const stepDur=0.7; const prog=t/stepDur; const done=Math.min(Math.floor(prog),path.length-1);
+    // draw completed segments
+    for(let i=1;i<=done;i++){ const a=map(path[i-1].N,path[i-1].Z), b=map(path[i].N,path[i].Z);
+      line(a.x,a.y,b.x,b.y, path[i].mode==='a'?C.sand:C.blue, 2, 0.9);
+      dot(a.x,a.y,4,'#5a6270',0.9); }
+    // current partial segment + emission
+    if(done<path.length-1){ const f=ease(prog-done); const a=map(path[done].N,path[done].Z), b=map(path[done+1].N,path[done+1].Z);
+      const mode=path[done+1].mode; const cxp=lerp(a.x,b.x,f), cyp=lerp(a.y,b.y,f);
+      line(a.x,a.y,cxp,cyp, mode==='a'?C.sand:C.blue,2,1); dot(cxp,cyp,5,mode==='a'?C.sand:C.blue,1);
+      // emitted particle flying off
+      const mx=(a.x+b.x)/2, my=(a.y+b.y)/2; const off=f*30;
+      if(mode==='a'){ dot(mx+off, my-off, 5, C.sand,1-f*0.5); label(mx+off+12,my-off,'\u03b1',{size:13,color:C.sand,align:'left'}); }
+      else { dot(mx+off, my-off, 3, C.blue,1-f*0.5); label(mx+off+12,my-off,'\u03b2\u207b',{size:12,color:C.blue,align:'left'}); }
+    }
+    // endpoints
+    const s=map(path[0].N,path[0].Z), e=map(path[path.length-1].N,path[path.length-1].Z);
+    dot(s.x,s.y,6,C.clay,1); label(s.x,s.y-14,'U-238',{size:13,color:C.clay});
+    if(done>=path.length-1){ glowDot(e.x,e.y,7,C.teal,1); label(e.x,e.y+18,'Pb-206 (stable)',{size:13,color:C.teal}); }
+    // legend
+    label(880,300,'\u03b1: lose 2p + 2n  (down-left)',{size:13,color:C.sand,align:'left',alpha:seg(t,1,1)});
+    label(880,326,'\u03b2\u207b: n \u2192 p + e\u207b  (up-left)',{size:13,color:C.blue,align:'left',alpha:seg(t,1.4,1)});
+    label(880,370,'each step: fixed probability',{size:13,color:C.dim,align:'left',alpha:seg(t,2,1)});
+    label(880,394,'per unit time \u2192 exponential',{size:13,color:C.dim,align:'left',alpha:seg(t,2.2,1)});
+    label(880,418,'N(t) = N\u2080 e^{\u2212\u03bbt}',{size:16,color:C.ink,italic:true,font:'serif',align:'left',alpha:seg(t,2.6,1)});
+  },
+  beats:[
+    {at:0.2,k:'recap',t:'Too many protons or neutrons \u2192 the nucleus is unstable and reshuffles toward the <b>valley of stability</b>.'},
+    {at:2.6,k:'fill',t:'Two moves: <b>\u03b1</b> ejects a helium nucleus; <b>\u03b2</b> flips a neutron to a proton. U-238 takes 14 steps down to stable lead.'},
+    {at:6,k:'note',t:'Each decay is random, but the <i>rate</i> is exact \u2014 giving the half-life. That\u2019s radiometric dating and medical tracers.'},
+    {at:9,k:'gap',t:'<span class="q">One \u03b1 releases a little energy. Could one decay <i>trigger</i> the next, and the next \u2014 a runaway?</span>'}
+  ]
+});
+
+/* ---- Reactor physics (live chain-reaction sim) ---- */
+addSlide({
+  section:'IV · Nuclear & Particle', title:'Chain Reaction & Control',
+  subtitle:'One fission makes ~2 neutrons. Left alone: a bomb. Tamed: a power plant.',
+  enter(){
+    const bx=250,by=275,bw=640,bh=205;
+    const nuclei=[]; const cols=8,rows=4;
+    for(let c=0;c<cols;c++)for(let r=0;r<rows;r++){ nuclei.push({x:bx+50+c*72, y:by+30+r*48, alive:true}); }
+    this.st={bx,by,bw,bh,nuclei,neutrons:[{x:bx+6,y:by+bh/2,vx:150,vy:20}],flashes:[],rods:[bx+bw*0.42,bx+bw*0.68],resetAt:0};
+  },
+  draw(t,dt){
+    const s=this.st, {bx,by,bw,bh}=s;
+    rrect(bx,by,bw,bh,6,{stroke:C.line,lw:1.4,alpha:seg(t,0.2,1)});
+    // control rods
+    for(const rx of s.rods){ rrect(rx-5,by,10,bh,2,{fill:rgba(C.faint,0.5)}); }
+    label(s.rods[0], by-10,'control rods (absorb neutrons)',{size:12,color:C.dim,alpha:seg(t,0.4,1)});
+    // update sim
+    if(t>0.6){
+      const next=[];
+      for(const n of s.neutrons){ n.x+=n.vx*dt; n.y+=n.vy*dt;
+        if(n.y<by+4||n.y>by+bh-4) n.vy*=-1;
+        if(n.x<bx+4){n.vx=Math.abs(n.vx);} if(n.x>bx+bw-4){n.vx=-Math.abs(n.vx);}
+        // control rod absorption
+        let absorbed=false;
+        for(const rx of s.rods){ if(Math.abs(n.x-rx)<6 && Math.random()<0.55){absorbed=true;break;} }
+        if(absorbed) continue;
+        // nucleus collision
+        let hit=null;
+        for(const nu of s.nuclei){ if(nu.alive && Math.hypot(nu.x-n.x,nu.y-n.y)<11){hit=nu;break;} }
+        if(hit){ hit.alive=false; s.flashes.push({x:hit.x,y:hit.y,t0:t});
+          if(s.neutrons.length+next.length<44){ for(let q=0;q<2;q++){ const a=Math.random()*TAU; next.push({x:hit.x,y:hit.y,vx:Math.cos(a)*150,vy:Math.sin(a)*150}); } }
+          continue; // incoming neutron consumed
+        }
+        next.push(n);
+      }
+      s.neutrons=next;
+      // reset / sustain
+      const alive=s.nuclei.filter(n=>n.alive).length;
+      if(s.neutrons.length===0 || alive<4 || t-s.resetAt>7){ s.resetAt=t; for(const nu of s.nuclei)nu.alive=true; s.neutrons=[{x:bx+6,y:by+bh/2,vx:150,vy:(Math.random()-0.5)*60}]; }
+    }
+    // draw nuclei
+    for(const nu of s.nuclei){ dot(nu.x,nu.y,7, nu.alive?C.sand:'#3a3f4b', nu.alive?0.9:0.5); }
+    // flashes
+    s.flashes=s.flashes.filter(f=>t-f.t0<0.6);
+    for(const f of s.flashes){ const a=1-(t-f.t0)/0.6; ring(f.x,f.y,6+(t-f.t0)*70,C.clay,1.5,a);
+      arrow(f.x,f.y,f.x+(t-f.t0)*40,f.y-(t-f.t0)*30,C.clay,1,a*0.6,5); }
+    // neutrons
+    for(const n of s.neutrons){ dot(n.x,n.y,3,C.blue,0.95); }
+    label(bx+6,by+bh+22,'\u2192 seed neutron',{size:12,color:C.blue,align:'left',alpha:seg(t,0.5,1)});
+    // population meter
+    const pop=s.neutrons.length;
+    label(bx+bw+30, by+30, 'neutrons: '+pop, {size:14,color:C.ink,align:'left'});
+    rrect(bx+bw+30, by+44, 150, 10, 3, {stroke:C.line,lw:1});
+    rrect(bx+bw+30, by+44, clamp(pop/44,0,1)*150, 10, 3, {fill:rgba(C.teal,0.8)});
+    label(bx+bw+30, by+78,'rods hold k \u2248 1',{size:13,color:C.teal,align:'left',alpha:seg(t,1,1)});
+    label(bx+bw+30, by+100,'(steady, controlled)',{size:12,color:C.faint,align:'left',alpha:seg(t,1.2,1)});
+    label(bx+bw+30, by+140,'pull rods out \u2192 k > 1',{size:13,color:C.clay,align:'left',alpha:seg(t,2,1)});
+    label(bx+bw+30, by+162,'\u2192 exponential runaway',{size:12,color:C.faint,align:'left',alpha:seg(t,2.2,1)});
+    label(W/2,555,'a reactor is not a slow bomb \u2014 it is a fast reaction held on a knife-edge by absorption',{size:15,italic:true,color:C.faint,alpha:seg(t,4,1.4)});
+  },
+  beats:[
+    {at:0.2,k:'recap',t:'A neutron hits U-235 \u2192 it splits, releasing energy <b>and 2\u20133 fresh neutrons</b>.'},
+    {at:2.6,k:'fill',t:'Those neutrons split more nuclei \u2192 a branching <b>chain reaction</b>. The multiplication factor k decides everything.'},
+    {at:5.5,k:'note',t:'k>1 runs away; k<1 dies; k=1 is steady power. <b>Control rods</b> soak up spare neutrons to pin k at exactly 1.'},
+    {at:8.5,k:'apply',t:'This is nuclear power (~10% of world electricity) and the basis of reactor & weapon physics. Fusion aims to do it with light nuclei instead.'}
+  ]
+});
+
+/* ---- Standard Model ---- */
+addSlide({
+  section:'IV · Nuclear & Particle', title:'The Standard Model',
+  subtitle:'Every known particle, and three of the four forces, on one chart.',
+  enter(){},
+  draw(t){
+    const cs=76, gap=10, ox=340, oy=268;
+    const cell=(cx,cy,sym,name,color,a)=>{ rrect(cx,cy,cs,cs,6,{stroke:color,lw:1.5,fill:rgba(color,0.08),alpha:a});
+      label(cx+cs/2,cy+cs/2-6,sym,{size:24,color:color,font:'serif',italic:true,alpha:a}); label(cx+cs/2,cy+cs-14,name,{size:9,color:C.dim,alpha:a}); };
+    // fermions 3 generations x 4 rows
+    const quU=['u','c','t'], quD=['d','s','b'], lep=['e','\u03bc','\u03c4'], nu=['\u03bd\u2091','\u03bd\u1d69','\u03bd\u03c4'];
+    const nmU=['up','charm','top'], nmD=['down','strange','bottom'], nmL=['electron','muon','tau'], nmN=['e-nu','mu-nu','tau-nu'];
+    for(let c=0;c<3;c++){ const a=seg(t,0.3+c*0.5,0.8); const x=ox+c*(cs+gap);
+      cell(x,oy,           quU[c],nmU[c],C.sand,a);
+      cell(x,oy+(cs+gap),  quD[c],nmD[c],C.sand,a);
+      cell(x,oy+2*(cs+gap),lep[c],nmL[c],C.blue,a);
+      cell(x,oy+3*(cs+gap),nu[c], nmN[c],C.blue,a);
+    }
+    label(ox+1.5*(cs+gap), oy-14,'three generations of matter',{size:13,color:C.dim,alpha:seg(t,0.4,1)});
+    label(ox-14,oy+cs/2,'quarks',{size:11,color:C.sand,align:'right',alpha:seg(t,0.4,1)});
+    label(ox-14,oy+2.5*(cs+gap),'leptons',{size:11,color:C.blue,align:'right',alpha:seg(t,0.4,1)});
+    // gauge bosons column
+    const bx2=ox+3*(cs+gap)+30;
+    const bos=[['\u03b3','photon'],['g','gluon'],['W','W boson'],['Z','Z boson']];
+    for(let i=0;i<4;i++){ const a=seg(t,2+i*0.25,0.8); cell(bx2,oy+i*(cs+gap), bos[i][0],bos[i][1],C.plum,a); }
+    label(bx2+cs/2,oy-14,'force carriers',{size:12,color:C.plum,alpha:seg(t,2,1)});
+    // Higgs
+    const hp=seg(t,3.4,1); cell(bx2+cs+gap, oy+1.5*(cs+gap), 'H','Higgs',C.teal,hp);
+    if(hp>0.5){ ring(bx2+cs+gap+cs/2, oy+1.5*(cs+gap)+cs/2, 44+6*Math.sin(t*3), C.teal,1.2,0.5*(hp-0.5)*2);
+      label(bx2+cs+gap+cs/2, oy+1.5*(cs+gap)+cs+16,'gives mass',{size:11,color:C.teal,alpha:hp}); }
+    label(W/2,585,'gravity is the missing piece \u2014 no one has fit Einstein\u2019s curvature into this chart',{size:15,italic:true,color:C.faint,alpha:seg(t,4.5,1.4)});
+  },
+  beats:[
+    {at:0.2,k:'recap',t:'All that scattering revealed a hidden order: a fixed cast of elementary particles.'},
+    {at:2.2,k:'fill',t:'Matter = <b>quarks + leptons</b> in three generations. Forces = <b>exchanged bosons</b> (recall the Feynman photon). The <b>Higgs</b> gives them mass.'},
+    {at:5,k:'note',t:'It predicts thousands of measurements to staggering precision \u2014 the crowning theory of 20th-century physics.'},
+    {at:8,k:'gap',t:'<span class="q">These laws are exact and deterministic. So why can\u2019t we predict the weather next week?</span>'}
+  ]
+});
+
+/* =====================================================================
+   V · NONLINEAR DYNAMICS & CHAOS — section cover
+   ===================================================================== */
+addSlide({
+  section:'V · Chaos & Complexity', title:'Deterministic \u2260 Predictable',
+  subtitle:'Every law so far was exact. Yet the future can still be unknowable.',
+  enter(){},
+  draw(t){
+    const x0=250,x1=1030,y=380;
+    // two trajectories from nearly the same start, diverging
+    dot(x0,y,6,C.ink,seg(t,0.3,1)); label(x0,y-20,'same start (\u00b10.0001)',{size:12,color:C.dim,alpha:seg(t,0.4,1)});
+    const p=seg(t,0.6,2.5);
+    ctx.save(); ctx.lineWidth=2;
+    for(const [col,sgn,ph] of [[C.blue,1,0],[C.clay,-1,0.3]]){ ctx.strokeStyle=col; ctx.globalAlpha=0.9; ctx.beginPath();
+      for(let i=0;i<=x1-x0;i+=3){ const xx=x0+i; const u=i/(x1-x0); if(u>p)break;
+        const div=Math.exp(u*3.2)-1; const yy=y + sgn*div*8*Math.sin(u*9+ph);
+        i===0?ctx.moveTo(xx,yy):ctx.lineTo(xx,yy);} ctx.stroke(); }
+    ctx.restore();
+    label(W/2,560,'the laws are perfect \u2014 our knowledge of the starting point never is',{size:15,italic:true,color:C.faint,alpha:seg(t,3,1.4)});
+  },
+  beats:[
+    {at:0.3,k:'recap',t:'Newton, Einstein, the Standard Model \u2014 all give exact equations. Same input, same output.'},
+    {at:3,k:'gap',t:'<span class="q">So why do two almost-identical starts end up in completely different places?</span>'},
+    {at:6.5,k:'note',t:'Because \u201calmost\u201d isn\u2019t \u201cexactly.\u201d In the right system, a whisker of difference explodes. Watch.'}
+  ]
+});
+
+/* ---- Sensitive dependence: double pendulum ---- */
+addSlide({
+  section:'V · Chaos & Complexity', title:'The Butterfly Effect, Live',
+  subtitle:'Two double pendulums, released 0.001 rad apart. Identical laws. Watch them part ways.',
+  enter(){
+    const mk=(d)=>({th1:2.2, w1:0, th2:2.2+d, w2:0, trail:[]});
+    this.st={A:mk(0), B:mk(0.001)};
+  },
+  draw(t,dt){
+    const pv={x:W/2, y:255}, L=118, g=9.8;
+    const accel=(s)=>{ const {th1,w1,th2,w2}=s; const m1=1,m2=1,l1=1,l2=1; const d=th1-th2;
+      const den=(2*m1+m2-m2*Math.cos(2*th1-2*th2));
+      const a1=(-g*(2*m1+m2)*Math.sin(th1) - m2*g*Math.sin(th1-2*th2) - 2*Math.sin(d)*m2*(w2*w2*l2 + w1*w1*l1*Math.cos(d)))/(l1*den);
+      const a2=(2*Math.sin(d)*(w1*w1*l1*(m1+m2) + g*(m1+m2)*Math.cos(th1) + w2*w2*l2*m2*Math.cos(d)))/(l2*den);
+      return [a1,a2]; };
+    const stepOne=(s,h)=>{ const [a1,a2]=accel(s); s.w1+=a1*h; s.w2+=a2*h; s.th1+=s.w1*h; s.th2+=s.w2*h; };
+    if(t>0.3){ for(let k=0;k<8;k++){ stepOne(this.st.A,0.016); stepOne(this.st.B,0.016); } }
+    const draw=(s,col,trailCol)=>{ const x1=pv.x+L*Math.sin(s.th1), y1=pv.y+L*Math.cos(s.th1);
+      const x2=x1+L*Math.sin(s.th2), y2=y1+L*Math.cos(s.th2);
+      s.trail.push([x2,y2]); if(s.trail.length>120)s.trail.shift();
+      ctx.save(); ctx.strokeStyle=trailCol; ctx.lineWidth=1.4; ctx.beginPath();
+      for(let i=0;i<s.trail.length;i++){ ctx.globalAlpha=i/s.trail.length*0.6; const p=s.trail[i]; i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]); } ctx.stroke(); ctx.restore();
+      line(pv.x,pv.y,x1,y1,col,2.4); line(x1,y1,x2,y2,col,2.4);
+      dot(x1,y1,6,col); dot(x2,y2,8,col); return {x2,y2}; };
+    const b=draw(this.st.B,C.clay,rgba(C.clay,0.5));
+    const a=draw(this.st.A,C.blue,rgba(C.blue,0.5));
+    dot(pv.x,pv.y,5,C.dim);
+    const sep=Math.hypot(a.x2-b.x2,a.y2-b.y2);
+    label(W/2,560,'they were one system a moment ago \u2014 now their tips are worlds apart',{size:15,italic:true,color:C.faint,alpha:seg(t,4,1.4)});
+    // separation readout
+    label(190,300,'tip separation',{size:12,color:C.dim,align:'left'}); rrect(190,314,150,10,3,{stroke:C.line,lw:1});
+    rrect(190,314,clamp(sep/240,0,1)*150,10,3,{fill:rgba(C.sand,0.85)});
+  },
+  beats:[
+    {at:0.2,k:'recap',t:'A double pendulum obeys Newton exactly \u2014 no randomness anywhere.'},
+    {at:3,k:'fill',t:'Two copies start 0.001 rad apart. For a moment they move as one\u2026 then <b>diverge completely</b>. That\u2019s <b>sensitive dependence on initial conditions</b>.'},
+    {at:6.5,k:'note',t:'Errors grow exponentially (the Lyapunov rate). Predict far enough ahead and any measurement error swamps the answer.'},
+    {at:9,k:'gap',t:'<span class="q">If the motion is this wild, is there any hidden order at all \u2014 or is it pure noise?</span>'}
+  ]
+});
+
+/* ---- Lorenz attractor ---- */
+addSlide({
+  section:'V · Chaos & Complexity', title:'Order Inside the Chaos',
+  subtitle:'Plot the motion in phase space and a shape appears \u2014 a strange attractor.',
+  enter(){ this.st={A:{x:0.1,y:0,z:0,pts:[]}, B:{x:0.1+1e-3,y:0,z:0,pts:[]}}; },
+  draw(t,dt){
+    const sig=10, rho=28, beta=8/3, h=0.006;
+    const map=(x,z)=>({x:W/2 + x*10, y:430-(z-25)*6.0});
+    const step=(s)=>{ for(let k=0;k<7;k++){ const dx=sig*(s.y-s.x), dy=s.x*(rho-s.z)-s.y, dz=s.x*s.y-beta*s.z;
+      s.x+=dx*h; s.y+=dy*h; s.z+=dz*h; const p=map(s.x,s.z); s.pts.push(p); if(s.pts.length>2600)s.pts.shift(); } };
+    if(t>0.3){ step(this.st.A); step(this.st.B); }
+    const drawTrail=(s,col)=>{ ctx.save(); ctx.lineWidth=1.3; ctx.strokeStyle=col; ctx.beginPath();
+      for(let i=1;i<s.pts.length;i++){ ctx.globalAlpha=Math.min(0.7, i/s.pts.length*0.9); ctx.moveTo(s.pts[i-1].x,s.pts[i-1].y); ctx.lineTo(s.pts[i].x,s.pts[i].y);} ctx.stroke(); ctx.restore();
+      const h2=s.pts[s.pts.length-1]; if(h2) dot(h2.x,h2.y,4,col,1); };
+    drawTrail(this.st.B, rgba(C.clay,0.8));
+    drawTrail(this.st.A, rgba(C.blue,0.8));
+    label(W/2,210,'the Lorenz system \u00b7 a stripped-down weather model',{size:14,color:C.dim,alpha:seg(t,0.4,1)});
+    label(W/2,560,'never repeats, never escapes \u2014 confined forever to two butterfly wings',{size:15,italic:true,color:C.faint,alpha:seg(t,3,1.4)});
+  },
+  beats:[
+    {at:0.2,k:'recap',t:'The path looks like noise in time. So change the view: plot position vs. velocity \u2014 <b>phase space</b>.'},
+    {at:3,k:'fill',t:'A structure emerges: a <b>strange attractor</b>. The system wanders forever but is trapped on this fractal surface \u2014 order and chaos at once.'},
+    {at:6.5,k:'note',t:'Two nearby starts (blue, red) trace the <i>same</i> shape yet never sync. Bounded, deterministic, unpredictable.'},
+    {at:9,k:'gap',t:'<span class="q">Is chaos an accident, or does every system slide into it the same way?</span>'}
+  ]
+});
+
+/* ---- Bifurcation / route to chaos ---- */
+addSlide({
+  section:'V · Chaos & Complexity', title:'The Route to Chaos',
+  subtitle:'One knob, turned slowly: order doubles, and doubles, and shatters. Always the same way.',
+  enter(){
+    const plotX=280,plotY=250,plotW=760,plotH=280;
+    const off=document.createElement('canvas'); off.width=plotW; off.height=plotH; const o=off.getContext('2d');
+    o.fillStyle='rgba(91,143,176,0.55)';
+    for(let c=0;c<plotW;c++){ const r=2.8+(c/plotW)*1.2; let x=0.5;
+      for(let i=0;i<250;i++) x=r*x*(1-x);
+      for(let i=0;i<140;i++){ x=r*x*(1-x); const y=(1-x)*plotH; o.fillRect(c, y, 1, 1); } }
+    this.st={off,plotX,plotY,plotW,plotH};
+  },
+  draw(t){
+    const {off,plotX,plotY,plotW,plotH}=this.st;
+    // axes
+    arrow(plotX-4,plotY+plotH,plotX-4,plotY-6,C.faint,1.3,seg(t,0.2,1),6); label(plotX-22,plotY+6,'x',{size:14,color:C.dim,italic:true,font:'serif',alpha:seg(t,0.2,1)});
+    arrow(plotX-4,plotY+plotH,plotX+plotW+20,plotY+plotH,C.faint,1.3,seg(t,0.2,1),6); label(plotX+plotW+14,plotY+plotH+18,'r \u2192',{size:13,color:C.dim,alpha:seg(t,0.2,1)});
+    // reveal sweep
+    const rev=ease(clamp((t-0.5)/5,0,1))*plotW;
+    if(rev>1){ ctx.drawImage(off, 0,0, rev,plotH, plotX,plotY, rev,plotH); }
+    if(rev<plotW && t>0.5) line(plotX+rev,plotY,plotX+rev,plotY+plotH,C.teal,1.4,0.7);
+    // guide markers
+    const rx=r=>plotX+((r-2.8)/1.2)*plotW;
+    const mark=(r,txt,at)=>{ const a=seg(t,at,1); if(rx(r)<plotX+rev+4){ line(rx(r),plotY,rx(r),plotY+plotH,C.faint,1,0.35*a,[3,4]); label(rx(r),plotY-8,txt,{size:11,color:C.dim,alpha:a}); } };
+    mark(3.0,'period 2',2.5); mark(3.449,'4',3.5); mark(3.5699,'chaos',4.2);
+    label(rx(2.85),plotY+plotH+22,'steady',{size:11,color:C.faint,align:'left',alpha:seg(t,1.5,1)});
+    label(W/2,568,'this cascade appears in dripping taps, heartbeats, populations \u2014 with the same universal constant (4.669\u2026)',{size:14,italic:true,color:C.faint,alpha:seg(t,5.5,1.4)});
+  },
+  beats:[
+    {at:0.2,k:'recap',t:'Take the simplest possible feedback: next = r \u00b7 x \u00b7 (1\u2212x). One knob, r.'},
+    {at:2.4,k:'fill',t:'Low r \u2192 one steady value. Turn it up: the answer splits in two, then four, then eight \u2014 <b>period doubling</b> \u2014 then dissolves into chaos.'},
+    {at:6,k:'note',t:'Feigenbaum found the doublings shrink by a fixed ratio, <b>4.669\u2026</b>, in <i>every</i> such system. Chaos has universal laws.'},
+    {at:9,k:'apply',t:'Used to model turbulence, cardiac arrhythmia, lasers, ecosystems, and market swings \u2014 anywhere feedback meets nonlinearity.'}
+  ]
+});
+
+/* =====================================================================
+   FINALE · the map
+   ===================================================================== */
+addSlide({
+  cover:true,
+  enter(){},
+  draw(t){
+    label(W/2,120,'ONE THREAD, FIVE FRONTIERS',{size:16,color:C.dim,alpha:seg(t,0.2,1),weight:600});
+    const nodes=[
+      ['I','General Relativity','geometry responds to matter',C.blue],
+      ['II','Quantum Fields','fields respond to excitation',C.teal],
+      ['III','Condensed Matter','order responds to symmetry',C.sand],
+      ['IV','Nuclei & Particles','matter responds to probing',C.clay],
+      ['V','Chaos','systems respond to sensitivity',C.plum],
+    ];
+    const cx=W/2, cy=360, R=200;
+    // connecting ring
+    ring(cx,cy,R,C.grid,1.4,seg(t,0.4,1.2));
+    dot(cx,cy,5,C.ink,seg(t,0.6,1));
+    label(cx,cy-16,'a field, and how it',{size:13,color:C.dim,align:'center',alpha:seg(t,1.4,1)});
+    label(cx,cy+4,'answers a change',{size:13,color:C.dim,align:'center',alpha:seg(t,1.4,1)});
+    for(let i=0;i<nodes.length;i++){ const a=-Math.PI/2 + i/nodes.length*TAU; const nx=cx+Math.cos(a)*R, ny=cy+Math.sin(a)*R;
+      const ap=seg(t,0.8+i*0.3,0.9); line(cx,cy,nx,ny,C.grid,1,0.5*ap);
+      dot(nx,ny,7,nodes[i][3],ap);
+      const side=Math.cos(a)>=0?'left':'right'; const lx=nx+(Math.cos(a)>=0?18:-18);
+      label(lx,ny-8,nodes[i][0]+' \u00b7 '+nodes[i][1],{size:14,color:nodes[i][3],align:side,alpha:ap});
+      label(lx,ny+10,nodes[i][2],{size:11.5,color:C.faint,align:side,alpha:ap});
+    }
+    label(W/2,600,'the open frontier: fold gravity into the quantum \u2014 a theory of everything is still missing',{size:15,italic:true,color:C.sand,alpha:seg(t,3.4,1.4)});
+  },
+  beats:[
+    {at:0.3,k:'recap',t:'<b>Here\u2019s what we built:</b> geometry (GR), fields (QFT), collective order (condensed matter), the particle zoo (nuclear), and the limits of prediction (chaos).'},
+    {at:4,k:'idea',t:'Each was the same move \u2014 define a field, perturb it, follow the response. That single habit is how physics thinks.'},
+    {at:7.5,k:'gap',t:'<span class="q">The one gap no one has filled: gravity refuses to quantize.</span> String theory and loop gravity are the current guesses. Your move.'}
+  ]
+});
+
+/* =====================================================================
+   RUNNER · chrome, navigation, narration, loop
+   ===================================================================== */
+const stage=document.getElementById('stage');
+const elSect=document.getElementById('sect'), elSec=document.getElementById('sec');
+const elTitle=document.getElementById('title'), elSub=document.getElementById('subtitle');
+const elProg=document.getElementById('prog'), elCounter=document.getElementById('counter'), elDots=document.getElementById('dots');
+const nblock=document.getElementById('nblock'), chip=document.getElementById('chip'), ntext=document.getElementById('ntext');
+const btnPrev=document.getElementById('prev'), btnNext=document.getElementById('next'), btnReplay=document.getElementById('replay');
+
+let idx=0, tStart=performance.now(), last=tStart, lastBeat=-1, switchAt=0;
+
+// build dots
+SLIDES.forEach((s,i)=>{ const d=document.createElement('div'); d.className='dot'+(s.cover?' sec':''); elDots.appendChild(d); });
+const dots=[...elDots.children];
+
+function chrome(){
+  const s=SLIDES[idx];
+  elSec.style.opacity = s.cover?0:1;
+  elSect.textContent = s.section||'';
+  elTitle.textContent = s.cover?'':(s.title||'');
+  elSub.textContent = s.cover?'':(s.subtitle||'');
+  elCounter.textContent = (idx+1)+' / '+SLIDES.length;
+  elProg.style.width = ((idx+1)/SLIDES.length*100)+'%';
+  dots.forEach((d,i)=>d.classList.toggle('on', i===idx));
+  btnPrev.disabled = idx===0;
+  btnNext.textContent = idx===SLIDES.length-1 ? 'Fin' : 'Next \u203a';
+}
+function show(i){
+  idx=clamp(i,0,SLIDES.length-1);
+  const s=SLIDES[idx];
+  if(s.enter) try{ s.enter(); }catch(e){ console.error('enter',e); }
+  tStart=performance.now(); last=tStart; lastBeat=-1;
+  nblock.classList.add('hidden');
+  chrome();
+  stage.classList.remove('flash'); void stage.offsetWidth; stage.classList.add('flash');
+}
+function updateNarration(s,t){
+  const beats=s.beats||[];
+  let cur=-1;
+  for(let i=0;i<beats.length;i++){ if(t>=beats[i].at) cur=i; }
+  if(cur!==lastBeat){
+    lastBeat=cur; switchAt=performance.now();
+    if(cur>=0){ const b=beats[cur]; chip.className='chip k-'+b.k; chip.textContent=(b.k||'note').toUpperCase(); ntext.innerHTML=b.t; nblock.classList.add('hidden'); }
+    else nblock.classList.add('hidden');
+  }
+  if(cur>=0 && performance.now()-switchAt>70) nblock.classList.remove('hidden');
+}
+function frame(now){
+  const dt=Math.min(0.05,(now-last)/1000); last=now;
+  const t=(now-tStart)/1000;
+  ctx.fillStyle=C.bg; ctx.fillRect(0,0,W,H);
+  const s=SLIDES[idx];
+  try{ s.draw(t,dt); }catch(e){ console.error('draw',e); }
+  updateNarration(s,t);
+  requestAnimationFrame(frame);
+}
+// navigation
+const next=()=>show(idx+1), prev=()=>show(idx-1), replay=()=>show(idx);
+btnNext.addEventListener('click',e=>{e.stopPropagation(); next();});
+btnPrev.addEventListener('click',e=>{e.stopPropagation(); prev();});
+btnReplay.addEventListener('click',e=>{e.stopPropagation(); replay();});
+stage.addEventListener('click',()=>next());
+addEventListener('keydown',e=>{
+  if(e.key==='ArrowRight'||e.key===' '||e.key==='Enter'){ e.preventDefault(); next(); }
+  else if(e.key==='ArrowLeft'){ e.preventDefault(); prev(); }
+  else if(e.key==='r'||e.key==='R'){ replay(); }
+});
+
+show(0);
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

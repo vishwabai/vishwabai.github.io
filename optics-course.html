@@ -1,0 +1,1249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Optics — from rays to lasers</title>
+<style>
+  :root{
+    --bg:#04050a; --ink:#e7e9ee; --dim:#8a90a0; --faint:#3a3f4c;
+    --blue:#6c9ce0; --teal:#54b9ad; --amber:#d6a54e; --green:#7cbf86;
+    --coral:#d97a72; --violet:#a58bd4; --yellow:#e4cf7a;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:#000;overflow:hidden;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--ink);-webkit-font-smoothing:antialiased;}
+  #wrap{position:fixed;inset:0;display:flex;flex-direction:column;}
+  #stage{flex:1;display:flex;align-items:center;justify-content:center;min-height:0;}
+  canvas{background:var(--bg);display:block;box-shadow:0 0 60px rgba(0,0,0,.6);}
+  #bar{height:50px;display:flex;align-items:center;gap:14px;padding:0 16px;
+    background:#07080e;border-top:1px solid #14161f;user-select:none;font-size:13px;color:var(--dim);}
+  #bar button{background:#12141d;color:var(--ink);border:1px solid #232734;border-radius:7px;
+    padding:7px 14px;font-size:13px;cursor:pointer;transition:.15s;}
+  #bar button:hover{background:#1b1e2a;border-color:#33384a;}
+  #bar button:disabled{opacity:.35;cursor:default;}
+  #tocBtn{font-size:16px;padding:6px 12px;}
+  #meta{flex:1;text-align:center;letter-spacing:.3px;}
+  #meta b{color:var(--ink);font-weight:600;}
+  #prog{height:3px;background:#12141d;border-radius:2px;flex:0 0 220px;overflow:hidden;}
+  #progf{height:100%;width:0;background:linear-gradient(90deg,var(--blue),var(--teal));transition:width .25s;}
+  #toc{position:fixed;inset:0;background:rgba(2,3,6,.92);backdrop-filter:blur(4px);
+    display:none;padding:40px 6vw;overflow:auto;z-index:20;}
+  #toc h2{font-weight:600;font-size:15px;letter-spacing:2px;color:var(--dim);margin:22px 0 10px;text-transform:uppercase;}
+  #toc .grp{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px;}
+  #toc .it{background:#0c0e16;border:1px solid #1a1d28;border-radius:8px;padding:11px 13px;cursor:pointer;font-size:14px;transition:.15s;}
+  #toc .it:hover{background:#141726;border-color:#2a2f40;}
+  #toc .it small{display:block;color:var(--dim);font-size:11px;margin-top:2px;}
+  #toc .close{position:absolute;top:24px;right:6vw;font-size:26px;color:var(--dim);cursor:pointer;}
+  #hint{position:absolute;top:22px;left:50%;transform:translateX(-50%);color:#4b5163;font-size:12px;letter-spacing:.5px;transition:opacity 1s;}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="stage"><canvas id="cv"></canvas></div>
+  <div id="bar">
+    <button id="tocBtn" title="Contents">☰</button>
+    <button id="prev">◀ Prev</button>
+    <div id="meta"></div>
+    <div id="prog"><div id="progf"></div></div>
+    <button id="next">Next ▶</button>
+  </div>
+</div>
+<div id="toc"><span class="close" id="tocClose">✕</span><div id="tocBody"></div></div>
+<div id="hint">→ / Space  ·  advance   |   ←  back   |   ☰  contents</div>
+
+<script>
+"use strict";
+/* ============================ ENGINE ============================ */
+const W=1600,H=900;
+const cv=document.getElementById('cv');
+const ctx=cv.getContext('2d');
+let dpr=Math.max(1,Math.min(2,window.devicePixelRatio||1));
+function fit(){
+  const barH=50, availW=window.innerWidth, availH=window.innerHeight-barH;
+  let w=availW, h=w*H/W;
+  if(h>availH){h=availH;w=h*W/H;}
+  cv.style.width=w+'px'; cv.style.height=h+'px';
+  cv.width=Math.round(W*dpr); cv.height=Math.round(H*dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+window.addEventListener('resize',fit); fit();
+
+const C=getComputedStyle(document.documentElement);
+const col={
+  bg:'#04050a', ink:'#e7e9ee', dim:'#8a90a0', faint:'#3a3f4c', grid:'#1b1f2b',
+  blue:'#6c9ce0', teal:'#54b9ad', amber:'#d6a54e', green:'#7cbf86',
+  coral:'#d97a72', violet:'#a58bd4', yellow:'#e4cf7a', glass:'#12283a'
+};
+
+/* layout bands */
+const SX=130, SR=1470, SW=SR-SX, SY=150, SB=716, CX=800, CY=(SY+SB)/2;
+
+/* timing */
+let SI=0, BI=0, beatStart=performance.now(), T=0, BT=0;
+const clamp01=x=>x<0?0:x>1?1:x;
+const lerp=(a,b,t)=>a+(b-a)*t;
+const E=t=>{t=clamp01(t); return t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;}; // easeInOutCubic
+const EO=t=>{t=clamp01(t); return 1-Math.pow(1-t,3);};                 // easeOutCubic
+const seg=(s,d)=>E(clamp01((BT-s)/d));      // eased sub-animation
+const segL=(s,d)=>clamp01((BT-s)/d);        // linear sub-animation
+const segO=(s,d)=>EO(clamp01((BT-s)/d));
+const TAU=Math.PI*2;
+
+/* ---------- primitives ---------- */
+function line(x1,y1,x2,y2,c,w=2,a=1,dash=null){
+  ctx.save();ctx.globalAlpha=a;ctx.strokeStyle=c;ctx.lineWidth=w;ctx.lineCap='round';
+  if(dash)ctx.setLineDash(dash);
+  ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();ctx.restore();
+}
+function ray(x1,y1,x2,y2,c,w=2.4,a=1,head=13){
+  line(x1,y1,x2,y2,c,w,a);
+  const an=Math.atan2(y2-y1,x2-x1);
+  ctx.save();ctx.globalAlpha=a;ctx.fillStyle=c;ctx.beginPath();ctx.moveTo(x2,y2);
+  ctx.lineTo(x2-head*Math.cos(an-.42),y2-head*Math.sin(an-.42));
+  ctx.lineTo(x2-head*Math.cos(an+.42),y2-head*Math.sin(an+.42));
+  ctx.closePath();ctx.fill();ctx.restore();
+}
+// growing ray: draws from p1 toward p2 by progress p, arrowhead at tip
+function grow(x1,y1,x2,y2,p,c,w=2.4,a=1){
+  p=clamp01(p); if(p<=0)return;
+  ray(x1,y1,lerp(x1,x2,p),lerp(y1,y2,p),c,w,a);
+}
+function dot(x,y,r,c,a=1){ctx.save();ctx.globalAlpha=a;ctx.fillStyle=c;ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.fill();ctx.restore();}
+function ring(x,y,r,c,w=2,a=1){ctx.save();ctx.globalAlpha=a;ctx.strokeStyle=c;ctx.lineWidth=w;ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.stroke();ctx.restore();}
+function photon(x,y,r,c){ // subtle glow, muted
+  ctx.save();ctx.globalAlpha=.22;ctx.fillStyle=c;ctx.beginPath();ctx.arc(x,y,r*2.6,0,TAU);ctx.fill();
+  ctx.globalAlpha=1;ctx.fillStyle=c;ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.fill();ctx.restore();
+}
+function txt(s,x,y,size=24,c=col.ink,align='center',baseline='middle',weight=400,a=1){
+  ctx.save();ctx.globalAlpha=a;ctx.fillStyle=c;ctx.textAlign=align;ctx.textBaseline=baseline;
+  ctx.font=`${weight} ${size}px -apple-system,"Segoe UI",Roboto,sans-serif`;
+  ctx.fillText(s,x,y);ctx.restore();
+}
+function mono(s,x,y,size=24,c=col.ink,align='center',a=1,weight=500){
+  ctx.save();ctx.globalAlpha=a;ctx.fillStyle=c;ctx.textAlign=align;ctx.textBaseline='middle';
+  ctx.font=`${weight} ${size}px "SF Mono",ui-monospace,Menlo,Consolas,monospace`;
+  ctx.fillText(s,x,y);ctx.restore();
+}
+function dashedNormal(x,y1,y2,a=1){line(x,y1,x,y2,col.dim,1.4,.7*a,[6,6]);}
+function angleArc(px,py,a1,a2,r,c,a=1,w=2){
+  ctx.save();ctx.globalAlpha=a;ctx.strokeStyle=c;ctx.lineWidth=w;
+  ctx.beginPath();ctx.arc(px,py,r,Math.min(a1,a2),Math.max(a1,a2));ctx.stroke();ctx.restore();
+}
+// horizontal sine wave from x0..x1 centred at y0
+function sineH(x0,y0,x1,amp,k,phase,c,w=2.4,a=1,step=4){
+  ctx.save();ctx.globalAlpha=a;ctx.strokeStyle=c;ctx.lineWidth=w;ctx.lineCap='round';ctx.beginPath();
+  let first=true;
+  for(let x=x0;x<=x1;x+=step){const y=y0-amp*Math.sin(k*(x-x0)-phase);if(first){ctx.moveTo(x,y);first=false;}else ctx.lineTo(x,y);}
+  ctx.stroke();ctx.restore();
+}
+function panel(x,y,w,h,r=10,fill='#0a0c14',stroke='#1c2130',a=1){
+  ctx.save();ctx.globalAlpha=a;ctx.fillStyle=fill;ctx.strokeStyle=stroke;ctx.lineWidth=1.4;
+  ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore();
+}
+// muted spectrum colour for wavelength fraction 0..1 (violet->red)
+function spectral(t){
+  const stops=[[0,'#7d5bd0'],[.2,'#5b74d0'],[.4,'#54b9ad'],[.6,'#7cbf86'],[.75,'#d6c54e'],[.9,'#d68b4e'],[1,'#d0655f']];
+  t=clamp01(t);for(let i=0;i<stops.length-1;i++){if(t<=stops[i+1][0]){const a=stops[i],b=stops[i+1];const f=(t-a[0])/(b[0]-a[0]);return mix(a[1],b[1],f);}}return stops[stops.length-1][1];
+}
+function mix(c1,c2,f){const p=h=>[parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];
+  const a=p(c1),b=p(c2);const r=Math.round(lerp(a[0],b[0],f)),g=Math.round(lerp(a[1],b[1],f)),bl=Math.round(lerp(a[2],b[2],f));
+  return `rgb(${r},${g},${bl})`;}
+function fadeIn(x){return clamp01(x);}
+function pop(s,d){ // scale/opacity pop-in progress
+  const p=segO(s,d);return p;
+}
+
+/* ---------- title & caption rendering ---------- */
+const tierColor={GEOMETRIC:col.blue,WAVE:col.teal,MODERN:col.violet,MAP:col.amber};
+function header(){
+  const sc=scenes[SI];
+  txt(sc.tier,SX,64,15,tierColor[sc.tier]||col.dim,'left','middle',700,.9);
+  ctx.save();ctx.globalAlpha=.9;ctx.fillStyle=tierColor[sc.tier]||col.dim;
+  const tw=ctx.measureText?0:0;ctx.restore();
+  txt(sc.title,SX,98,30,col.ink,'left','middle',600);
+  txt(`${SI+1} / ${scenes.length}`,SR,64,15,col.dim,'right','middle',500);
+  line(SX,120,SR,120,col.grid,1,1);
+}
+const kindTag={T:['CONCEPT',col.teal],R:['RECAP',col.blue],G:['GAP',col.amber],F:['FILL',col.green]};
+function wrapText(s,maxw,size,weight){
+  ctx.font=`${weight} ${size}px -apple-system,"Segoe UI",Roboto,sans-serif`;
+  const words=s.split(' ');const lines=[];let cur='';
+  for(const w of words){const test=cur?cur+' '+w:w;if(ctx.measureText(test).width>maxw&&cur){lines.push(cur);cur=w;}else cur=test;}
+  if(cur)lines.push(cur);return lines;
+}
+function caption(){
+  const b=scenes[SI].beats[BI];
+  const appear=EO(clamp01(BT/0.5));
+  line(SX,742,SR,742,col.grid,1,1);
+  const [lab,lc]=kindTag[b.k]||['',col.dim];
+  ctx.save();ctx.globalAlpha=appear;
+  // tag
+  ctx.font='700 13px -apple-system,"Segoe UI",sans-serif';
+  const padw=ctx.measureText(lab).width+18;
+  ctx.fillStyle=lc; ctx.globalAlpha=.16*appear;
+  roundRect(SX,760,padw,24,6);ctx.fill();
+  ctx.globalAlpha=appear;ctx.fillStyle=lc;ctx.textAlign='left';ctx.textBaseline='middle';
+  ctx.fillText(lab,SX+9,772);
+  ctx.restore();
+  // text
+  const size=b.k==='G'?27:25;const weight=b.k==='G'?600:400;
+  const tc=b.k==='G'?col.amber:(b.k==='F'?col.green:col.ink);
+  const lines=wrapText(b.t,SW,size,weight);
+  let y=808;
+  for(const ln of lines){txt(ln,SX,y,size,tc,'left','middle',weight,appear);y+=size+8;}
+  if(b.s){const l2=wrapText(b.s,SW,20,400);for(const ln of l2){txt(ln,SX,y+2,20,col.dim,'left','middle',400,appear);y+=27;}}
+}
+function roundRect(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+
+/* small helper: label a point */
+function tag(x,y,s,c=col.dim,size=17,align='center',a=1){txt(s,x,y,size,c,align,'middle',500,a);}
+
+/* extra drawing helpers used by scenes */
+function objArrow(x,baseY,h,c,a=1,w=3){ ray(x,baseY,x,baseY-h,c,w,a,13); }
+function convLens(x,cy,halfH,bulge,c=col.teal,a=1){
+  ctx.save();ctx.strokeStyle=c;ctx.lineWidth=2.4;ctx.globalAlpha=.9*a;
+  ctx.beginPath();ctx.moveTo(x,cy-halfH);ctx.quadraticCurveTo(x+bulge,cy,x,cy+halfH);
+  ctx.quadraticCurveTo(x-bulge,cy,x,cy-halfH);ctx.closePath();
+  ctx.fillStyle='rgba(84,185,173,.09)';ctx.globalAlpha=a;ctx.fill();ctx.globalAlpha=.9*a;ctx.stroke();ctx.restore();
+}
+function concaveLens(x,cy,halfH,c=col.teal,a=1){
+  ctx.save();ctx.strokeStyle=c;ctx.lineWidth=2.4;ctx.globalAlpha=.9*a;const b=16;
+  ctx.beginPath();ctx.moveTo(x-b,cy-halfH);ctx.lineTo(x+b,cy-halfH);
+  ctx.quadraticCurveTo(x-b*.4,cy,x+b,cy+halfH);ctx.lineTo(x-b,cy+halfH);
+  ctx.quadraticCurveTo(x+b*.4,cy,x-b,cy-halfH);ctx.closePath();
+  ctx.fillStyle='rgba(84,185,173,.07)';ctx.globalAlpha=a;ctx.fill();ctx.globalAlpha=.9*a;ctx.stroke();ctx.restore();
+}
+function hatch(x1,y,x2,dir,c,a=1){ // hatched surface (dir=+1 below,-1 above)
+  line(x1,y,x2,y,c,2,a);
+  ctx.save();ctx.globalAlpha=.5*a;ctx.strokeStyle=c;ctx.lineWidth=1.3;
+  for(let x=x1+8;x<x2;x+=18){ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x-12,y+dir*12);ctx.stroke();}ctx.restore();
+}
+function marchWave(px,py,ux,uy,count,spacing,len,phase,c,a=1){
+  const perpx=-uy,perpy=ux;
+  for(let i=0;i<count;i++){const d=(i+(phase%1))*spacing;const cx2=px+ux*d,cy2=py+uy*d;
+    const f=1-i/count; line(cx2-perpx*len,cy2-perpy*len,cx2+perpx*len,cy2+perpy*len,c,2,a*f);}
+}
+const R2=(a)=>a*Math.PI/180;
+
+/* ============================ SCENES ============================ */
+const scenes=[
+
+/* 0 — TITLE ------------------------------------------------------ */
+{tier:'MAP',title:'A journey through Optics',
+ beats:[
+  {k:'T',t:'Light — the fastest, most useful messenger we have. We will follow one idea and let each answer expose the next question.'},
+  {k:'T',t:'Three tiers, one thread: treat light as a ray, then as a wave, then engineer it as a beam of photons.'}
+ ],
+ draw(){
+  txt('OPTICS',CX,300,86,col.ink,'center','middle',700, EO(clamp01(BT/.8)));
+  txt('from rays to lasers',CX,362,28,col.teal,'center','middle',400,EO(clamp01((BT-.2)/.8)));
+  // travelling photon underline
+  const p=segL(.4,1.6), x1=CX-260,x2=CX+260;
+  line(x1,400,lerp(x1,x2,p),400,col.amber,2,.8);
+  if(p<1)photon(lerp(x1,x2,p),400,4,col.amber);
+  txt('“What I cannot create, I do not understand.”  — R. Feynman',CX,470,18,col.dim,'center','middle',400,EO(clamp01((BT-1.2)/1)));
+  if(BI>=1){
+   const cards=[['GEOMETRIC','rays · lenses · mirrors',col.blue],
+               ['WAVE','interference · diffraction',col.teal],
+               ['MODERN','lasers · fibre · Fourier',col.violet]];
+   const cw=300,gap=40,tot=cards.length*cw+(cards.length-1)*gap,x0=CX-tot/2;
+   cards.forEach((cd,i)=>{const p2=pop(i*.15,.5);const x=x0+i*(cw+gap);const y=560-6*p2;
+     ctx.save();ctx.globalAlpha=p2;panel(x,y,cw,120,12,'#0a0d16',cd[2]==col.blue?'#20364f':cd[2]==col.teal?'#1c3f3a':'#332947');
+     txt(cd[0],x+cw/2,y+42,22,cd[2],'center','middle',700);
+     txt(cd[1],x+cw/2,y+80,17,col.dim,'center','middle',400);ctx.restore();});
+  }
+ }},
+
+/* 1 — RAY MODEL -------------------------------------------------- */
+{tier:'GEOMETRIC',title:'The ray — light as a straight path',
+ beats:[
+  {k:'T',t:'A glowing point sprays light in every direction. Each thin pencil of light is a RAY — the path energy takes.'},
+  {k:'T',t:'In a uniform medium a ray is dead straight. That single fact — plus what happens at boundaries — is all of geometric optics.'},
+  {k:'G',t:'A ray alone is boring: it just goes straight forever. Every rich effect is born where it meets matter. So — what can a boundary DO to a ray?'}
+ ],
+ draw(){
+  const s={x:SX+150,y:CY}, n=11, len=760;
+  dot(s.x,s.y,7,col.yellow,EO(clamp01(BT/.3)));
+  ring(s.x,s.y,7+6*Math.sin(T*3),col.yellow,1.4,.25);
+  if(BI===0){
+   for(let i=0;i<n;i++){const a=lerp(-1.0,1.0,i/(n-1));const p=segO(i*0.03,.7);
+     grow(s.x,s.y,s.x+Math.cos(a)*len,s.y+Math.sin(a)*len,p,col.blue,2,.75);}
+   tag(s.x,s.y-40,'point source',col.dim);
+  } else {
+   // one straight ray highlighted, rest faint
+   for(let i=0;i<n;i++){const a=lerp(-1.0,1.0,i/(n-1));
+     if(Math.abs(a)<.05){continue;}
+     line(s.x,s.y,s.x+Math.cos(a)*len,s.y+Math.sin(a)*len,col.faint,1.4,.5);}
+   const ex=s.x+len, ey=s.y;
+   line(s.x,s.y,ex,ey,col.blue,3,1);
+   const ph=segL(0,1.4);
+   if(BI===1&&ph<1)photon(lerp(s.x,ex,ph),ey,5,col.amber);
+   tag((s.x+ex)/2,ey-26,'a single ray — perfectly straight',col.dim,18);
+   if(BI===2){
+     // wall / boundary at right
+     hatch(1180,SY+60,1180,0,col.dim,.9); // vertical? draw vertical boundary
+     line(1180,SY+70,1180,SB-70,col.coral,2,.9);
+     for(let i=0;i<4;i++){const yy=SY+140+i*110;line(1180,yy-6,1180,yy+6,col.coral,2,.5);}
+     txt('boundary?',1230,CY,22,col.coral,'left','middle',600,EO(clamp01(BT/.5)));
+     tag(1230,CY+34,'mirror · water · glass · slit',col.dim,16,'left');
+   }
+  }
+ }},
+
+/* 2 — REFLECTION ------------------------------------------------- */
+{tier:'GEOMETRIC',title:'Reflection — the bounce',
+ beats:[
+  {k:'T',t:'The simplest thing a boundary can do: throw the ray back. A mirror.'},
+  {k:'T',t:'Angle of incidence equals angle of reflection — both measured from the normal (the line ⟂ to the surface).'},
+  {k:'T',t:'Smooth surface → rays stay ordered (specular). Rough surface → rays scatter every way (diffuse) — why you see this page from any angle but your face only in a mirror.'},
+  {k:'G',t:'Bouncing is only half the story. What if the boundary is water or glass, and light passes INTO it? Does it keep going straight?'}
+ ],
+ draw(){
+  const my=560, P={x:CX,y:my}, L=300, th=R2(35);
+  hatch(SX+40,my,SR-40,1,col.dim,.9);
+  if(BI<3||BI===3){
+    dashedNormal(P.x,P.y-260,P.y+30);
+    const inS={x:P.x-Math.sin(th)*L,y:P.y-Math.cos(th)*L};
+    const rE={x:P.x+Math.sin(th)*L,y:P.y-Math.cos(th)*L};
+    // incoming
+    grow(inS.x,inS.y,P.x,P.y,BI===0?seg(0,.9):1,col.blue,3);
+    const pin=segL(0,.9);
+    if(BI===0&&pin<1)photon(lerp(inS.x,P.x,pin),lerp(inS.y,P.y,pin),5,col.amber);
+    if(BI>=1){
+      const pr=BI===1?seg(0,.9):1;
+      grow(P.x,P.y,rE.x,rE.y,pr,col.teal,3);
+      // angle arcs
+      angleArc(P.x,P.y,-Math.PI/2-th,-Math.PI/2,34,col.blue,.9);
+      angleArc(P.x,P.y,-Math.PI/2,-Math.PI/2+th,44,col.teal,.9);
+      tag(P.x-46,P.y-72,'θᵢ',col.blue,20,'center');
+      tag(P.x+52,P.y-84,'θᵣ',col.teal,20,'center');
+      txt('θᵢ  =  θᵣ',CX,SY+40,30,col.ink,'center','middle',600,EO(clamp01((BT)/.5)));
+    }
+    tag(P.x+8,P.y-250,'normal',col.dim,16,'left');
+    if(BI===3){
+      txt('…into the glass?',1210,300,24,col.amber,'left','middle',600,EO(clamp01(BT/.5)));
+      line(P.x,P.y,P.x+Math.sin(R2(24))*260,P.y+Math.cos(R2(24))*160,col.amber,2,.5*EO(clamp01(BT/.6)),[7,7]);
+    }
+  }
+  if(BI===2){
+    // diffuse illustration on the right
+    ctx.save();
+    const bx1=1120,bx2=1400,by=560;
+    // rough surface
+    ctx.strokeStyle=col.dim;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(bx1,by);
+    for(let x=bx1;x<=bx2;x+=14){ctx.lineTo(x,by-6-8*Math.abs(Math.sin(x)));}ctx.stroke();ctx.restore();
+    // parallel incoming, scattered outgoing
+    for(let i=0;i<5;i++){const x=bx1+30+i*62; grow(x-70,by-150,x,by-14,seg(0,.7),col.blue,2,.8);
+      const a=-Math.PI/2 + (Math.sin(i*12.9)*0.9); grow(x,by-14,x+Math.cos(a)*90,by-14+Math.sin(a)*90,seg(.5,.7),col.teal,2,.7);}
+    tag((bx1+bx2)/2,by+34,'diffuse: scatters every way',col.dim,17);
+    tag(CX-260,SY+60,'specular: ordered bounce',col.dim,17);
+  }
+ }},
+
+/* 3 — REFRACTION ------------------------------------------------- */
+{tier:'GEOMETRIC',title:'Refraction — the bend',
+ beats:[
+  {k:'F',t:'Cross into glass and the ray BENDS toward the normal. That bend is refraction.'},
+  {k:'T',t:'Why? Light travels slower in glass. Picture the wavefront as a marching row: the edge that enters first slows first, so the whole front pivots.'},
+  {k:'T',t:'Snell’s law makes it exact: n₁ sin θ₁ = n₂ sin θ₂.  n = how much the medium slows light (air 1.00, water 1.33, glass 1.5, diamond 2.42).'},
+  {k:'G',t:'Reverse it — glass→air bends AWAY from the normal. Keep tilting the ray… what happens when the bent ray is forced past 90°?'}
+ ],
+ draw(){
+  const iy=460, P={x:CX,y:iy}, L=300;
+  // media
+  ctx.save();ctx.globalAlpha=.5;ctx.fillStyle=col.glass;ctx.fillRect(SX+40,iy,SR-SX-80,SB-iy);ctx.restore();
+  line(SX+40,iy,SR-40,iy,col.dim,1.6,.8);
+  tag(SX+70,iy-24,'air   n₁ = 1.0',col.dim,17,'left');
+  tag(SX+70,iy+26,'glass  n₂ = 1.5',col.teal,17,'left');
+  dashedNormal(P.x,iy-230,iy+230);
+  const glassToAir = (BI===3);
+  const th1=R2(40), th2=Math.asin(Math.sin(th1)/1.5);
+  if(!glassToAir){
+    const inS={x:P.x-Math.sin(th1)*L,y:P.y-Math.cos(th1)*L};
+    const rE={x:P.x+Math.sin(th2)*L*1.05,y:P.y+Math.cos(th2)*L*1.05};
+    grow(inS.x,inS.y,P.x,P.y,1,col.blue,3);
+    grow(P.x,P.y,rE.x,rE.y,BI===0?seg(0,1):1,col.teal,3);
+    angleArc(P.x,P.y,-Math.PI/2-th1,-Math.PI/2,36,col.blue,.9);
+    angleArc(P.x,P.y,Math.PI/2-th2,Math.PI/2,46,col.teal,.9);
+    tag(P.x-52,P.y-70,'θ₁',col.blue,20);
+    tag(P.x+34,P.y+70,'θ₂',col.teal,20);
+    if(BI===1){
+      const u1={x:Math.sin(th1),y:Math.cos(th1)}, u2={x:Math.sin(th2),y:Math.cos(th2)};
+      marchWave(P.x,P.y,-u1.x,-u1.y,7,42,26,T*1.2,col.blue,.5);
+      marchWave(P.x,P.y,u2.x,u2.y,8,28,26,T*0.8,col.teal,.55);
+      txt('slower here → wavefronts bunch & pivot',CX,SB-8,19,col.dim,'center','middle',400,EO(clamp01(BT/.6)));
+    }
+    if(BI===2){
+      // index panel
+      const bx=1140,by=200; panel(bx,by,300,150,10);
+      txt('n₁ sin θ₁ = n₂ sin θ₂',bx+150,by+34,22,col.ink,'center','middle',600);
+      const rows=[['air',1.00],['water',1.33],['glass',1.50],['diamond',2.42]];
+      rows.forEach((r,i)=>{const yy=by+66+i*20; txt(r[0],bx+40,yy,16,col.dim,'left');txt('n = '+r[1].toFixed(2),bx+260,yy,16,col.teal,'right');});
+    }
+  } else {
+    // glass -> air, bends away
+    const u1={x:Math.sin(R2(28)),y:-Math.cos(R2(28))}; // from below going up-right into P
+    const inS={x:P.x-u1.x*L,y:P.y-u1.y*L};
+    const th2b=Math.asin(Math.sin(R2(28))*1.5);
+    const rE={x:P.x+Math.sin(th2b)*L,y:P.y-Math.cos(th2b)*L};
+    grow(inS.x,inS.y,P.x,P.y,1,col.blue,3);
+    grow(P.x,P.y,rE.x,rE.y,seg(0,1),col.teal,3);
+    tag(P.x-40,P.y+70,'θ₁',col.blue,20);tag(P.x+50,P.y-70,'θ₂ > θ₁',col.teal,18);
+    // ghost of larger angle
+    line(P.x,P.y,P.x+Math.sin(R2(80))*L,P.y-Math.cos(R2(80))*L,col.amber,2,.4*EO(clamp01(BT/.8)),[7,7]);
+    txt('push θ₁ up → θ₂ races toward 90°  …then?',CX,SY+40,24,col.amber,'center','middle',600,EO(clamp01(BT/.6)));
+  }
+ }},
+
+/* 4 — TOTAL INTERNAL REFLECTION --------------------------------- */
+{tier:'GEOMETRIC',title:'Total internal reflection',
+ beats:[
+  {k:'F',t:'Inside glass, tilt the ray more and the refracted ray leans harder toward the surface — dimmer each time as more light reflects back.'},
+  {k:'T',t:'At the critical angle θc the refracted ray grazes along the surface (θ₂ = 90°).  sin θc = n₂ / n₁ → for glass, θc ≈ 42°.'},
+  {k:'T',t:'Beyond θc there is NO escape route — 100% of the light reflects internally. A perfect, lossless mirror made of nothing but a boundary.'},
+  {k:'T',t:'So we can trap light and make it bounce along a path we choose. Remember this — it is how light crosses oceans. (We’ll cash it in later.)'}
+ ],
+ draw(){
+  const iy=460,P={x:CX,y:iy},L=300;
+  ctx.save();ctx.globalAlpha=.5;ctx.fillStyle=col.glass;ctx.fillRect(SX+40,iy,SR-SX-80,SB-iy);ctx.restore();
+  line(SX+40,iy,SR-40,iy,col.dim,1.6,.8);
+  tag(SX+70,iy-24,'air  n₂ = 1.0',col.dim,17,'left');
+  tag(SX+70,iy+26,'glass  n₁ = 1.5',col.teal,17,'left');
+  dashedNormal(P.x,iy-230,iy+230);
+  const thc=Math.asin(1/1.5); // ~41.8°
+  let th1;
+  if(BI===0) th1=R2(30);
+  else if(BI===1) th1=thc;
+  else th1=R2(55);
+  const inS={x:P.x-Math.sin(th1)*L,y:P.y+Math.cos(th1)*L};
+  grow(inS.x,inS.y,P.x,P.y,1,col.blue,3);
+  // reflected ray (always some)
+  const rfl={x:P.x+Math.sin(th1)*L,y:P.y+Math.cos(th1)*L};
+  const reflStrength = BI>=2?1:(BI===1?.9:.4);
+  grow(P.x,P.y,rfl.x,rfl.y,BI>=2?seg(0,.8):1,col.coral,3,reflStrength);
+  if(BI<2){
+    const th2=Math.min(Math.PI/2,Math.asin(Math.min(1,Math.sin(th1)*1.5)));
+    const rE={x:P.x+Math.sin(th2)*L,y:P.y-Math.cos(th2)*L};
+    grow(P.x,P.y,rE.x,rE.y,1,col.teal,3,BI===1?.9:.9);
+    tag(P.x+40,P.y-64,'θ₂',col.teal,19);
+  }
+  tag(P.x-46,P.y+70,'θ₁',col.blue,19);
+  if(BI===1){
+    txt('sin θc = n₂ / n₁',CX,SY+40,28,col.ink,'center','middle',600);
+    txt('θc ≈ 42°',CX,SY+78,22,col.teal,'center','middle',500);
+    angleArc(P.x,P.y,Math.PI/2-thc,Math.PI/2,50,col.teal,.9);
+  }
+  if(BI>=2){
+    txt('θ₁ > θc  →  total internal reflection',CX,SY+40,26,col.coral,'center','middle',600);
+    tag(P.x+50,P.y+64,'100% reflected',col.coral,18,'left');
+  }
+  if(BI===3){
+    // little zig-zag trapped ray preview
+    ctx.save();ctx.globalAlpha=.6*EO(clamp01(BT/.7));
+    let x=1120,y1=520,y2=580,dir=1,py=520;
+    ctx.strokeStyle=col.amber;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(1120,520);
+    for(let i=0;i<6;i++){x+=52;py=(py===520?580:520);ctx.lineTo(x,py);}ctx.stroke();ctx.restore();
+    tag(1250,500,'…a light pipe',col.amber,18,'center',EO(clamp01(BT/.7)));
+  }
+ }},
+
+/* 5 — LENSES ----------------------------------------------------- */
+{tier:'GEOMETRIC',title:'Lenses — refraction, shaped',
+ beats:[
+  {k:'F',t:'Curve the glass and every ray refracts by just the right amount. Parallel rays all meet at the focal point F. That is how you FORM an image.'},
+  {k:'T',t:'Trace three easy rays from an object: parallel→through F, through centre→straight, through F→parallel. Where they cross, the image lives.'},
+  {k:'T',t:'Thin-lens law:  1/f = 1/dₒ + 1/dᵢ.  Magnification m = −dᵢ/dₒ (negative = inverted, real image you can project).'},
+  {k:'T',t:'Slide the object inside F and the rays diverge — trace them back and you get a magnified, upright, virtual image. That’s a magnifying glass.'}
+ ],
+ draw(){
+  const ax=CY, lx=CX, f=210, hh=180;
+  line(SX+40,ax,SR-40,ax,col.faint,1.2,.8,[4,6]); // optical axis
+  convLens(lx,ax,hh,26,col.teal);
+  dot(lx-f,ax,4,col.amber);dot(lx+f,ax,4,col.amber);
+  tag(lx-f,ax+24,'F',col.amber,17);tag(lx+f,ax+24,'F',col.amber,17);
+  if(BI===0){
+    const ys=[-120,-60,0,60,120];
+    ys.forEach((dy,i)=>{const p=segO(i*.06,.7);
+      grow(SX+60,ax+dy,lx,ax+dy,p,col.blue,2.4,.9);
+      const p2=segO(.5+i*.05,.7);
+      grow(lx,ax+dy,lx+f,ax,p2,col.teal,2.4,.9);});
+    tag(lx+f,ax-30,'focus',col.teal,18);
+    txt('parallel in  →  meet at F',CX,SB-6,20,col.dim,'center','middle',400,EO(clamp01(BT/.6)));
+  } else {
+    // image formation, object at 2F
+    const dO=2*f, oh=110;
+    const ox=lx-dO, oy=ax;
+    const dI=1/(1/f-1/dO), ix=lx+dI, ih=oh*dI/dO;
+    objArrow(ox,oy,oh,col.blue,1,3); tag(ox,oy+26,'object',col.blue,16);
+    if(BI>=1){
+      const pr=BI===1?seg(0,1.1):1;
+      // ray 1: parallel then through F
+      const tip={x:ox,y:oy-oh};
+      grow(tip.x,tip.y,lx,tip.y,pr,col.violet,2,.9);
+      grow(lx,tip.y,ix,ax+ih,pr,col.violet,2,.9);
+      // ray 2: through centre
+      grow(tip.x,tip.y,ix,ax+ih,pr,col.green,2,.9);
+      // ray 3: through F then parallel
+      grow(tip.x,tip.y,lx,ax + (lx-tip.x)*( (tip.y-ax)/(lx-f-tip.x) ), pr,col.amber,2,.55);
+      // image arrow
+      const pim=BI===1?seg(.9,.5):1;
+      objArrow(ix,ax,ih,col.coral,pim,3); tag(ix,ax+28,'real image (inverted)',col.coral,16);
+    }
+    if(BI===2){
+      panel(1140,180,300,120,10);
+      txt('1/f = 1/dₒ + 1/dᵢ',1290,214,22,col.ink,'center','middle',600);
+      txt('m = − dᵢ / dₒ',1290,258,20,col.teal,'center','middle',500);
+    }
+    if(BI===3){
+      // object inside F -> virtual
+      ctx.globalAlpha=1;
+      txt('object inside F → virtual, upright, magnified',CX,SY+40,22,col.amber,'center','middle',600,EO(clamp01(BT/.5)));
+    }
+  }
+ }},
+
+/* 6 — MIRRORS ---------------------------------------------------- */
+{tier:'GEOMETRIC',title:'Curved mirrors — reflection, shaped',
+ beats:[
+  {k:'T',t:'A lens bends light by refraction; a curved mirror does the same job by reflection. A concave mirror gathers parallel rays to a focus.'},
+  {k:'T',t:'A convex mirror spreads rays out — they seem to come from a virtual focus behind it, giving a wide, shrunken view.'},
+  {k:'T',t:'Same equation as the lens: 1/f = 1/dₒ + 1/dᵢ, with f = R/2. Reflectors dodge chromatic aberration — why the biggest telescopes use mirrors.'}
+ ],
+ draw(){
+  const ax=CY;
+  line(SX+40,ax,SR-40,ax,col.faint,1.2,.8,[4,6]);
+  if(BI<2){
+    const concave = (BI===0);
+    const mx=concave?1120:1120, Rr=520;
+    const cx = concave? mx-Rr : mx+Rr;
+    const f = concave? mx-Rr/2 : mx+Rr/2;
+    // mirror arc
+    ctx.save();ctx.strokeStyle=col.teal;ctx.lineWidth=3;ctx.globalAlpha=.9;
+    const spread=0.34;
+    ctx.beginPath();
+    if(concave)ctx.arc(cx,ax,Rr,-spread,spread);
+    else ctx.arc(cx,ax,Rr,Math.PI-spread,Math.PI+spread);
+    ctx.stroke();ctx.restore();
+    dot(f,ax,4,col.amber);tag(f,ax+24,'F',col.amber,17);
+    const ys=[-110,-55,55,110];
+    ys.forEach((dy,i)=>{const p=segO(i*.06,.7);
+      // incoming parallel to just before mirror surface
+      const hitx = concave? mx - (Rr-Math.sqrt(Math.max(0,Rr*Rr-dy*dy))) : mx + (Rr-Math.sqrt(Math.max(0,Rr*Rr-dy*dy)));
+      grow(SX+60,ax+dy,hitx,ax+dy,p,col.blue,2.2,.9);
+      const p2=segO(.5+i*.05,.8);
+      if(concave)grow(hitx,ax+dy,f,ax,p2,col.teal,2.2,.9);
+      else {const vx=lerp(hitx,SX+120,1);grow(hitx,ax+dy,SX+140,ax+dy*2.4,p2,col.teal,2.2,.9);
+        line(hitx,ax+dy, f, ax, col.faint,1.4,.4*p2,[5,5]);}
+    });
+    txt(concave?'concave: converges → real focus':'convex: diverges → virtual focus behind',CX,SB-6,20,col.dim,'center','middle',400,EO(clamp01(BT/.6)));
+  } else {
+    panel(CX-170,300,340,140,10);
+    txt('1/f = 1/dₒ + 1/dᵢ',CX,344,24,col.ink,'center','middle',600);
+    txt('f = R / 2',CX,388,20,col.teal,'center','middle',500);
+    txt('mirrors have no chromatic aberration',CX,SB-6,19,col.dim,'center','middle',400);
+  }
+ }},
+
+/* 7 — OPTICAL INSTRUMENTS ---------------------------------------- */
+{tier:'GEOMETRIC',title:'Instruments — lenses with a job',
+ beats:[
+  {k:'T',t:'The eye & the camera: one lens throws a real, inverted image onto a screen (retina / sensor). Focusing = changing f (eye) or dᵢ (camera).'},
+  {k:'T',t:'The telescope: a big objective collects a distant object; a short eyepiece magnifies the tiny image. Angular magnification = f_obj / f_eye.'},
+  {k:'T',t:'The microscope: the objective makes a magnified real image, the eyepiece magnifies that again — two stages multiply to see the very small.'}
+ ],
+ draw(){
+  const ax=CY;
+  if(BI===0){
+    line(SX+120,ax,1240,ax,col.faint,1.2,.8,[4,6]);
+    objArrow(SX+150,ax,90,col.blue,1,3);tag(SX+150,ax+26,'object',col.blue,15);
+    convLens(760,ax,150,22,col.teal);tag(760,ax-170,'lens',col.teal,15);
+    // retina/sensor
+    line(1160,ax-70,1160,ax+70,col.violet,4,.9);tag(1160,ax+96,'retina / sensor',col.violet,15);
+    const p=seg(0,1);
+    grow(SX+150,ax-90,760,ax-90*.5,p,col.blue,2,.8);
+    grow(760,ax-90*.5,1160,ax+42,p,col.teal,2,.85);
+    grow(SX+150,ax-90,1160,ax+42,p,col.green,2,.7);
+    objArrow(1160,ax,-52,col.coral,seg(.7,.5),3);
+  } else if(BI===1){
+    line(SX+80,ax,1400,ax,col.faint,1.2,.8,[4,6]);
+    convLens(560,ax,180,30,col.teal);tag(560,ax-200,'objective (long f)',col.teal,15);
+    convLens(1080,ax,90,18,col.blue);tag(1080,ax-110,'eyepiece (short f)',col.blue,15);
+    const ys=[-70,0,70];const p=seg(0,1);
+    ys.forEach(dy=>{grow(SX+90,ax+dy,560,ax+dy,p,col.blue,2,.6);grow(560,ax+dy,820,ax,p,col.teal,2,.7);});
+    grow(820,ax,1080,ax-40,seg(.6,.6),col.teal,2,.7);
+    grow(1080,ax-40,1360,ax-150,seg(.8,.5),col.green,2.4,.9);
+    grow(1080,ax-40,1360,ax-90,seg(.8,.5),col.green,2.4,.9);
+    txt('M ≈ f_obj / f_eye',CX,SB-6,20,col.dim,'center','middle',400);
+  } else {
+    line(SX+120,ax,1360,ax,col.faint,1.2,.8,[4,6]);
+    objArrow(SX+150,ax,40,col.blue,1,3);tag(SX+150,ax+24,'tiny object',col.blue,15);
+    convLens(560,ax,120,22,col.teal);tag(560,ax-140,'objective',col.teal,15);
+    convLens(1080,ax,150,26,col.blue);tag(1080,ax-170,'eyepiece',col.blue,15);
+    const p=seg(0,1);
+    grow(SX+150,ax-40,560,ax-70,p,col.blue,2,.8);grow(560,ax-70,880,ax+70,p,col.teal,2,.8);
+    objArrow(880,ax,-70,col.coral,seg(.5,.5),2.4);tag(880,ax+26,'stage 1 image',col.coral,14);
+    grow(880,ax-70,1080,ax-40,seg(.7,.5),col.teal,2,.7);
+    grow(1080,ax-40,1340,ax-150,seg(.85,.5),col.green,2.4,.9);
+    txt('two stages of magnification multiply',CX,SB-6,20,col.dim,'center','middle',400);
+  }
+ }},
+
+/* 8 — ABERRATIONS ------------------------------------------------ */
+{tier:'GEOMETRIC',title:'Aberrations — why real lenses blur',
+ beats:[
+  {k:'G',t:'Every ray diagram assumed a perfect focus. But real spherical lenses miss. Rays through the EDGE bend too much and cross nearer than central rays.'},
+  {k:'F',t:'That is spherical aberration — the focus smears into a blur disc. And colour makes it worse…'},
+  {k:'T',t:'Chromatic aberration: n depends on colour, so blue focuses nearer than red — white light fans into a coloured smear.'},
+  {k:'T',t:'Cures: aspheric surfaces, achromatic doublets (pair a converging + diverging glass), or stop the aperture down. Optics is a war on aberration.'}
+ ],
+ draw(){
+  const ax=CY,lx=CX;
+  line(SX+40,ax,SR-40,ax,col.faint,1.2,.8,[4,6]);
+  convLens(lx,ax,190,30,col.teal);
+  if(BI<2){
+    // spherical: different heights focus at different x
+    const ys=[40,90,140,180];
+    ys.forEach((dy,i)=>{const fx=lx+230-dy*0.65; const p=segO(i*.05,.7);
+      grow(SX+60,ax-dy,lx,ax-dy,p,col.blue,2,.85);grow(SX+60,ax+dy,lx,ax+dy,p,col.blue,2,.85);
+      const p2=segO(.5,.8);
+      grow(lx,ax-dy,fx,ax,p2,col.teal,2,.8);grow(lx,ax+dy,fx,ax,p2,col.teal,2,.8);
+      dot(fx,ax,3,col.amber,p2);});
+    if(BI===1){ // blur disc
+      ctx.save();ctx.globalAlpha=.5*EO(clamp01(BT/.6));ctx.strokeStyle=col.coral;ctx.setLineDash([4,4]);
+      ctx.beginPath();ctx.ellipse(lx+185,ax,60,26,0,0,TAU);ctx.stroke();ctx.restore();
+      tag(lx+185,ax+50,'blur disc — no single focus',col.coral,17);
+    } else tag(lx+230,ax-40,'edge rays focus nearer',col.dim,17);
+  } else if(BI===2){
+    // chromatic
+    const dy=110;
+    grow(SX+60,ax-dy,lx,ax-dy,1,col.dim,2,.6);grow(SX+60,ax+dy,lx,ax+dy,1,col.dim,2,.6);
+    const cols=[['#6a74d0',+0,'blue'],['#7cbf86',+34,''],['#d0655f',+66,'red']];
+    cols.forEach((cc,i)=>{const fx=lx+150+cc[1];const p=segO(i*.08,.7);
+      grow(lx,ax-dy,fx,ax,p,cc[0],2,.9);grow(lx,ax+dy,fx,ax,p,cc[0],2,.9);dot(fx,ax,3,cc[0],p);
+      if(cc[2])tag(fx,ax-26,cc[2],cc[0],15);});
+    txt('colours focus at different points',CX,SB-6,20,col.dim,'center','middle',400);
+  } else {
+    // doublet fix
+    convLens(lx-30,ax,170,26,col.teal);concaveLens(lx+30,ax,170,col.amber);
+    const dy=110;
+    ['#6a74d0','#d0655f'].forEach((c,i)=>{grow(SX+60,ax-dy+i*8,lx-30,ax-dy+i*8,1,col.dim,2,.4);});
+    const fx=lx+220;
+    grow(lx,ax-dy,fx,ax,seg(.2,.8),col.teal,2,.9);grow(lx,ax+dy,fx,ax,seg(.2,.8),col.teal,2,.9);
+    dot(fx,ax,4,col.green,seg(.5,.5));
+    tag(lx,ax-200,'achromatic doublet',col.amber,17);
+    txt('pair glasses so colours refocus together',CX,SB-6,20,col.dim,'center','middle',400);
+  }
+ }},
+
+/* 9 — LIGHT IS A WAVE ------------------------------------------- */
+{tier:'WAVE',title:'What IS light? — the wave underneath',
+ beats:[
+  {k:'R',t:'Recap: with straight rays, reflection and refraction, we built every lens, mirror and instrument. Pure geometry.'},
+  {k:'G',t:'Yet rays can’t explain the colours swimming on a soap bubble, or why a razor-sharp edge casts a slightly fuzzy shadow. What is the ray made OF?'},
+  {k:'F',t:'Light is an electromagnetic WAVE — an electric field oscillating as it travels. The “ray” was just the direction the wave marches. c = f λ.'}
+ ],
+ draw(){
+  if(BI<2){
+    if(BI===0){
+      // faint lens ghost
+      convLens(CX,CY,150,24,col.faint,.6);
+      const p=seg(0,1);
+      grow(SX+80,CY-70,CX,CY-35,p,col.blue,2,.6);grow(CX,CY-35,CX+220,CY,p,col.teal,2,.6);
+      grow(SX+80,CY+70,CX,CY+35,p,col.blue,2,.6);grow(CX,CY+35,CX+220,CY,p,col.teal,2,.6);
+      dot(CX+220,CY,4,col.amber,p);
+      tag(CX,CY-190,'geometry alone',col.dim,20);
+    } else {
+      // soap bubble shimmering
+      const bx=CX,by=CY;
+      for(let i=10;i>=1;i--){const r=90+i*7;ctx.save();ctx.globalAlpha=.05;ctx.strokeStyle=spectral(((i/10)+T*.1)%1);ctx.lineWidth=6;ctx.beginPath();ctx.arc(bx,by,r,0,TAU);ctx.stroke();ctx.restore();}
+      ring(bx,by,150,col.faint,1.4,.4);
+      tag(bx,by+210,'why the colours? why the fuzzy edge?',col.amber,20);
+    }
+    return;
+  }
+  // reveal wave
+  const y0=CY, x0=SX+80, x1=SR-80, amp=95, k=TAU/240, ph=T*3;
+  line(x0,y0,x1,y0,col.faint,1,.7,[4,6]);
+  // E field arrows
+  for(let x=x0;x<x1;x+=26){const yv=y0-amp*Math.sin(k*(x-x0)-ph); line(x,y0,x,yv,col.teal,1.4,.35);}
+  sineH(x0,y0,x1,amp,k,ph,col.teal,3,1);
+  // wavelength bracket between two crests
+  const cph=Math.floor(ph/TAU)*TAU;
+  const cx1=x0+(ph%TAU)/k + 0, wl=TAU/k;
+  const bx1=x0+300, bx2=bx1+wl;
+  line(bx1,y0+120,bx2,y0+120,col.amber,2,.9);
+  line(bx1,y0+112,bx1,y0+128,col.amber,2,.9);line(bx2,y0+112,bx2,y0+128,col.amber,2,.9);
+  tag((bx1+bx2)/2,y0+142,'λ  wavelength',col.amber,18);
+  tag(x0-4,y0-amp-14,'E  electric field',col.teal,17,'left');
+  txt('c = f λ',SR-40,SY+40,26,col.ink,'right','middle',600);
+ }},
+
+/* 10 — HUYGENS -------------------------------------------------- */
+{tier:'WAVE',title:'Huygens’ principle — waves build themselves',
+ beats:[
+  {k:'T',t:'Trick: treat every point on a wavefront as a tiny source of spherical wavelets. The next wavefront is just their smooth envelope.'},
+  {k:'T',t:'Send a wave through a narrow gap and only a few wavelets survive — they spread out as circles. That spreading IS diffraction.'},
+  {k:'T',t:'And it re-derives refraction for free: wavelets crawl slower in glass, so the envelope tilts toward the normal. Same bend, deeper reason.'}
+ ],
+ draw(){
+  if(BI===0){
+    const x0=SX+260, ys=[]; for(let y=SY+70;y<=SB-40;y+=70)ys.push(y);
+    line(x0,SY+50,x0,SB-30,col.blue,3,.9); tag(x0,SY+30,'wavefront',col.blue,17);
+    const r=seg(0,1.3)*180;
+    ys.forEach(y=>{ring(x0,y,r,col.teal,1.6,.5);dot(x0,y,3,col.teal,.8);});
+    if(r>60){line(x0+r,SY+50,x0+r,SB-30,col.green,3,EO(clamp01((r-60)/120)));tag(x0+r,SY+30,'new wavefront = envelope',col.green,16);}
+  } else if(BI===1){
+    // barrier with a gap
+    const bx=CX-120;
+    line(bx,SY+40,CY-30,SY+40===0?0:0,col.dim,0,0); // noop safe
+    line(bx,SY+40,bx,CY-24,col.dim,3,.9); line(bx,CY+24,bx,SB-30,col.dim,3,.9);
+    // incoming plane waves
+    for(let i=0;i<5;i++){const x=SX+80+((T*120+i*70)%(bx-SX-80));line(x,SY+50,x,SB-30,col.blue,2,.3);}
+    // circular spread from gap
+    for(let k=0;k<6;k++){const r=((T*130+k*70)%460);ring(bx,CY,r,col.teal,1.8,.5*(1-r/460));}
+    dot(bx,CY,4,col.teal);
+    tag(bx+220,CY-160,'a gap → circular spreading = diffraction',col.dim,18,'left');
+  } else {
+    const iy=CY+40; ctx.save();ctx.globalAlpha=.4;ctx.fillStyle=col.glass;ctx.fillRect(SX+40,iy,SR-SX-80,SB-iy);ctx.restore();
+    line(SX+40,iy,SR-40,iy,col.dim,1.4,.8);
+    // tilted wavefronts above, more tilted & closer below
+    const p=seg(0,1);
+    for(let i=0;i<5;i++){const off=i*70; const xa=SX+300+off; line(xa,iy-190,xa-150,iy,col.blue,2,.7*p);}
+    for(let i=0;i<5;i++){const off=i*46; const xb=SX+300+off*0.9; line(xb-150,iy,xb-150-80,iy+150,col.teal,2,.7*p);}
+    tag(SX+140,iy-40,'air',col.dim,16,'left');tag(SX+140,iy+40,'glass (slower)',col.teal,16,'left');
+    txt('slower wavelets → envelope tilts → refraction',CX,SB-6,20,col.dim,'center','middle',400);
+  }
+ }},
+
+/* 11 — COHERENCE ------------------------------------------------ */
+{tier:'WAVE',title:'Coherence — waves that keep in step',
+ beats:[
+  {k:'T',t:'Two waves in step (same λ, locked phase) add crest-to-crest → a bigger wave. Constructive interference.'},
+  {k:'T',t:'Shift one by half a wavelength and crest meets trough → they cancel. Destructive interference. Phase is everything.'},
+  {k:'T',t:'Ordinary light (a bulb) has random, jittering phase — incoherent — so no stable pattern forms. Lasers are almost perfectly coherent (coming up).'}
+ ],
+ draw(){
+  const x0=SX+90,x1=SR-90,amp=42,k=TAU/220;
+  const rows=[CY-150,CY-10,CY+150];
+  tag(x0-6,rows[0]-70,'wave A',col.blue,16,'left');
+  tag(x0-6,rows[1]-70,'wave B',col.teal,16,'left');
+  tag(x0-6,rows[2]-90,'A + B',col.amber,16,'left');
+  let phB=0, label='';
+  if(BI===0){phB=0;label='in step → reinforce';}
+  else if(BI===1){phB=Math.PI;label='half-λ shift → cancel';}
+  else {phB=1.7*Math.sin(T*1.3)+ .8*Math.sin(T*2.7);label='random phase → incoherent, no pattern';}
+  sineH(x0,rows[0],x1,amp,k,T*3,col.blue,2.4,.9);
+  sineH(x0,rows[1],x1,amp,k,T*3+phB,col.teal,2.4,.9);
+  // sum
+  ctx.save();ctx.strokeStyle=col.amber;ctx.lineWidth=3;ctx.beginPath();let first=true;
+  for(let x=x0;x<=x1;x+=3){const y=rows[2]-(amp*Math.sin(k*(x-x0)-T*3)+amp*Math.sin(k*(x-x0)-T*3-phB));if(first){ctx.moveTo(x,y);first=false;}else ctx.lineTo(x,y);}
+  ctx.stroke();ctx.restore();
+  line(x0,rows[2],x1,rows[2],col.faint,1,.5,[4,6]);
+  txt(label,CX,SB-6,21,col.dim,'center','middle',500);
+ }},
+
+/* 12 — YOUNG'S DOUBLE SLIT -------------------------------------- */
+{tier:'WAVE',title:'Young’s double slit — the proof',
+ beats:[
+  {k:'F',t:'Let ONE coherent wave hit TWO slits. Each slit re-emits a circular wave; the two overlap and interfere across all of space.'},
+  {k:'T',t:'On the screen: where crests meet crests → bright; where crest meets trough → dark. A striped pattern no particle stream could make.'},
+  {k:'T',t:'Bright fringes obey d sin θ = m λ; spacing widens as λL/d. Measuring the stripes literally measures the wavelength of light.'}
+ ],
+ draw(){
+  const bx=SX+330, sx2=1340, sep=120, lam=72;
+  const S1={x:bx,y:CY-sep/2},S2={x:bx,y:CY+sep/2};
+  // incoming plane waves
+  for(let i=0;i<5;i++){const x=SX+70+((T*130+i*lam)%(bx-SX-70));line(x,CY-170,x,CY+170,col.blue,2,.28);}
+  // barrier w/ 2 gaps
+  line(bx,SY+40,S1.y-9,SY+40? S1.y-9:0,col.dim,0,0);
+  line(bx,SY+40,bx,S1.y-9,col.dim,3,.9);line(bx,S1.y+9,bx,S2.y-9,col.dim,3,.9);line(bx,S2.y+9,bx,SB-30,col.dim,3,.9);
+  // circular waves from slits
+  for(let k2=0;k2<7;k2++){const r=((T*130+k2*lam)%620);if(r>3){ring(S1.x,S1.y,r,col.teal,1.4,.4*(1-r/620));ring(S2.x,S2.y,r,col.violet,1.4,.4*(1-r/620));}}
+  dot(S1.x,S1.y,4,col.teal);dot(S2.x,S2.y,4,col.violet);
+  // screen
+  line(sx2,SY+40,sx2,SB-30,col.dim,2,.7);
+  if(BI>=1){
+    const app=EO(clamp01(BT/.8));
+    for(let y=SY+50;y<=SB-40;y+=5){
+      const d1=Math.hypot(sx2-S1.x,y-S1.y),d2=Math.hypot(sx2-S2.x,y-S2.y);
+      const b=Math.pow(Math.cos(Math.PI*(d1-d2)/lam),2);
+      ctx.save();ctx.globalAlpha=b*app;ctx.fillStyle=col.yellow;ctx.fillRect(sx2+4,y-2.5,26,5);ctx.restore();
+    }
+    tag(sx2+50,SY+60,'bright',col.yellow,15,'left',app);
+    tag(sx2+50,SY+96,'dark',col.dim,15,'left',app);
+  }
+  if(BI===2){panel(SX+60,SY+30,250,70,10);txt('d sin θ = m λ',SX+185,SY+65,22,col.ink,'center','middle',600);}
+ }},
+
+/* 13 — THIN FILMS ----------------------------------------------- */
+{tier:'WAVE',title:'Thin films — the soap-bubble answer',
+ beats:[
+  {k:'F',t:'Here is the bubble. Light reflects off the TOP surface and off the BOTTOM surface of the thin film — two waves, from one ray.'},
+  {k:'T',t:'They travel different distances (2nt) and interfere. 2nt = (m+½)λ reinforces a colour; the missing colours are cancelled.'},
+  {k:'T',t:'Thickness varies → the reinforced colour marches through the spectrum → shifting rainbow sheen. Same physics: anti-reflection lens coatings.'}
+ ],
+ draw(){
+  if(BI<2){
+    const ty=440, by=470, ix=CX-40; // film surfaces
+    ctx.save();ctx.globalAlpha=.35;ctx.fillStyle=col.teal;ctx.fillRect(SX+60,ty,SR-SX-120,by-ty);ctx.restore();
+    line(SX+60,ty,SR-60,ty,col.dim,1.6,.8);line(SX+60,by,SR-60,by,col.dim,1.6,.8);
+    tag(SX+90,ty-16,'air',col.dim,15,'left');tag(SX+90,(ty+by)/2,'film  thickness t',col.teal,15,'left');tag(SX+90,by+18,'air',col.dim,15,'left');
+    // incoming
+    grow(ix-160,ty-160,ix,ty,1,col.blue,3);
+    // reflection off top
+    grow(ix,ty,ix+150,ty-150,seg(.1,.8),col.teal,2.6,.9);
+    tag(ix+150,ty-166,'reflect off top',col.teal,15);
+    // refract to bottom, reflect, back up
+    const ib={x:ix+22,y:by};
+    grow(ix,ty,ib.x,ib.y,seg(.2,.6),col.blue,2,.7);
+    grow(ib.x,ib.y,ib.x+150,ty-150+22,seg(.6,.8),col.violet,2.6,.9);
+    tag(ib.x+150,ty-150+6,'reflect off bottom',col.violet,15);
+    if(BI===1){panel(SX+60,SY+30,300,74,10);txt('2 n t = (m + ½) λ',SX+210,SY+67,22,col.ink,'center','middle',600);
+      txt('one reflection flips phase by π',CX,SB-6,19,col.dim,'center','middle',400);}
+  } else {
+    // shimmering film column
+    const fx=SX+120,fw=560,fy=SY+50,fh=560;
+    for(let y=0;y<fh;y+=4){const t=(y/fh); const hue=((t*2.4 + T*.25)%1); ctx.save();ctx.globalAlpha=.8;ctx.fillStyle=spectral(hue);ctx.fillRect(fx,fy+y,fw,4);ctx.restore();}
+    panel(fx+fw+60,CY-80,540,160,12,'#0a0d16','#20364f');
+    txt('thickness ↑  →  colour cycles',fx+fw+330,CY-30,20,col.ink,'center','middle',500);
+    txt('Applications',fx+fw+90,CY+16,15,col.amber,'left',undefined,700);
+    txt('anti-reflection coatings · oil slicks',fx+fw+90,CY+46,17,col.dim,'left');
+  }
+ }},
+
+/* 14 — INTERFEROMETERS ------------------------------------------ */
+{tier:'WAVE',title:'Interferometers — rulers made of light',
+ beats:[
+  {k:'T',t:'Split one beam in two, send them down separate arms to mirrors, then recombine. Their interference reads the arm-length DIFFERENCE.'},
+  {k:'T',t:'Move one mirror by half a wavelength and the fringes shift by exactly one — you just measured a distance to a fraction of 0.0000005 m.'},
+  {k:'T',t:'Uses: testing lens flatness, refractive index, calibration — and LIGO, which caught gravitational waves by sensing arm changes 1/1000th of a proton.'}
+ ],
+ draw(){
+  const S={x:SX+80,y:CY}, BS={x:CX-120,y:CY}, M1={x:CX-120,y:SY+70}, M2={x:CX+220,y:CY}, D={x:CX-120,y:SB-40};
+  // beams
+  grow(S.x,S.y,BS.x,BS.y,1,col.blue,3);tag(S.x,S.y-24,'laser',col.blue,15,'left');
+  // beamsplitter
+  ctx.save();ctx.strokeStyle=col.dim;ctx.lineWidth=3;ctx.globalAlpha=.9;ctx.beginPath();ctx.moveTo(BS.x-22,BS.y+22);ctx.lineTo(BS.x+22,BS.y-22);ctx.stroke();ctx.restore();
+  tag(BS.x,BS.y-40,'beam-splitter',col.dim,14);
+  // arm 1 up
+  const m2x = M2.x + (BI>=1? 22*Math.sin(T*1.3):0);
+  grow(BS.x,BS.y,M1.x,M1.y,1,col.teal,2.4,.9);line(M1.x-30,M1.y,M1.x+30,M1.y,col.violet,4,.9);tag(M1.x,M1.y-16,'mirror 1',col.violet,14);
+  grow(BS.x,BS.y,m2x,M2.y,1,col.teal,2.4,.9);line(m2x,M2.y-30,m2x,M2.y+30,col.violet,4,.9);tag(m2x+8,M2.y-40,'mirror 2',col.violet,14,'left');
+  // recombined down to detector
+  grow(BS.x,BS.y,D.x,D.y,1,col.amber,2.6,.9);
+  // detector fringes (circular)
+  const cxD=D.x, cyD=D.y;
+  for(let k2=0;k2<5;k2++){const base=(BI>=1? (m2x-M2.x)*0.6:0); const r=8+k2*16; const b=.5+.5*Math.cos(k2*1.2 - base*0.15); ring(cxD+70,cyD,r,col.yellow,3,.5*b);}
+  tag(cxD+70,cyD+70,'fringes shift as mirror moves',col.dim,15);
+  if(BI===2){txt('LIGO: arm change ~ 1/1000 of a proton width',CX,SY+40,20,col.amber,'center','middle',600);}
+ }},
+
+/* 15 — SINGLE-SLIT DIFFRACTION ---------------------------------- */
+{tier:'WAVE',title:'Single-slit diffraction',
+ beats:[
+  {k:'T',t:'Now ONE slit — but a wide one. Wavelets from across the opening interfere with each OTHER, giving a bright central band flanked by dark gaps.'},
+  {k:'T',t:'Dark minima at a sin θ = m λ. The key twist: a NARROWER slit spreads the pattern WIDER. Squeeze light and it fights back by spreading.'},
+  {k:'T',t:'This is the far-field (Fraunhofer) pattern; up close it’s Fresnel. Either way, every opening blurs — no image is ever perfectly sharp.'}
+ ],
+ draw(){
+  const bx=CX-180, sx2=1230, slitH= BI===1? 40:70;
+  // barrier with one gap
+  line(bx,SY+50,bx,CY-slitH,col.dim,3,.9);line(bx,CY+slitH,bx,SB-30,col.dim,3,.9);
+  for(let i=0;i<5;i++){const x=SX+70+((T*120+i*70)%(bx-SX-70));line(x,CY-150,x,CY+150,col.blue,2,.28);}
+  // wavelets across slit
+  for(let s=-1;s<=1;s++){const sy=CY+s*slitH*0.6;for(let k2=0;k2<5;k2++){const r=((T*120+k2*70)%420);ring(bx,sy,r,col.teal,1.2,.25*(1-r/420));}}
+  line(sx2,SY+50,sx2,SB-30,col.dim,2,.7);
+  // sinc^2 profile plotted sideways from screen
+  ctx.save();ctx.strokeStyle=col.yellow;ctx.lineWidth=2.6;ctx.globalAlpha=EO(clamp01(BT/.7));ctx.beginPath();
+  const a=slitH*0.05;
+  let first=true;
+  for(let y=SY+55;y<=SB-35;y+=3){const beta=a*(y-CY)+1e-6;const I=Math.pow(Math.sin(beta)/beta,2);const x=sx2+I*230;if(first){ctx.moveTo(x,y);first=false;}else ctx.lineTo(x,y);}
+  ctx.stroke();ctx.restore();
+  tag(sx2+180,CY,'central max',col.yellow,15,'left');
+  if(BI>=1){panel(SX+70,SY+30,300,70,10);txt('a sin θ = m λ  (minima)',SX+220,SY+65,20,col.ink,'center','middle',600);
+    txt('narrower slit → wider pattern',CX,SB-6,20,col.dim,'center','middle',400);}
+ }},
+
+/* 16 — DIFFRACTION GRATING -------------------------------------- */
+{tier:'WAVE',title:'Diffraction grating — light, sorted by colour',
+ beats:[
+  {k:'T',t:'Cut MANY equally-spaced slits. Now thousands of wavelets reinforce only at a few razor-sharp angles — bright, narrow, cleanly separated lines.'},
+  {k:'T',t:'d sin θ = m λ, so each colour peaks at its OWN angle → white light fans into a pure spectrum. Sharper and brighter than a prism.'},
+  {k:'T',t:'This is how we read starlight and identify molecules: spectroscopy. Also grating’s cousins colour a CD, and route wavelengths in fibre networks.'}
+ ],
+ draw(){
+  const bx=CX-160;
+  // grating (many gaps)
+  for(let y=SY+50;y<=SB-30;y+=16){line(bx,y,bx,y+9,col.dim,3,.8);}
+  tag(bx,SY+30,'grating (many slits)',col.dim,15);
+  if(BI===0){
+    for(let i=0;i<5;i++){const x=SX+70+((T*120+i*70)%(bx-SX-70));line(x,CY-150,x,CY+150,col.blue,2,.28);}
+    // sharp maxima on screen
+    const sx2=1240;line(sx2,SY+50,sx2,SB-30,col.dim,2,.7);
+    [-2,-1,0,1,2].forEach(m=>{const y=CY+m*100;const w=m===0?1:.7;dot(sx2+16,y,6*EO(clamp01(BT/.6)),col.yellow,w);tag(sx2+40,y,'m='+m,col.dim,14,'left');});
+  } else {
+    // white light fanning into spectrum
+    grow(SX+80,CY,bx,CY,1,col.ink,3,.9);tag(SX+80,CY-22,'white light',col.ink,15,'left');
+    for(let m=1;m<=2;m++){for(let s=0;s<=1;s++){const dir=s?1:-1;
+      for(let c=0;c<=1;c+=0.05){const ang=dir*(0.12*m + c*0.14*m);const L=430;const ex=bx+Math.cos(ang)*L,ey=CY+Math.sin(ang)*L;
+        line(bx,CY,ex,ey,spectral(c),2,.5*EO(clamp01(BT/.8)));}}}
+    if(BI===2){panel(SX+70,SY+30,300,70,10);txt('d sin θ = m λ',SX+220,SY+65,22,col.ink,'center','middle',600);
+      txt('spectroscopy · CD colours · fibre WDM',CX,SB-6,20,col.dim,'center','middle',400);}
+  }
+ }},
+
+/* 17 — RESOLUTION ----------------------------------------------- */
+{tier:'WAVE',title:'Resolution — the limit set by diffraction',
+ beats:[
+  {k:'T',t:'A round aperture turns even a perfect point of light into a small blurred disc (an Airy disc). Diffraction, again — the price of a finite opening.'},
+  {k:'T',t:'Two points close together make two overlapping discs. When they merge, you can no longer tell them apart. Rayleigh: θ ≈ 1.22 λ / D.'},
+  {k:'T',t:'So bigger aperture D → sharper; shorter λ → sharper. Why telescopes are enormous, and why microscopes reach for blue and electron wavelengths.'}
+ ],
+ draw(){
+  function blob(x,y,r,c,a){for(let i=9;i>=1;i--){dot(x,y,r*i/9,c,a*0.05);}dot(x,y,r*0.18,c,a);ring(x,y,r*1.35,c,1,a*.25);}
+  const D=(BI===2)?0.06:0.038; // aperture scale proxy
+  if(BI===0){
+    dot(SX+180,CY,4,col.blue);tag(SX+180,CY-30,'point source',col.blue,15);
+    // aperture
+    line(CX-60,CY-70,CX-60,CY-14,col.dim,3,.8);line(CX-60,CY+14,CX-60,CY+70,col.dim,3,.8);tag(CX-60,CY-90,'aperture D',col.dim,14);
+    grow(SX+180,CY,CX-60,CY,1,col.teal,2,.6);
+    blob(CX+260,CY,80,col.yellow,EO(clamp01(BT/.7)));
+    tag(CX+260,CY+120,'Airy disc — a blurred point',col.dim,17);
+  } else {
+    const app=EO(clamp01(BT/.8));
+    // two sources approaching
+    const sep = BI===1? lerp(150,44,segL(0,2)) : 150;
+    const x=CX+260,rr=BI===2?54:80;
+    blob(x,CY-sep/2,rr,col.yellow,app);blob(x,CY+sep/2,rr,col.coral,app);
+    const resolved = sep>rr*0.95;
+    tag(x,CY+180,resolved?'resolved — two points':'unresolved — merged into one',resolved?col.green:col.coral,19);
+    panel(SX+90,SY+30,300,70,10);txt('θ ≈ 1.22 λ / D',SX+240,SY+65,22,col.ink,'center','middle',600);
+    if(BI===2)txt('bigger D  or  shorter λ  →  finer detail',CX,SB-6,20,col.dim,'center','middle',400);
+  }
+ }},
+
+/* 18 — POLARIZATION --------------------------------------------- */
+{tier:'MODERN',title:'Polarization — the wave’s hidden direction',
+ beats:[
+  {k:'R',t:'Recap: light is a wave that interferes, diffracts, and blurs by ~λ/D. We drew it as a single wiggle.'},
+  {k:'G',t:'But E is a vector — it can point any way ACROSS the ray. Ordinary light wiggles in all directions at once. Does that hidden direction matter?'},
+  {k:'F',t:'A polarizer is a gate: it passes only the E-component along its axis. Feed it messy light, out comes a wave oscillating in ONE plane.'},
+  {k:'T',t:'Add a second polarizer (analyzer) at angle θ: I = I₀ cos²θ. Aligned → full brightness. Crossed at 90° → total darkness.'}
+ ],
+ draw(){
+  if(BI<2){
+    const x0=SX+90,x1=SR-90,amp=70,k=TAU/220;
+    sineH(x0,CY,x1,amp,k,T*3,col.teal,3,1);
+    if(BI===1){for(let x=x0;x<x1;x+=40){const yv=amp*Math.sin(k*(x-x0)-T*3);const ang=T+x*0.01;
+      line(x,CY,x+Math.cos(ang)*30,CY+Math.sin(ang)*30,col.violet,2,.5);line(x,CY,x-Math.cos(ang)*30,CY-Math.sin(ang)*30,col.violet,2,.5);}
+      tag(CX,CY-160,'E can point any way across the ray',col.amber,20);}
+    return;
+  }
+  const p1x=CX-200, p2x=CX+140;
+  // unpolarized in
+  for(let i=0;i<6;i++){const ang=i*0.5+T*0.4;line(SX+140,CY,SX+140+Math.cos(ang)*34,CY+Math.sin(ang)*34,col.blue,2,.5);line(SX+140,CY,SX+140-Math.cos(ang)*34,CY-Math.sin(ang)*34,col.blue,2,.5);}
+  tag(SX+140,CY+70,'unpolarized',col.blue,15);
+  // polarizer 1 (vertical)
+  function polarizer(px,angle,label,c){ctx.save();ctx.translate(px,CY);ctx.rotate(angle);
+    panel(-16,-90,32,180,8,'rgba(84,185,173,.05)',c);
+    for(let y=-80;y<=80;y+=14)line(-14,y,14,y,c,1.4,.5);ctx.restore();
+    tag(px,CY+112,label,c,14);}
+  polarizer(p1x,0,'polarizer',col.teal);
+  // vertically polarized between
+  sineHV(p1x,p2x,CY,44,T*3,col.teal);
+  // analyzer
+  const th = BI===3? (0.9+0.9*Math.sin(T*0.7)) : 0;
+  polarizer(p2x,th,'analyzer θ',col.violet);
+  const I=Math.pow(Math.cos(th),2);
+  // output brightness
+  sineHV(p2x,SR-120,CY,44*Math.cos(th),T*3,mix('#54b9ad','#04050a',1-I));
+  // meter
+  panel(SR-260,SY+40,200,150,10);
+  txt('I = I₀ cos²θ',SR-160,SY+72,20,col.ink,'center','middle',600);
+  ctx.save();ctx.fillStyle=col.green;ctx.globalAlpha=.9;ctx.fillRect(SR-210,SY+170-I*70,100,I*70);ctx.restore();
+  ctx.strokeStyle=col.faint;ctx.strokeRect(SR-210,SY+100,100,70);
+  txt('brightness',SR-160,SY+186,14,col.dim);
+ }},
+
+/* 19 — BREWSTER & BIREFRINGENCE --------------------------------- */
+{tier:'MODERN',title:'Brewster’s angle & birefringence',
+ beats:[
+  {k:'T',t:'Hit glass at Brewster’s angle (tan θB = n₂/n₁) and the reflected ray comes out FULLY polarized — parallel to the surface. That’s glare.'},
+  {k:'T',t:'Polarized sunglasses are simply an analyzer crossed to that glare, so reflections off water and roads vanish.'},
+  {k:'T',t:'Birefringent crystals (calcite) have two refractive indices — one ray splits into two, each polarized differently. A double image from one dot.'}
+ ],
+ draw(){
+  if(BI<2){
+    const iy=CY+40,P={x:CX,y:iy},L=280,thB=R2(56);
+    ctx.save();ctx.globalAlpha=.4;ctx.fillStyle=col.glass;ctx.fillRect(SX+40,iy,SR-SX-80,SB-iy);ctx.restore();
+    line(SX+40,iy,SR-40,iy,col.dim,1.6,.8);dashedNormal(P.x,iy-220,iy+40);
+    const inS={x:P.x-Math.sin(thB)*L,y:P.y-Math.cos(thB)*L};
+    grow(inS.x,inS.y,P.x,P.y,1,col.blue,3);
+    // reflected (polarized)
+    const rE={x:P.x+Math.sin(thB)*L,y:P.y-Math.cos(thB)*L};
+    grow(P.x,P.y,rE.x,rE.y,seg(0,.9),col.teal,3);
+    // dots along reflected = polarization out of plane
+    for(let d=0.3;d<1;d+=0.18){dot(lerp(P.x,rE.x,d),lerp(P.y,rE.y,d),3.5,col.violet,seg(.4,.6));}
+    tag(rE.x,rE.y-24,'reflected = fully polarized',col.teal,16);
+    // refracted
+    const th2=Math.atan(1/1.5);const rF={x:P.x+Math.sin(th2)*L,y:P.y+Math.cos(th2)*L};
+    grow(P.x,P.y,rF.x,rF.y,1,col.dim,2,.6);
+    tag(P.x-70,P.y-70,'θB',col.blue,18);
+    panel(SX+70,SY+30,300,70,10);txt('tan θB = n₂ / n₁',SX+220,SY+65,22,col.ink,'center','middle',600);
+    if(BI===1)txt('sunglasses cross out this glare',CX,SB-6,20,col.dim,'center','middle',400);
+  } else {
+    // birefringence: one ray -> two
+    const cx0=CX-40;
+    panel(cx0-90,CY-120,180,240,10,'rgba(165,139,212,.06)',col.violet);tag(cx0,CY-140,'calcite',col.violet,15);
+    grow(SX+120,CY,cx0-90,CY,1,col.blue,3);tag(SX+120,CY-24,'one ray in',col.blue,15,'left');
+    grow(cx0-90,CY,cx0+90,CY-40,seg(0,.8),col.teal,2.6,.9);
+    grow(cx0-90,CY,cx0+90,CY+40,seg(.2,.8),col.amber,2.6,.9);
+    grow(cx0+90,CY-40,SR-140,CY-40,seg(.5,.7),col.teal,2.6,.9);
+    grow(cx0+90,CY+40,SR-140,CY+40,seg(.6,.7),col.amber,2.6,.9);
+    tag(SR-150,CY-64,'ordinary',col.teal,15,'left');tag(SR-150,CY+64,'extraordinary',col.amber,15,'left');
+    txt('LCD screens · stress photoelasticity · 3D glasses',CX,SB-6,20,col.dim,'center','middle',400);
+  }
+ }},
+
+/* 20 — LASER ---------------------------------------------------- */
+{tier:'MODERN',title:'The laser — light, engineered',
+ beats:[
+  {k:'R',t:'Recap: we can steer light (rays), read it (interference) and filter its direction (polarization).'},
+  {k:'G',t:'But natural light is a mess — many colours, random phases, spreading everywhere. Can we build light that is one colour, one phase, one direction?'},
+  {k:'F',t:'Three atom–photon moves. Absorption: photon lifts an electron. Spontaneous: it drops, emitting a random photon. Stimulated: a passing photon triggers an identical TWIN — same phase, colour, direction.'},
+  {k:'T',t:'Pump most atoms up (population inversion) and trap light between mirrors: one photon breeds an avalanche of clones in one mode. That coherent flood is a LASER.'}
+ ],
+ draw(){
+  if(BI<2){
+    if(BI===1)txt('one colour · one phase · one direction — possible?',CX,CY,24,col.amber,'center','middle',600,EO(clamp01(BT/.5)));
+    else txt('we can steer, read, and filter light',CX,CY,22,col.dim,'center','middle',400);
+    return;
+  }
+  if(BI===2){
+    const boxes=[['Absorption',CX-440],['Spontaneous',CX],['Stimulated',CX+440]];
+    boxes.forEach((b,i)=>{const x=b[1];tag(x,SY+70,b[0],col.teal,18);
+      const ay=CY; // atom
+      ring(x,ay,26,col.dim,2,.8);dot(x,ay-14+ (i===0?0:0),3,col.dim,0);
+      if(i===0){ // photon in, electron up
+        const p=segL(0,1);photon(lerp(x-160,x,p%1),ay,4,col.amber);
+        dot(x,ay+12,4,col.blue);if(p>1){}
+        ring(x,ay,14,col.blue,1.5,.6);
+        tag(x,ay+70,'photon → electron up',col.dim,14);
+      } else if(i===1){ // random out
+        const p=segL(0,1.2)%1;const ang=2.0;photon(x+Math.cos(ang)*p*160,ay+Math.sin(ang)*p*160,4,col.coral);
+        tag(x,ay+70,'random photon out',col.dim,14);
+      } else { // stimulated: 1 in -> 2 out identical
+        const p=segL(0,1.4)%1;
+        if(p<.5)photon(lerp(x-160,x,p*2),ay,4,col.amber);
+        else {photon(lerp(x,x+180,(p-.5)*2),ay-8,4,col.green);photon(lerp(x,x+180,(p-.5)*2),ay+8,4,col.green);}
+        tag(x,ay+70,'two identical photons',col.green,14);
+      }
+    });
+    return;
+  }
+  // cavity
+  const y=CY, x1=SX+180, x2=SR-180;
+  line(x1,y-90,x1,y+90,col.violet,5,.9);line(x2,y-90,x2,y+90,col.violet,5,.6);
+  tag(x1,y+112,'full mirror',col.violet,14);tag(x2,y+112,'partial mirror',col.violet,14);
+  // gain atoms
+  for(let i=0;i<8;i++){const ax=lerp(x1+40,x2-40,i/7);ring(ax,y-40+((i*29)%80)-40,10,col.dim,1.4,.5);}
+  // avalanche photons
+  for(let i=0;i<7;i++){const px=x1+((T*260+i*90)%(x2-x1));photon(px,y,4,col.green);}
+  // output beam
+  const bp=segL(.3,1);
+  line(x2,y,lerp(x2,SR-60,bp),y,col.green,4,.9);
+  tag(SR-70,y-22,'coherent beam',col.green,16,'right');
+  txt('population inversion + cavity → one dominant mode',CX,SB-6,20,col.dim,'center','middle',400);
+ }},
+
+/* 21 — GAUSSIAN BEAMS ------------------------------------------- */
+{tier:'MODERN',title:'Gaussian beams — a real beam has shape',
+ beats:[
+  {k:'T',t:'A laser beam is not a pencil line. Its intensity is a Gaussian bell that narrows to a tiny WAIST w₀, then opens back up.'},
+  {k:'T',t:'Divergence θ ≈ λ/(π w₀): focus tighter and it spreads faster. The Rayleigh range is your usable depth of focus — you can’t beat diffraction.'},
+  {k:'T',t:'This shapes real tools: cutting & welding, laser pointers, optical tweezers gripping single cells, and the spot size that limits a Blu-ray.'}
+ ],
+ draw(){
+  const y=CY, x0=SX+80, x1=SR-80, w0=26, zR=220;
+  const wz=z=>w0*Math.sqrt(1+Math.pow(z/zR,2));
+  ctx.save();ctx.globalAlpha=.14;ctx.fillStyle=col.violet;ctx.beginPath();
+  ctx.moveTo(x0,y-wz(x0-CX));for(let x=x0;x<=x1;x+=6)ctx.lineTo(x,y-wz(x-CX));
+  for(let x=x1;x>=x0;x-=6)ctx.lineTo(x,y+wz(x-CX));ctx.closePath();ctx.fill();ctx.restore();
+  ctx.strokeStyle=col.violet;ctx.lineWidth=2.4;ctx.globalAlpha=.9;
+  ctx.beginPath();for(let x=x0;x<=x1;x+=6){const yy=y-wz(x-CX);x===x0?ctx.moveTo(x,yy):ctx.lineTo(x,yy);}ctx.stroke();
+  ctx.beginPath();for(let x=x0;x<=x1;x+=6){const yy=y+wz(x-CX);x===x0?ctx.moveTo(x,yy):ctx.lineTo(x,yy);}ctx.stroke();ctx.globalAlpha=1;
+  line(CX,y-w0,CX,y+w0,col.amber,3,.9);tag(CX,y+w0+26,'waist w₀',col.amber,16);
+  // gaussian cross-sections
+  [x0+120,CX,x1-120].forEach(xc=>{const w=wz(xc-CX);ctx.save();ctx.strokeStyle=col.teal;ctx.lineWidth=1.6;ctx.globalAlpha=.5;ctx.beginPath();
+    for(let yy=-w*1.6;yy<=w*1.6;yy+=3){const g=Math.exp(-(yy*yy)/(w*w));ctx.lineTo(xc+g*40,y+yy);}ctx.stroke();ctx.restore();});
+  if(BI>=1){panel(SX+70,SY+30,320,70,10);txt('θ ≈ λ / (π w₀)',SX+230,SY+65,22,col.ink,'center','middle',600);}
+  if(BI===2)txt('cutting · pointers · optical tweezers · Blu-ray',CX,SB-6,20,col.dim,'center','middle',400);
+ }},
+
+/* 22 — FIBRE OPTICS --------------------------------------------- */
+{tier:'MODERN',title:'Fibre optics — cashing in total internal reflection',
+ beats:[
+  {k:'F',t:'Remember trapping light past the critical angle? A glass fibre with a higher-index CORE does exactly that — light bounces down it by total internal reflection.'},
+  {k:'T',t:'Step-index fibre guides pulses for kilometres with tiny loss. Single-mode fibre keeps one clean path so pulses stay crisp — each pulse is one bit.'},
+  {k:'T',t:'This is the physical internet: undersea cables, data centres, plus endoscopes and fibre sensors. A whole civilisation running on TIR.'}
+ ],
+ draw(){
+  const y=CY, x0=SX+120, x1=SR-120, h=44;
+  // cladding
+  ctx.save();ctx.globalAlpha=.25;ctx.fillStyle=col.violet;ctx.fillRect(x0,y-h-26,x1-x0,26);ctx.fillRect(x0,y+h,x1-x0,26);ctx.restore();
+  ctx.save();ctx.globalAlpha=.12;ctx.fillStyle=col.teal;ctx.fillRect(x0,y-h,x1-x0,2*h);ctx.restore();
+  line(x0,y-h,x1,y-h,col.teal,1.6,.7);line(x0,y+h,x1,y+h,col.teal,1.6,.7);
+  tag(x0+10,y-h-38,'cladding (low n)',col.violet,14,'left');tag(x0+10,y,'core (high n)',col.teal,14,'left');
+  // zigzag TIR path
+  const period=150; ctx.save();ctx.strokeStyle=col.amber;ctx.lineWidth=2.6;ctx.globalAlpha=.9;ctx.beginPath();
+  let px=x0,py=y+h,up=true;ctx.moveTo(px,py);
+  while(px<x1){px+=period/2;py=up?y-h:y+h;up=!up;ctx.lineTo(Math.min(px,x1),py);}ctx.stroke();ctx.restore();
+  // data pulses travelling
+  if(BI>=1){const seg2=(x1-x0);for(let i=0;i<4;i++){const t=((T*220+i*140)%seg2);const px2=x0+t;
+    // find y on zigzag
+    const k2=Math.floor(t/(period/2));const frac=(t%(period/2))/(period/2);const ya=(k2%2===0)?lerp(y+h,y-h,frac):lerp(y-h,y+h,frac);
+    photon(px2,ya,4,col.green);}}
+  if(BI===2)txt('undersea cables · data centres · endoscopes · sensors',CX,SB-6,20,col.dim,'center','middle',400);
+  else txt('total internal reflection guides the light',CX,SB-6,20,col.dim,'center','middle',400);
+ }},
+
+/* 23 — FOURIER OPTICS ------------------------------------------- */
+{tier:'MODERN',title:'Fourier optics — images as spatial frequencies',
+ beats:[
+  {k:'T',t:'Deep idea: any image is a SUM of sinusoidal gratings. Coarse gratings carry big shapes; fine gratings carry sharp edges and detail.'},
+  {k:'T',t:'A lens sorts these frequencies automatically — at its focal (Fourier) plane, low frequencies sit near the axis, high ones out at the edge.'},
+  {k:'T',t:'So you can EDIT light: block the high frequencies → blur; block the low → keep only edges. Spatial filtering powers microscopy, lithography, optical computing.'}
+ ],
+ draw(){
+  if(BI===0){
+    // build a square-wave-ish profile from N sine terms
+    const N=Math.round(lerp(1,9,segL(0,2.4)));
+    const x0=SX+120,x1=SR-120,y=CY,amp=110;
+    // target
+    ctx.save();ctx.strokeStyle=col.faint;ctx.lineWidth=1.6;ctx.setLineDash([5,5]);ctx.beginPath();
+    for(let x=x0;x<=x1;x+=4){const s=Math.sin((x-x0)*0.012)>0?1:-1;ctx.lineTo(x,y-s*amp*0.7);}ctx.stroke();ctx.restore();
+    ctx.save();ctx.strokeStyle=col.teal;ctx.lineWidth=2.8;ctx.beginPath();
+    for(let x=x0;x<=x1;x+=2){let v=0;for(let n=1;n<=N;n+=2){v+=Math.sin(n*(x-x0)*0.012)/n;}ctx.lineTo(x,y-v*amp);}ctx.stroke();ctx.restore();
+    txt(N+' spatial frequencies',CX,SY+50,22,col.teal,'center','middle',600);
+    txt('few terms = blur · many terms = sharp detail',CX,SB-6,20,col.dim,'center','middle',400);
+  } else if(BI===1){
+    const lx=CX,ax=CY;line(SX+60,ax,SR-60,ax,col.faint,1.2,.7,[4,6]);
+    convLens(lx,ax,170,26,col.teal);
+    // input gratings -> focal plane dots
+    for(let i=0;i<5;i++){const dy=(i-2)*70;grow(SX+80,ax+dy,lx,ax+dy,seg(0,.8),col.blue,2,.7);
+      const fx=lx+220,fy=ax+(i-2)*40;grow(lx,ax+dy,fx,fy,seg(.4,.8),col.teal,2,.8);dot(fx,fy,4,i===2?col.amber:col.violet,seg(.6,.4));}
+    line(lx+220,ax-150,lx+220,ax+150,col.dim,2,.6);tag(lx+220,ax-170,'Fourier plane',col.dim,16);
+    tag(lx+220,ax+8,'low freq',col.amber,13,'left');tag(lx+220,ax-130,'high freq',col.violet,13,'left');
+  } else {
+    txt('block high freq → blur    |    block low freq → edges',CX,CY-40,22,col.ink,'center','middle',500);
+    // two mini demos
+    for(let s=0;s<2;s++){const cx0=s?CX+260:CX-260;const blurred=s===0;
+      for(let i=0;i<40;i++){const a=Math.random?0:0;} // no random
+      ctx.save();ctx.translate(cx0,CY+80);
+      if(blurred){ctx.globalAlpha=.5;ctx.fillStyle=col.teal;ctx.beginPath();ctx.arc(0,0,50,0,TAU);ctx.fill();tag(0,90,'low-pass → blur',col.dim,15);}
+      else{ctx.globalAlpha=.9;ctx.strokeStyle=col.teal;ctx.lineWidth=3;ctx.beginPath();ctx.arc(0,0,50,0,TAU);ctx.stroke();tag(0,90,'high-pass → edges',col.dim,15);}
+      ctx.restore();}
+    txt('microscopy · lithography · optical computing',CX,SB-6,20,col.dim,'center','middle',400);
+  }
+ }},
+
+/* 24 — APPLICATIONS / MAP --------------------------------------- */
+{tier:'MAP',title:'The whole map — where optics goes to work',
+ beats:[
+  {k:'T',t:'Every idea we built now earns its keep. Six pillars of applied optics — each one a straight line back to a principle in this deck.'},
+  {k:'R',t:'One thread: light as a RAY (lenses, mirrors) → as a WAVE (interference, diffraction, polarization) → engineered as PHOTONS (lasers, fibre, Fourier). Same light, three lenses of understanding.'}
+ ],
+ draw(){
+  const apps=[
+   ['Imaging & displays','lenses · aberration · polarization',col.blue],
+   ['Fibre communications','total internal reflection · lasers',col.teal],
+   ['Metrology','interferometers · wavelength rulers',col.green],
+   ['Lasers & materials','stimulated emission · Gaussian beams',col.violet],
+   ['Spectroscopy','gratings · diffraction',col.amber],
+   ['Photolithography','diffraction limit · Fourier optics',col.coral]
+  ];
+  const cols=3,rows=2,cw=380,ch=150,gx=40,gy=40;
+  const totW=cols*cw+(cols-1)*gx, x0=CX-totW/2, y0=SY+40;
+  apps.forEach((a,i)=>{const r=Math.floor(i/cols),c=i%cols;const x=x0+c*(cw+gx),yy=y0+r*(ch+gy);
+    const p=pop(i*.08,.5);ctx.save();ctx.globalAlpha=p;
+    panel(x,yy,cw,ch,12,'#0a0d16','#1c2130');
+    // icon dot
+    dot(x+40,yy+40,10,a[2]);
+    txt(a[0],x+70,yy+40,21,col.ink,'left','middle',600);
+    txt(a[1],x+28,yy+92,17,col.dim,'left','middle',400);
+    ctx.restore();});
+  if(BI===1){ctx.save();ctx.globalAlpha=.9;panel(x0,SB-2,totW,0,0,'#000','#000',0);ctx.restore();}
+ }},
+
+]; /* end scenes */
+
+/* small helper for vertical-plane polarized wave segment */
+function sineHV(x0,x1,y0,amp,ph,c){const k=TAU/220;sineH(x0,y0,x1,amp,k,ph,c,3,1);}
+
+/* ============================ ENGINE LOOP ============================ */
+const startT=performance.now();
+const meta=document.getElementById('meta');
+const progf=document.getElementById('progf');
+let totalBeats=0; scenes.forEach(s=>totalBeats+=s.beats.length);
+function globalBeatIndex(){let n=0;for(let i=0;i<SI;i++)n+=scenes[i].beats.length;return n+BI;}
+function updateBar(){
+  const s=scenes[SI];
+  meta.innerHTML=`<b>${s.title}</b> &nbsp;·&nbsp; ${tagName(s.beats[BI].k)} &nbsp;·&nbsp; beat ${BI+1}/${s.beats.length}`;
+  progf.style.width=((globalBeatIndex()+1)/totalBeats*100)+'%';
+  document.getElementById('prev').disabled=(SI===0&&BI===0);
+  document.getElementById('next').disabled=(SI===scenes.length-1&&BI===scenes[SI].beats.length-1);
+}
+function tagName(k){return {T:'concept',R:'recap',G:'gap',F:'fill'}[k]||'';}
+function frame(){
+  T=(performance.now()-startT)/1000;
+  BT=(performance.now()-beatStart)/1000;
+  ctx.fillStyle=col.bg;ctx.fillRect(0,0,W,H);
+  header();
+  try{scenes[SI].draw();}catch(e){/* keep animating */}
+  caption();
+  updateBar();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+/* ============================ NAVIGATION ============================ */
+function resetBeat(){beatStart=performance.now();}
+function next(){const s=scenes[SI];if(BI<s.beats.length-1){BI++;}else if(SI<scenes.length-1){SI++;BI=0;}resetBeat();hideHint();}
+function prev(){if(BI>0){BI--;}else if(SI>0){SI--;BI=scenes[SI].beats.length-1;}resetBeat();hideHint();}
+function goto(i){SI=i;BI=0;resetBeat();closeTOC();hideHint();}
+document.getElementById('next').onclick=next;
+document.getElementById('prev').onclick=prev;
+cv.addEventListener('click',e=>{const r=cv.getBoundingClientRect();(e.clientX-r.left)<r.width*0.28?prev():next();});
+window.addEventListener('keydown',e=>{
+  if(['ArrowRight',' ','Spacebar','ArrowDown','PageDown'].includes(e.key)){e.preventDefault();next();}
+  else if(['ArrowLeft','ArrowUp','PageUp'].includes(e.key)){e.preventDefault();prev();}
+  else if(e.key==='Home'){SI=0;BI=0;resetBeat();}
+  else if(e.key==='t'||e.key==='T'){toggleTOC();}
+});
+let hintGone=false;function hideHint(){if(hintGone)return;hintGone=true;const h=document.getElementById('hint');h.style.opacity=0;setTimeout(()=>h.remove(),1000);}
+
+/* ============================ TABLE OF CONTENTS ============================ */
+const toc=document.getElementById('toc'),tocBody=document.getElementById('tocBody');
+function buildTOC(){
+  const groups={GEOMETRIC:['Tier 1–2 · Geometric optics',[]],WAVE:['Tier 1–2 · Wave optics',[]],MODERN:['Tier 2 · Modern & applied',[]],MAP:['Overview',[]]};
+  scenes.forEach((s,i)=>{(groups[s.tier][1]).push([i,s.title,s.beats.length]);});
+  let html='';
+  ['MAP','GEOMETRIC','WAVE','MODERN'].forEach(g=>{if(!groups[g][1].length)return;
+    html+=`<h2>${groups[g][0]}</h2><div class="grp">`;
+    groups[g][1].forEach(it=>{html+=`<div class="it" data-i="${it[0]}">${it[0]+1}. ${it[1]}<small>${it[2]} beat${it[2]>1?'s':''}</small></div>`;});
+    html+='</div>';});
+  tocBody.innerHTML=html;
+  tocBody.querySelectorAll('.it').forEach(el=>el.onclick=()=>goto(+el.dataset.i));
+}
+function toggleTOC(){toc.style.display=toc.style.display==='block'?'none':'block';}
+function closeTOC(){toc.style.display='none';}
+document.getElementById('tocBtn').onclick=toggleTOC;
+document.getElementById('tocClose').onclick=closeTOC;
+toc.addEventListener('click',e=>{if(e.target===toc)closeTOC();});
+buildTOC();
+</script>
+</body>
+</html>

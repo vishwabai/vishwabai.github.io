@@ -1,0 +1,1255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>AI System Scaling Patterns</title>
+<style>
+  :root{
+    --bg:#06080b;
+    --panel:#0b0f14;
+    --ink:#e9edf2;
+    --dim:#7a8494;
+    --dim2:#4d5561;
+    --line:#232a33;
+    --serving:#5b9bd5;
+    --batching:#d9a441;
+    --caching:#7fb08f;
+    --parallel:#b07fae;
+    --infra:#5bc0be;
+    --retrieval:#d5715b;
+    --gateway:#d97fb0;
+    --neutral:#8a94a3;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;background:#000;overflow:hidden;font-family:'Segoe UI',Roboto,system-ui,sans-serif;}
+  #stage-wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#000;cursor:pointer;}
+  #stage{width:1600px;height:900px;background:var(--bg);position:relative;transform-origin:center center;box-shadow:0 0 120px rgba(0,0,0,.9);border-radius:6px;overflow:hidden;}
+  svg{width:100%;height:100%;display:block;}
+  text{fill:var(--ink);font-family:'Segoe UI',Roboto,system-ui,sans-serif;}
+  .mono{font-family:'Cascadia Code','SFMono-Regular',Consolas,monospace;}
+  .dim{fill:var(--dim);}
+  .dim2{fill:var(--dim2);}
+  #ui{position:absolute;inset:0;pointer-events:none;z-index:5;}
+  .prog-track{position:absolute;left:0;bottom:0;height:4px;width:100%;background:#14181e;}
+  .prog-fill{height:100%;background:var(--serving);transition:width .35s ease;}
+  .hint{position:absolute;bottom:12px;right:22px;color:var(--dim2);font-size:12px;font-family:'Cascadia Code',Consolas,monospace;letter-spacing:.03em;}
+  .counter{position:absolute;bottom:12px;left:22px;color:var(--dim2);font-size:12px;font-family:'Cascadia Code',Consolas,monospace;}
+  body.paused svg *{animation-play-state:paused !important;}
+  @keyframes pulseOpac{0%,100%{opacity:.35;}50%{opacity:1;}}
+  @keyframes dashFlow{to{stroke-dashoffset:-24;}}
+  @keyframes softGlow{0%,100%{opacity:.55;}50%{opacity:1;}}
+</style>
+</head>
+<body>
+<div id="stage-wrap">
+  <div id="stage">
+    <svg id="svgroot" viewBox="0 0 1600 900" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="arrowhead" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 Z" fill="context-fill"/>
+        </marker>
+        <linearGradient id="fadeR" x1="0" x2="1" y1="0" y2="0">
+          <stop offset="0%" stop-color="#000" stop-opacity="0"/>
+          <stop offset="100%" stop-color="#000" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+      <rect id="bgrect" x="0" y="0" width="1600" height="900" fill="var(--bg)"/>
+      <g id="layer"></g>
+    </svg>
+    <div id="ui">
+      <div class="prog-track"><div class="prog-fill" id="progfill" style="width:0%"></div></div>
+      <div class="hint" id="hintText">click / → next &nbsp; ← back &nbsp; r replay</div>
+      <div class="counter" id="counterText">1 / 1</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const NS = "http://www.w3.org/2000/svg";
+const layer = document.getElementById('layer');
+let activeAnims = [];
+
+function el(tag, attrs={}, parent=null){
+  const e = document.createElementNS(NS, tag);
+  for(const k in attrs) e.setAttribute(k, attrs[k]);
+  if(parent) parent.appendChild(e);
+  return e;
+}
+function grp(attrs={}, parent=layer){ return el('g', attrs, parent); }
+
+function txt(x,y,str,opts={}){
+  const attrs = {
+    x, y,
+    'text-anchor': opts.anchor||'start',
+    'font-size': opts.size||24,
+    'font-weight': opts.weight||400,
+    fill: opts.color||'var(--ink)'
+  };
+  if(opts.mono) attrs['font-family'] = "'Cascadia Code',Consolas,monospace";
+  if(opts.opacity!==undefined) attrs['opacity']=opts.opacity;
+  const t = el('text', attrs, opts.parent||layer);
+  const lines = Array.isArray(str)?str:[str];
+  lines.forEach((line,i)=>{
+    const ts = el('tspan',{x, dy: i===0?0:(opts.lh||1.35)+'em'},t);
+    ts.textContent = line;
+  });
+  return t;
+}
+
+function rect(x,y,w,h,opts={}){
+  return el('rect', Object.assign({
+    x,y,width:w,height:h,
+    rx: opts.rx!==undefined?opts.rx:10,
+    fill: opts.fill||'none',
+    stroke: opts.stroke||'var(--line)',
+    'stroke-width': opts.sw||1.5,
+    opacity: opts.opacity!==undefined?opts.opacity:1
+  }, opts.attrs||{}), opts.parent||layer);
+}
+
+function box(x,y,w,h,label,opts={}){
+  const g = grp({}, opts.parent||layer);
+  rect(x,y,w,h,{fill:opts.fill||'rgba(255,255,255,0.03)', stroke:opts.color||'var(--line)', sw:opts.sw||1.6, rx:opts.rx!==undefined?opts.rx:12, parent:g});
+  if(label!==undefined && label!==null){
+    txt(x+w/2, y+h/2 + (opts.sublabel? -6:6), label, {anchor:'middle', size:opts.size||18, weight:opts.weight||600, color:opts.labelColor||'var(--ink)', parent:g, mono:opts.mono});
+  }
+  if(opts.sublabel){
+    txt(x+w/2, y+h/2+18, opts.sublabel, {anchor:'middle', size:14, color:'var(--dim)', parent:g});
+  }
+  return g;
+}
+
+function connector(x1,y1,x2,y2,opts={}){
+  const g = grp({}, opts.parent||layer);
+  const line = el('path', {
+    d:`M${x1},${y1} L${x2},${y2}`,
+    fill:'none', stroke:opts.color||'var(--dim)', 'stroke-width':opts.sw||2,
+    'marker-end': opts.noHead?null:'url(#arrowhead)',
+    'stroke-dasharray': opts.dashed?'6,5':null
+  }, g);
+  if(opts.color) line.style.color = opts.color;
+  return {g, line};
+}
+
+function pill(x,y,text,opts={}){
+  const w = opts.w || (text.length*7.5+28);
+  const g = grp({}, opts.parent||layer);
+  rect(x,y,w,opts.h||26,{rx:13,fill:opts.fill||'rgba(255,255,255,0.05)',stroke:opts.color||'var(--dim2)',sw:1.2,parent:g});
+  txt(x+w/2,y+(opts.h||26)/2+5,text,{anchor:'middle',size:12.5,weight:600,color:opts.color||'var(--dim)',parent:g});
+  return g;
+}
+
+// ---------- entrance animations (Web Animations API, replay-friendly) ----------
+function anim(elem, keyframes, opts={}){
+  const a = elem.animate(keyframes, Object.assign({duration:500, delay:0, fill:'both', easing:'cubic-bezier(.22,.8,.25,1)'}, opts));
+  activeAnims.push(a);
+  return a;
+}
+function fadeUp(elem, delay=0, dur=520, dist=18){
+  return anim(elem, [{opacity:0, transform:`translateY(${dist}px)`},{opacity:1, transform:'translateY(0)'}], {delay,duration:dur});
+}
+function fadeIn(elem, delay=0, dur=450){
+  return anim(elem, [{opacity:0},{opacity:1}], {delay,duration:dur});
+}
+function popIn(elem, delay=0, dur=460){
+  return anim(elem, [{opacity:0, transform:'scale(.82)'},{opacity:1, transform:'scale(1)'}], {delay,duration:dur, easing:'cubic-bezier(.34,1.56,.64,1)'});
+}
+function slideX(elem, fromDx, delay=0, dur=560){
+  return anim(elem, [{opacity:0, transform:`translateX(${fromDx}px)`},{opacity:1, transform:'translateX(0)'}], {delay,duration:dur});
+}
+function growW(elem, fromScale=0, delay=0, dur=600, originAttr='0% 50%'){
+  elem.style.transformBox='fill-box';
+  elem.style.transformOrigin=originAttr;
+  return anim(elem, [{transform:`scaleX(${fromScale})`,opacity:.4},{transform:'scaleX(1)',opacity:1}], {delay,duration:dur});
+}
+function drawLine(elem, delay=0, dur=650){
+  let len=140;
+  try{ len = elem.getTotalLength(); }catch(e){}
+  elem.style.strokeDasharray = len;
+  elem.style.strokeDashoffset = len;
+  return anim(elem, [{strokeDashoffset:len},{strokeDashoffset:0}], {delay,duration:dur,easing:'ease-in-out'});
+}
+function moveAlong(elem, pathData, delay=0, dur=1400, loop=false){
+  elem.style.offsetPath = `path('${pathData}')`;
+  elem.style.offsetRotate = '0deg';
+  return anim(elem, [{offsetDistance:'0%',opacity:0},{offsetDistance:'2%',opacity:1},{offsetDistance:'98%',opacity:1},{offsetDistance:'100%',opacity:0}], {delay,duration:dur, iterations: loop?Infinity:1, easing:'linear'});
+}
+function pulse(elem, delay=0){
+  return anim(elem, [{opacity:.4},{opacity:1},{opacity:.4}], {delay,duration:1600,iterations:Infinity,easing:'ease-in-out'});
+}
+
+// ---------- shared layout helpers ----------
+const SECTIONS = {
+  serving:  {label:'1 · SERVING FUNDAMENTALS', color:'var(--serving)'},
+  batching: {label:'2 · BATCHING',              color:'var(--batching)'},
+  caching:  {label:'3 · CACHING LAYERS',        color:'var(--caching)'},
+  parallel: {label:'4 · PARALLELISM & COMPRESSION', color:'var(--parallel)'},
+  infra:    {label:'5 · DISTRIBUTED INFRA',     color:'var(--infra)'},
+  retrieval:{label:'6 · RETRIEVAL SCALING',     color:'var(--retrieval)'},
+  gateway:  {label:'7 · GATEWAY & ROUTING',     color:'var(--gateway)'},
+};
+
+function sectionTag(key, g){
+  if(!key) return;
+  const s = SECTIONS[key];
+  const p = pill(56, 36, s.label, {color:s.color, parent:g, h:28});
+  fadeIn(p, 0, 300);
+}
+function slideTitle(g, main, sub, color){
+  const t = txt(800, 108, main, {anchor:'middle', size:38, weight:700, parent:g});
+  fadeUp(t, 60, 550, 14);
+  if(sub){
+    const s = txt(800, 142, sub, {anchor:'middle', size:17, color:'var(--dim)', parent:g});
+    fadeUp(s, 160, 500, 10);
+    if(color){ const bar = rect(760,158,80,3,{rx:2,fill:color,stroke:'none',parent:g}); growW(bar,0,320,500); }
+  }
+  return t;
+}
+function noteBox(x,y,w,lines,opts={}){
+  const g = grp({}, opts.parent||layer);
+  const h = opts.h || (lines.length*22+30);
+  rect(x,y,w,h,{fill:'rgba(255,255,255,0.035)', stroke:opts.color||'var(--dim2)', sw:1.3, rx:10, parent:g});
+  const t = txt(x+18,y+26,lines,{size:opts.size||14.5, color:opts.textColor||'var(--dim)', mono:opts.mono, lh:opts.lh||1.55, parent:g});
+  fadeUp(g, opts.delay||0, 500, 12);
+  return g;
+}
+function formulaBox(x,y,w,lines,opts={}){
+  const g = grp({}, opts.parent||layer);
+  const h = opts.h || (lines.length*24+34);
+  rect(x,y,w,h,{fill:'rgba(255,255,255,0.045)', stroke:opts.color||'var(--neutral)', sw:1.4, rx:10, parent:g});
+  txt(x+16,y+18,'FORMULA',{size:11,weight:700,color:opts.color||'var(--neutral)',parent:g});
+  txt(x+18,y+42,lines,{size:opts.size||15.5, color:'var(--ink)', mono:true, lh:1.5, parent:g});
+  fadeUp(g, opts.delay||0, 520, 14);
+  return g;
+}
+function bulletList(x,y,items,opts={}){
+  const gap = opts.gap||34;
+  let cy = y;
+  items.forEach((it,i)=>{
+    const g = grp({}, opts.parent||layer);
+    const lines = opts.wrap ? wrapText(it, opts.wrap) : [it];
+    el('circle',{cx:x+4,cy:cy-5,r:3.5,fill:opts.color||'var(--dim)'},g);
+    txt(x+18,cy,lines,{size:opts.size||17,color:opts.textColor||'var(--ink)',parent:g,lh:1.3});
+    fadeUp(g,(opts.delay||0)+i*(opts.stagger||110), 460, 12);
+    cy += gap + (lines.length-1)*(opts.size||17)*1.3;
+  });
+}
+function progressPillars(g, activeKey, x, y){
+  const order = ['serving','batching','caching','parallel','infra','retrieval','gateway'];
+  const w=205, gapx=8, h=60;
+  order.forEach((k,i)=>{
+    const s = SECTIONS[k];
+    const px = x + i*(w+gapx);
+    const isActive = k===activeKey;
+    const color = isActive? s.color : 'var(--line)';
+    const labelColor = isActive? s.color : 'var(--dim2)';
+    const bg = grp({}, g);
+    rect(px,y,w,h,{fill: isActive? 'rgba(255,255,255,0.06)':'rgba(255,255,255,0.02)', stroke:color, sw:1.6, rx:9, parent:bg});
+    const lines = wrapText(s.label.split(' · ')[1], 15);
+    const ty = lines.length>1 ? y+h/2-8 : y+h/2+5;
+    txt(px+w/2, ty, lines, {anchor:'middle', size:11.5, weight:700, color:labelColor, lh:1.25, parent:bg});
+    popIn(bg, i*90, 420);
+    if(isActive) pulse(bg.querySelector('rect'), i*90+420);
+  });
+}
+
+// ---------- bridge slide: RECAP -> GAP -> FILL ----------
+function bridgeSlide(g, opts){
+  rect(0,0,1600,900,{fill:'var(--bg)',stroke:'none',rx:0,parent:g});
+  pill(700,100,'STOCKTAKE',{color:'var(--dim2)',parent:g,h:26});
+
+  let y = 190;
+  const recapLines = wrapText(opts.recap, 62);
+  const recap = txt(800, y, recapLines, {anchor:'middle', size:22, weight:600, lh:1.4, parent:g});
+  fadeUp(recap, 200, 550, 16);
+  y += (recapLines.length-1)*22*1.4 + 80;
+
+  const gapLabel = txt(800, y, 'BUT —', {anchor:'middle', size:13, weight:700, color:'var(--dim2)', parent:g, opacity:0});
+  fadeIn(gapLabel, 1300, 300);
+  y += 55;
+
+  const gapLines = wrapText(opts.gap, 48);
+  const gapQ = txt(800, y, gapLines, {anchor:'middle', size:27, weight:700, color:'var(--ink)', lh:1.4, parent:g, opacity:0});
+  fadeUp(gapQ, 1450, 650, 20);
+  y += (gapLines.length-1)*27*1.4 + 60;
+
+  const qmark = txt(800, y, '?', {anchor:'middle', size:30, weight:700, color:opts.color||'var(--neutral)', parent:g, opacity:0});
+  fadeIn(qmark,1900,400);
+  pulse(qmark, 2300);
+  y += 65;
+
+  const fillLines = wrapText(opts.fill, 42);
+  const boxH = 44 + fillLines.length*28;
+  const boxY = Math.min(y, 900-boxH-30);
+  const fillWrap = grp({opacity:0}, g);
+  fadeUp(fillWrap, 2900, 600, 18);
+  rect(430,boxY,740,boxH,{rx:14, fill:'rgba(255,255,255,0.045)', stroke:opts.color||'var(--neutral)', sw:1.8, parent:fillWrap});
+  txt(800,boxY+26,'NEXT →', {anchor:'middle', size:12, weight:700, color:opts.color||'var(--neutral)', parent:fillWrap});
+  txt(800,boxY+54,fillLines, {anchor:'middle', size:19, weight:700, color:'var(--ink)', lh:1.3, parent:fillWrap});
+}
+function wrapText(str, maxLen){
+  const words = str.split(' ');
+  const lines=[]; let cur='';
+  words.forEach(w=>{
+    if((cur+' '+w).trim().length>maxLen){ lines.push(cur.trim()); cur=w; }
+    else cur = (cur+' '+w).trim();
+  });
+  if(cur) lines.push(cur.trim());
+  return lines;
+}
+
+// ---------- slide registry ----------
+const slides = [];
+function S(sectionKey, build){ slides.push({sectionKey, build}); }
+
+// ===================== INTRO =====================
+S(null, g=>{
+  for(let i=0;i<40;i++){
+    const x=Math.random()*1600, y=Math.random()*900;
+    const d=el('circle',{cx:x,cy:y,r:Math.random()*1.4+.4,fill:'#3a4552',opacity:.5},g);
+    pulse(d, Math.random()*2000);
+  }
+  const t1=txt(800,380,'AI SYSTEM SCALING PATTERNS',{anchor:'middle',size:46,weight:800,parent:g});
+  popIn(t1,300,700);
+  const t2=txt(800,432,'from one request to a trillion tokens',{anchor:'middle',size:19,color:'var(--dim)',parent:g});
+  fadeUp(t2,900,500,12);
+  const line=rect(650,470,300,2,{fill:'var(--neutral)',stroke:'none',rx:1,parent:g});
+  growW(line,0,1250,600,'50% 50%');
+  const t3=txt(800,520,'32 techniques · 7 pillars · one system',{anchor:'middle',size:14,color:'var(--dim2)',parent:g});
+  fadeIn(t3,1700,500);
+});
+
+S(null, g=>{
+  slideTitle(g,'The Question Underneath Everything','a Feynman-style way to think about scale',null);
+  const b1=box(140,260,620,220,null,{fill:'rgba(255,255,255,.03)',color:'var(--serving)',rx:16});
+  txt(160,300,'"A model answers ONE question',{size:22,weight:600,parent:g});
+  txt(160,332,'in 200 milliseconds.',{size:22,weight:600,parent:g});
+  txt(160,384,'How does it answer 200,000',{size:22,weight:700,color:'var(--serving)',parent:g});
+  txt(160,416,'questions in that same window —',{size:22,weight:700,color:'var(--serving)',parent:g});
+  txt(160,448,'without buying 200,000 GPUs?"',{size:22,weight:700,color:'var(--serving)',parent:g});
+  fadeUp(b1,300,600,16);
+  [t=>t].forEach(()=>{});
+  const items=['Not one trick — a stack of patterns, each solving a specific failure of the layer below it.','Every pattern exists because something upstream got expensive, slow, or full.','We will build the stack bottom-up: serve → batch → cache → shrink/split → orchestrate → retrieve → route.'];
+  bulletList(820,300,items,{delay:900,stagger:260,gap:70,color:'var(--serving)',wrap:34});
+});
+
+S(null, g=>{
+  slideTitle(g,'The Seven Pillars','the roadmap for this deck',null);
+  progressPillars(g,'serving',80,220);
+  const descs=[
+    ['Serving','wrap the model as a service'],
+    ['Batching','pack many requests into one pass'],
+    ['Caching','never recompute what you already know'],
+    ['Parallelism','split a model too big for one GPU'],
+    ['Infra','orchestrate many GPUs as one machine'],
+    ['Retrieval','scale the knowledge outside the model'],
+    ['Gateway','route, protect, and pay for it all'],
+  ];
+  descs.forEach((d,i)=>{
+    const x=80+i*213;
+    const t=txt(x+102.5,332,wrapText(d[1],17),{anchor:'middle',size:12.5,color:'var(--dim)',lh:1.35,parent:g});
+    fadeUp(t, 700+i*90, 420, 10);
+  });
+  const arrow=connector(150,420,1450,420,{color:'var(--dim2)',sw:1.5,dashed:true,parent:g});
+  drawLine(arrow.line,1600,900);
+  const cap=txt(800,470,'each pillar starts because the previous one ran out of road',{anchor:'middle',size:15,color:'var(--dim2)',parent:g,opacity:0});
+  fadeIn(cap,2500,500);
+});
+
+// ===================== SECTION 1: SERVING =====================
+S(null, g=>{
+  rect(0,0,1600,900,{fill:'var(--bg)',stroke:'none',parent:g});
+  const t=txt(800,430,'PART 1',{anchor:'middle',size:16,weight:700,color:'var(--serving)',parent:g});
+  fadeIn(t,200,400);
+  const t2=txt(800,490,'Serving Fundamentals',{anchor:'middle',size:44,weight:800,parent:g});
+  popIn(t2,450,650);
+  const t3=txt(800,536,'turning a trained model into a callable service',{anchor:'middle',size:16,color:'var(--dim)',parent:g});
+  fadeUp(t3,950,450,10);
+});
+
+S('serving', g=>{
+  slideTitle(g,'What Is "Model Serving"?','wrapping weights so the world can call them',SECTIONS.serving.color);
+  box(120,220,260,120,'model.weights',{color:'var(--dim2)',fill:'rgba(255,255,255,.03)',sublabel:'GBs on disk',parent:g});
+  const c1=connector(380,280,560,280,{color:SECTIONS.serving.color,parent:g});
+  const sb=box(560,190,340,180,'SERVING LAYER',{color:SECTIONS.serving.color,fill:'rgba(91,155,213,.08)',sublabel:'load · run forward pass · format output',parent:g});
+  popIn(sb,700,550);
+  const c2=connector(900,280,1120,280,{color:SECTIONS.serving.color,parent:g});
+  box(1120,220,300,120,'HTTP / gRPC API',{color:'var(--dim2)',fill:'rgba(255,255,255,.03)',sublabel:'/v1/completions',parent:g});
+  [c1,c2].forEach((c,i)=>drawLine(c.line, 400+i*500, 500));
+  noteBox(180,470,1240,[
+    'Serving = everything between a checkpoint file and an answer: loading weights onto a device, running the forward pass,',
+    'tokenizing / detokenizing, and exposing it behind a stable interface.  Frameworks like vLLM, TensorRT-LLM, Triton and',
+    'TorchServe all live in this layer — they differ in HOW they do steps 2–5 below, which is the rest of this deck.'
+  ],{color:SECTIONS.serving.color,delay:1400,h:110});
+});
+
+S('serving', g=>{
+  slideTitle(g,'Two Very Different Jobs','online vs. batch inference',SECTIONS.serving.color);
+  const L=box(110,200,650,320,null,{color:SECTIONS.serving.color,fill:'rgba(91,155,213,.06)',rx:16});
+  txt(140,240,'ONLINE INFERENCE',{size:20,weight:700,color:SECTIONS.serving.color,parent:g});
+  bulletList(140,280,['one user, one request, right now','optimizes LATENCY (P50 / P99 ms)','chat, search, autocomplete'],{delay:600,color:SECTIONS.serving.color,gap:40});
+  const dot=el('circle',{cx:660,cy:250,r:6,fill:SECTIONS.serving.color},g); pulse(dot,1200);
+
+  const R=box(840,200,650,320,null,{color:'var(--dim2)',fill:'rgba(255,255,255,.03)',rx:16});
+  txt(870,240,'BATCH INFERENCE',{size:20,weight:700,color:'var(--dim2)',parent:g});
+  bulletList(870,280,['millions of items, no one waiting','optimizes THROUGHPUT (items / sec)','nightly embeddings, offline scoring'],{delay:900,color:'var(--dim2)',gap:40});
+  [L,R].forEach((b,i)=>fadeUp(b,200+i*150,550,16));
+
+  formulaBox(110,560,1380,['latency_SLA(online)  ≪  latency(batch)          throughput(batch)  ≫  throughput(online)','→ same model, opposite optimization target → usually two different serving configs'],{color:SECTIONS.serving.color,delay:1500,h:90});
+});
+
+S('serving', g=>{
+  slideTitle(g,'The Middle Ground: Async Inference','submit now, collect later',SECTIONS.serving.color);
+  const stages=[['Client',120],['Queue',430],['Worker Pool',740],['Result Store',1060],['Webhook / Poll',1330]];
+  stages.forEach((s,i)=>{
+    const bx=box(s[1],250,220,110,s[0],{color:i===2?SECTIONS.serving.color:'var(--dim2)',fill:i===2?'rgba(91,155,213,.1)':'rgba(255,255,255,.03)',parent:g});
+    popIn(bx, i*260, 500);
+  });
+  for(let i=0;i<4;i++){
+    const x1=120+ (i===0?220:0) + (i>0? [430,740,1060][i-1]+220-120:0);
+  }
+  const xs=[340,650,960,1280];
+  const conns=[[340,305,430,305],[650,305,740,305],[960,305,1060,305],[1280,305,1330,305]];
+  conns.forEach((c,i)=>{ const cc=connector(c[0],c[1],c[2],c[3],{color:SECTIONS.serving.color,parent:g}); drawLine(cc.line, 260+i*260, 400); });
+  const pk=el('circle',{r:7,fill:SECTIONS.serving.color},g);
+  moveAlong(pk,'M 120 400 L 1450 400',600,2600,false);
+  txt(120,440,'ticket: job_id=8f21…',{size:13,color:'var(--dim)',mono:true,parent:g,opacity:0});
+  noteBox(150,520,1300,[
+    'Client gets a job_id back immediately — no open connection waiting on GPU time.',
+    'Best for work with NO real-time SLA: image / video generation, long-document summarization, bulk agent runs.',
+    'Trade-off: you now own a job store + status API instead of a single request/response.'
+  ],{color:SECTIONS.serving.color,delay:2800,h:105});
+});
+
+S(null, g=>{
+  bridgeSlide(g,{
+    recap:'RECAP — Serving = online (fast, alone) or batch (queued, together), with async as the bridge.',
+    gap:'if a live chat request and a bulk job hit the SAME GPU one at a time, most of that GPU sits idle. Why?',
+    fill:'BATCHING — pack many requests into a single forward pass',
+    color:SECTIONS.batching.color
+  });
+});
+
+// ===================== SECTION 2: BATCHING =====================
+S(null, g=>{
+  const t=txt(800,430,'PART 2',{anchor:'middle',size:16,weight:700,color:SECTIONS.batching.color,parent:g}); fadeIn(t,200,400);
+  const t2=txt(800,490,'Batching',{anchor:'middle',size:44,weight:800,parent:g}); popIn(t2,450,650);
+  const t3=txt(800,536,'making one GPU do the work of many',{anchor:'middle',size:16,color:'var(--dim)',parent:g}); fadeUp(t3,950,450,10);
+});
+
+S('batching', g=>{
+  slideTitle(g,'Why Batch At All?','a lone request barely touches the GPU',SECTIONS.batching.color);
+  const gx=250, gy=240, gw=1100, gh=60;
+  rect(gx,gy,gw,gh,{fill:'rgba(255,255,255,.04)',stroke:'var(--dim2)',rx:8,parent:g});
+  const fillbar = rect(gx,gy,gw*0.12,gh,{fill:SECTIONS.batching.color,stroke:'none',rx:8,parent:g});
+  growW(fillbar,0,700,700,'0% 50%');
+  txt(gx,gy-14,'GPU utilization — 1 request at a time',{size:14,color:'var(--dim)',parent:g});
+  txt(gx+gw+16,gy+40,'~10–15%',{size:18,weight:700,color:SECTIONS.batching.color,parent:g,opacity:0});
+  fadeIn(g.lastChild,1500,400);
+
+  const gy2=420;
+  rect(gx,gy2,gw,gh,{fill:'rgba(255,255,255,.04)',stroke:'var(--dim2)',rx:8,parent:g});
+  const fillbar2 = rect(gx,gy2,gw*0.85,gh,{fill:'var(--caching)',stroke:'none',rx:8,parent:g});
+  growW(fillbar2,0,2000,900,'0% 50%');
+  txt(gx,gy2-14,'GPU utilization — batched requests',{size:14,color:'var(--dim)',parent:g});
+  txt(gx+gw+16,gy2+40,'~80%+',{size:18,weight:700,color:'var(--caching)',parent:g,opacity:0});
+  fadeIn(g.lastChild,2900,400);
+
+  noteBox(gx,560,gw,[
+    'Generating tokens one at a time is MEMORY-bandwidth bound, not compute bound: the GPU spends most of a step',
+    'moving weights from HBM into compute units, not multiplying them. A single request cannot saturate that pipe —',
+    'so the fix is obvious in hindsight: give the GPU several requests\' worth of matrix multiplies to do at once.'
+  ],{color:SECTIONS.batching.color,delay:3000,h:105});
+});
+
+S('batching', g=>{
+  slideTitle(g,'Static / Request Batching','group N requests, pad to the longest one',SECTIONS.batching.color);
+  const seqs=[6,10,4,8];
+  const maxLen=Math.max(...seqs);
+  const cellW=48, x0=280, y0=230, rowGap=76;
+  seqs.forEach((len,r)=>{
+    for(let c=0;c<maxLen;c++){
+      const isReal=c<len;
+      const cell=rect(x0+c*cellW,y0+r*rowGap,cellW-6,54,{fill:isReal?'rgba(217,164,65,.22)':'rgba(255,255,255,.02)',stroke:isReal?SECTIONS.batching.color:'var(--dim2)',sw:1.2,rx:6,parent:g});
+      popIn(cell,300+c*40+r*60,300);
+    }
+    txt(x0-30,y0+r*rowGap+34,'req '+(r+1),{size:13,color:'var(--dim)',anchor:'end',parent:g});
+  });
+  txt(x0,y0-24,'real tokens',{size:13,color:SECTIONS.batching.color,parent:g});
+  txt(x0+150,y0-24,'padding (wasted compute)',{size:13,color:'var(--dim2)',parent:g});
+  formulaBox(280,560,1100,['wasted_FLOPs  ∝  Σ ( max_len − len_i )   for i in batch','→ one long sequence forces every short one to pay its padding tax'],{color:SECTIONS.batching.color,delay:1900,h:80});
+});
+
+S(null, g=>{
+  bridgeSlide(g,{
+    recap:'RECAP — static batches pack requests together, but pad every one to the length of the longest.',
+    gap:'a static batch also waits to CLOSE — for a timer or a fixed size. A 5-token reply gets stuck behind a 500-token one in the same batch. What if requests could join a batch whenever they arrive?',
+    fill:'DYNAMIC BATCHING — form the batch adaptively',
+    color:SECTIONS.batching.color
+  });
+});
+
+S('batching', g=>{
+  slideTitle(g,'Dynamic Batching','collect arrivals inside a short time window',SECTIONS.batching.color);
+  const y=280, x0=140, x1=1460;
+  connector(x0,y,x1,y,{color:'var(--dim2)',noHead:true,parent:g});
+  const arrivals=[180,260,340,520,610,900,1010];
+  arrivals.forEach((ax,i)=>{
+    const dot=el('circle',{cx:ax,cy:y,r:7,fill:SECTIONS.batching.color},g);
+    popIn(dot,300+i*160,300);
+    const lbl=txt(ax,y-18,'req',{size:11,color:'var(--dim)',anchor:'middle',parent:g});
+    fadeIn(lbl,300+i*160,300);
+  });
+  const bracket=box(150,230,900,100,null,{color:SECTIONS.batching.color,fill:'rgba(217,164,65,.06)',rx:12});
+  fadeUp(bracket,1600,500,-10);
+  txt(600,220,'batch window: max_wait = 20ms  OR  max_size = 32',{size:14,anchor:'middle',color:SECTIONS.batching.color,parent:g,opacity:0});
+  fadeIn(g.lastChild,1900,400);
+  const closeArrow=connector(1050,280,1250,280,{color:SECTIONS.batching.color,parent:g});
+  drawLine(closeArrow.line,2300,500);
+  box(1250,230,220,100,'→ GPU',{color:SECTIONS.batching.color,fill:'rgba(217,164,65,.1)',parent:g});
+  noteBox(160,470,1280,[
+    'A batch closes on whichever limit hits first: a max WAIT time, or a max SIZE. This bounds latency for early',
+    'arrivals while still packing the GPU. Used by Triton Inference Server\'s dynamic batcher, TF-Serving, etc.',
+    'Still request-level, though: once the batch starts generating, it is locked together until every member finishes.'
+  ],{color:SECTIONS.batching.color,delay:2600,h:105});
+});
+
+S(null, g=>{
+  bridgeSlide(g,{
+    recap:'RECAP — dynamic batching decides WHEN a batch forms. But once it starts, it is one rigid unit.',
+    gap:'LLM generation is hundreds of sequential steps. In a locked batch, a sequence that finishes at step 20 still occupies a GPU slot doing nothing until the slowest sequence reaches step 500. How do we stop paying for empty seats?',
+    fill:'CONTINUOUS BATCHING — schedule at the TOKEN level',
+    color:SECTIONS.batching.color
+  });
+});
+
+S('batching', g=>{
+  slideTitle(g,'Continuous (In-Flight) Batching','free a slot the instant a sequence finishes — refill immediately',SECTIONS.batching.color);
+  const rows=4, cols=14, cellW=76, cellH=44, x0=180, y0=210;
+  // simulate finishing times per row and a new arrival taking the slot
+  const finishAt=[6,10,14,8];
+  const newSeqStart=[7,11,-1,9];
+  for(let r=0;r<rows;r++){
+    txt(x0-40,y0+r*(cellH+14)+28,'slot '+(r+1),{size:12,color:'var(--dim)',anchor:'end',parent:g});
+    for(let c=0;c<cols;c++){
+      let color, delayMs;
+      if(c<finishAt[r]){ color=SECTIONS.batching.color; }
+      else if(newSeqStart[r]>=0 && c>=newSeqStart[r]){ color='var(--caching)'; }
+      else { color=null; }
+      if(color){
+        const cell=rect(x0+c*cellW,y0+r*(cellH+14),cellW-6,cellH,{fill:color+'2b'.replace('2b',''),stroke:color,sw:1.3,rx:5,parent:g});
+        cell.setAttribute('fill', color==='var(--caching)'?'rgba(127,176,143,.18)':'rgba(217,164,65,.18)');
+        popIn(cell, 300+c*45+r*30, 260);
+      }
+    }
+  }
+  txt(x0, y0-26,'time steps →',{size:13,color:'var(--dim)',parent:g});
+  pill(1290,208,'req A finishes',{color:SECTIONS.batching.color,parent:g,h:24});
+  pill(1290,244,'req B slots in',{color:'var(--caching)',parent:g,h:24});
+  noteBox(180,470,1240,[
+    'Scheduling happens every ITERATION, not every batch: the moment one sequence emits its end token, its row is',
+    'free and the scheduler slots in a new request — no waiting for the whole batch to drain (popularized by Orca,',
+    'now the default engine loop in vLLM, TGI and TensorRT-LLM). This is what turns idle "empty seats" into throughput.'
+  ],{color:SECTIONS.batching.color,delay:2100,h:105});
+});
+
+S(null, g=>{
+  bridgeSlide(g,{
+    recap:'RECAP — we now pack the GPU densely, at the token level, at all times.',
+    gap:'but every extra sequence in flight needs its own growing memory footprint for everything it has already generated. What is actually filling up that memory?',
+    fill:'THE KV-CACHE — and how to reuse it',
+    color:SECTIONS.caching.color
+  });
+});
+
+// ===================== SECTION 3: CACHING =====================
+S(null, g=>{
+  const t=txt(800,430,'PART 3',{anchor:'middle',size:16,weight:700,color:SECTIONS.caching.color,parent:g}); fadeIn(t,200,400);
+  const t2=txt(800,490,'Caching Layers',{anchor:'middle',size:44,weight:800,parent:g}); popIn(t2,450,650);
+  const t3=txt(800,536,'never recompute what you already know',{anchor:'middle',size:16,color:'var(--dim)',parent:g}); fadeUp(t3,950,450,10);
+});
+
+S('caching', g=>{
+  slideTitle(g,'The KV-Cache','why generation gets cheaper per-token, not free',SECTIONS.caching.color);
+  const tokens=['The','cat','sat','on','the','mat'];
+  const x0=200, y0=250, w=150;
+  tokens.forEach((tk,i)=>{
+    const bx=box(x0+i*w,y0,w-14,64,tk,{color:SECTIONS.caching.color,fill:'rgba(127,176,143,.1)',parent:g,size:16});
+    popIn(bx,300+i*180,350);
+    const kv=txt(x0+i*w+(w-14)/2,y0+90,'K,V cached',{size:11,anchor:'middle',color:'var(--dim)',parent:g,opacity:0});
+    fadeIn(kv,600+i*180,300);
+  });
+  const newTok=box(x0+tokens.length*w,y0,w-14,64,'mat →',{color:'var(--ink)',fill:'rgba(255,255,255,.08)',parent:g,size:15});
+  popIn(newTok,300+tokens.length*180+300,400);
+  const arrow=connector(x0+tokens.length*w+ (w-14)/2, y0+70, x0+tokens.length*w+(w-14)/2, y0+96,{color:SECTIONS.caching.color,parent:g});
+  const t2=txt(x0+tokens.length*w+(w-14)/2, y0+120,'only THIS token’s Q\nattends to all cached K,V',{size:12,anchor:'middle',color:SECTIONS.caching.color,lh:1.3,parent:g,opacity:0});
+  fadeIn(t2,2500,400);
+  formulaBox(200,600,1200,[
+    'without cache:  O(n²) work total  (recompute all previous K,V every step)',
+    'with KV-cache:  O(n) work per new step  (reuse stored K,V; compute only the new row)',
+    'cache size ≈ 2 (K&V) × layers × heads × head_dim × seq_len × batch × bytes/element'
+  ],{color:SECTIONS.caching.color,delay:2900,h:110});
+});
+
+S('caching', g=>{
+  slideTitle(g,'The Real Cost, In Numbers','a 32-layer, 32-head, 128-dim model, fp16',SECTIONS.caching.color);
+  const rows=[
+    ['per token, per sequence','2 × 32 × 32 × 128 × 2 bytes','≈ 524 KB'],
+    ['× 4,000-token conversation','524 KB × 4,000','≈ 2.1 GB'],
+    ['× 64 concurrent sequences','2.1 GB × 64','≈ 134 GB'],
+  ];
+  const y0=240;
+  rows.forEach((r,i)=>{
+    const y=y0+i*110;
+    const bx=box(150,y,520,74,r[0],{color:'var(--dim2)',fill:'rgba(255,255,255,.03)',size:15,parent:g});
+    const eq=box(700,y,480,74,r[1],{color:'var(--dim2)',fill:'rgba(255,255,255,.03)',size:14,mono:true,parent:g});
+    const res=box(1210,y,220,74,r[2],{color:SECTIONS.caching.color,fill:'rgba(127,176,143,.12)',size:17,weight:700,parent:g});
+    [bx,eq,res].forEach((b,j)=>fadeUp(b,300+i*450+j*120,450,14));
+    if(i<rows.length-1){ const ar=connector(410,y+74+18,410,y+110-18,{color:'var(--dim2)',parent:g}); drawLine(ar.line,300+(i+1)*450-100,300);}
+  });
+  noteBox(150,620,1280,[
+    'That last row is bigger than the MODEL WEIGHTS themselves for many mid-size models. The KV-cache is often the',
+    'single largest consumer of GPU memory during serving — which is exactly why memory management (Part 5) exists.'
+  ],{color:SECTIONS.caching.color,delay:1900,h:75});
+});
+
+S(null, g=>{
+  bridgeSlide(g,{
+    recap:'RECAP — the KV-cache makes generation cheap per-token, but it is enormous, and it is PER SEQUENCE.',
+    gap:'if 10,000 users all send the same system prompt, or the same few-shot examples, are we really storing — and recomputing — that identical prefix 10,000 times over?',
+    fill:'PREFIX CACHING — share the common prefix\'s K,V',
+    color:SECTIONS.caching.color
+  });
+});
+
+S('caching', g=>{
+  slideTitle(g,'Prefix Caching','share K,V for any identical prompt prefix',SECTIONS.caching.color);
+  // radix tree
+  const root=box(720,210,160,54,'system prompt',{color:SECTIONS.caching.color,fill:'rgba(127,176,143,.12)',parent:g,size:13});
+  popIn(root,300,450);
+  const mid=box(720,320,160,54,'few-shot block',{color:SECTIONS.caching.color,fill:'rgba(127,176,143,.12)',parent:g,size:13});
+  popIn(mid,750,450);
+  const c1=connector(800,264,800,320,{color:SECTIONS.caching.color,parent:g}); drawLine(c1.line,650,350);
+  const leaves=[['user A: "translate…"',400],['user B: "summarize…"',780],['user C: "translate…"',1160]];
+  leaves.forEach((L,i)=>{
+    const lx=L[1];
+    const box1=box(lx,440,300,60,L[0],{color:'var(--dim2)',fill:'rgba(255,255,255,.03)',parent:g,size:13});
+    popIn(box1,1200+i*200,450);
+    const cc=connector(800,374,lx+150,440,{color:'var(--dim2)',dashed:true,parent:g});
+    drawLine(cc.line,1250+i*200,350);
+  });
+  noteBox(360,560,880,[
+    'New requests are matched against a prefix tree of already-cached blocks (radix/trie structure). Only the NEW',
+    'suffix needs a forward pass — the shared prefix\'s K,V is read, not recomputed. Huge win for RAG systems, agents',
+    'with long fixed instructions, and multi-turn chat that resends history on every call.'
+  ],{color:SECTIONS.caching.color,delay:2200,h:100});
+});
+
+S('caching', g=>{
+  slideTitle(g,'Model Caching','keep the right WEIGHTS warm, not just the KV-cache',SECTIONS.caching.color);
+  const tierDefs=[['HOT','on GPU, serving now',SECTIONS.caching.color],['WARM','in host RAM, ready to swap in',SECTIONS.batching.color],['COLD','on disk / object store','var(--dim2)']];
+  tierDefs.forEach((t,i)=>{
+    const x=150+i*440;
+    const bx=box(x,220,380,140,t[0],{color:t[2],fill:'rgba(255,255,255,.03)',size:20,weight:700,sublabel:t[1],parent:g});
+    popIn(bx,300+i*300,500);
+  });
+  const a1=connector(530,290,590,290,{color:SECTIONS.caching.color,parent:g}); drawLine(a1.line,1200,400);
+  const a2=connector(950,290,1010,290,{color:SECTIONS.batching.color,parent:g}); drawLine(a2.line,1500,400);
+  txt(560,260,'evict (LRU)',{size:11,anchor:'middle',color:'var(--dim)',parent:g,opacity:0});
+  fadeIn(g.lastChild,1200,300);
+  txt(980,260,'evict (LRU)',{size:11,anchor:'middle',color:'var(--dim)',parent:g,opacity:0});
+  fadeIn(g.lastChild,1500,300);
+  noteBox(150,440,1300,[
+    'Multi-tenant platforms host far more models (and LoRA fine-tunes) than fit on one GPU fleet at once. An LRU-style',
+    'policy keeps popular models hot, demotes cold ones, and pays a one-time reload cost on a cache miss —',
+    'the same idea as CPU/webpage caching, just at model-weight scale (GBs, not KBs).'
+  ],{color:SECTIONS.caching.color,delay:1900,h:100});
+});
+
+S(null, g=>{
+  bridgeSlide(g,{
+    recap:'RECAP — caching saves recomputation (KV, prefixes) and reload time (weights).',
+    gap:'none of that helps if the model\'s weights are simply too big to fit on one GPU\'s memory in the first place. What do you do when the model itself doesn\'t fit?',
+    fill:'SHRINK IT, THEN SPLIT IT — quantization & parallelism',
+    color:SECTIONS.parallel.color
+  });
+});
+
+// ===================== SECTION 4: PARALLELISM & COMPRESSION =====================
+S(null, g=>{
+  const t=txt(800,430,'PART 4',{anchor:'middle',size:16,weight:700,color:SECTIONS.parallel.color,parent:g}); fadeIn(t,200,400);
+  const t2=txt(800,490,'Parallelism & Compression',{anchor:'middle',size:40,weight:800,parent:g}); popIn(t2,450,650);
+  const t3=txt(800,536,'making the model smaller, or making the GPUs act as one',{anchor:'middle',size:16,color:'var(--dim)',parent:g}); fadeUp(t3,950,450,10);
+});
+
+S('parallel', g=>{
+  slideTitle(g,'Quantization','trade a little precision for a lot of memory & speed',SECTIONS.parallel.color);
+  const rows=[['fp32','4 bytes/param','280 GB','baseline accuracy'],['fp16 / bf16','2 bytes/param','140 GB','default for training/serving'],['int8','1 byte/param','70 GB','~1% accuracy dip, common'],['int4','0.5 bytes/param','35 GB','aggressive, needs calibration']];
+  const y0=220;
+  rows.forEach((r,i)=>{
+    const y=y0+i*90;
+    const w = 900*(parseFloat(r[2])/280);
+    const bar=rect(500,y,w,46,{fill:'rgba(176,127,174,.22)',stroke:SECTIONS.parallel.color,sw:1.3,rx:6,parent:g});
+    growW(bar,0,300+i*260,600,'0% 50%');
+    txt(480,y+30,r[0],{size:15,weight:700,anchor:'end',color:'var(--ink)',parent:g});
+    const lbl=txt(510,y+30,r[2]+'  ·  '+r[3],{size:13,color:'var(--dim)',parent:g,opacity:0});
+    fadeIn(lbl,300+i*260+300,350);
+  });
+  formulaBox(150,610,1300,['memory  =  params × bytes_per_param      example above: a 70B-parameter model'],{color:SECTIONS.parallel.color,delay:1600,h:64});
+});
+
+S(null, g=>{
+  bridgeSlide(g,{
+    recap:'RECAP — quantization shrinks ONE copy of the model, often 2–8×.',
+    gap:'even at int4, a genuinely huge model (hundreds of billions of params) still won\'t fit in one GPU\'s 80GB. Shrinking one copy is not enough — what if we split the model itself across GPUs?',
+    fill:'MODEL PARALLELISM — split the model, not the data',
+    color:SECTIONS.parallel.color
+  });
+});
+
+S('parallel', g=>{
+  slideTitle(g,'Model Parallelism','the umbrella idea: shard the WEIGHTS across devices, not the traffic',SECTIONS.parallel.color);
+  const model=box(650,200,300,90,'model too big\nfor 1 GPU',{color:'var(--dim2)',fill:'rgba(255,255,255,.03)',parent:g,size:15});
+  popIn(model,300,450);
+  const arrow=connector(800,290,800,340,{color:SECTIONS.parallel.color,parent:g});
+  drawLine(arrow.line,750,350);
+  txt(800,375,'split WHICH dimension of the model?',{anchor:'middle',size:14,color:SECTIONS.parallel.color,parent:g,opacity:0});
+  fadeIn(g.lastChild,1150,350);
+  const flavors=[
+    ['TENSOR','split the math\ninside each layer',420],
+    ['PIPELINE','split the model\nby layer ranges',800],
+    ['EXPERT (MoE)','split by which\nsub-network fires',1180],
+  ];
+  flavors.forEach((f,i)=>{
+    const bx=box(f[2],450,300,140,f[0],{color:SECTIONS.parallel.color,fill:'rgba(176,127,174,.1)',sublabel:f[1],parent:g,size:17,weight:700});
+    popIn(bx,1500+i*250,500);
+    const c=connector(800,395,f[2]+150,450,{color:'var(--dim2)',dashed:true,parent:g});
+    drawLine(c.line,1300+i*150,350);
+  });
+  noteBox(300,630,1000,[
+    'All three answer the same question — "which axis of the model do we cut?" — with different trade-offs in',
+    'communication frequency, idle time, and routing complexity. The next three slides take each in turn.'
+  ],{color:SECTIONS.parallel.color,delay:2400,h:75});
+});
+
+S('parallel', g=>{
+  slideTitle(g,'Tensor Parallelism','slice individual weight matrices across GPUs',SECTIONS.parallel.color);
+  const gpuW=280, gpuH=220, y0=230, gap=40;
+  for(let i=0;i<4;i++){
+    const x=150+i*(gpuW+gap);
+    const gb=box(x,y0,gpuW,gpuH,'GPU '+(i+1),{color:SECTIONS.parallel.color,fill:'rgba(176,127,174,.08)',parent:g,size:15});
+    popIn(gb,300+i*180,450);
+    for(let c=0;c<4;c++){
+      const cell=rect(x+20+c*60,y0+70,50,120,{fill:`hsl(${290},30%,${30+c*6}%)`,stroke:SECTIONS.parallel.color,sw:1,rx:4,parent:g});
+      popIn(cell,600+i*180+c*40,300);
+    }
+    txt(x+gpuW/2,y0+205,'1/4 of W',{size:11,anchor:'middle',color:'var(--dim)',parent:g});
+  }
+  const syncY=500;
+  const syncLine=connector(150,syncY,1430,syncY,{color:SECTIONS.parallel.color,dashed:true,noHead:true,parent:g});
+  drawLine(syncLine.line,1600,600);
+  txt(800,syncY-14,'all-reduce / all-gather — happens EVERY layer',{size:13,anchor:'middle',color:SECTIONS.parallel.color,parent:g,opacity:0});
+  fadeIn(g.lastChild,2000,400);
+  noteBox(150,560,1330,[
+    'Each GPU holds a SLICE of the same weight matrix and computes a partial result; a fast sync step (all-reduce) combines',
+    'the slices before the next layer. Needs very high-bandwidth interconnect (NVLink) since this happens at every layer —',
+    'that is the main reason tensor parallelism usually stays WITHIN one multi-GPU node, not across nodes.'
+  ],{color:SECTIONS.parallel.color,delay:2500,h:100});
+});
+
+S('parallel', g=>{
+  slideTitle(g,'Pipeline Parallelism','split the model by LAYERS — an assembly line',SECTIONS.parallel.color);
+  const stageW=280, y0=230, gap=40;
+  const labels=['layers 1–8','layers 9–16','layers 17–24','layers 25–32'];
+  for(let i=0;i<4;i++){
+    const x=150+i*(stageW+gap);
+    const gb=box(x,y0,stageW,110,'GPU '+(i+1),{color:SECTIONS.parallel.color,fill:'rgba(176,127,174,.08)',sublabel:labels[i],parent:g,size:15});
+    popIn(gb,300+i*250,450);
+    if(i<3){ const ar=connector(x+stageW,y0+55,x+stageW+gap,y0+55,{color:SECTIONS.parallel.color,parent:g}); drawLine(ar.line,700+i*250,350); }
+  }
+  const pk=el('circle',{r:8,fill:SECTIONS.parallel.color},g);
+  moveAlong(pk,'M 150 285 L 1430 285',1700,2200,false);
+
+  // bubble diagram
+  const by0=470;
+  txt(150,by0-16,'pipeline "bubble" — idle time while waiting for the line to fill',{size:14,color:'var(--dim)',parent:g});
+  for(let r=0;r<4;r++){
+    for(let c=0;c<4;c++){
+      const busy = c>=r;
+      const cell=rect(150+c*90,by0+r*46,80,36,{fill:busy?'rgba(176,127,174,.28)':'rgba(255,255,255,.02)',stroke:busy?SECTIONS.parallel.color:'var(--dim2)',sw:1,rx:4,parent:g});
+      popIn(cell,4000+r*130+c*60,240);
+    }
+    txt(120,by0+r*46+23,'GPU'+(r+1),{size:11,anchor:'end',color:'var(--dim)',parent:g});
+  }
+  formulaBox(560,470,760,['bubble_fraction ≈ (stages − 1) / (stages − 1 + microbatches)','→ more microbatches per pass shrinks the idle bubble'],{color:SECTIONS.parallel.color,delay:4700,h:70});
+});
+
+S(null, g=>{
+  bridgeSlide(g,{
+    recap:'RECAP — tensor-parallel needs fast sync every layer; pipeline-parallel wastes time in bubbles waiting for the line to fill.',
+    gap:'both assume EVERY part of the model runs for EVERY token. What if a model could have huge total capacity, but only wake up a small slice of itself per token?',
+    fill:'EXPERT PARALLELISM — sparse Mixture-of-Experts',
+    color:SECTIONS.parallel.color
+  });
+});
+
+S('parallel', g=>{
+  slideTitle(g,'Expert Parallelism (Mixture-of-Experts)','a router sends each token to only a few experts',SECTIONS.parallel.color);
+  const routerX=760, routerY=250;
+  const router=box(routerX,routerY,160,70,'ROUTER',{color:SECTIONS.parallel.color,fill:'rgba(176,127,174,.14)',parent:g,size:16});
+  popIn(router,300,450);
+  const experts=[['Expert 1 (GPU A)',180,420],['Expert 2 (GPU B)',540,420],['Expert 3 (GPU C)',900,420],['Expert 4 (GPU D)',1260,420]];
+  experts.forEach((e,i)=>{
+    const bx=box(e[1],e[2],280,110,e[0],{color:'var(--dim2)',fill:'rgba(255,255,255,.03)',parent:g,size:14});
+    popIn(bx,700+i*140,450);
+  });
+  const active=[0,2];
+  const tokens=['token: "the"','token: "banana"'];
+  tokens.forEach((tk,i)=>{
+    const startX=routerX+40+i*80;
+    const p=el('circle',{r:8,fill:i===0?SECTIONS.parallel.color:SECTIONS.batching.color},g);
+    const target=experts[active[i]];
+    const path=`M ${startX} ${routerY+70} L ${target[1]+140} ${target[2]}`;
+    moveAlong(p,path,1600+i*300,1200,false);
+  });
+  noteBox(150,570,1330,[
+    'Only the TOP-K experts (often 1–2 of dozens) fire per token — routed by a small learned gate. Total parameter count',
+    'can be huge (more "knowledge") while active compute per token stays small. The cost: tokens must be shuffled to',
+    'whichever GPU holds the chosen expert (all-to-all communication) — used in Mixtral, DeepSeek-MoE and others.'
+  ],{color:SECTIONS.parallel.color,delay:2900,h:100});
+});
+
+S('parallel', g=>{
+  slideTitle(g,'Data Parallelism','the simple, orthogonal axis: copy the model, split the traffic',SECTIONS.parallel.color);
+  for(let i=0;i<4;i++){
+    const x=180+i*330;
+    const bx=box(x,240,280,150,'Replica '+(i+1),{color:SECTIONS.parallel.color,fill:'rgba(176,127,174,.08)',sublabel:'full model copy',parent:g,size:16});
+    popIn(bx,300+i*160,450);
+  }
+  const lb=box(560,440,480,80,'LOAD BALANCER',{color:'var(--dim2)',fill:'rgba(255,255,255,.03)',parent:g,size:15});
+  popIn(lb,1200,450);
+  for(let i=0;i<4;i++){
+    const x=180+i*330+140;
+    const c=connector(800,440,x,390,{color:'var(--dim2)',dashed:true,parent:g});
+    drawLine(c.line,1500+i*100,300);
+  }
+  noteBox(200,560,1200,[
+    'Unlike tensor/pipeline/expert parallelism, this does NOT help a model that is too big for one GPU — every replica',
+    'still needs the whole model to fit. Its job is pure THROUGHPUT scaling: more identical replicas, more requests/sec.',
+    'In practice: the other four parallelism types answer "does it fit?"; this one answers "is it fast enough at load?"'
+  ],{color:SECTIONS.parallel.color,delay:1900,h:100});
+});
+
+S(null, g=>{
+  bridgeSlide(g,{
+    recap:'RECAP — quantize to shrink it; tensor/pipeline/expert-parallel to split a big model; data-parallel to replicate a small one.',
+    gap:'a model sharded across many GPUs must behave like ONE machine, in real time, for every incoming request. Who is choosing which GPUs handle which request, and keeping their memory from fragmenting?',
+    fill:'DISTRIBUTED INFRA — orchestration, scheduling, memory',
+    color:SECTIONS.infra.color
+  });
+});
+
+// ===================== SECTION 5: DISTRIBUTED INFRA =====================
+S(null, g=>{
+  const t=txt(800,430,'PART 5',{anchor:'middle',size:16,weight:700,color:SECTIONS.infra.color,parent:g}); fadeIn(t,200,400);
+  const t2=txt(800,490,'Distributed Infra',{anchor:'middle',size:44,weight:800,parent:g}); popIn(t2,450,650);
+  const t3=txt(800,536,'making a fleet of GPUs behave like one machine',{anchor:'middle',size:16,color:'var(--dim)',parent:g}); fadeUp(t3,950,450,10);
+});
+
+S('infra', g=>{
+  slideTitle(g,'Distributed Inference Orchestration','one coordinator keeps every shard in lock-step',SECTIONS.infra.color);
+  const coord=box(660,210,280,90,'COORDINATOR',{color:SECTIONS.infra.color,fill:'rgba(91,192,190,.14)',sublabel:'knows the sharding plan',parent:g,size:16});
+  popIn(coord,300,500);
+  const workers=[[150,420],[480,420],[810,420],[1140,420]];
+  workers.forEach((w,i)=>{
+    const bx=box(w[0],w[1],240,110,'Worker '+(i+1),{color:'var(--dim2)',fill:'rgba(255,255,255,.03)',sublabel:'shard '+(i+1)+'/4',parent:g,size:15});
+    popIn(bx,700+i*180,450);
+    const c=connector(800,300,w[0]+120,420,{color:SECTIONS.infra.color,dashed:true,parent:g});
+    drawLine(c.line,1500+i*120,350);
+  });
+  noteBox(150,570,1330,[
+    'The coordinator dispatches an incoming request to the right group of workers, and — for tensor/pipeline-parallel —',
+    'keeps them synchronized tick-by-tick so partial results combine correctly, every single forward pass.'
+  ],{color:SECTIONS.infra.color,delay:2200,h:75});
+});
+
+S('infra', g=>{
+  slideTitle(g,'GPU Scheduling','deciding WHICH request runs on WHICH GPU, right now',SECTIONS.infra.color);
+  const lanes=[['HIGH priority',SECTIONS.retrieval.color,220],['NORMAL priority',SECTIONS.infra.color,340],['LOW / batch priority','var(--dim2)',460]];
+  lanes.forEach((l,i)=>{
+    txt(160,l[2]-14,l[0],{size:13,weight:700,color:l[1],parent:g});
+    rect(160,l[2],1000,50,{fill:'rgba(255,255,255,.03)',stroke:l[1],sw:1.2,rx:8,parent:g});
+    for(let j=0;j<4-i;j++){
+      const cell=rect(180+j*90,l[2]+8,70,34,{fill:l[1]+'',stroke:l[1],sw:1,rx:5,parent:g});
+      cell.setAttribute('fill','rgba(255,255,255,.06)');
+      popIn(cell,400+i*300+j*120,300);
+    }
+  });
+  const pool=box(1260,260,220,220,'GPU\nPOOL',{color:SECTIONS.infra.color,fill:'rgba(91,192,190,.1)',parent:g,size:18});
+  popIn(pool,300,500);
+  const arrow=connector(1160,290,1260,320,{color:SECTIONS.retrieval.color,parent:g});
+  drawLine(arrow.line,1800,400);
+  noteBox(160,560,1320,[
+    'Schedulers weigh priority, SLA deadlines, and even PREEMPTION (pausing a low-priority job to free memory for an',
+    'urgent one), then bin-pack requests onto GPUs to keep both compute and memory close to full — never idle, never',
+    'overcommitted.'
+  ],{color:SECTIONS.infra.color,delay:2400,h:90});
+});
+
+S('infra', g=>{
+  slideTitle(g,'GPU Memory Management','paged allocation, inspired by OS virtual memory',SECTIONS.infra.color);
+  // naive contiguous
+  txt(180,230,'NAIVE: pre-allocate max_len per sequence',{size:14,weight:700,color:'var(--dim2)',parent:g});
+  const seqLens=[[0.9,'seq A'],[0.3,'seq B'],[0.6,'seq C']];
+  seqLens.forEach((s,i)=>{
+    const y=260+i*50;
+    rect(180,y,600,32,{fill:'rgba(255,255,255,.02)',stroke:'var(--dim2)',rx:5,parent:g});
+    const used=rect(180,y,600*s[0],32,{fill:'rgba(91,192,190,.2)',stroke:SECTIONS.infra.color,sw:1,rx:5,parent:g});
+    growW(used,0,400+i*200,500,'0% 50%');
+    txt(800,y+21,'wasted reservation',{size:11,color:'var(--dim2)',parent:g,opacity: s[0]<1?0:0});
+  });
+  txt(180,440,'PAGED: allocate fixed-size blocks on demand, non-contiguous',{size:14,weight:700,color:SECTIONS.infra.color,parent:g,opacity:0});
+  fadeIn(g.lastChild,1600,400);
+  const blockPositions=[[180,470],[280,470],[380,520],[180,520],[480,470],[280,520],[580,470]];
+  const seqOfBlock=[0,0,0,1,2,1,2];
+  const colorMap=[SECTIONS.infra.color,SECTIONS.batching.color,SECTIONS.caching.color];
+  blockPositions.forEach((p,i)=>{
+    const cell=rect(p[0],p[1],80,34,{fill:'rgba(255,255,255,.05)',stroke:colorMap[seqOfBlock[i]],sw:1.6,rx:5,parent:g});
+    popIn(cell,1900+i*150,300);
+  });
+  noteBox(700,440,780,[
+    'Instead of reserving worst-case memory per sequence up front, the KV-cache is split into small fixed-size blocks —',
+    'allocated only as tokens are actually generated, and freed the instant a sequence ends. This is the single biggest',
+    'lever for raising how many concurrent sequences fit on one GPU (used by vLLM\'s PagedAttention).'
+  ],{color:SECTIONS.infra.color,delay:2900,h:130});
+});
+
+S('infra', g=>{
+  slideTitle(g,'Model Sharding (for storage & cold start)','split the checkpoint itself so nodes load in parallel',SECTIONS.infra.color);
+  const ckpt=box(680,210,240,80,'checkpoint.bin',{color:'var(--dim2)',fill:'rgba(255,255,255,.03)',parent:g,size:15});
+  popIn(ckpt,300,450);
+  const shards=[[220,400],[560,400],[900,400],[1240,400]];
+  shards.forEach((s,i)=>{
+    const bx=box(s[0],s[1],220,100,'shard '+(i+1),{color:SECTIONS.infra.color,fill:'rgba(91,192,190,.1)',sublabel:'node '+(i+1)+' loads only this',parent:g,size:15});
+    popIn(bx,800+i*220,450);
+    const c=connector(800,290,s[0]+110,400,{color:SECTIONS.infra.color,dashed:true,parent:g});
+    drawLine(c.line,600+i*220,350);
+  });
+  noteBox(220,560,1160,[
+    'This is the DEPLOYMENT-time view of the same split used by tensor/pipeline parallelism: each node reads only its',
+    'shard from disk/object-storage in parallel, instead of one node reading the whole multi-hundred-GB file — turning',
+    'cold-start time from "minutes" into "as slow as your slowest single shard."'
+  ],{color:SECTIONS.infra.color,delay:2000,h:100});
+});
+
+S(null, g=>{
+  bridgeSlide(g,{
+    recap:'RECAP — orchestration, scheduling and paged memory let a GPU fleet behave like one dense, well-packed machine.',
+    gap:'we have now scaled the MODEL side hard. But a modern AI system is not just a model — it leans on huge external knowledge it was never trained on. What happens when the answer isn\'t IN the weights at all?',
+    fill:'RETRIEVAL SCALING — search billions of vectors in milliseconds',
+    color:SECTIONS.retrieval.color
+  });
+});
+
+// ===================== SECTION 6: RETRIEVAL SCALING =====================
+S(null, g=>{
+  const t=txt(800,430,'PART 6',{anchor:'middle',size:16,weight:700,color:SECTIONS.retrieval.color,parent:g}); fadeIn(t,200,400);
+  const t2=txt(800,490,'Retrieval Scaling',{anchor:'middle',size:44,weight:800,parent:g}); popIn(t2,450,650);
+  const t3=txt(800,536,'scaling the knowledge that lives OUTSIDE the model',{anchor:'middle',size:16,color:'var(--dim)',parent:g}); fadeUp(t3,950,450,10);
+});
+
+S('retrieval', g=>{
+  slideTitle(g,'Retrieval At Scale','why you can\'t brute-force billions of vectors',SECTIONS.retrieval.color);
+  const q=box(140,260,220,80,'query embedding',{color:SECTIONS.retrieval.color,fill:'rgba(213,113,91,.12)',parent:g,size:14});
+  popIn(q,300,450);
+  const idx=box(500,240,300,120,'ANN INDEX',{color:SECTIONS.retrieval.color,fill:'rgba(213,113,91,.1)',sublabel:'HNSW / IVF over billions of vectors',parent:g,size:18});
+  popIn(idx,700,500);
+  const res=box(960,260,420,80,'top-k nearest documents',{color:'var(--dim2)',fill:'rgba(255,255,255,.03)',parent:g,size:14});
+  popIn(res,1300,450);
+  const c1=connector(360,300,500,300,{color:SECTIONS.retrieval.color,parent:g}); drawLine(c1.line,900,400);
+  const c2=connector(800,300,960,300,{color:SECTIONS.retrieval.color,parent:g}); drawLine(c2.line,1500,400);
+  formulaBox(300,470,1000,['brute force: O(N × d) per query   —   N = billions  ⇒  seconds, not milliseconds','ANN index: O(log N × d)-ish       —   approximate, but 1,000×+ faster'],{color:SECTIONS.retrieval.color,delay:2000,h:80});
+});
+
+S('retrieval', g=>{
+  slideTitle(g,'Embedding Caching','don\'t re-embed what you\'ve already embedded',SECTIONS.retrieval.color);
+  const doc=box(180,260,260,90,'"return policy.pdf"',{color:'var(--dim2)',fill:'rgba(255,255,255,.03)',parent:g,size:14});
+  popIn(doc,300,450);
+  const cacheCheck=box(560,260,260,90,'seen before?',{color:SECTIONS.retrieval.color,fill:'rgba(213,113,91,.1)',parent:g,size:15});
+  popIn(cacheCheck,700,450);
+  const hit=box(960,180,300,80,'HIT → return cached vector',{color:SECTIONS.caching.color,fill:'rgba(127,176,143,.1)',parent:g,size:14});
+  const miss=box(960,340,300,80,'MISS → embed + store',{color:SECTIONS.batching.color,fill:'rgba(217,164,65,.1)',parent:g,size:14});
+  [hit,miss].forEach((b,i)=>popIn(b,1100+i*250,450));
+  const c1=connector(440,305,560,305,{color:SECTIONS.retrieval.color,parent:g}); drawLine(c1.line,900,350);
+  const c2=connector(820,290,960,220,{color:SECTIONS.caching.color,parent:g}); drawLine(c2.line,1350,400);
+  const c3=connector(820,320,960,380,{color:SECTIONS.batching.color,parent:g}); drawLine(c3.line,1600,400);
+  noteBox(180,500,1180,[
+    'Documents rarely change and popular queries repeat — so keyed by a hash of the text, an embedding cache turns',
+    'an expensive model call into a lookup. Cheap to add, and often the highest ROI-per-line-of-code item in a RAG stack.'
+  ],{color:SECTIONS.retrieval.color,delay:2200,h:80});
+});
+
+S('retrieval', g=>{
+  slideTitle(g,'Vector Index Sharding','one machine can\'t hold — or search — a billion-vector index',SECTIONS.retrieval.color);
+  const q=box(700,200,200,70,'query',{color:SECTIONS.retrieval.color,fill:'rgba(213,113,91,.12)',parent:g,size:15});
+  popIn(q,300,450);
+  const shards=[[180,360],[500,360],[820,360],[1140,360]];
+  shards.forEach((s,i)=>{
+    const bx=box(s[0],s[1],240,100,'shard '+(i+1),{color:'var(--dim2)',fill:'rgba(255,255,255,.03)',sublabel:'~250M vectors',parent:g,size:15});
+    popIn(bx,650+i*160,450);
+    const c=connector(800,270,s[0]+120,360,{color:SECTIONS.retrieval.color,dashed:true,parent:g});
+    drawLine(c.line,1200+i*100,300);
+  });
+  const merge=box(600,510,400,80,'merge → global top-k',{color:SECTIONS.retrieval.color,fill:'rgba(213,113,91,.1)',parent:g,size:15});
+  popIn(merge,2200,500);
+  shards.forEach((s,i)=>{
+    const c=connector(s[0]+120,460,800,510,{color:'var(--dim2)',dashed:true,parent:g});
+    drawLine(c.line,2350+i*100,300);
+  });
+  noteBox(300,630,1000,[
+    'The query fans out to every shard (or a relevant subset), each returns its own top-k, and results are merged —',
+    'the same pattern as a distributed merge-sort. Shards split by hash, cluster, region, or time range.'
+  ],{color:SECTIONS.retrieval.color,delay:3000,h:80});
+});
+
+S('retrieval', g=>{
+  slideTitle(g,'RAG Caching vs. Semantic Caching','cache the WHOLE pipeline — exactly, or approximately',SECTIONS.retrieval.color);
+  const L=box(120,220,660,340,null,{color:SECTIONS.retrieval.color,fill:'rgba(213,113,91,.05)',rx:16});
+  txt(150,260,'RAG CACHE (exact)',{size:19,weight:700,color:SECTIONS.retrieval.color,parent:g});
+  bulletList(150,300,['keyed on the exact query string','skips retrieve + rerank + generate together','great for FAQ-style repeated questions'],{delay:600,gap:44,color:SECTIONS.retrieval.color});
+
+  const R=box(820,220,660,340,null,{color:SECTIONS.gateway.color,fill:'rgba(217,127,176,.05)',rx:16});
+  txt(850,260,'SEMANTIC CACHE (approximate)',{size:19,weight:700,color:SECTIONS.gateway.color,parent:g});
+  bulletList(850,300,['keyed on MEANING, via embedding similarity','"cancel my order" ≈ "how do I cancel an order?"','risk: near-duplicates aren\'t always same-answer'],{delay:900,gap:44,color:SECTIONS.gateway.color});
+  [L,R].forEach((b,i)=>fadeUp(b,200+i*150,550,16));
+
+  formulaBox(120,600,1360,['semantic hit  ⇔  cosine_similarity( embed(query_new), embed(query_cached) )  >  threshold   (e.g. 0.95)'],{color:SECTIONS.gateway.color,delay:1900,h:64});
+});
+
+S(null, g=>{
+  bridgeSlide(g,{
+    recap:'RECAP — retrieval scaling makes ONE knowledge system fast at billions-of-vectors scale.',
+    gap:'production traffic has to juggle retrieval, guardrails, MULTIPLE models, fallback logic and cost — all before one response goes out. Who sits in front of all of this and decides what happens?',
+    fill:'THE GATEWAY LAYER — routing, fallback, and cost control',
+    color:SECTIONS.gateway.color
+  });
+});
+
+// ===================== SECTION 7: GATEWAY & ROUTING =====================
+S(null, g=>{
+  const t=txt(800,430,'PART 7',{anchor:'middle',size:16,weight:700,color:SECTIONS.gateway.color,parent:g}); fadeIn(t,200,400);
+  const t2=txt(800,490,'Gateway & Routing',{anchor:'middle',size:44,weight:800,parent:g}); popIn(t2,450,650);
+  const t3=txt(800,536,'one front door for many models, providers, and budgets',{anchor:'middle',size:16,color:'var(--dim)',parent:g}); fadeUp(t3,950,450,10);
+});
+
+S('gateway', g=>{
+  slideTitle(g,'The LLM Gateway','one API in front of every backend model',SECTIONS.gateway.color);
+  const clients=[[140,220],[140,320],[140,420]];
+  clients.forEach((c,i)=>{ const b=box(c[0],c[1],200,70,'client '+(i+1),{color:'var(--dim2)',fill:'rgba(255,255,255,.03)',parent:g,size:14}); popIn(b,300+i*150,400); });
+  const gw=box(560,270,320,160,'GATEWAY',{color:SECTIONS.gateway.color,fill:'rgba(217,127,176,.12)',sublabel:'auth · rate limit · logging · unify formats',parent:g,size:20});
+  popIn(gw,900,550);
+  const backends=[['OpenAI',1060,220],['Anthropic',1060,320],['local vLLM',1060,420]];
+  backends.forEach((b,i)=>{ const bx=box(b[1],b[2],220,70,b[0],{color:'var(--dim2)',fill:'rgba(255,255,255,.03)',parent:g,size:14}); popIn(bx,1500+i*150,400); });
+  clients.forEach((c,i)=>{ const cc=connector(340,c[1]+35,560,350,{color:SECTIONS.gateway.color,dashed:true,parent:g}); drawLine(cc.line,700+i*100,300); });
+  backends.forEach((b,i)=>{ const cc=connector(880,350,1060,b[2]+35,{color:SECTIONS.gateway.color,dashed:true,parent:g}); drawLine(cc.line,1900+i*100,300); });
+  noteBox(150,560,1300,[
+    'Clients never talk to a specific provider directly — one stable API, one place to enforce auth, quotas, and',
+    'observability, regardless of which model actually answers the request underneath.'
+  ],{color:SECTIONS.gateway.color,delay:2400,h:75});
+});
+
+S('gateway', g=>{
+  slideTitle(g,'Model Routing','send the request to the model that fits — not always the biggest one',SECTIONS.gateway.color);
+  const inQ=box(140,300,240,90,'incoming request',{color:'var(--dim2)',fill:'rgba(255,255,255,.03)',parent:g,size:14});
+  popIn(inQ,300,450);
+  const router=box(480,300,260,90,'router model\n(classifies difficulty)',{color:SECTIONS.gateway.color,fill:'rgba(217,127,176,.12)',parent:g,size:13});
+  popIn(router,700,450);
+  const easy=box(920,190,320,80,'"summarize this" → small/cheap model',{color:SECTIONS.caching.color,fill:'rgba(127,176,143,.1)',parent:g,size:13});
+  const hard=box(920,420,320,80,'"prove this theorem" → large/expensive model',{color:SECTIONS.retrieval.color,fill:'rgba(213,113,91,.1)',parent:g,size:13});
+  [easy,hard].forEach((b,i)=>popIn(b,1100+i*250,450));
+  const c1=connector(380,345,480,345,{color:SECTIONS.gateway.color,parent:g}); drawLine(c1.line,900,350);
+  const c2=connector(740,320,920,230,{color:SECTIONS.caching.color,parent:g}); drawLine(c2.line,1350,400);
+  const c3=connector(740,370,920,460,{color:SECTIONS.retrieval.color,parent:g}); drawLine(c3.line,1600,400);
+  noteBox(140,540,1300,[
+    'The router is itself a model (often tiny/cheap) that predicts task difficulty or category, then picks the cheapest',
+    'model likely to succeed. This is the mechanism behind cost-aware routing later on this pillar.'
+  ],{color:SECTIONS.gateway.color,delay:2300,h:75});
+});
+
+S('gateway', g=>{
+  slideTitle(g,'Fallback Models','never let one provider\'s outage become YOUR outage',SECTIONS.gateway.color);
+  const primary=box(560,220,320,100,'PRIMARY MODEL',{color:SECTIONS.gateway.color,fill:'rgba(217,127,176,.12)',sublabel:'timeout / 5xx / rate-limited',parent:g,size:17});
+  popIn(primary,300,500);
+  const x=el('path',{d:'M700,340 L740,400 M740,340 L700,400',stroke:SECTIONS.retrieval.color,'stroke-width':4},g);
+  fadeIn(x,900,300);
+  const arrow=connector(720,400,720,470,{color:SECTIONS.gateway.color,parent:g}); drawLine(arrow.line,1300,400);
+  const fallback=box(560,480,320,100,'FALLBACK MODEL',{color:SECTIONS.caching.color,fill:'rgba(127,176,143,.12)',sublabel:'different provider / smaller model',parent:g,size:17});
+  popIn(fallback,1700,500);
+  noteBox(150,630,1300,[
+    'Retries automatically switch to a secondary model on failure — graceful degradation (a slightly worse answer, fast)',
+    'instead of a hard failure. Often paired with circuit breakers so a struggling provider gets skipped entirely for a while.'
+  ],{color:SECTIONS.gateway.color,delay:2400,h:75});
+});
+
+S('gateway', g=>{
+  slideTitle(g,'Multi-Model Serving','one platform hosting many models on a shared GPU pool',SECTIONS.gateway.color);
+  const pool=box(560,220,480,150,'SHARED GPU POOL',{color:SECTIONS.gateway.color,fill:'rgba(217,127,176,.1)',parent:g,size:18});
+  popIn(pool,300,500);
+  const models=[['fine-tune A',180,430],['base model B',480,430],['LoRA C',780,430],['vision model D',1080,430]];
+  models.forEach((m,i)=>{
+    const bx=box(m[1],m[2],240,100,m[0],{color:'var(--dim2)',fill:'rgba(255,255,255,.03)',parent:g,size:14});
+    popIn(bx,700+i*180,450);
+    const c=connector(m[1]+120,430,800,370,{color:SECTIONS.gateway.color,dashed:true,parent:g});
+    drawLine(c.line,1500+i*100,350);
+  });
+  noteBox(150,570,1300,[
+    'This is model caching (Part 3) and GPU scheduling (Part 5) applied at the PRODUCT level: many tenants, many',
+    'fine-tunes, one fleet — hot models resident, cold ones swapped in on demand.'
+  ],{color:SECTIONS.gateway.color,delay:2400,h:75});
+});
+
+S('gateway', g=>{
+  slideTitle(g,'Prompt Caching (API-level)','cache a repeated PREFIX across separate API calls',SECTIONS.gateway.color);
+  const call1=box(180,240,320,110,'Call 1',{color:SECTIONS.gateway.color,fill:'rgba(217,127,176,.1)',sublabel:'long system prompt + new question',parent:g,size:16});
+  const call2=box(620,240,320,110,'Call 2',{color:SECTIONS.gateway.color,fill:'rgba(217,127,176,.1)',sublabel:'SAME system prompt + new question',parent:g,size:16});
+  const call3=box(1060,240,320,110,'Call 3',{color:SECTIONS.gateway.color,fill:'rgba(217,127,176,.1)',sublabel:'SAME system prompt + new question',parent:g,size:16});
+  [call1,call2,call3].forEach((b,i)=>popIn(b,300+i*250,450));
+  const cache=box(560,440,480,90,'cached prefix K,V (from Part 3)',{color:SECTIONS.caching.color,fill:'rgba(127,176,143,.1)',parent:g,size:15});
+  popIn(cache,1200,500);
+  [call1,call2,call3].forEach((b,i)=>{ const c=connector(b===call1?340:(b===call2?780:1220),350,800,440,{color: i===0?SECTIONS.gateway.color:SECTIONS.caching.color,parent:g}); drawLine(c.line,1500+i*150,300); });
+  formulaBox(160,570,1280,['cache WRITE (call 1): full price + small caching fee     cache READ (calls 2,3): often 5–10× cheaper, faster TTFT'],{color:SECTIONS.gateway.color,delay:2200,h:64});
+});
+
+S('gateway', g=>{
+  slideTitle(g,'Cost-Aware Routing','route on a $ budget, not just capability',SECTIONS.gateway.color);
+  const items=[
+    'Track cost-per-request in real time as a routing signal, not just an offline metric.',
+    'Cheap/small model first for routine queries; escalate to an expensive model only when confidence is low.',
+    'Enforce per-user / per-team budgets and quotas at the gateway, not after the invoice arrives.'
+  ];
+  bulletList(160,260,items,{delay:400,stagger:280,gap:70,color:SECTIONS.gateway.color,size:19});
+  formulaBox(160,540,1300,['expected_cost = Σ P(route → model_i) × price(model_i)      → minimize subject to a quality floor'],{color:SECTIONS.gateway.color,delay:1700,h:64});
+});
+
+S('gateway', g=>{
+  slideTitle(g,'Token-Aware Rate Limiting','limit by TOKENS, because that\'s what actually costs compute',SECTIONS.gateway.color);
+  const bucketX=700, bucketY=220, bucketW=200, bucketH=260;
+  rect(bucketX,bucketY,bucketW,bucketH,{fill:'rgba(255,255,255,.03)',stroke:SECTIONS.gateway.color,sw:1.6,rx:16,parent:g});
+  const fillLevel=rect(bucketX+6,bucketY+bucketH-6-160,bucketW-12,160,{fill:'rgba(217,127,176,.28)',stroke:'none',rx:10,parent:g});
+  fillLevel.style.transformBox='fill-box'; fillLevel.style.transformOrigin='50% 100%';
+  anim(fillLevel,[{transform:'scaleY(0)'},{transform:'scaleY(1)'}],{delay:500,duration:900});
+  txt(bucketX+bucketW/2,bucketY-16,'token bucket',{anchor:'middle',size:14,color:'var(--dim)',parent:g});
+  const refill=connector(bucketX+bucketW/2,150,bucketX+bucketW/2,220,{color:SECTIONS.gateway.color,parent:g});
+  drawLine(refill.line,1500,400);
+  txt(bucketX+bucketW/2,178,'refill_rate tokens/sec',{anchor:'middle',size:12,color:SECTIONS.gateway.color,parent:g,opacity:0});
+  fadeIn(g.lastChild,1500,300);
+  const reqs=[['req: 50 tokens',1000],['req: 400 tokens',1600],['req: 20 tokens',2200]];
+  reqs.forEach((r,i)=>{
+    const p=el('circle',{r:7,fill:SECTIONS.gateway.color},g);
+    moveAlong(p,`M 1000 700 L ${bucketX+bucketW+10} 350`,r[1],1000,false);
+  });
+  formulaBox(160,570,1280,['tokens_available -= tokens_used(request)   ;   tokens_available += refill_rate × Δt   (reject / queue if insufficient)'],{color:SECTIONS.gateway.color,delay:2600,h:64});
+});
+
+S(null, g=>{
+  bridgeSlide(g,{
+    recap:'RECAP — the gateway wraps every model behind one door: route, fall back, share the fleet, cache prompts, control cost, and limit by real compute (tokens).',
+    gap:'thirty-two techniques, seven pillars — but they all exist for the SAME reason. What was that reason again?',
+    fill:'ONE SYSTEM — how it all fits together',
+    color:'var(--neutral)'
+  });
+});
+
+// ===================== CLOSING =====================
+S(null, g=>{
+  slideTitle(g,'The Full Stack, One More Time','every pillar exists because the one before it ran out of road',null);
+  progressPillars(g,null,80,220);
+  const oneliners=[
+    'wrap the model as a service',
+    'pack requests so the GPU is never idle',
+    'never recompute what\'s already known',
+    'shrink / split a model too big for one GPU',
+    'orchestrate many GPUs as one dense machine',
+    'scale the knowledge that lives outside the model',
+    'route, protect, and price every request'
+  ];
+  oneliners.forEach((l,i)=>{
+    const x=80+i*213;
+    const t=txt(x+102.5,332,wrapText(l,17),{anchor:'middle',size:12,color:'var(--ink)',lh:1.35,parent:g,opacity:0});
+    fadeUp(t,900+i*140,420,10);
+  });
+  const cap=txt(800,420,'this is the loop every production LLM system runs, at every layer, simultaneously',{anchor:'middle',size:15,color:'var(--dim2)',parent:g,opacity:0});
+  fadeIn(cap,2400,500);
+});
+
+S(null, g=>{
+  slideTitle(g,'Decision Cheat-Sheet','symptom → the pattern that answers it',null);
+  const rows=[
+    ['GPU idle between single-request steps','→ Dynamic / continuous batching',SECTIONS.batching.color],
+    ['same prefix recomputed for every user','→ Prefix caching / prompt caching',SECTIONS.caching.color],
+    ['model too big for one GPU\'s memory','→ Quantization → tensor / pipeline parallel',SECTIONS.parallel.color],
+    ['huge total capacity, low latency budget','→ Expert parallelism (MoE)',SECTIONS.parallel.color],
+    ['memory fragmenting under many sequences','→ Paged KV-cache allocation',SECTIONS.infra.color],
+    ['vector search too slow at scale','→ Index sharding + embedding cache',SECTIONS.retrieval.color],
+    ['one model can\'t be cheap AND capable','→ Gateway + routing + fallback',SECTIONS.gateway.color],
+  ];
+  const y0=200;
+  rows.forEach((r,i)=>{
+    const y=y0+i*66;
+    const b1=box(140,y,720,52,r[0],{color:'var(--dim2)',fill:'rgba(255,255,255,.02)',size:14,weight:500,rx:8,parent:g});
+    const b2=box(900,y,560,52,r[1],{color:r[2],fill:'rgba(255,255,255,.04)',size:14,weight:700,rx:8,parent:g,labelColor:r[2]});
+    fadeUp(b1,250+i*220,420,12); fadeUp(b2,380+i*220,420,12);
+  });
+});
+
+S(null, g=>{
+  for(let i=0;i<40;i++){
+    const x=Math.random()*1600, y=Math.random()*900;
+    const d=el('circle',{cx:x,cy:y,r:Math.random()*1.4+.4,fill:'#3a4552',opacity:.5},g);
+    pulse(d, Math.random()*2000);
+  }
+  const t1=txt(800,400,'That\'s the stack.',{anchor:'middle',size:40,weight:800,parent:g});
+  popIn(t1,300,650);
+  const t2=txt(800,460,'One request → one instant, dense, cost-aware system.',{anchor:'middle',size:18,color:'var(--dim)',parent:g});
+  fadeUp(t2,900,500,12);
+  const t3=txt(800,540,'press "r" any time to replay a slide\'s animation',{anchor:'middle',size:13,color:'var(--dim2)',parent:g,opacity:0});
+  fadeIn(t3,1600,500);
+});
+
+// ---------- engine ----------
+let idx = 0;
+function render(i){
+  layer.innerHTML='';
+  activeAnims = [];
+  const s = slides[i];
+  sectionTag(s.sectionKey, layer);
+  s.build(layer);
+  document.getElementById('progfill').style.width = ((i+1)/slides.length*100)+'%';
+  document.getElementById('counterText').textContent = (i+1)+' / '+slides.length;
+}
+function next(){ if(idx<slides.length-1){ idx++; render(idx); } }
+function prev(){ if(idx>0){ idx--; render(idx); } }
+function replay(){ render(idx); }
+document.addEventListener('keydown', e=>{
+  if(e.key==='ArrowRight' || e.key===' ' || e.key==='PageDown'){ e.preventDefault(); next(); }
+  else if(e.key==='ArrowLeft' || e.key==='PageUp'){ e.preventDefault(); prev(); }
+  else if(e.key.toLowerCase()==='r'){ replay(); }
+  else if(e.key==='Home'){ idx=0; render(idx); }
+  else if(e.key==='End'){ idx=slides.length-1; render(idx); }
+});
+document.getElementById('stage-wrap').addEventListener('click', ()=>{ next(); });
+document.addEventListener('visibilitychange', ()=>{
+  if(document.hidden){ activeAnims.forEach(a=>{ try{a.pause();}catch(e){} }); document.body.classList.add('paused'); }
+  else { activeAnims.forEach(a=>{ try{a.play();}catch(e){} }); document.body.classList.remove('paused'); }
+});
+function fitStage(){
+  const stage = document.getElementById('stage');
+  const scale = Math.min(window.innerWidth/1600, window.innerHeight/900);
+  stage.style.transform = `scale(${scale})`;
+}
+window.addEventListener('resize', fitStage);
+fitStage();
+render(0);
+</script>
+</body>
+</html>

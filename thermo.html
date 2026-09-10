@@ -1,0 +1,1492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Thermodynamics & Statistical Mechanics — an animated walkthrough</title>
+<style>
+  :root{
+    --bg:#06080c;
+    --ink:#e9e9ee;
+    --dim:#8a8f9c;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:var(--bg);overflow:hidden;
+    font-family:'Inter','Segoe UI',system-ui,-apple-system,sans-serif;color:var(--ink)}
+  #stage{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:var(--bg)}
+  canvas{display:block;background:var(--bg)}
+  /* nav chrome */
+  #bar{position:fixed;left:0;right:0;bottom:14px;display:flex;gap:10px;align-items:center;
+    justify-content:center;z-index:10;pointer-events:none}
+  .btn{pointer-events:auto;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.14);
+    color:var(--ink);border-radius:9px;padding:8px 14px;font-size:13px;letter-spacing:.02em;
+    cursor:pointer;transition:background .15s,border-color .15s;user-select:none;
+    backdrop-filter:blur(4px)}
+  .btn:hover{background:rgba(255,255,255,.10);border-color:rgba(255,255,255,.28)}
+  .btn:active{transform:translateY(1px)}
+  .btn:focus-visible{outline:2px solid #6b9bd1;outline-offset:2px}
+  #hint{position:fixed;right:16px;top:14px;font-size:11px;color:var(--dim);z-index:10;
+    letter-spacing:.06em;text-transform:uppercase}
+  #menuBtn{position:fixed;left:16px;top:14px;z-index:11}
+  #menu{position:fixed;inset:0;background:rgba(4,6,10,.94);z-index:20;display:none;
+    padding:46px 40px;overflow:auto}
+  #menu.open{display:block}
+  #menu h2{font-size:14px;color:var(--dim);text-transform:uppercase;letter-spacing:.16em;margin-bottom:18px}
+  .mgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px 18px;max-width:1100px;margin:0 auto}
+  .mitem{font-size:13px;color:#c7ccd6;padding:7px 10px;border-radius:6px;cursor:pointer;
+    border-left:2px solid transparent;display:flex;gap:9px}
+  .mitem:hover{background:rgba(255,255,255,.05);border-left-color:#6b9bd1}
+  .mitem .n{color:#5b6270;min-width:26px;text-align:right;font-variant-numeric:tabular-nums}
+  .mitem.head{color:#d6a95c;font-weight:600;letter-spacing:.04em;margin-top:12px;cursor:default}
+  .mitem.head:hover{background:none;border-left-color:transparent}
+  @media (prefers-reduced-motion: reduce){*{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+<div id="stage"><canvas id="c" width="1280" height="720"></canvas></div>
+
+<button id="menuBtn" class="btn" title="Slide index">☰ Contents</button>
+<div id="hint">← → or Space · R replay · Click = next</div>
+<div id="bar">
+  <button class="btn" id="prev">‹ Prev</button>
+  <button class="btn" id="replay">⟳ Replay</button>
+  <button class="btn" id="next">Next ›</button>
+</div>
+<div id="menu"><h2>Thermodynamics &amp; Statistical Mechanics — contents</h2><div class="mgrid" id="mgrid"></div></div>
+
+<script>
+"use strict";
+/* ============================================================
+   ENGINE  ·  1280×720 internal, letterboxed to fit 16:9
+   ============================================================ */
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+const W = 1280, H = 720;
+
+function fit(){
+  const s = Math.min(innerWidth/W, innerHeight/H);
+  cv.style.width  = (W*s)+'px';
+  cv.style.height = (H*s)+'px';
+}
+addEventListener('resize', fit); fit();
+
+/* ---- palette: colors encode physics ---- */
+const C = {
+  bg:'#06080c', ink:'#e9e9ee', dim:'#8a8f9c', faint:'#5a6070',
+  grid:'#1b2029', panel:'#0e131b',
+  blue:'#6b9bd1',   // cold / order
+  teal:'#57b0a3',   // flow / neutral quantity
+  amber:'#d6a95c',  // heat / question
+  red:'#cf6a5c',    // hot
+  green:'#7fb069',  // work / go
+  purple:'#9b8cc4', // entropy / probability
+  slate:'#78889c'
+};
+const FMATH = "'Georgia','Cambria','Times New Roman',serif";
+const FUI    = "'Inter','Segoe UI',system-ui,sans-serif";
+
+/* ---- math helpers ---- */
+const clamp01 = x => x<0?0:x>1?1:x;
+const lerp = (a,b,t)=>a+(b-a)*t;
+const smooth = t => { t=clamp01(t); return t*t*(3-2*t); };
+const easeOut = t => { t=clamp01(t); return 1-Math.pow(1-t,3); };
+const easeInOut = t => { t=clamp01(t); return t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2; };
+/** eased 0..1 progress of an element starting at `start`, lasting `dur` */
+const app = (t,start,dur=0.7)=> smooth((t-start)/dur);
+const TAU = Math.PI*2;
+
+/* ---- drawing helpers ---- */
+function txt(s,x,y,o={}){
+  ctx.save();
+  ctx.font = `${o.weight||400} ${o.italic?'italic ':''}${o.size||24}px ${o.font||FUI}`;
+  ctx.fillStyle = o.color||C.ink;
+  ctx.globalAlpha = o.alpha??1;
+  ctx.textAlign = o.align||'left';
+  ctx.textBaseline = o.baseline||'alphabetic';
+  if(o.shadow){ctx.shadowColor=o.shadow;ctx.shadowBlur=o.shadowBlur||8;}
+  ctx.fillText(s,x,y);
+  ctx.restore();
+}
+function ln(x1,y1,x2,y2,o={}){
+  ctx.save();
+  ctx.strokeStyle=o.color||C.ink; ctx.lineWidth=o.w||2;
+  ctx.globalAlpha=o.alpha??1; ctx.lineCap=o.cap||'round';
+  if(o.dash) ctx.setLineDash(o.dash);
+  ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+  ctx.restore();
+}
+function arrow(x1,y1,x2,y2,o={}){
+  const col=o.color||C.ink, w=o.w||2.4, head=o.head||10;
+  ln(x1,y1,x2,y2,{color:col,w,alpha:o.alpha,dash:o.dash});
+  const a=Math.atan2(y2-y1,x2-x1);
+  ctx.save(); ctx.globalAlpha=o.alpha??1; ctx.fillStyle=col;
+  ctx.beginPath();
+  ctx.moveTo(x2,y2);
+  ctx.lineTo(x2-head*Math.cos(a-.42), y2-head*Math.sin(a-.42));
+  ctx.lineTo(x2-head*Math.cos(a+.42), y2-head*Math.sin(a+.42));
+  ctx.closePath(); ctx.fill(); ctx.restore();
+}
+function circ(x,y,r,o={}){
+  ctx.save(); ctx.globalAlpha=o.alpha??1;
+  ctx.beginPath(); ctx.arc(x,y,r,0,TAU);
+  if(o.fill){ctx.fillStyle=o.fill;ctx.fill();}
+  if(o.stroke){ctx.strokeStyle=o.stroke;ctx.lineWidth=o.w||2;ctx.stroke();}
+  ctx.restore();
+}
+function rrect(x,y,w,h,r,o={}){
+  ctx.save(); ctx.globalAlpha=o.alpha??1;
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();
+  if(o.fill){ctx.fillStyle=o.fill;ctx.fill();}
+  if(o.stroke){ctx.strokeStyle=o.stroke;ctx.lineWidth=o.w||2;ctx.stroke();}
+  ctx.restore();
+}
+function poly(pts,o={}){
+  ctx.save(); ctx.globalAlpha=o.alpha??1;
+  ctx.beginPath(); pts.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));
+  if(o.close)ctx.closePath();
+  if(o.fill){ctx.fillStyle=o.fill;ctx.fill();}
+  if(o.stroke){ctx.strokeStyle=o.stroke;ctx.lineWidth=o.w||2;ctx.setLineDash(o.dash||[]);ctx.stroke();}
+  ctx.restore();
+}
+/* formula renderer: segs = [{s,kind,color,it}] kind: base|sub|sup ; returns width */
+function measF(segs,size){
+  let w=0;
+  for(const g of segs){
+    const sz = g.kind==='base'||!g.kind ? size : size*0.62;
+    ctx.font=`italic ${sz}px ${FMATH}`; w+=ctx.measureText(g.s).width;
+  }
+  return w;
+}
+function formula(segs,x,y,size,o={}){
+  let cx=x; const align=o.align||'left';
+  if(align!=='left'){ const tw=measF(segs,size); cx = align==='center'? x-tw/2 : x-tw; }
+  ctx.save(); ctx.globalAlpha=o.alpha??1; ctx.textBaseline='alphabetic'; ctx.textAlign='left';
+  for(const g of segs){
+    const sz=g.kind==='base'||!g.kind?size:size*0.62;
+    const dy=g.kind==='sub'?size*0.26:g.kind==='sup'?-size*0.42:0;
+    ctx.font=`${(g.it===false)?'':'italic '}${sz}px ${FMATH}`;
+    ctx.fillStyle=g.color||o.color||C.ink;
+    ctx.fillText(g.s,cx,y+dy); cx+=ctx.measureText(g.s).width;
+  }
+  ctx.restore(); return cx-x;
+}
+/* quick multiline caption block, left aligned, dim */
+function caption(lines,x,y,o={}){
+  const lh=o.lh||26, size=o.size||18;
+  lines.forEach((L,i)=> txt(L,x,y+i*lh,{size,color:o.color||C.dim,align:o.align||'left',alpha:o.alpha,font:o.font||FUI,weight:o.weight}));
+}
+
+/* ---- reusable scenes ---- */
+function makeGas(n,x,y,w,h,spd,r){
+  const ps=[];
+  for(let i=0;i<n;i++){
+    const a=Math.random()*TAU;
+    ps.push({x:x+r+Math.random()*(w-2*r), y:y+r+Math.random()*(h-2*r),
+      vx:Math.cos(a), vy:Math.sin(a), flash:0});
+  }
+  return {ps,x,y,w,h,spd,r};
+}
+function updGas(g,dt){
+  for(const p of g.ps){
+    p.x+=p.vx*g.spd*dt; p.y+=p.vy*g.spd*dt;
+    if(p.x<g.x+g.r){p.x=g.x+g.r;p.vx=Math.abs(p.vx);p.flash=1;}
+    if(p.x>g.x+g.w-g.r){p.x=g.x+g.w-g.r;p.vx=-Math.abs(p.vx);p.flash=1;}
+    if(p.y<g.y+g.r){p.y=g.y+g.r;p.vy=Math.abs(p.vy);p.flash=1;}
+    if(p.y>g.y+g.h-g.r){p.y=g.y+g.h-g.r;p.vy=-Math.abs(p.vy);p.flash=1;}
+    p.flash=Math.max(0,p.flash-dt*3);
+  }
+}
+function drawGas(g,col){
+  for(const p of g.ps){
+    if(p.flash>0) circ(p.x,p.y,g.r+4,{stroke:col,w:1.5,alpha:p.flash*0.5});
+    circ(p.x,p.y,g.r,{fill:col,alpha:0.9});
+  }
+}
+function reservoir(x,y,w,h,col,label,alpha=1){
+  rrect(x,y,w,h,8,{fill:col+'22',stroke:col,w:2,alpha});
+  txt(label,x+w/2,y+h/2+6,{size:18,color:col,align:'center',alpha});
+}
+
+/* ============================================================
+   SLIDES
+   ============================================================ */
+const P = { // pillar tags
+  intro:'Overview', p1:'P3.1 · Temperature & Heat', p2:'P3.2 · Kinetic Theory',
+  p3:'P3.3 · Laws of Thermodynamics', p4:'P3.4 · Cycles & Engines',
+  p5:'P3.5 · Thermodynamic Potentials', p6:'P3.6 · Statistical Mechanics',
+  app:'Applications', bridge:'Bridge'
+};
+
+const slides = [];
+const S = (o)=>slides.push(o);
+
+/* ---------- 0 · TITLE ---------- */
+S({ pillar:P.intro, title:'', menu:'Title',
+  init(s){ s.gas=makeGas(90,0,0,W,H,55,3.2); },
+  update(s,dt){ updGas(s.gas,dt); },
+  draw(ctx,s,t){
+    // faint drifting particles that "cool" into the title
+    const settle = smooth(t/3);
+    for(const p of s.gas.ps){
+      circ(p.x,p.y,3.2,{fill:C.slate,alpha:0.10*(1-settle)});
+    }
+    txt('THE PHYSICS OF HEAT, ENERGY & PROBABILITY',W/2,250,{size:15,color:C.amber,align:'center',alpha:app(t,.3,.8),weight:600});
+    txt('Thermodynamics',W/2,332,{size:58,color:C.ink,align:'center',alpha:app(t,.6,.9),weight:700});
+    txt('& Statistical Mechanics',W/2,398,{size:42,color:C.blue,align:'center',alpha:app(t,1.0,.9),weight:400,font:FMATH,italic:true});
+    // the throughline
+    const a=app(t,1.8,1);
+    txt('microscopic jiggling',420,500,{size:20,color:C.dim,align:'center',alpha:a,italic:true,font:FMATH});
+    arrow(560,495,720,495,{color:C.teal,alpha:a,w:2.2});
+    txt('the laws of energy',860,500,{size:20,color:C.dim,align:'center',alpha:a,italic:true,font:FMATH});
+    txt('Feynman: "If all of science were destroyed... the atomic hypothesis — that things are made of',W/2,590,{size:15,color:C.faint,align:'center',alpha:app(t,2.6,1)});
+    txt('atoms in perpetual motion — carries the most information in the fewest words."',W/2,613,{size:15,color:C.faint,align:'center',alpha:app(t,2.9,1)});
+  }
+});
+
+/* ---------- 1 · ROADMAP ---------- */
+S({ pillar:P.intro, title:'The six pillars — and the one idea beneath them', menu:'Roadmap',
+  draw(ctx,s,t){
+    const items=[
+      ['P3.1','Temperature & Heat','what "hot" means',C.red],
+      ['P3.2','Kinetic Theory','gas = bouncing atoms',C.teal],
+      ['P3.3','The Three (+2) Laws','energy & entropy rules',C.amber],
+      ['P3.4','Cycles & Engines','turning heat into work',C.green],
+      ['P3.5','Potentials','the "useful energy" toolkit',C.blue],
+      ['P3.6','Statistical Mechanics','laws from counting states',C.purple],
+    ];
+    const x0=170,y0=180,cw=430,ch=118,gx=470,gy=140;
+    items.forEach((it,i)=>{
+      const col=i%2, row=(i/2)|0;
+      const x=x0+col*gx, y=y0+row*gy;
+      const a=app(t,0.2+i*0.28,0.7);
+      rrect(x,y,cw,ch,10,{stroke:it[3],w:1.6,fill:it[3]+'14',alpha:a});
+      txt(it[0],x+22,y+40,{size:15,color:it[3],alpha:a,weight:700});
+      txt(it[1],x+22,y+72,{size:24,color:C.ink,alpha:a,weight:600});
+      txt(it[2],x+22,y+98,{size:15,color:C.dim,alpha:a});
+    });
+    const a=app(t,2.2,1);
+    txt('One thread runs through all of it:  atoms move  →  we can only track averages  →  those averages obey exact laws.',
+      W/2,678,{size:17,color:C.amber,align:'center',alpha:a,italic:true,font:FMATH});
+  }
+});
+
+/* ================= P3.1 TEMPERATURE & HEAT ================= */
+
+/* 2 · what is temperature */
+S({ pillar:P.p1, title:'Temperature is not "heat" — it is average jiggle', menu:'What is temperature',
+  init(s){ s.g=makeGas(46,150,180,470,380,40,5); },
+  update(s,dt,t){ s.g.spd=lerp(22,150,smooth((Math.sin(t*0.5)+1)/2)); updGas(s.g,dt); },
+  draw(ctx,s,t){
+    rrect(150,180,470,380,10,{stroke:C.grid,w:2,fill:C.panel});
+    drawGas(s.g,C.red);
+    // KE meter + thermometer
+    const speed=(s.g.spd-22)/128; // 0..1
+    txt('avg kinetic energy',770,215,{size:16,color:C.dim,align:'left'});
+    rrect(770,230,260,26,6,{stroke:C.grid,w:1.5});
+    rrect(772,232,256*speed,22,5,{fill:C.amber});
+    // thermometer
+    const tx=1165, tby=560, tlen=330;
+    ln(tx,tby-tlen,tx,tby,{color:C.grid,w:14,cap:'round'});
+    ln(tx,tby-tlen*speed,tx,tby,{color:C.red,w:14,cap:'round'});
+    circ(tx,tby+12,20,{fill:C.red});
+    txt('T',tx+34,tby-tlen+8,{size:26,color:C.red,italic:true,font:FMATH});
+    // formula
+    formula([{s:'⟨ '},{s:'½'},{s:'mv'},{s:'²',kind:'sup'},{s:' ⟩ = '},{s:'³⁄₂'},{s:' k'},{s:'B',kind:'sub'},{s:'T'}],
+      770,340,30,{align:'left'});
+    caption([
+      'Temperature ∝ the *average* translational',
+      'kinetic energy of the particles.',
+      '',
+      'Heat is different: heat is energy *in transit*',
+      'from hot to cold. You never "have heat" —',
+      'you have internal energy; heat is a flow.'
+    ],770,390,{lh:27,size:17});
+    txt('Watch the box heat up and cool down as ⟨v⟩ rises and falls.',W/2,640,{size:15,color:C.faint,align:'center',alpha:app(t,1.5,1)});
+  }
+});
+
+/* 3 · thermal expansion */
+S({ pillar:P.p1, title:'Thermal expansion — hotter atoms need more room', menu:'Thermal expansion',
+  draw(ctx,s,t){
+    const heat=smooth((Math.sin(t*0.6)+1)/2);         // 0..1
+    const spacing=lerp(34,50,heat), amp=lerp(1.5,6,heat);
+    const rows=5, cols=11, x0=210, y0=250;
+    const width=(cols-1)*spacing;
+    // lattice of atoms on springs
+    for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
+      const jx=Math.sin(t*6+r*1.3+c*0.9)*amp, jy=Math.cos(t*5+c*1.1+r)*amp;
+      const x=x0+c*spacing+jx, y=y0+r*spacing+jy;
+      if(c<cols-1){const nx=x0+(c+1)*spacing+Math.sin(t*6+r*1.3+(c+1)*0.9)*amp; ln(x,y,nx,y0+r*spacing,{color:C.grid,w:1.2});}
+      if(r<rows-1) ln(x,y,x0+c*spacing,y0+(r+1)*spacing,{color:C.grid,w:1.2});
+      circ(x,y,7,{fill:`rgb(${Math.round(lerp(107,207,heat))},${Math.round(lerp(155,106,heat))},${Math.round(lerp(209,92,heat))})`});
+    }
+    // length bracket
+    const ly=y0+(rows-1)*spacing+55;
+    ln(x0,ly,x0+width,ly,{color:C.amber,w:2});
+    ln(x0,ly-8,x0,ly+8,{color:C.amber,w:2}); ln(x0+width,ly-8,x0+width,ly+8,{color:C.amber,w:2});
+    txt('L(T)',x0+width/2,ly+30,{size:20,color:C.amber,align:'center',italic:true,font:FMATH});
+    // formula + text
+    formula([{s:'ΔL = α L'},{s:'0',kind:'sub'},{s:' ΔT'}],820,300,30);
+    caption([
+      'Bonds behave like springs with an *asymmetric*',
+      'well — squeezing costs more than stretching.',
+      'So as jiggle grows, the *average* separation',
+      'grows too. The solid literally swells.',
+      '',
+      'α = coefficient of linear expansion.'
+    ],820,346,{lh:27,size:17});
+    txt('Practical: rail gaps, bridge expansion joints, bimetallic thermostats, why hot glass cracks.',
+      W/2,650,{size:15,color:C.faint,align:'center'});
+  }
+});
+
+/* 4 · heat capacity */
+S({ pillar:P.p1, title:'Heat capacity — same heat in, different warm-up', menu:'Heat capacity',
+  init(s){ s.pk=[]; },
+  update(s,dt,t){
+    if(t<6 && Math.random()<dt*4){ s.pk.push({x:250+Math.random()*10,y:120,side:0,life:0}); s.pk.push({x:790+Math.random()*10,y:120,side:1,life:0}); }
+    for(const p of s.pk){ p.life+=dt; }
+    s.pk=s.pk.filter(p=>p.life<1.4);
+  },
+  draw(ctx,s,t){
+    const heat=clamp01(t/6);
+    function beaker(x,label,c,rise){
+      rrect(x,240,220,300,10,{stroke:C.grid,w:2,fill:C.panel});
+      const lv=lerp(60,270,rise);
+      rrect(x+8,240+300-lv-8,204,lv,6,{fill:c+'55'});
+      txt(label,x+110,220,{size:18,color:C.ink,align:'center'});
+      // thermometer readout
+      txt('ΔT',x+110,575,{size:18,color:c,align:'center',italic:true,font:FMATH});
+      txt(rise<0.5?'big rise':'small rise',x+110,600,{size:15,color:C.dim,align:'center'});
+    }
+    beaker(140,'low C  (metal)',C.red, heat);           // rises fast
+    beaker(680,'high C  (water)',C.blue, heat*0.42);    // rises slow
+    // falling heat packets (equal to both)
+    for(const p of s.pk){ const y=lerp(120,235,easeOut(p.life/1.0)); circ(p.x,y,6,{fill:C.amber,alpha:1-clamp01((p.life-0.9)/0.5)}); }
+    txt('equal heat Q →',W/2,150,{size:16,color:C.amber,align:'center'});
+    formula([{s:'Q = m c ΔT'}],960,300,30,{align:'center'});
+    caption([
+      'Pour the *same* Q into both.',
+      '',
+      'Metal (small c) leaps up in temperature.',
+      'Water (large c) barely warms.',
+      '',
+      'c = specific heat = energy to raise 1 kg by 1 K.',
+      'Water\'s huge c is why oceans buffer climate',
+      'and why coolant is water-based.'
+    ],850,346,{lh:26,size:16});
+  }
+});
+
+/* 5 · latent heat / heating curve */
+S({ pillar:P.p1, title:'Phase changes hide heat — the plateaus of latent heat', menu:'Latent heat',
+  draw(ctx,s,t){
+    const ox=180,oy=560,w=700,h=360;
+    // axes
+    arrow(ox,oy,ox+w+20,oy,{color:C.dim,w:1.6}); arrow(ox,oy,ox,oy-h-10,{color:C.dim,w:1.6});
+    txt('heat added  →',ox+w/2,oy+34,{size:15,color:C.dim,align:'center'});
+    txt('T',ox-30,oy-h/2,{size:18,color:C.dim,align:'center',italic:true,font:FMATH});
+    // piecewise curve: rise, plateau(melt), rise, plateau(boil), rise
+    const pts=[[0,.9],[.15,.62],[.35,.62],[.5,.4],[.62,.4],[.85,.4] ,[.62,.4],[.62,.4]];
+    // build explicit path in data space (x frac, y frac from top)
+    const path=[[0,.92],[.14,.62],[.36,.62],[.5,.42],[.74,.42],[.9,.14]];
+    const prog=easeInOut(clamp01(t/4));
+    // draw with reveal
+    const total=path.length-1;
+    for(let i=0;i<total;i++){
+      const seg=i/total, segEnd=(i+1)/total;
+      if(prog<=seg) break;
+      const local=clamp01((prog-seg)/(segEnd-seg));
+      const a=[ox+path[i][0]*w, oy-h+path[i][1]*h];
+      const b=[ox+path[i+1][0]*w, oy-h+path[i+1][1]*h];
+      const flat=(path[i][1]===path[i+1][1]);
+      ln(a[0],a[1],lerp(a[0],b[0],local),lerp(a[1],b[1],local),{color:flat?C.amber:C.red,w:3.5});
+    }
+    // phase icons/labels appear
+    const labels=[[.07,'solid',C.blue],[.25,'melting',C.amber],[.43,'liquid',C.teal],[.62,'boiling',C.amber],[.82,'gas',C.red]];
+    labels.forEach((L,i)=>{ const a=app(t,1+ i*0.5,0.6);
+      txt(L[1],ox+L[0]*w,oy-h+(i%2?0.05:0.05)*h - 14,{size:15,color:L[2],align:'center',alpha:a}); });
+    // plateau annotations
+    const a2=app(t,3.2,1);
+    txt('L_fusion',ox+.25*w,oy-h+.62*h-16,{size:16,color:C.amber,align:'center',alpha:a2,italic:true,font:FMATH});
+    txt('L_vapor',ox+.62*w,oy-h+.42*h-16,{size:16,color:C.amber,align:'center',alpha:a2,italic:true,font:FMATH});
+    formula([{s:'Q = m L'}],960,240,28,{align:'left'});
+    caption([
+      'On the flat steps, heat pours in but T doesn\'t',
+      'move. The energy goes into *breaking bonds*,',
+      'not speeding molecules up — latent ("hidden").',
+      '',
+      'This is why steam burns far worse than boiling',
+      'water, and how sweat / refrigerants cool:',
+      'evaporation drinks huge L on the way out.'
+    ],920,290,{lh:26,size:16});
+  }
+});
+
+/* 6 · BRIDGE 1 → kinetic theory */
+S({ pillar:P.bridge, title:'', menu:'▸ Bridge: what IS heat?', bridge:true,
+  recap:'We can measure temperature, heat flow, expansion, and latent heat.',
+  gap:'But we keep saying "atoms jiggle" — can we *predict* pressure and temperature from that?',
+  fill:['KINETIC THEORY','model the gas as tiny bouncing balls',C.teal] });
+
+/* ================= P3.2 KINETIC THEORY ================= */
+
+/* 7 · molecular model → pressure */
+S({ pillar:P.p2, title:'Pressure is a hail of collisions on the wall', menu:'Molecular model',
+  init(s){ s.g=makeGas(38,180,180,420,380,120,5); s.hits=0; s.rate=0;},
+  update(s,dt,t){
+    let before=0; for(const p of s.g.ps) if(p.flash>0.9) before++;
+    updGas(s.g,dt);
+    let hits=0; for(const p of s.g.ps) if(p.flash>0.95) hits++;
+    s.rate=lerp(s.rate,hits, .2);
+  },
+  draw(ctx,s,t){
+    rrect(180,180,420,380,10,{stroke:C.grid,w:2,fill:C.panel});
+    // right wall highlighted as the "sensor"
+    ln(600,180,600,560,{color:C.amber,w:4,alpha:0.7});
+    drawGas(s.g,C.teal);
+    // count flashes near right wall → pressure gauge
+    let push=0; for(const p of s.g.ps){ if(p.x>590 && p.flash>0.3) push+=p.flash; }
+    txt('wall',612,370,{size:15,color:C.amber});
+    // gauge
+    const gx=760,gy=250;
+    txt('pressure  P',gx,gy-14,{size:16,color:C.dim});
+    rrect(gx,gy,250,22,5,{stroke:C.grid,w:1.5});
+    rrect(gx+2,gy+2,246*clamp01(push/4),18,4,{fill:C.amber});
+    caption([
+      'Each molecule that strikes the wall delivers a',
+      'tiny impulse. Millions per second average out',
+      'into a smooth, steady push: pressure.',
+      '',
+      'More particles, faster particles, or a smaller',
+      'box → more frequent, harder hits → more P.'
+    ],760,330,{lh:27,size:17});
+    formula([{s:'P = '},{s:'⅓'},{s:' n m ⟨v'},{s:'²',kind:'sup'},{s:'⟩'}],760,565,30);
+    txt('n = number density.  Pressure is mechanics, not magic.',760,600,{size:15,color:C.faint});
+  }
+});
+
+/* 8 · ideal gas law */
+S({ pillar:P.p2, title:'The ideal gas law ties P, V, T, N together', menu:'Ideal gas law',
+  draw(ctx,s,t){
+    const cyc=(Math.sin(t*0.7)+1)/2;                 // compression cycle
+    const bx=200,by=200, bh=340, bwFull=360;
+    const bw=lerp(bwFull,180,cyc);                    // volume shrinks
+    // container + piston
+    rrect(bx,by,bwFull,bh,8,{stroke:C.grid,w:2,fill:C.panel});
+    rrect(bx+bw,by,20,bh,3,{fill:C.slate});           // piston
+    // gas dots inside current volume
+    for(let i=0;i<26;i++){
+      const px=bx+15+((i*53+ (t*120*(1+cyc))))% (bw-30);
+      const py=by+25+((i*97+(t*90))% (bh-50));
+      circ(px,py,4.5,{fill:C.teal,alpha:.9});
+    }
+    arrow(bx+bwFull+70,by+bh/2,bx+bw+30,by+bh/2,{color:C.green,w:2.4});
+    txt('compress',bx+bwFull+80,by+bh/2-16,{size:15,color:C.green});
+    // live P & T bars respond: V down → P up (T const)
+    const gx=760;
+    function bar(y,label,frac,c){ txt(label,gx,y-10,{size:16,color:c,italic:true,font:FMATH}); rrect(gx,y,240,20,5,{stroke:C.grid,w:1.4}); rrect(gx+2,y+2,236*clamp01(frac),16,4,{fill:c}); }
+    bar(230,'V  (volume)',bw/bwFull,C.blue);
+    bar(300,'P  (pressure)',lerp(0.4,0.95,cyc),C.amber);
+    bar(370,'T  (fixed here)',0.6,C.red);
+    formula([{s:'P V = N k'},{s:'B',kind:'sub'},{s:'T = n R T'}],gx,470,32);
+    caption([
+      'Squeeze V → P rises (Boyle). Heat it → P or V',
+      'rises (Charles / Gay-Lussac). One clean law',
+      'unifies them — valid when particles are small',
+      'and barely interact ("ideal").'
+    ],gx,510,{lh:26,size:16});
+  }
+});
+
+/* 9 · Maxwell-Boltzmann */
+S({ pillar:P.p2, title:'Not one speed — a whole distribution of speeds', menu:'Maxwell–Boltzmann',
+  draw(ctx,s,t){
+    const ox=180,oy=560,w=560,h=360;
+    arrow(ox,oy,ox+w+20,oy,{color:C.dim,w:1.6}); arrow(ox,oy,ox,oy-h-10,{color:C.dim,w:1.6});
+    txt('speed  v  →',ox+w/2,oy+32,{size:15,color:C.dim,align:'center'});
+    txt('# of molecules',ox-6,oy-h-22,{size:14,color:C.dim,align:'left'});
+    // temperature slider drives the curve
+    const T=lerp(0.6,1.8,(Math.sin(t*0.5)+1)/2);
+    const f=v=> v*v*Math.exp(-v*v/(2*T));            // ~Maxwell shape
+    // normalize peak
+    let mx=0; for(let v=0;v<4;v+=0.02) mx=Math.max(mx,f(v));
+    // histogram bars (animated fill)
+    const reveal=easeOut(clamp01(t/1.5));
+    const bars=22;
+    for(let i=0;i<bars;i++){
+      const v=(i+0.5)/bars*3.6; const hh=f(v)/mx*h*0.92*reveal;
+      const x=ox+ (v/3.6)*w;
+      rrect(x-8,oy-hh,15,hh,2,{fill:C.purple+'44'});
+    }
+    // smooth curve
+    ctx.save(); ctx.beginPath();
+    for(let v=0;v<=3.6;v+=0.02){ const x=ox+(v/3.6)*w, y=oy-f(v)/mx*h*0.92*reveal; v?ctx.lineTo(x,y):ctx.moveTo(x,y); }
+    ctx.strokeStyle=C.purple; ctx.lineWidth=3; ctx.stroke(); ctx.restore();
+    // markers
+    const vp=Math.sqrt(T); // most probable ~ sqrt(2T)/norm; qualitative
+    txt('higher T → curve widens & shifts right',ox+w/2,oy-h-2,{size:15,color:C.purple,align:'center'});
+    formula([{s:'f(v) ∝ v'},{s:'²',kind:'sup'},{s:' e'},{s:'−mv²/2k',kind:'sup'},{s:'B',kind:'sup'},{s:'T',kind:'sup'}],840,250,26);
+    caption([
+      'Collisions randomize energy, so speeds spread',
+      'into a lopsided bell. A few molecules are always',
+      'far faster than average.',
+      '',
+      'Those rare fast ones drive evaporation and set',
+      'reaction rates (only they clear the energy barrier).',
+      '',
+      'Three landmarks: most-probable < mean < rms.'
+    ],840,300,{lh:26,size:16});
+  }
+});
+
+/* 10 · mean free path */
+S({ pillar:P.p2, title:'Mean free path — how far before the next bump', menu:'Mean free path',
+  init(s){ s.g=makeGas(34,180,190,470,370,110,6); s.hero={x:250,y:300,vx:1,vy:0.4,trail:[]}; },
+  update(s,dt){
+    updGas(s.g,dt);
+    const h=s.hero;
+    h.x+=h.vx*130*dt; h.y+=h.vy*130*dt;
+    let bump=false;
+    if(h.x<186||h.x>644){h.vx*=-1;bump=true;} if(h.y<196||h.y>554){h.vy*=-1;bump=true;}
+    // collide with field particles
+    for(const p of s.g.ps){ const dx=p.x-h.x,dy=p.y-h.y; if(dx*dx+dy*dy<200){ const a=Math.atan2(dy,dx)+Math.PI+(Math.random()-.5); h.vx=Math.cos(a);h.vy=Math.sin(a); bump=true; break; } }
+    if(bump) h.trail.push({x:h.x,y:h.y});
+    if(h.trail.length>18) h.trail.shift();
+  },
+  draw(ctx,s,t){
+    rrect(180,190,470,370,10,{stroke:C.grid,w:2,fill:C.panel});
+    for(const p of s.g.ps) circ(p.x,p.y,5,{fill:C.slate,alpha:.5});
+    // hero path
+    const tr=s.hero.trail;
+    for(let i=1;i<tr.length;i++) ln(tr[i-1].x,tr[i-1].y,tr[i].x,tr[i].y,{color:C.red,w:2,alpha:0.25+0.5*i/tr.length});
+    if(tr.length) ln(tr[tr.length-1].x,tr[tr.length-1].y,s.hero.x,s.hero.y,{color:C.red,w:2});
+    circ(s.hero.x,s.hero.y,7,{fill:C.red});
+    formula([{s:'λ = 1 / (√2 · n σ)'}],790,250,28);
+    caption([
+      'Track one molecule (red). It flies straight, then',
+      'ricochets — over and over. The average straight',
+      'run between hits is the mean free path λ.',
+      '',
+      'σ = collision cross-section, n = density.',
+      'Denser gas → shorter λ. At room pressure λ ≈ 70 nm;',
+      'in deep vacuum it can be kilometers.',
+      '',
+      'λ controls viscosity, diffusion, heat conduction,',
+      'and why vacuum flasks insulate so well.'
+    ],790,300,{lh:25,size:16});
+  }
+});
+
+/* 11 · equipartition */
+S({ pillar:P.p2, title:'Equipartition — energy shared ½kT per "way to move"', menu:'Equipartition',
+  draw(ctx,s,t){
+    // diatomic molecule center
+    const cx=360,cy=330, spread=lerp(0,10,(Math.sin(t*5)+1)/2);
+    const rot=t*1.3;
+    const ax=Math.cos(rot)*(46+spread), ay=Math.sin(rot)*(46+spread);
+    // translation drift
+    const tx=Math.sin(t*0.8)*40, ty=Math.cos(t*0.9)*24;
+    const c1=[cx+tx-ax,cy+ty-ay], c2=[cx+tx+ax,cy+ty+ay];
+    ln(c1[0],c1[1],c2[0],c2[1],{color:C.grid,w:6});   // bond spring
+    circ(c1[0],c1[1],20,{fill:C.blue}); circ(c2[0],c2[1],20,{fill:C.teal});
+    // mode arrows
+    arrow(cx+tx,cy+ty,cx+tx+50,cy+ty,{color:C.green,w:2,alpha:.8});
+    txt('translation (×3)',cx+tx,cy+ty+70,{size:14,color:C.green,align:'center'});
+    // the ledger
+    const lx=720; let y=210;
+    txt('Each independent quadratic "slot" gets ½ k_B T',lx,y,{size:17,color:C.ink}); y+=48;
+    const rows=[['3 translational  (x,y,z)','³⁄₂ k_BT',C.green],
+                ['2 rotational  (diatomic)','k_BT',C.blue],
+                ['2 vibrational  (KE+PE)','k_BT (high T)',C.amber]];
+    rows.forEach((r,i)=>{ const a=app(t,0.6+i*0.5,0.6);
+      txt(r[0],lx,y,{size:17,color:r[2],alpha:a}); txt(r[1],lx+330,y,{size:17,color:C.ink,align:'left',italic:true,font:FMATH,alpha:a}); y+=44; });
+    y+=8;
+    formula([{s:'U = '},{s:'f',color:C.amber},{s:' · '},{s:'½'},{s:' N k'},{s:'B',kind:'sub'},{s:'T'}],lx,y,30,{alpha:app(t,2.3,.8)});
+    y+=44;
+    caption([
+      'f = number of active degrees of freedom.',
+      'This predicts heat capacities of gases — and its',
+      'FAILURE at low T (modes "freeze out") was an',
+      'early crack that quantum mechanics had to fix.'
+    ],lx,y+8,{lh:25,size:15});
+  }
+});
+
+/* 12 · BRIDGE 2 → laws */
+S({ pillar:P.bridge, title:'', menu:'▸ Bridge: which way does heat go?', bridge:true,
+  recap:'From bouncing balls we derived pressure, the gas law, speed distributions and energy sharing.',
+  gap:'But nothing so far forbids a cup of coffee from *spontaneously* boiling by robbing heat from the room. Why never?',
+  fill:['THE LAWS OF THERMODYNAMICS','the accounting rules energy must obey',C.amber] });
+
+/* ================= P3.3 LAWS ================= */
+
+/* 13 · zeroth law */
+S({ pillar:P.p3, title:'Zeroth Law — "same temperature" is transitive', menu:'Zeroth law',
+  draw(ctx,s,t){
+    const boxes=[['A',300,C.red],['B',640,C.amber],['C',980,C.blue]];
+    // temperatures equalize toward amber over time
+    const eq=smooth(clamp01((t-1)/3));
+    function tc(base){ return `rgb(${Math.round(lerp(({A:207,B:214,C:107})[base], 214, eq))},${Math.round(lerp(({A:106,B:169,C:155})[base],169,eq))},${Math.round(lerp(({A:92,B:92,C:209})[base],92,eq))})`; }
+    boxes.forEach((b,i)=>{ rrect(b[1]-90,250,180,180,12,{stroke:C.grid,w:2,fill:tc(b[0])+'33'});
+      circ(b[1],340,40,{fill:tc(b[0])}); txt(b[0],b[1],348,{size:30,color:'#0b0d12',align:'center',weight:700}); });
+    // contact links
+    const a1=app(t,0.6,.6), a2=app(t,2.0,.6);
+    arrow(390,340,550,340,{color:C.ink,w:2,alpha:a1,dash:[6,6]}); txt('A ⇌ B',470,318,{size:16,color:C.dim,align:'center',alpha:a1});
+    arrow(730,340,890,340,{color:C.ink,w:2,alpha:a1,dash:[6,6]}); txt('B ⇌ C',810,318,{size:16,color:C.dim,align:'center',alpha:a1});
+    // conclusion arc
+    const a3=app(t,3.2,.8);
+    poly([[300,470],[300,510],[980,510],[980,470]],{stroke:C.green,w:2,alpha:a3});
+    txt('∴ A ⇌ C  — they must be at the same temperature',640,545,{size:19,color:C.green,align:'center',alpha:a3});
+    caption([
+      'If A agrees with B, and B agrees with C, then A agrees with C.',
+      'Sounds obvious — but this is the law that lets a *thermometer* exist:',
+      'temperature is a real, transferable, comparable property.'
+    ],640,610,{lh:26,size:16,align:'center'});
+  }
+});
+
+/* 14 · first law */
+S({ pillar:P.p3, title:'First Law — energy is only ever moved, never made', menu:'First law',
+  draw(ctx,s,t){
+    // piston cylinder with flame + rising piston + U reservoir
+    const cx=250,cy=250,cw=230,ch=300;
+    const push=smooth((Math.sin(t*0.7)+1)/2);
+    rrect(cx,cy,cw,ch,8,{stroke:C.grid,w:2,fill:C.panel});
+    const pistonY=cy+40 - push*30;
+    rrect(cx-8,pistonY,cw+16,16,3,{fill:C.slate});
+    ln(cx+cw/2,pistonY, cx+cw/2, pistonY-40,{color:C.slate,w:6});
+    // gas
+    for(let i=0;i<18;i++){ const px=cx+20+((i*57+t*100)%(cw-40)); const py=pistonY+40+((i*83+t*70)%(ch-70)); circ(px,py,4,{fill:C.teal}); }
+    // flame Q in
+    txt('🔥',cx+cw/2,cy+ch+40,{size:30,align:'center'});
+    arrow(cx+cw/2,cy+ch+20,cx+cw/2,cy+ch,{color:C.red,w:3});
+    txt('Q in',cx+cw/2+40,cy+ch+18,{size:18,color:C.red,italic:true,font:FMATH});
+    arrow(cx+cw/2,pistonY-46,cx+cw/2,pistonY-90,{color:C.green,w:3});
+    txt('W by gas',cx+cw/2+50,pistonY-70,{size:18,color:C.green,italic:true,font:FMATH});
+    // equation big
+    formula([{s:'ΔU'},{s:' = '},{s:'Q',color:C.red},{s:' − '},{s:'W',color:C.green}],720,300,44);
+    caption([
+      'Heat Q flows *in*. The gas spends some of it',
+      'pushing the piston — work W *out*. Whatever\'s',
+      'left raises the internal energy U (the jiggle).',
+      '',
+      'It is strict bookkeeping. No process anywhere',
+      'has ever produced energy from nothing —',
+      'that\'s why a "perpetual motion machine of the',
+      'first kind" is impossible.'
+    ],720,350,{lh:27,size:17});
+  }
+});
+
+/* 15 · processes on PV */
+S({ pillar:P.p3, title:'Four ways to change a gas — read them on a P–V map', menu:'Thermodynamic processes',
+  draw(ctx,s,t){
+    const ox=170,oy=580,w=470,h=420;
+    arrow(ox,oy,ox+w+20,oy,{color:C.dim,w:1.6}); arrow(ox,oy,ox,oy-h-10,{color:C.dim,w:1.6});
+    txt('V',ox+w+10,oy+28,{size:18,color:C.dim,italic:true,font:FMATH}); txt('P',ox-24,oy-h,{size:18,color:C.dim,italic:true,font:FMATH});
+    const X=v=>ox+v*w, Y=p=>oy-p*h;
+    const start=[0.25,0.75];
+    const procs=[
+      ['Isochoric  (V fixed)', C.blue,  t0=>[[0.25,0.75],[0.25,0.3]]],
+      ['Isobaric  (P fixed)',  C.green, t0=>[[0.25,0.75],[0.8,0.75]]],
+      ['Isothermal  (T fixed)',C.amber, null],
+      ['Adiabatic  (Q = 0)',   C.red,   null],
+    ];
+    // draw each with staggered reveal
+    procs.forEach((pr,i)=>{
+      const rev=easeOut(app(t,0.4+i*0.7,0.9));
+      ctx.save(); ctx.strokeStyle=pr[1]; ctx.lineWidth=3; ctx.beginPath();
+      if(i<2){ const seg=pr[2](); const a=[X(seg[0][0]),Y(seg[0][1])],b=[X(seg[1][0]),Y(seg[1][1])];
+        ctx.moveTo(a[0],a[1]); ctx.lineTo(lerp(a[0],b[0],rev),lerp(a[1],b[1],rev)); }
+      else { // curves from start point
+        const k=(i===2)?1:1.4; // adiabatic steeper
+        const v0=0.25,p0=0.75, c=p0*Math.pow(v0,k);
+        let first=true;
+        for(let v=v0; v<=v0+(0.55)*rev+0.001; v+=0.01){ const p=c/Math.pow(v,k); const x=X(v),y=Y(p); if(first){ctx.moveTo(x,y);first=false;} else ctx.lineTo(x,y); }
+      }
+      ctx.stroke(); ctx.restore();
+    });
+    circ(X(start[0]),Y(start[1]),6,{fill:C.ink});
+    // legend
+    let ly=200; procs.forEach((pr,i)=>{ const a=app(t,0.4+i*0.7,.6);
+      ln(760,ly-6,795,ly-6,{color:pr[1],w:4,alpha:a}); txt(pr[0],808,ly,{size:18,color:C.ink,alpha:a}); ly+=46; });
+    caption([
+      'Same gas, four different "recipes" for changing',
+      'it. The *path* matters: work done = area under',
+      'the curve, and it differs for each route even',
+      'between the same two states.',
+      '',
+      'Isothermal: heat swaps to hold T. Adiabatic:',
+      'insulated, so pushing out cools it (why spray',
+      'cans get cold, why mountain air is chilly).'
+    ],760,420,{lh:26,size:16});
+  }
+});
+
+/* 16 · second law / entropy */
+S({ pillar:P.p3, title:'Second Law — the universe keeps spreading out', menu:'Second law · entropy',
+  init(s){ s.parts=[]; for(let i=0;i<60;i++) s.parts.push({x:200+Math.random()*180,y:220+Math.random()*300,vx:(Math.random()-.5),vy:(Math.random()-.5)}); s.opened=false;},
+  update(s,dt,t){
+    const open = t>1.5; s.opened=open;
+    for(const p of s.parts){ p.x+=p.vx*90*dt; p.y+=p.vy*90*dt;
+      const left=200,right= open?620:390, top=220,bot=520;
+      if(p.x<left){p.x=left;p.vx*=-1;} if(p.x>right){p.x=right;p.vx*=-1;}
+      if(p.y<top){p.y=top;p.vy*=-1;} if(p.y>bot){p.y=bot;p.vy*=-1;}
+    }
+  },
+  draw(ctx,s,t){
+    rrect(200,220,420,300,8,{stroke:C.grid,w:2,fill:C.panel});
+    if(!s.opened) ln(390,220,390,520,{color:C.amber,w:3}); else ln(390,220,390,232,{color:C.amber,w:3,alpha:.4});
+    for(const p of s.parts) circ(p.x,p.y,4.5,{fill:C.teal});
+    txt(s.opened?'partition removed →':'partition',300,555,{size:15,color:C.amber,align:'center'});
+    // entropy bar rising
+    const filled=clamp01((t-1.5)/3);
+    txt('entropy  S',760,220,{size:16,color:C.purple});
+    rrect(760,235,300,22,6,{stroke:C.grid,w:1.5});
+    rrect(762,237,296*lerp(0.35,1,filled),18,5,{fill:C.purple});
+    formula([{s:'ΔS'},{s:'univ',kind:'sub'},{s:' ≥ 0'}],760,320,32);
+    caption([
+      'Pull the wall: gas floods the empty half and',
+      'never, ever crowds back on its own.',
+      '',
+      'Not because it\'s forbidden mechanically — a',
+      'single ball could return — but because the',
+      '"spread out" arrangements OUTNUMBER the',
+      '"bunched up" ones astronomically.',
+      '',
+      'Entropy = that count of arrangements. It only',
+      'grows. This is the arrow of time itself.'
+    ],760,360,{lh:26,size:16});
+  }
+});
+
+/* 17 · Clausius / Kelvin */
+S({ pillar:P.p3, title:'Two impossible machines — the same law in disguise', menu:'Clausius & Kelvin',
+  draw(ctx,s,t){
+    // left: heat flowing cold->hot alone  (Clausius ✗)
+    const a1=app(t,0.4,.8), a2=app(t,1.6,.8);
+    reservoir(150,220,180,90,C.red,'HOT',a1);
+    reservoir(150,470,180,90,C.blue,'COLD',a1);
+    arrow(240,470,240,310,{color:C.amber,w:3,alpha:a1});
+    txt('heat',270,395,{size:15,color:C.amber,alpha:a1,italic:true,font:FMATH});
+    // big X
+    ctx.save();ctx.globalAlpha=a2; ctx.strokeStyle=C.red;ctx.lineWidth=6;
+    ctx.beginPath();ctx.moveTo(180,340);ctx.lineTo(300,440);ctx.moveTo(300,340);ctx.lineTo(180,440);ctx.stroke();ctx.restore();
+    txt('Clausius:  heat won\'t climb cold → hot for free',240,610,{size:16,color:C.ink,align:'center',alpha:a1});
+
+    // right: engine with only a hot reservoir → 100% work (Kelvin ✗)
+    const a3=app(t,2.6,.8), a4=app(t,3.6,.8);
+    reservoir(760,220,180,90,C.red,'HOT',a3);
+    circ(850,430,55,{stroke:C.green,w:3,alpha:a3}); txt('engine',850,436,{size:15,color:C.green,align:'center',alpha:a3});
+    arrow(850,310,850,375,{color:C.amber,w:3,alpha:a3}); txt('Q',878,345,{size:16,color:C.amber,alpha:a3,italic:true,font:FMATH});
+    arrow(905,430,1010,430,{color:C.green,w:3,alpha:a3}); txt('100% W?',1015,436,{size:15,color:C.green,alpha:a3});
+    ctx.save();ctx.globalAlpha=a4;ctx.strokeStyle=C.red;ctx.lineWidth=6;
+    ctx.beginPath();ctx.moveTo(795,375);ctx.lineTo(905,485);ctx.moveTo(905,375);ctx.lineTo(795,485);ctx.stroke();ctx.restore();
+    txt('Kelvin:  no engine turns heat *entirely* into work',850,610,{size:16,color:C.ink,align:'center',alpha:a3});
+    txt('Both statements are logically equivalent — deny one and you can build the other.',W/2,660,{size:15,color:C.faint,align:'center',alpha:app(t,4.2,1)});
+  }
+});
+
+/* 18 · third law */
+S({ pillar:P.p3, title:'Third Law — you can approach absolute zero, never touch it', menu:'Third law',
+  draw(ctx,s,t){
+    const ox=200,oy=560,w=560,h=380;
+    arrow(ox,oy,ox+w+20,oy,{color:C.dim,w:1.6}); arrow(ox,oy,ox,oy-h-10,{color:C.dim,w:1.6});
+    txt('T  →',ox+w/2,oy+30,{size:15,color:C.dim,align:'center'}); txt('0',ox-4,oy+26,{size:14,color:C.dim,align:'center'});
+    txt('S',ox-24,oy-h,{size:18,color:C.dim,italic:true,font:FMATH});
+    // entropy curve flattening to a floor at T→0
+    const rev=easeOut(clamp01(t/2.2));
+    ctx.save();ctx.strokeStyle=C.purple;ctx.lineWidth=3;ctx.beginPath();
+    for(let u=0;u<=rev;u+=0.01){ const T=u; const x=ox+T*w; const S=Math.sqrt(T)*0.9; const y=oy-S*h; u?ctx.lineTo(x,y):ctx.moveTo(x,y);}
+    ctx.stroke();ctx.restore();
+    // staircase of cooling steps that get smaller (never reach 0)
+    let cx=ox+w*0.9, step=w*0.42; const a=app(t,2.4,1);
+    for(let i=0;i<7;i++){ const nx=cx-step; ln(cx,oy-Math.sqrt((cx-ox)/w)*h*0.9, nx, oy-Math.sqrt((nx-ox)/w)*h*0.9,{color:C.blue,w:2,alpha:a}); cx=nx; step*=0.55; }
+    txt('each cooling step removes less — infinitely many needed',ox+w/2,oy-h-6,{size:14,color:C.blue,align:'center',alpha:a});
+    formula([{s:'S → S'},{s:'0',kind:'sub'},{s:'  as  T → 0'}],860,270,28);
+    caption([
+      'As a perfect crystal cools, its entropy heads to',
+      'a fixed floor (zero for a unique ground state).',
+      '',
+      'Getting there would take infinitely many steps —',
+      'so absolute zero is unreachable in finite time.',
+      '',
+      'Modern labs reach billionths of a kelvin, where',
+      'exotic quantum matter (BECs, superconductors)',
+      'appears — but never a true 0 K.'
+    ],860,320,{lh:26,size:16});
+  }
+});
+
+/* 19 · BRIDGE 3 → engines */
+S({ pillar:P.bridge, title:'', menu:'▸ Bridge: best possible engine?', bridge:true,
+  recap:'Five laws: temperature is real (0th), energy conserves (1st), entropy grows (2nd), 0 K is unreachable (3rd).',
+  gap:'The 2nd law says no engine is perfect — so exactly how good CAN an engine be? Is there a hard ceiling?',
+  fill:['CYCLES & ENGINES','Carnot\'s ceiling and the machines that chase it',C.green] });
+
+/* ================= P3.4 ENGINES ================= */
+
+/* 20 · heat engine schematic */
+S({ pillar:P.p4, title:'A heat engine skims work from a downhill heat flow', menu:'Heat engine',
+  draw(ctx,s,t){
+    reservoir(430,150,420,80,C.red,'HOT reservoir  T_h');
+    reservoir(430,540,420,80,C.blue,'COLD reservoir  T_c');
+    circ(640,385,80,{stroke:C.green,w:3,fill:C.green+'11'});
+    // spinning flywheel
+    const rot=t*2; for(let i=0;i<6;i++){ const a=rot+i*TAU/6; ln(640,385,640+Math.cos(a)*60,385+Math.sin(a)*60,{color:C.green,w:2,alpha:.5}); }
+    txt('engine',640,390,{size:16,color:C.green,align:'center'});
+    // flows
+    const qh=1.0, w=0.4, qc=0.6;
+    arrow(640,230,640,305,{color:C.amber,w:6}); txt('Q_h',680,270,{size:18,color:C.amber,italic:true,font:FMATH});
+    arrow(640,465,640,540,{color:C.blue,w:4}); txt('Q_c',680,505,{size:18,color:C.blue,italic:true,font:FMATH});
+    arrow(720,385,860,385,{color:C.green,w:5}); txt('W',885,390,{size:20,color:C.green,italic:true,font:FMATH});
+    formula([{s:'W = Q'},{s:'h',kind:'sub'},{s:' − Q'},{s:'c',kind:'sub'}],960,300,28);
+    formula([{s:'η = W / Q'},{s:'h',kind:'sub'},{s:' = 1 − Q'},{s:'c',kind:'sub'},{s:'/Q'},{s:'h',kind:'sub'}],960,350,26);
+    caption([
+      'Heat *wants* to flow hot → cold. An engine',
+      'stands in that stream like a water wheel and',
+      'diverts part of it into work.',
+      '',
+      'You cannot divert all of it — some Q_c must be',
+      'dumped to the cold side (that\'s the 2nd law).',
+      'Efficiency η is the fraction you capture.'
+    ],960,400,{lh:25,size:15});
+  }
+});
+
+/* 21 · Carnot cycle */
+S({ pillar:P.p4, title:'The Carnot cycle — the theoretical best, traced out', menu:'Carnot cycle',
+  draw(ctx,s,t){
+    const ox=170,oy=580,w=470,h=430;
+    arrow(ox,oy,ox+w+20,oy,{color:C.dim,w:1.6}); arrow(ox,oy,ox,oy-h-10,{color:C.dim,w:1.6});
+    txt('V',ox+w+8,oy+26,{size:16,color:C.dim,italic:true,font:FMATH}); txt('P',ox-22,oy-h,{size:16,color:C.dim,italic:true,font:FMATH});
+    const X=v=>ox+(v-0.2)/1.0*w, Y=p=>oy-(p-0.15)/1.05*h;
+    // four state points
+    const A=[0.35,1.05],B=[0.6,0.62],Cc=[0.95,0.32],D=[0.55,0.52];
+    // isotherm/adiabat curves approximated by segments through control pts
+    const segs=[[A,B,C.amber,'isothermal expansion · absorb Q_h'],
+                [B,Cc,C.red,'adiabatic expansion · cools'],
+                [Cc,D,C.blue,'isothermal compression · reject Q_c'],
+                [D,A,C.green,'adiabatic compression · heats']];
+    const prog=(t*0.28)%1;
+    const which=Math.floor(prog*4);
+    segs.forEach((sg,i)=>{
+      const done=i<which?1: i===which? (prog*4-which):0;
+      if(done<=0) return;
+      ctx.save();ctx.strokeStyle=sg[2];ctx.lineWidth=3.4;ctx.beginPath();
+      // quadratic-ish via midpoint bow
+      const a=[X(sg[0][0]),Y(sg[0][1])], b=[X(sg[1][0]),Y(sg[1][1])];
+      const mx=(a[0]+b[0])/2, my=(a[1]+b[1])/2 + (i%2? 24:-24);
+      for(let u=0;u<=done;u+=0.02){ const x=(1-u)*(1-u)*a[0]+2*(1-u)*u*mx+u*u*b[0]; const y=(1-u)*(1-u)*a[1]+2*(1-u)*u*my+u*u*b[1]; u?ctx.lineTo(x,y):ctx.moveTo(x,y);}
+      ctx.stroke();ctx.restore();
+    });
+    [A,B,Cc,D].forEach((pt,i)=>{ circ(X(pt[0]),Y(pt[1]),5,{fill:C.ink}); txt(['A','B','C','D'][i],X(pt[0])+10,Y(pt[1])-8,{size:15,color:C.dim}); });
+    // current leg label
+    txt(segs[which][3],ox+w/2,oy-h-8,{size:16,color:segs[which][2],align:'center'});
+    caption([
+      'Four reversible strokes:',
+      '',
+      '1  Absorb Q_h at constant T_h (expand)',
+      '2  Coast adiabatically — cool to T_c',
+      '3  Reject Q_c at constant T_c (compress)',
+      '4  Coast adiabatically — heat back to T_h',
+      '',
+      'The enclosed loop area = net work per cycle.',
+      'No real engine beats a Carnot engine running',
+      'between the same two temperatures.'
+    ],760,240,{lh:25,size:16});
+  }
+});
+
+/* 22 · efficiency + Carnot theorem */
+S({ pillar:P.p4, title:'The ceiling: efficiency depends only on the temperatures', menu:'Carnot efficiency',
+  draw(ctx,s,t){
+    const ratio=lerp(0.9,0.15,(Math.sin(t*0.5)+1)/2); // Tc/Th
+    const eff=1-ratio;
+    // two temperature bars
+    txt('T_h (hot)',260,210,{size:16,color:C.red,align:'center',italic:true,font:FMATH});
+    rrect(200,230,120,300,8,{stroke:C.grid,w:2}); rrect(203,233,114,294,6,{fill:C.red+'55'});
+    txt('T_c (cold)',470,210,{size:16,color:C.blue,align:'center',italic:true,font:FMATH});
+    rrect(410,230,120,300,8,{stroke:C.grid,w:2}); rrect(413,233+294*(1-ratio),114,294*ratio,6,{fill:C.blue+'55'});
+    // efficiency dial
+    txt('efficiency  η',780,210,{size:18,color:C.green});
+    rrect(780,235,320,30,7,{stroke:C.grid,w:1.6}); rrect(783,238,314*eff,24,5,{fill:C.green});
+    txt(Math.round(eff*100)+'%',1110,258,{size:22,color:C.green,align:'left'});
+    formula([{s:'η'},{s:'Carnot',kind:'sub'},{s:' = 1 − '},{s:'T'},{s:'c',kind:'sub'},{s:' / '},{s:'T'},{s:'h',kind:'sub'}],780,340,34);
+    caption([
+      'Slide the cold reservoir down and efficiency',
+      'climbs — but you only hit 100% at T_c = 0 K,',
+      'which the 3rd law forbids. So perfection is',
+      'doubly impossible.',
+      '',
+      'This is why power plants run boilers as hot as',
+      'materials allow and dump into rivers / cooling',
+      'towers as cold as possible: every degree of',
+      'spread is free efficiency.'
+    ],780,390,{lh:25,size:16});
+  }
+});
+
+/* 23 · fridge / heat pump */
+S({ pillar:P.p4, title:'Run it backwards — refrigerators & heat pumps', menu:'Fridges & heat pumps',
+  draw(ctx,s,t){
+    reservoir(360,150,360,80,C.red,'warm room  /  outdoors');
+    reservoir(360,540,360,80,C.blue,'cold interior');
+    circ(540,385,72,{stroke:C.purple,w:3,fill:C.purple+'11'}); txt('compressor',540,390,{size:14,color:C.purple,align:'center'});
+    // reversed flows: pump heat UP using work
+    arrow(540,540,540,457,{color:C.blue,w:5}); txt('Q_c',495,505,{size:17,color:C.blue,align:'right',italic:true,font:FMATH});
+    arrow(540,313,540,230,{color:C.amber,w:5}); txt('Q_h',495,275,{size:17,color:C.amber,align:'right',italic:true,font:FMATH});
+    arrow(720,385,612,385,{color:C.green,w:5}); txt('W in',740,390,{size:17,color:C.green,italic:true,font:FMATH});
+    formula([{s:'COP'},{s:'fridge',kind:'sub'},{s:' = Q'},{s:'c',kind:'sub'},{s:'/W'}],820,290,26);
+    formula([{s:'COP'},{s:'pump',kind:'sub'},{s:' = Q'},{s:'h',kind:'sub'},{s:'/W'}],820,340,26);
+    caption([
+      'Same hardware, reversed. Spend work W to *force*',
+      'heat uphill — from cold to hot.',
+      '',
+      'A fridge cares about Q_c pulled from inside.',
+      'A heat pump cares about Q_h delivered to your',
+      'house — and cleverly, COP_pump > 1: you get',
+      'MORE heat out than the electricity you put in,',
+      'because you\'re moving heat, not making it.'
+    ],820,395,{lh:25,size:15});
+  }
+});
+
+/* 24 · real cycles */
+S({ pillar:P.p4, title:'Real engines are cousins of Carnot', menu:'Otto · Diesel · Brayton · Rankine',
+  draw(ctx,s,t){
+    const cells=[
+      ['Otto','petrol car engine',C.green,'spark ignition · constant-V heat'],
+      ['Diesel','trucks, ships, gensets',C.amber,'compression ignition · constant-P burn'],
+      ['Brayton','jet & gas turbines',C.blue,'continuous flow · constant-P combustion'],
+      ['Rankine','steam power plants',C.red,'water ↔ steam · the world\'s electricity'],
+    ];
+    const x0=190,y0=200,cw=440,ch=180,gx=470,gy=210;
+    cells.forEach((cl,i)=>{
+      const col=i%2,row=(i/2)|0; const x=x0+col*gx,y=y0+row*gy;
+      const a=app(t,0.2+i*0.4,0.6);
+      rrect(x,y,cw,ch,10,{stroke:cl[2],w:1.6,fill:cl[2]+'12',alpha:a});
+      txt(cl[0],x+22,y+42,{size:24,color:cl[2],alpha:a,weight:700});
+      txt(cl[1],x+22,y+72,{size:16,color:C.ink,alpha:a});
+      txt(cl[3],x+22,y+104,{size:14,color:C.dim,alpha:a});
+      // mini PV loop
+      const mx=x+cw-120,my=y+ch-40;
+      ctx.save();ctx.globalAlpha=a;ctx.strokeStyle=cl[2];ctx.lineWidth=2;ctx.beginPath();
+      ctx.moveTo(mx,my); ctx.lineTo(mx+70,my-20); ctx.lineTo(mx+80,my-70); ctx.lineTo(mx+20,my-80); ctx.closePath(); ctx.stroke();ctx.restore();
+    });
+    txt('Each trades a bit of Carnot\'s efficiency for something practical: burnable fuel, continuous flow, cheap water.',
+      W/2,660,{size:15,color:C.faint,align:'center',alpha:app(t,2.2,1)});
+  }
+});
+
+/* 25 · BRIDGE 4 → potentials */
+S({ pillar:P.bridge, title:'', menu:'▸ Bridge: one measure of useful energy?', bridge:true,
+  recap:'We can rate any engine, fridge or heat pump against the Carnot ceiling.',
+  gap:'Engines juggle energy AND entropy at once. Is there a *single* quantity that already bakes in "how much useful work is left"?',
+  fill:['THERMODYNAMIC POTENTIALS','U, H, F, G — pick the one your constraints demand',C.blue] });
+
+/* ================= P3.5 POTENTIALS ================= */
+
+/* 26 · the four potentials */
+S({ pillar:P.p5, title:'Four potentials — each tuned to what you hold fixed', menu:'The four potentials',
+  draw(ctx,s,t){
+    const cells=[
+      ['U','internal energy','isolated · fixed S, V',C.teal,'the raw jiggle'],
+      ['H = U + PV','enthalpy','fixed S, P','H',C.amber,'heat at constant pressure'],
+      ['F = U − TS','Helmholtz free energy','fixed T, V',C.blue,'work you can extract'],
+      ['G = H − TS','Gibbs free energy','fixed T, P',C.purple,'chemistry & phase changes'],
+    ];
+    const map=[
+      ['U','internal energy','held: S, V','the raw stored jiggle',C.teal],
+      ['H = U + PV','enthalpy','held: S, P','heat exchange at const. pressure',C.amber],
+      ['F = U − TS','Helmholtz free energy','held: T, V','max work from a closed box',C.blue],
+      ['G = H − TS','Gibbs free energy','held: T, P','reactions & phase equilibria',C.purple],
+    ];
+    const x0=180,y0=195,cw=440,ch=195,gx=470,gy=220;
+    map.forEach((m,i)=>{ const col=i%2,row=(i/2)|0; const x=x0+col*gx,y=y0+row*gy; const a=app(t,0.2+i*0.45,.6);
+      rrect(x,y,cw,ch,10,{stroke:m[4],w:1.6,fill:m[4]+'12',alpha:a});
+      formula([{s:m[0]}],x+22,y+52,30,{alpha:a,color:C.ink});
+      txt(m[1],x+22,y+86,{size:17,color:m[4],alpha:a,weight:600});
+      txt(m[2],x+22,y+120,{size:15,color:C.dim,alpha:a});
+      txt('→ '+m[3],x+22,y+152,{size:15,color:C.ink,alpha:a,italic:true,font:FMATH});
+    });
+    txt('Rule of thumb: nature *minimizes* the potential matched to your fixed variables — like a ball rolling to the lowest point.',
+      W/2,668,{size:15,color:C.faint,align:'center',alpha:app(t,2.4,1)});
+  }
+});
+
+/* 27 · Legendre transform intuition */
+S({ pillar:P.p5, title:'How they\'re related — trade a variable for its "price"', menu:'Legendre transform',
+  draw(ctx,s,t){
+    const ox=200,oy=560,w=520,h=380;
+    arrow(ox,oy,ox+w+20,oy,{color:C.dim,w:1.6}); arrow(ox,oy,ox,oy-h-10,{color:C.dim,w:1.6});
+    txt('V',ox+w+8,oy+26,{size:16,color:C.dim,italic:true,font:FMATH}); txt('U',ox-22,oy-h,{size:16,color:C.dim,italic:true,font:FMATH});
+    // curve U(V)
+    const f=v=>0.2+1.1*(v-0.5)*(v-0.5);
+    ctx.save();ctx.strokeStyle=C.teal;ctx.lineWidth=3;ctx.beginPath();
+    for(let v=0.05;v<=0.95;v+=0.01){ const x=ox+v*w,y=oy-f(v)*h; v<0.06?ctx.moveTo(x,y):ctx.lineTo(x,y);} ctx.stroke();ctx.restore();
+    // moving tangent line (slope = −P): shows swapping V for slope
+    const v0=lerp(0.2,0.8,(Math.sin(t*0.6)+1)/2);
+    const slope=2*1.1*(v0-0.5), y0=f(v0);
+    const tx=v=> y0+slope*(v-v0);
+    ln(ox+0.05*w,oy-tx(0.05)*h, ox+0.95*w, oy-tx(0.95)*h,{color:C.amber,w:2,dash:[6,6]});
+    circ(ox+v0*w,oy-y0*h,6,{fill:C.amber});
+    txt('slope = −P',ox+v0*w+14,oy-y0*h-12,{size:15,color:C.amber,italic:true,font:FMATH});
+    formula([{s:'F = U − '},{s:'∂U/∂V'},{s:'· V'}],780,250,24);
+    caption([
+      'Sometimes you don\'t control V — you control the',
+      '*pressure* pushing on it. A Legendre transform',
+      'rewrites U(V) into a new function of the slope',
+      '(the pressure) instead.',
+      '',
+      'That single trick generates H, F, and G from U.',
+      'Same physics, re-expressed in the variables you',
+      'can actually hold fixed on the lab bench.'
+    ],780,300,{lh:25,size:16});
+  }
+});
+
+/* 28 · Maxwell relations (square) */
+S({ pillar:P.p5, title:'Maxwell relations — a mnemonic square of hidden links', menu:'Maxwell relations',
+  draw(ctx,s,t){
+    const cx=420,cy=380,r=150;
+    // corners: V (TL) T (TR) ; S (BL) P (BR) with potentials on edges
+    const corners=[['V',cx-r,cy-r],['T',cx+r,cy-r],['S',cx-r,cy+r],['P',cx+r,cy+r]];
+    rrect(cx-r,cy-r,2*r,2*r,4,{stroke:C.grid,w:2});
+    const edges=[['F',cx,cy-r-4,C.blue],['G',cx+r+18,cy,C.purple],['H',cx,cy+r+22,C.amber],['U',cx-r-18,cy,C.teal]];
+    edges.forEach(e=>txt(e[0],e[1],e[2],{size:22,color:e[3],align:'center',italic:true,font:FMATH}));
+    corners.forEach(c=>{ circ(c[1],c[2],4,{fill:C.ink}); txt(c[0],c[1]+ (c[1]<cx?-20:20), c[2]+(c[2]<cy?-14:24),{size:22,color:C.ink,align:'center',italic:true,font:FMATH}); });
+    // diagonal arrows
+    arrow(cx-r,cy+r,cx+r,cy-r,{color:C.dim,w:1.5,alpha:.5});
+    arrow(cx-r,cy-r,cx+r,cy+r,{color:C.dim,w:1.5,alpha:.5});
+    // example relation
+    formula([{s:'( ∂T/∂V )'},{s:'S',kind:'sub'},{s:' = − ( ∂P/∂S )'},{s:'V',kind:'sub'}],780,300,26,{color:C.ink});
+    caption([
+      'The four potentials, differentiated, must be',
+      'self-consistent (mixed partials commute). That',
+      'forces exact equalities between quantities that',
+      'look unrelated.',
+      '',
+      'Payoff: measure something easy (how volume',
+      'changes with temperature) and you instantly',
+      'KNOW something hard to measure (how entropy',
+      'changes with pressure). Free information.'
+    ],780,350,{lh:25,size:16});
+  }
+});
+
+/* 29 · chemical potential / phase diagram */
+S({ pillar:P.p5, title:'Phase diagrams — where solid, liquid & gas trade places', menu:'Phase equilibria',
+  draw(ctx,s,t){
+    const ox=200,oy=560,w=520,h=400;
+    arrow(ox,oy,ox+w+20,oy,{color:C.dim,w:1.6}); arrow(ox,oy,ox,oy-h-10,{color:C.dim,w:1.6});
+    txt('T →',ox+w,oy+28,{size:15,color:C.dim}); txt('P',ox-22,oy-h,{size:16,color:C.dim,italic:true,font:FMATH});
+    const triple=[ox+0.32*w, oy-0.34*h], crit=[ox+0.82*w, oy-0.8*h];
+    // boundaries
+    ln(triple[0],triple[1], ox+0.28*w, oy-h,{color:C.blue,w:2.5});      // fusion (solid/liquid, near-vertical)
+    ln(triple[0],triple[1], crit[0],crit[1],{color:C.red,w:2.5});        // vaporization
+    ln(triple[0],triple[1], ox, oy-0.02*h,{color:C.teal,w:2.5});         // sublimation
+    circ(triple[0],triple[1],5,{fill:C.ink}); txt('triple point',triple[0]-6,triple[1]-14,{size:13,color:C.dim,align:'right'});
+    circ(crit[0],crit[1],5,{fill:C.amber}); txt('critical point',crit[0]+10,crit[1]-4,{size:13,color:C.amber});
+    // region labels
+    txt('SOLID',ox+0.12*w,oy-0.6*h,{size:16,color:C.blue,align:'center'});
+    txt('LIQUID',ox+0.55*w,oy-0.6*h,{size:16,color:C.teal,align:'center'});
+    txt('GAS',ox+0.55*w,oy-0.14*h,{size:16,color:C.red,align:'center'});
+    // moving dot crossing a boundary
+    const px=ox+lerp(0.15,0.75,(Math.sin(t*0.6)+1)/2)*w, py=oy-0.45*h;
+    circ(px,py,6,{fill:C.ink});
+    formula([{s:'dP/dT = L / ( T ΔV )'}],790,270,24);
+    caption([
+      'Lines mark where two phases coexist — where',
+      'their *chemical potentials* μ are equal.',
+      '',
+      'Clausius–Clapeyron gives each line\'s slope from',
+      'the latent heat L. It explains why ice melts',
+      'under pressure (skate blades) and why water',
+      'boils cooler on a mountain.',
+      '',
+      'Past the critical point, liquid & gas merge into',
+      'one supercritical fluid.'
+    ],790,315,{lh:24,size:15});
+  }
+});
+
+/* 30 · van der Waals */
+S({ pillar:P.p5, title:'Real gases misbehave — the van der Waals fix', menu:'Real gases',
+  draw(ctx,s,t){
+    const ox=200,oy=560,w=520,h=400;
+    arrow(ox,oy,ox+w+20,oy,{color:C.dim,w:1.6}); arrow(ox,oy,ox,oy-h-10,{color:C.dim,w:1.6});
+    txt('V →',ox+w,oy+28,{size:15,color:C.dim}); txt('P',ox-22,oy-h,{size:16,color:C.dim,italic:true,font:FMATH});
+    // ideal hyperbola (dim)
+    ctx.save();ctx.strokeStyle=C.dim;ctx.lineWidth=1.6;ctx.setLineDash([5,5]);ctx.beginPath();
+    for(let v=0.12;v<=0.95;v+=0.01){ const p=0.14/v; const x=ox+v*w,y=oy-p*h; v<0.13?ctx.moveTo(x,y):ctx.lineTo(x,y);} ctx.stroke();ctx.restore();
+    txt('ideal',ox+0.8*w,oy-0.22*h,{size:13,color:C.dim});
+    // vdW isotherm with a wiggle below Tc
+    const wig=smooth((Math.sin(t*0.5)+1)/2); // 0 = above Tc smooth, 1 = strong wiggle
+    ctx.save();ctx.strokeStyle=C.teal;ctx.lineWidth=3;ctx.beginPath();
+    for(let v=0.16;v<=0.95;v+=0.008){ let p=0.14/(v-0.08) - 0.05/(v*v); p+= Math.sin((v-0.16)/0.79*Math.PI*2)* -0.06*wig*(v>0.22&&v<0.7?1:0); const x=ox+v*w,y=oy-clamp01(p)*h; v<0.17?ctx.moveTo(x,y):ctx.lineTo(x,y);} ctx.stroke();ctx.restore();
+    txt('van der Waals',ox+0.5*w,oy-0.72*h,{size:14,color:C.teal});
+    formula([{s:'( P + a/V'},{s:'²',kind:'sup'},{s:' )( V − b ) = RT'}],790,260,24);
+    caption([
+      'Real molecules take up space (subtract b) and',
+      'weakly attract each other (the +a/V² term).',
+      '',
+      'Below the critical temperature the isotherm',
+      'develops a wiggle — the signature of gas',
+      'condensing into liquid. From a and b you can',
+      'even predict the critical point.',
+      '',
+      'Same spirit throughout: start ideal, then add',
+      'the corrections reality demands.'
+    ],790,300,{lh:24,size:15});
+  }
+});
+
+/* 31 · BRIDGE 5 → stat mech */
+S({ pillar:P.bridge, title:'', menu:'▸ Bridge: where did entropy come from?', bridge:true,
+  recap:'We now have a full toolkit of potentials, Maxwell relations, phase diagrams and real-gas corrections.',
+  gap:'But all of it treats matter as smooth bulk. Entropy secretly came from *counting arrangements*. Counting what, exactly — and how does that build every law above?',
+  fill:['STATISTICAL MECHANICS','derive all of thermodynamics by counting microstates',C.purple] });
+
+/* ================= P3.6 STAT MECH ================= */
+
+/* 32 · microstates / macrostates */
+S({ pillar:P.p6, title:'Macrostate = what you see. Microstate = the fine print', menu:'Micro vs macrostates',
+  draw(ctx,s,t){
+    // 4 particles, each L or R -> 16 microstates, macrostate = # on left
+    const macro=Math.floor((t*0.5)%5); // 0..4 on left, cycles
+    // draw two boxes
+    rrect(180,220,300,240,8,{stroke:C.grid,w:2,fill:C.panel});
+    ln(330,220,330,460,{color:C.grid,w:1.5,dash:[4,4]});
+    txt('LEFT',255,210,{size:14,color:C.dim,align:'center'}); txt('RIGHT',405,210,{size:14,color:C.dim,align:'center'});
+    // show one representative arrangement
+    for(let i=0;i<4;i++){ const left=i<macro; const bx=left?255:405; const by=250+i*48; circ(bx+ (i%2?20:-20),by,10,{fill:left?C.blue:C.red}); }
+    txt('macrostate: '+macro+' on the left',330,490,{size:16,color:C.ink,align:'center'});
+    // multiplicity bar chart 1,4,6,4,1
+    const W_=[1,4,6,4,1]; const ox=640,oy=470;
+    txt('# of microstates Ω for each macrostate',ox+150,220,{size:15,color:C.purple,align:'center'});
+    W_.forEach((wv,i)=>{ const bh=wv*40; const x=ox+i*90; const a=app(t,0.3+i*0.2,.5);
+      rrect(x,oy-bh,60,bh,4,{fill:i===macro?C.purple:C.purple+'44',alpha:a});
+      txt(wv,x+30,oy-bh-10,{size:16,color:C.ink,align:'center',alpha:a});
+      txt(i,x+30,oy+24,{size:14,color:C.dim,align:'center',alpha:a});
+    });
+    txt('"on left"',ox+225,oy+50,{size:13,color:C.dim,align:'center'});
+    caption([
+      'Four particles, each free to be left or right:',
+      '16 microstates in all.',
+      '',
+      'The even split (2–2) can happen 6 ways; all-left',
+      'only 1 way. So "spread out" is simply the',
+      'macrostate with the most microstates — and',
+      'that\'s where the system spends its time.'
+    ],640,540,{lh:24,size:15});
+  }
+});
+
+/* 33 · Boltzmann entropy */
+S({ pillar:P.p6, title:'Boltzmann\'s bridge — entropy is literally log of count', menu:'S = k ln Ω',
+  draw(ctx,s,t){
+    // big equation center
+    formula([{s:'S = k'},{s:'B',kind:'sub'},{s:' ln Ω'}],W/2,300,60,{align:'center'});
+    txt('macroscopic entropy',W/2-260,360,{size:15,color:C.blue,align:'center'});
+    txt('number of microstates',W/2+240,360,{size:15,color:C.purple,align:'center'});
+    arrow(W/2-260,345,W/2-150,315,{color:C.blue,w:1.5,alpha:app(t,1,1)});
+    arrow(W/2+240,345,W/2+120,315,{color:C.purple,w:1.5,alpha:app(t,1,1)});
+    caption([
+      'This single line — carved on Boltzmann\'s gravestone — connects the two worlds.',
+      '',
+      'Why the log? Counts *multiply* when systems combine (Ω = Ω₁ × Ω₂),',
+      'but entropy should *add* (S = S₁ + S₂). Only the log converts one to the other.',
+      '',
+      'Every result we met — the ideal gas law, the 2nd law, the free energies —',
+      'falls straight out of counting microstates and taking this logarithm.'
+    ],W/2,420,{lh:30,size:17,align:'center'});
+  }
+});
+
+/* 34 · ensembles */
+S({ pillar:P.p6, title:'Ensembles — pick your bookkeeping by what can flow', menu:'Ensembles',
+  draw(ctx,s,t){
+    const cells=[
+      ['Microcanonical','isolated box','fixed  E, N, V','nothing crosses the wall',C.blue],
+      ['Canonical','box in a heat bath','fixed  T, N, V','energy flows in & out',C.amber],
+      ['Grand canonical','open to a reservoir','fixed  T, μ, V','energy AND particles flow',C.purple],
+    ];
+    const x0=140,y0=210,cw=340,ch=250,gx=370;
+    cells.forEach((c,i)=>{ const x=x0+i*gx,y=y0; const a=app(t,0.2+i*0.5,.6);
+      rrect(x,y,cw,ch,10,{stroke:c[4],w:1.6,fill:c[4]+'10',alpha:a});
+      txt(c[0],x+cw/2,y+40,{size:20,color:c[4],align:'center',weight:700,alpha:a});
+      // little diagram: system inside reservoir
+      const dcx=x+cw/2, dcy=y+120;
+      if(i>0) rrect(dcx-90,dcy-45,180,90,8,{stroke:c[4],w:1,alpha:a*0.5}); // reservoir
+      rrect(dcx-40,dcy-25,80,50,6,{fill:c[4]+'33',stroke:c[4],w:1.5,alpha:a});
+      txt('sys',dcx,dcy+5,{size:14,color:C.ink,align:'center',alpha:a});
+      if(i>=1) arrow(dcx-70,dcy,dcx-45,dcy,{color:C.amber,w:1.5,alpha:a}); // energy
+      if(i>=2) arrow(dcx+70,dcy,dcx+45,dcy,{color:C.purple,w:1.5,alpha:a}); // particles
+      txt(c[2],x+cw/2,y+195,{size:15,color:C.ink,align:'center',alpha:a,italic:true,font:FMATH});
+      txt(c[3],x+cw/2,y+222,{size:13,color:C.dim,align:'center',alpha:a});
+    });
+    txt('All three agree for large systems — you just choose the one whose fixed variables match your setup.',
+      W/2,540,{size:16,color:C.faint,align:'center',alpha:app(t,1.8,1)});
+    txt('The canonical ensemble (fixed T) is the everyday workhorse.',W/2,572,{size:15,color:C.dim,align:'center',alpha:app(t,2.2,1)});
+  }
+});
+
+/* 35 · partition function */
+S({ pillar:P.p6, title:'The partition function Z — thermodynamics in one sum', menu:'Partition function',
+  draw(ctx,s,t){
+    // energy ladder with Boltzmann-weighted occupancy
+    const ox=220,oy=560,levels=6;
+    const T=lerp(0.4,1.6,(Math.sin(t*0.5)+1)/2);
+    txt('energy levels',ox-40,180,{size:14,color:C.dim});
+    let Z=0; const ws=[]; for(let i=0;i<levels;i++){ const E=i; const w=Math.exp(-E/T); ws.push(w); Z+=w; }
+    for(let i=0;i<levels;i++){ const y=oy-i*62; ln(ox,y,ox+140,y,{color:C.grid,w:2});
+      // occupancy bar (probability)
+      const p=ws[i]/Z; rrect(ox+160,y-14,260*p*3,20,4,{fill:C.purple}); 
+      txt('E'+ '₀₁₂₃₄₅'[i],ox-14,y+6,{size:16,color:C.dim,align:'right',italic:true,font:FMATH});
+      txt('e^(−E/kT)',ox+160+260*p*3+10,y+6,{size:12,color:C.dim,align:'left'});
+    }
+    txt('higher T → upper levels fill',ox+70,oy+40,{size:14,color:C.purple,align:'center'});
+    formula([{s:'Z = Σ'},{s:'i',kind:'sub'},{s:' e'},{s:'−E',kind:'sup'},{s:'i',kind:'sup'},{s:'/k',kind:'sup'},{s:'B',kind:'sup'},{s:'T',kind:'sup'}],770,250,28);
+    caption([
+      'Weight every microstate by its Boltzmann factor',
+      'e^(−E/kT) — low energy = likely, high = rare —',
+      'and add them up. That sum is Z.',
+      '',
+      'Z is the master key: once you have it,',
+      '   • free energy  F = −k_BT ln Z',
+      '   • average energy  ⟨E⟩ = −∂ ln Z / ∂β',
+      '   • entropy, pressure, heat capacity …',
+      '',
+      'ALL of thermodynamics is derivatives of ln Z.'
+    ],770,300,{lh:24,size:15});
+  }
+});
+
+/* 36 · quantum statistics */
+S({ pillar:P.p6, title:'Two kinds of particle — pilers and loners', menu:'Bose–Einstein & Fermi–Dirac',
+  draw(ctx,s,t){
+    // left: bosons pile into lowest level ; right: fermions stack one per state
+    txt('BOSONS',330,190,{size:18,color:C.teal,align:'center'}); txt('photons, helium-4, BEC',330,214,{size:13,color:C.dim,align:'center'});
+    txt('FERMIONS',930,190,{size:18,color:C.amber,align:'center'}); txt('electrons, protons',930,214,{size:13,color:C.dim,align:'center'});
+    const oyL=560, oyR=560;
+    for(let i=0;i<5;i++){ const y=oyL-i*70; ln(230,y,430,y,{color:C.grid,w:2}); ln(830,y,1030,y,{color:C.grid,w:2}); }
+    const fill=easeOut(clamp01(t/2));
+    // bosons: many condense to ground level
+    const nb=Math.round(9*fill);
+    for(let i=0;i<nb;i++){ const col=i%5, row=Math.min(1,(i/5)|0); circ(255+col*35, oyL-6-row*8, 9,{fill:C.teal}); }
+    // fermions: one per state, fill up like a sea (Pauli)
+    const nf=Math.round(8*fill);
+    for(let i=0;i<nf;i++){ const lvl=(i/2)|0; const side=i%2; circ(880+side*70, oyR-lvl*70-6, 9,{fill:C.amber}); }
+    txt('all crowd the ground state',330,600,{size:14,color:C.teal,align:'center'});
+    txt('one per state → a "Fermi sea"',930,600,{size:14,color:C.amber,align:'center'});
+    formula([{s:'n = 1 / ( e'},{s:'(ε−μ)/kT',kind:'sup'},{s:' ∓ 1 )'}],W/2,255,26,{align:'center'});
+    txt('−1 : bosons        +1 : fermions',W/2,290,{size:15,color:C.dim,align:'center'});
+    caption([
+      'One flipped sign reshapes the universe. Bosons pile up → lasers, superfluids, BECs.',
+      'Fermions refuse to share → the electron shells of chemistry, metals, and the',
+      'degeneracy pressure that holds up white-dwarf stars against gravity.'
+    ],W/2,645,{lh:23,size:15,align:'center'});
+  }
+});
+
+/* 37 · Ising / phase transition */
+S({ pillar:P.p6, title:'Order from cooling — the Ising model & phase transitions', menu:'Ising model',
+  init(s){ s.grid=[]; const N=16; s.N=N; for(let i=0;i<N*N;i++) s.grid.push(Math.random()<.5?1:-1); s.acc=0;},
+  update(s,dt,t){
+    const T=lerp(2.6,0.6,smooth(clamp01((t-0.5)/6)));  // cool down
+    s.T=T; s.acc+=dt;
+    // a few Metropolis-ish sweeps
+    const N=s.N; let iters=300;
+    while(iters-->0){ const i=(Math.random()*N)|0, j=(Math.random()*N)|0, k=i*N+j;
+      let sum=0; if(i>0)sum+=s.grid[(i-1)*N+j]; if(i<N-1)sum+=s.grid[(i+1)*N+j]; if(j>0)sum+=s.grid[i*N+j-1]; if(j<N-1)sum+=s.grid[i*N+j+1];
+      const dE=2*s.grid[k]*sum; if(dE<=0||Math.random()<Math.exp(-dE/T)) s.grid[k]*=-1;
+    }
+  },
+  draw(ctx,s,t){
+    const N=s.N, ox=200,oy=210, cell=22;
+    let mag=0;
+    for(let i=0;i<N;i++)for(let j=0;j<N;j++){ const v=s.grid[i*N+j]; mag+=v;
+      rrect(ox+j*cell,oy+i*cell,cell-2,cell-2,3,{fill:v>0?C.blue:C.red}); }
+    mag=Math.abs(mag)/(N*N);
+    // temperature + magnetization gauges
+    txt('temperature  T',760,220,{size:16,color:C.dim}); rrect(760,235,300,20,5,{stroke:C.grid,w:1.4}); rrect(762,237,296*clamp01((s.T-0.5)/2.2),16,4,{fill:C.amber});
+    txt('order  |M|',760,300,{size:16,color:C.dim}); rrect(760,315,300,20,5,{stroke:C.grid,w:1.4}); rrect(762,317,296*mag,16,4,{fill:C.green});
+    txt(s.T>1.4?'above T_c : disordered':'below T_c : ordered',760,375,{size:18,color:s.T>1.4?C.red:C.green,italic:true,font:FMATH});
+    caption([
+      'Each cell is a tiny magnet nudged to align with',
+      'its neighbours, fought by thermal noise.',
+      '',
+      'Cool past the critical temperature T_c and — with',
+      'no outside field — the whole grid spontaneously',
+      'picks a direction. Order emerges from nowhere.',
+      '',
+      'This "phase transition" template explains magnets,',
+      'superconductors, boiling, even flocking & opinion',
+      'dynamics. Collective behaviour ≠ sum of parts.'
+    ],760,410,{lh:24,size:15});
+  }
+});
+
+/* ================= APPLICATIONS ================= */
+S({ pillar:P.app, title:'Where all of this actually runs the world', menu:'Applications',
+  draw(ctx,s,t){
+    const apps=[
+      ['⚡','Power plants','Rankine/Brayton cycles turn heat → grid electricity',C.red],
+      ['❄','HVAC & refrigeration','reversed cycles + COP cool homes, food, data centers',C.blue],
+      ['🔩','Materials & alloys','phase diagrams & Gibbs energy design steel, ceramics',C.amber],
+      ['⚗','Chemical process eng.','reactions run where ΔG < 0; equilibria set yields',C.teal],
+      ['💻','Semiconductors','Fermi–Dirac statistics govern every transistor',C.purple],
+      ['🌍','Climate & energy','entropy sets the ceiling on every efficiency gain',C.green],
+    ];
+    const x0=170,y0=200,cw=440,ch=118,gx=470,gy=140;
+    apps.forEach((a,i)=>{ const col=i%2,row=(i/2)|0; const x=x0+col*gx,y=y0+row*gy; const al=app(t,0.2+i*0.3,.6);
+      rrect(x,y,cw,ch,10,{stroke:a[3],w:1.5,fill:a[3]+'10',alpha:al});
+      txt(a[0],x+34,y+70,{size:34,align:'center',alpha:al});
+      txt(a[1],x+68,y+48,{size:21,color:a[3],alpha:al,weight:600});
+      txt(a[2],x+68,y+80,{size:14,color:C.dim,alpha:al});
+    });
+    txt('Every one is the same story: track the micro, obey the entropy ceiling, extract the useful work.',
+      W/2,672,{size:15,color:C.faint,align:'center',alpha:app(t,2.2,1)});
+  }
+});
+
+/* ================= FINALE / RECAP ================= */
+S({ pillar:P.intro, title:'The whole picture, in one breath', menu:'Grand recap',
+  draw(ctx,s,t){
+    // micro -> macro spine
+    const a=app(t,0.3,1);
+    txt('atoms in motion',260,300,{size:22,color:C.teal,align:'center',alpha:a,italic:true,font:FMATH});
+    arrow(400,300,540,300,{color:C.dim,w:2,alpha:a});
+    txt('count the states',680,300,{size:22,color:C.purple,align:'center',alpha:app(t,0.9,1),italic:true,font:FMATH});
+    arrow(830,300,970,300,{color:C.dim,w:2,alpha:app(t,0.9,1)});
+    txt('exact laws',1080,300,{size:22,color:C.amber,align:'center',alpha:app(t,1.5,1),italic:true,font:FMATH});
+    // three keystone equations
+    const eqs=[[[{s:'S = k'},{s:'B',kind:'sub'},{s:' ln Ω'}],C.purple],
+               [[{s:'ΔU = Q − W'}],C.teal],
+               [[{s:'η ≤ 1 − T'},{s:'c',kind:'sub'},{s:'/T'},{s:'h',kind:'sub'}],C.green]];
+    eqs.forEach((e,i)=>{ const y=430+i*60; const al=app(t,2.2+i*0.5,1);
+      formula(e[0],W/2,y,34,{align:'center',color:e[1],alpha:al}); });
+    txt('Counting → S = k ln Ω → the arrow of time → the limits of every engine ever built.',
+      W/2,650,{size:16,color:C.ink,align:'center',alpha:app(t,4,1),italic:true,font:FMATH});
+    txt('Learn it once at this depth and the entire subject becomes one idea, richly decorated.',
+      W/2,682,{size:14,color:C.faint,align:'center',alpha:app(t,4.6,1)});
+  }
+});
+
+/* ============================================================
+   CHROME + LOOP
+   ============================================================ */
+let idx=0, slideStart=performance.now(), st={}, last=performance.now();
+
+function drawBridge(sl,t){
+  // RECAP / GAP / FILL cliffhanger
+  txt('RECAP',W/2,150,{size:14,color:C.dim,align:'center',letterSpacing:2,weight:700,alpha:app(t,0.2,.6)});
+  wrapText(sl.recap, W/2, 190, 900, 30, {size:22,color:C.ink,align:'center',alpha:app(t,0.4,.8),italic:true,font:FMATH});
+  // gap
+  const ga=app(t,2.2,.8);
+  txt('GAP',W/2,320,{size:14,color:C.amber,align:'center',weight:700,alpha:ga});
+  wrapText(sl.gap, W/2, 362, 940, 34, {size:25,color:C.amber,align:'center',alpha:ga,italic:true,font:FMATH});
+  // a widening void to visualize the missing piece
+  const va=app(t,3.0,1);
+  ln(W/2-160,470,W/2-40,470,{color:C.amber,w:2,alpha:va*0.6});
+  ln(W/2+40,470,W/2+160,470,{color:C.amber,w:2,alpha:va*0.6});
+  txt('?',W/2,482,{size:34,color:C.amber,align:'center',alpha:va});
+  // fill
+  const fa=app(t,4.4,1);
+  if(fa>0.01){
+    const yF=lerp(650,560,easeOut(app(t,4.4,1)));
+    txt('FILL',W/2,yF-46,{size:14,color:sl.fill[2],align:'center',weight:700,alpha:fa});
+    txt(sl.fill[0],W/2,yF,{size:34,color:sl.fill[2],align:'center',weight:700,alpha:fa});
+    txt(sl.fill[1],W/2,yF+34,{size:17,color:C.dim,align:'center',alpha:fa,italic:true,font:FMATH});
+    arrow(W/2,505,W/2,yF-60,{color:sl.fill[2],w:2,alpha:fa});
+  }
+}
+function wrapText(str,cx,y,maxw,lh,o){
+  ctx.save(); ctx.font=`${o.italic?'italic ':''}${o.size}px ${o.font||FUI}`;
+  const words=str.split(' '); let line='',lines=[];
+  for(const w of words){ const test=line?line+' '+w:w; if(ctx.measureText(test).width>maxw){lines.push(line);line=w;} else line=test; }
+  if(line)lines.push(line); ctx.restore();
+  lines.forEach((L,i)=>txt(L,cx,y+i*lh,o));
+}
+
+function frame(now){
+  let dt=(now-last)/1000; last=now; if(dt>0.05)dt=0.05;
+  const t=(now-slideStart)/1000;
+  const sl=slides[idx];
+  // background
+  ctx.fillStyle=C.bg; ctx.fillRect(0,0,W,H);
+  // subtle vignette
+  const g=ctx.createRadialGradient(W/2,H/2,200,W/2,H/2,820);
+  g.addColorStop(0,'rgba(255,255,255,0.015)'); g.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+
+  try{
+    if(sl.update) sl.update(st,dt,t);
+    // chrome: pillar + title
+    if(!sl.bridge){
+      txt(sl.pillar.toUpperCase(),64,54,{size:13,color:C.amber,weight:700});
+      if(sl.title) txt(sl.title,64,90,{size:26,color:C.ink,weight:600});
+      ln(64,104,1216,104,{color:C.grid,w:1});
+    }
+    if(sl.bridge) drawBridge(sl,t); else sl.draw(ctx,st,t);
+  }catch(e){
+    txt('⚠ slide error: '+e.message,W/2,H/2,{size:16,color:C.red,align:'center'});
+    if(!frame._logged){console.error(e);frame._logged=true;}
+  }
+
+  // footer progress
+  const pw=1152, px=64, py=690;
+  ln(px,py,px+pw,py,{color:C.grid,w:3});
+  ln(px,py,px+pw*(idx+1)/slides.length,py,{color:C.amber,w:3});
+  txt((idx+1)+' / '+slides.length,1216,684,{size:13,color:C.dim,align:'right'});
+
+  // fade-in from black on slide entry
+  const fade=1-clamp01(t/0.4);
+  if(fade>0){ ctx.fillStyle=C.bg; ctx.globalAlpha=fade; ctx.fillRect(0,0,W,H); ctx.globalAlpha=1; }
+
+  requestAnimationFrame(frame);
+}
+
+function goto(i){
+  idx=(i+slides.length)%slides.length;
+  st={}; if(slides[idx].init) slides[idx].init(st);
+  slideStart=performance.now(); last=performance.now();
+  frame._logged=false;
+}
+const next=()=>goto(idx+1), prev=()=>goto(idx-1), replay=()=>goto(idx);
+
+document.getElementById('next').onclick=e=>{e.stopPropagation();next();};
+document.getElementById('prev').onclick=e=>{e.stopPropagation();prev();};
+document.getElementById('replay').onclick=e=>{e.stopPropagation();replay();};
+cv.parentElement.addEventListener('click',()=>next());
+addEventListener('keydown',e=>{
+  if(e.key==='ArrowRight'||e.key===' '||e.key==='PageDown'){e.preventDefault();next();}
+  else if(e.key==='ArrowLeft'||e.key==='PageUp'){e.preventDefault();prev();}
+  else if(e.key==='r'||e.key==='R'){replay();}
+  else if(e.key==='Escape'){menu.classList.remove('open');}
+});
+
+/* contents menu */
+const menu=document.getElementById('menu'), mgrid=document.getElementById('mgrid');
+slides.forEach((sl,i)=>{
+  const d=document.createElement('div');
+  const isHead=sl.menu&&sl.menu.startsWith('▸');
+  d.className='mitem'+(isHead?'':'');
+  d.innerHTML=`<span class="n">${String(i+1).padStart(2,'0')}</span><span>${sl.menu||sl.title||'—'}</span>`;
+  d.onclick=()=>{goto(i);menu.classList.remove('open');};
+  mgrid.appendChild(d);
+});
+document.getElementById('menuBtn').onclick=()=>menu.classList.toggle('open');
+menu.addEventListener('click',e=>{if(e.target===menu)menu.classList.remove('open');});
+
+goto(0);
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Service-to-Service Patterns</title>
+<style>
+  :root{
+    --bg:#07080a;
+    --panel:#0d0f12;
+    --blue:#5b9bd9;
+    --orange:#d99a5b;
+    --green:#5bd9a0;
+    --red:#d9666f;
+    --gold:#d9c25b;
+    --purple:#a689e0;
+    --grey:#8a8f98;
+    --dim:#4a4e56;
+    --text:#e9ebee;
+    --muted:#9aa0aa;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0;padding:0;height:100%;background:var(--bg);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+    overflow:hidden;color:var(--text);
+  }
+  #app{
+    position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+    background:radial-gradient(ellipse at 50% 30%, #101216 0%, #07080a 70%);
+  }
+  #stageWrap{
+    position:relative;width:100%;height:100%;max-width:calc(100vh * 16 / 9);max-height:calc(100vw * 9 / 16);
+    display:flex;align-items:center;justify-content:center;
+  }
+  svg#stageSvg{width:100%;height:100%;display:block;user-select:none;cursor:pointer;}
+  .hint{
+    position:absolute;bottom:10px;left:50%;transform:translateX(-50%);
+    font-size:12px;color:var(--dim);letter-spacing:.05em;pointer-events:none;
+    opacity:0;transition:opacity .4s;
+  }
+  #app:hover .hint{opacity:1;}
+  text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;}
+  .mono{font-family:"SF Mono",Consolas,Menlo,monospace;}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="stageWrap">
+    <svg id="stageSvg" viewBox="0 0 1600 900" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="context-stroke"></path>
+        </marker>
+        <filter id="soft" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="6" result="b"></feGaussianBlur>
+          <feMerge><feMergeNode in="b"></feMergeNode><feMergeNode in="SourceGraphic"></feMergeNode></feMerge>
+        </filter>
+      </defs>
+      <rect x="0" y="0" width="1600" height="900" fill="var(--bg)"></rect>
+      <!-- chrome -->
+      <text id="sectionLabel" x="60" y="52" font-size="15" letter-spacing="2" fill="var(--dim)"></text>
+      <text id="tagLabel" x="1540" y="52" font-size="15" letter-spacing="3" text-anchor="end" font-weight="700"></text>
+      <text id="titleText" x="800" y="118" font-size="40" text-anchor="middle" font-weight="700" fill="var(--text)"></text>
+      <text id="subText" x="800" y="150" font-size="18" text-anchor="middle" fill="var(--muted)"></text>
+      <g id="stage"></g>
+      <text id="captionText" x="800" y="812" font-size="20" text-anchor="middle" fill="var(--muted)"></text>
+      <text id="recapText" x="800" y="782" font-size="16" text-anchor="middle" fill="var(--dim)"></text>
+      <!-- progress -->
+      <rect x="60" y="866" width="1480" height="3" fill="#1c1f24"></rect>
+      <rect id="progFill" x="60" y="866" width="0" height="3" fill="var(--blue)"></rect>
+      <text id="counter" x="1540" y="890" font-size="13" text-anchor="end" fill="var(--dim)"></text>
+      <text id="clickHint" x="60" y="890" font-size="13" fill="var(--dim)"></text>
+    </svg>
+  </div>
+  <div class="hint">click / → next &nbsp;·&nbsp; ← back &nbsp;·&nbsp; r replay</div>
+</div>
+
+<script>
+const SVGNS = "http://www.w3.org/2000/svg";
+function E(tag, attrs={}, ...kids){
+  const n = document.createElementNS(SVGNS, tag);
+  for(const k in attrs){
+    if(k === "style" && typeof attrs[k] === "object"){
+      Object.assign(n.style, attrs[k]);
+    } else {
+      n.setAttribute(k, attrs[k]);
+    }
+  }
+  kids.flat().forEach(c=>{ if(c!=null) n.appendChild(c); });
+  return n;
+}
+function T(str, x, y, attrs={}){
+  const t = E("text", Object.assign({x,y}, attrs));
+  t.textContent = str;
+  return t;
+}
+function TSpan(lines, x, y, lh, attrs={}){
+  const t = E("text", Object.assign({x,y}, attrs));
+  lines.forEach((ln,i)=>{
+    t.appendChild(E("tspan", {x, dy: i===0?0:lh}, document.createTextNode(ln)));
+  });
+  return t;
+}
+
+const stage = document.getElementById("stage");
+let liveAnims = [];
+function anim(el, keyframes, opts){
+  const a = el.animate(keyframes, Object.assign({fill:"forwards", easing:"cubic-bezier(.22,.8,.28,1)"}, opts));
+  liveAnims.push(a);
+  return a;
+}
+function clearAnims(){ liveAnims.forEach(a=>{try{a.cancel();}catch(e){}}); liveAnims=[]; }
+
+// ---------- reusable primitives ----------
+// NOTE: every node()/box() is TWO nested <g>s: an outer one whose SVG
+// `transform` ATTRIBUTE positions it in the scene, and an inner one that
+// entrance-animations (fadeIn/popIn) target via the CSS `transform`
+// PROPERTY. Browsers let a CSS transform property fully replace an
+// element's transform attribute, so animating the outer group directly
+// would silently reset it to translate(0,0) once the animation applied.
+// Keeping position (attribute) and motion (CSS) on separate elements
+// avoids that clobber.
+function node(x,y,label,color,r=42,sub=""){
+  const outer = E("g",{transform:`translate(${x},${y})`});
+  const inner = E("g");
+  inner.appendChild(E("circle",{r, fill:"#111318", stroke:color, "stroke-width":2.5}));
+  const lines = label.split("\n");
+  inner.appendChild(TSpan(lines, 0, lines.length>1? -2:5, 16, {"text-anchor":"middle", "font-size":14, fill:"var(--text)", "font-weight":600}));
+  if(sub) inner.appendChild(T(sub, 0, r+18, {"text-anchor":"middle", "font-size":11.5, fill:"var(--muted)"}));
+  outer.appendChild(inner);
+  outer._inner = inner;
+  return outer;
+}
+function box(x,y,w,h,label,color,opts={}){
+  const outer = E("g",{transform:`translate(${x},${y})`});
+  const inner = E("g");
+  inner.appendChild(E("rect",{x:-w/2,y:-h/2,width:w,height:h,rx:opts.rx??10,fill:opts.fill??"#111318",stroke:color,"stroke-width":2}));
+  if(label){
+    const lines = Array.isArray(label)?label:[label];
+    inner.appendChild(TSpan(lines, 0, lines.length>1? -4*(lines.length-1):5, 18, {"text-anchor":"middle","font-size":opts.fs??14,fill:opts.textColor??"var(--text)","font-weight":opts.fw??600}));
+  }
+  outer.appendChild(inner);
+  outer._inner = inner;
+  return outer;
+}
+function arrow(x1,y1,x2,y2,color="var(--grey)",opts={}){
+  const l = E("line",{x1,y1,x2,y2,stroke:color,"stroke-width":opts.w??2.2,"marker-end":"url(#arrow)"});
+  if(opts.dash) l.setAttribute("stroke-dasharray", opts.dash);
+  return l;
+}
+function fadeIn(el, delay=0, dur=500, dy=14){
+  const target = el._inner || el;
+  target.style.opacity=0;
+  stage.appendChild(el);
+  anim(target, [{opacity:0, transform:`translate(0px, ${dy}px)`},{opacity:1, transform:"translate(0px,0px)"}], {delay, duration:dur});
+  return el;
+}
+function fadeInAt(el, delay=0, dur=500){
+  const target = el._inner || el;
+  target.style.opacity=0;
+  stage.appendChild(el);
+  anim(target,[{opacity:0},{opacity:1}],{delay,duration:dur});
+  return el;
+}
+function popIn(el, delay=0, dur=500){
+  const target = el._inner || el;
+  target.style.opacity=0; target.style.transformBox="fill-box"; target.style.transformOrigin="center";
+  stage.appendChild(el);
+  anim(target,[{opacity:0, transform:"scale(.7)"},{opacity:1, transform:"scale(1)"}],{delay,duration:dur});
+  return el;
+}
+function drawLine(el, delay=0, dur=650){
+  const len = el.getTotalLength ? el.getTotalLength() : 400;
+  el.style.strokeDasharray = len;
+  el.style.strokeDashoffset = len;
+  stage.appendChild(el);
+  anim(el, [{strokeDashoffset:len},{strokeDashoffset:0}], {delay,duration:dur, easing:"ease-in-out"});
+  return el;
+}
+function moveTo(el, dx, dy, delay=0, dur=700){
+  anim(el, [{transform:`translate(0px,0px)`},{transform:`translate(${dx}px,${dy}px)`}], {delay,duration:dur});
+}
+function pulse(el, delay=0, times=1){
+  anim(el,[{filter:"drop-shadow(0 0 0px currentColor)"},{filter:"drop-shadow(0 0 8px currentColor)"},{filter:"drop-shadow(0 0 0px currentColor)"}],{delay,duration:900,iterations:times});
+}
+function pathLine(pts){
+  const d = pts.map((p,i)=> (i===0?"M":"L")+p[0]+","+p[1]).join(" ");
+  return E("path",{d, fill:"none"});
+}
+
+// ---------- slide-type helpers ----------
+function statementSlide({tag, lines, color}){
+  return ()=>{
+    const t = TSpan(lines, 800, 380, 46, {"text-anchor":"middle","font-size":34,"font-weight":700,fill:"var(--text)"});
+    popIn(t, 100, 650);
+    if(tag){
+      const badge = T(tag, 800, 300, {"text-anchor":"middle","font-size":15,"letter-spacing":4,"font-weight":800, fill:color||"var(--gold)"});
+      fadeInAt(badge, 0, 400);
+    }
+  };
+}
+function recapGapSlide({recap, gap, color}){
+  return ()=>{
+    const r = T(recap, 800, 330, {"text-anchor":"middle","font-size":19, fill:"var(--muted)"});
+    fadeIn(r, 100, 500, 10);
+    const badge = T("GAP", 800, 400, {"text-anchor":"middle","font-size":14,"letter-spacing":4,"font-weight":800, fill:color||"var(--red)"});
+    fadeInAt(badge, 550, 350);
+    const g = TSpan(wrapText(gap, 40), 800, 460, 40, {"text-anchor":"middle","font-size":28,"font-weight":700, fill:"var(--text)"});
+    popIn(g, 750, 600);
+  };
+}
+function gapOnlySlide(text, color){
+  return ()=>{
+    const badge = T("GAP", 800, 340, {"text-anchor":"middle","font-size":14,"letter-spacing":4,"font-weight":800, fill:color||"var(--red)"});
+    fadeInAt(badge, 100, 350);
+    const g = TSpan(wrapText(text, 42), 800, 410, 42, {"text-anchor":"middle","font-size":29,"font-weight":700, fill:"var(--text)"});
+    popIn(g, 280, 600);
+  };
+}
+function wrapText(str, maxLen){
+  const words = str.split(" ");
+  const lines = []; let cur = "";
+  words.forEach(w=>{
+    if((cur+" "+w).trim().length > maxLen){ lines.push(cur.trim()); cur = w; }
+    else cur = (cur+" "+w).trim();
+  });
+  if(cur) lines.push(cur.trim());
+  return lines;
+}
+function tableSlide({rows, colX=[110,760], header, startY=230, rowH=78, delay0=200}){
+  return ()=>{
+    if(header){
+      const h1=T(header[0], colX[0], startY-40, {"font-size":13,"letter-spacing":2, fill:"var(--dim)","font-weight":700});
+      const h2=T(header[1], colX[1], startY-40, {"font-size":13,"letter-spacing":2, fill:"var(--dim)","font-weight":700});
+      fadeInAt(h1,0,300); fadeInAt(h2,0,300);
+      stage.appendChild(E("line",{x1:80,y1:startY-20,x2:1520,y2:startY-20,stroke:"#22262c","stroke-width":1.5}));
+    }
+    rows.forEach((row,i)=>{
+      const y = startY + i*rowH;
+      const g = E("g");
+      g.appendChild(E("circle",{cx:colX[0]-30, cy:y-6, r:4, fill:row.color||"var(--blue)"}));
+      g.appendChild(T(row.a, colX[0], y, {"font-size":19,"font-weight":700, fill:"var(--text)"}));
+      g.appendChild(TSpan(wrapText(row.b, 62), colX[1], y-6, 20, {"font-size":15.5, fill:"var(--muted)"}));
+      fadeIn(g, delay0 + i*160, 500, 16);
+    });
+  };
+}
+
+// ============================================================
+// SLIDE CONTENT
+// ============================================================
+const SEC = {
+  intro:"INTRO", gw:"API GATEWAY", bff:"BACKEND-FOR-FRONTEND", disc:"SERVICE DISCOVERY",
+  mesh:"SERVICE MESH", side:"SIDECAR", amb:"AMBASSADOR", ad:"ADAPTER",
+  agg:"AGGREGATOR", strang:"STRANGLER FIG", acl:"ANTI-CORRUPTION LAYER", close:"RECAP"
+};
+
+const slides = [];
+
+// 1 — Title
+slides.push({section:SEC.intro, title:"Service-to-Service Patterns", sub:"How microservices find, call, shield, and replace one another", build: ()=>{
+  const big = T("Service-to-Service Patterns", 800, 420, {"text-anchor":"middle","font-size":50,"font-weight":800, fill:"var(--text)"});
+  popIn(big, 150, 800);
+  const sub = T("12 patterns, one throughline: each exists to answer a pain the last one couldn't fix.", 800, 470, {"text-anchor":"middle","font-size":18, fill:"var(--muted)"});
+  fadeIn(sub, 700, 600, 10);
+}});
+
+// 2 — Chaos diagram
+slides.push({section:SEC.intro, title:"Before any pattern", sub:"", build: ()=>{
+  const client = node(220, 470, "Client", "var(--gold)", 40);
+  fadeIn(client, 0);
+  const services = ["Users","Orders","Inventory","Payments","Reviews","Shipping"];
+  const positions = [[700,240],[950,220],[1200,270],[700,700],[950,720],[1200,670]];
+  services.forEach((s,i)=>{
+    const [x,y] = positions[i];
+    const n = node(x,y,s,"var(--blue)",40);
+    fadeIn(n, 300+i*90);
+    const ln = arrow(262,470, x-44, y, "var(--dim)", {w:1.6});
+    fadeInAt(ln, 300+i*90+120, 400);
+  });
+  const cap = T("Every client wires up auth, retries, and TLS — once per service, per language.", 800, 830, {"text-anchor":"middle","font-size":17, fill:"var(--muted)"});
+  fadeIn(cap, 1500, 600, 8);
+}});
+
+// 3 — recap/gap -> gateway
+slides.push({section:SEC.gw, title:"", sub:"", tag:"GAP", build: recapGapSlide({
+  recap:"Every client talks to every service, directly.",
+  gap:"But who checks auth, routes the request, and terminates TLS — do we copy that logic six times?",
+  color:"var(--red)"
+})});
+
+// 4 — API gateway intro (FILL)
+slides.push({section:SEC.gw, title:"API Gateway", sub:"A single front door for every request", tag:"FILL", build: ()=>{
+  const client = node(200, 460, "Client", "var(--gold)", 40);
+  fadeIn(client,0);
+  const gw = box(560, 460, 190, 100, ["API","Gateway"], "var(--green)", {fw:800, fs:18});
+  popIn(gw, 300, 550);
+  const a1 = arrow(242,460, 462,460, "var(--grey)");
+  fadeInAt(a1, 850, 350);
+  const services = ["Users","Orders","Inventory","Payments"];
+  services.forEach((s,i)=>{
+    const y = 260 + i*140;
+    const n = node(1050, y, s, "var(--blue)", 38);
+    fadeIn(n, 1200 + i*120);
+    const a = arrow(657,460, 1010, y, "var(--dim)", {w:1.6});
+    fadeInAt(a, 1200+i*120+100, 350);
+  });
+  const labels = ["Routing","AuthN / AuthZ","Rate limiting","TLS termination"];
+  labels.forEach((l,i)=>{
+    const t = T("• "+l, 400, 640 + i*36, {"font-size":16, fill:"var(--muted)"});
+    fadeIn(t, 2000 + i*160, 400, 6);
+  });
+}});
+
+// 5 — gateway theory / tradeoff
+slides.push({section:SEC.gw, title:"API Gateway — the request path", sub:"", build: ()=>{
+  const client = node(230,300,"Client","var(--gold)",38);
+  const gw = box(700,300,170,90,["Gateway"],"var(--green)",{fs:16,fw:800});
+  const svc = node(1150,300,"Service A","var(--blue)",42);
+  [client,gw,svc].forEach((n,i)=>fadeIn(n, i*200));
+  const l1 = arrow(268,300,613,300,"var(--grey)"); fadeInAt(l1,650,300);
+  const chk = T("auth ✓  route ✓  TLS ✓", 700, 250, {"text-anchor":"middle","font-size":13.5, fill:"var(--green)"});
+  fadeInAt(chk, 950, 400);
+  const l2 = arrow(787,300,1106,300,"var(--grey)"); fadeInAt(l2,1300,300);
+
+  const div = E("line",{x1:80,y1:460,x2:1520,y2:460,stroke:"#22262c"});
+  fadeInAt(div, 1750, 300);
+  const warn = T("⚠ single point of failure", 800, 560, {"text-anchor":"middle","font-size":19,"font-weight":700, fill:"var(--red)"});
+  fadeIn(warn, 2000, 500, 10);
+  const fix = T("→ run N stateless gateway replicas behind a load balancer", 800, 610, {"text-anchor":"middle","font-size":16, fill:"var(--muted)"});
+  fadeIn(fix, 2500, 500, 8);
+}});
+
+// 6 — gateway practical
+slides.push({section:SEC.gw, title:"API Gateway — in practice", sub:"", build: tableSlide({
+  header:["TOOL","USED FOR"],
+  rows:[
+    {a:"Kong / NGINX", b:"self-hosted gateway for public APIs; plugin-based auth & rate limiting", color:"var(--green)"},
+    {a:"AWS API Gateway", b:"managed gateway for serverless / Lambda-backed APIs", color:"var(--blue)"},
+    {a:"Envoy Gateway / Apigee", b:"large-scale, policy-heavy gateways for enterprise & partner APIs", color:"var(--orange)"},
+  ]
+})});
+
+// 7 — recap/gap -> BFF
+slides.push({section:SEC.bff, title:"", sub:"", build: recapGapSlide({
+  recap:"One gateway now guards every service.",
+  gap:"But mobile wants a lean payload, web wants the full page, a smart TV wants something else again — one response shape fits none of them well. Why?",
+  color:"var(--red)"
+})});
+
+// 8 — BFF diagram
+slides.push({section:SEC.bff, title:"Backend-for-Frontend (BFF)", sub:"One tailored layer per client experience", tag:"FILL", build: ()=>{
+  const clients = [["Web",210],["Mobile",210+220],["TV",210+440]];
+  const cliY=225, bffY = 375, svcY = 660;
+  clients.forEach(([label,x],i)=>{
+    const c = node(x, cliY, label, "var(--gold)", 34);
+    fadeIn(c, i*150);
+  });
+  clients.forEach(([label,x],i)=>{
+    const bffLabel = label==="Web"?"Web BFF":label==="Mobile"?"Mobile BFF":"TV BFF";
+    const b = box(x, bffY, 150, 70, [bffLabel], "var(--purple)", {fs:14,fw:700});
+    fadeIn(b, 500+i*150);
+    const a = arrow(x, cliY+38, x, bffY-39, "var(--grey)"); fadeInAt(a, 900+i*150, 300);
+  });
+  const services = ["Users","Orders","Inventory"];
+  services.forEach((s,i)=>{
+    const x = 300 + i*400;
+    const n = node(x, svcY, s, "var(--blue)", 40);
+    fadeIn(n, 1500+i*150);
+  });
+  clients.forEach(([label,x])=>{
+    services.forEach((s,j)=>{
+      const sx = 300+j*400;
+      const l = arrow(x, bffY+35, sx, svcY-44, "var(--dim)", {w:1.3});
+      fadeInAt(l, 2000, 350);
+    });
+  });
+  const note = T('Mobile BFF: merges 3 calls into 1 lean payload  ·  Web BFF: returns the full detail view', 800, 760, {"text-anchor":"middle","font-size":15, fill:"var(--muted)"});
+  fadeIn(note, 2500, 500, 8);
+}});
+
+// 9 — BFF theory
+slides.push({section:SEC.bff, title:"BFF — the rule", sub:"", build: ()=>{
+  const rule = T("One BFF per client experience — owned by the frontend team that consumes it.", 800, 300, {"text-anchor":"middle","font-size":22,"font-weight":700, fill:"var(--text)"});
+  fadeIn(rule, 100, 600, 10);
+  const rule2 = T("Orchestration only. No business logic — that still lives in the backend services.", 800, 350, {"text-anchor":"middle","font-size":17, fill:"var(--muted)"});
+  fadeIn(rule2, 700, 500, 8);
+
+  const leftT = T("✓ tailored payloads, independent deploys", 420, 520, {"text-anchor":"middle","font-size":16, fill:"var(--green)"});
+  const rightT = T("✗ orchestration logic duplicated per BFF", 1180, 520, {"text-anchor":"middle","font-size":16, fill:"var(--red)"});
+  fadeIn(leftT, 1400, 500, 10);
+  fadeIn(rightT, 1650, 500, 10);
+  const div = E("line",{x1:800,y1:460,x2:800,y2:600,stroke:"#22262c"});
+  fadeInAt(div, 1300, 300);
+}});
+
+// 10 — BFF practical
+slides.push({section:SEC.bff, title:"BFF — in practice", sub:"", build: tableSlide({
+  header:["ORIGIN","WHEN TO REACH FOR IT"],
+  rows:[
+    {a:"Netflix", b:"pioneered BFF — wildly different UIs across TVs, consoles, mobile, web", color:"var(--purple)"},
+    {a:"SoundCloud", b:"separate BFFs per platform to avoid one bloated general-purpose API", color:"var(--gold)"},
+    {a:"Rule of thumb", b:"reach for BFF when client shapes genuinely diverge — not just for tidiness", color:"var(--grey)"},
+  ]
+})});
+
+// 11 — recap/gap -> discovery
+slides.push({section:SEC.disc, title:"", sub:"", build: recapGapSlide({
+  recap:"Gateway + BFFs now know which services exist.",
+  gap:"But instances scale up and down and crash — how does anyone find the current, healthy address of a service?",
+  color:"var(--red)"
+})});
+
+// 12 — service registry diagram
+slides.push({section:SEC.disc, title:"Service Discovery", sub:"A live, self-updating directory of who's healthy, right now", tag:"FILL", build: ()=>{
+  const reg = box(800, 260, 260, 90, ["Service Registry"], "var(--green)", {fs:18,fw:800});
+  popIn(reg, 0, 550);
+  const inst = [["inv-1",400,480],["inv-2",650,480],["inv-3",900,480],["inv-4",1150,480]];
+  inst.forEach(([label,x,y],i)=>{
+    const n = node(x,y,label,"var(--blue)",36);
+    fadeIn(n, 500+i*250);
+    const a = arrow(x, y-38, 720+i*35, 300, "var(--dim)", {w:1.4,dash:"4 4"});
+    fadeInAt(a, 500+i*250+150, 300);
+    // heartbeat pulse
+    setTimeout(()=>pulse(n.querySelector("circle"), 0, 2), 900+i*250);
+  });
+  // instance 3 fails
+  setTimeout(()=>{
+    const failing = inst[2];
+    const failNode = stage.querySelectorAll("g")[inst.indexOf(failing)+ (stage.querySelectorAll("g").length-4)];
+  }, 0);
+  const failLabel = T("inv-3 misses 3 heartbeats →", 900, 560, {"text-anchor":"middle","font-size":13.5, fill:"var(--red)", opacity:0});
+  stage.appendChild(failLabel);
+  anim(failLabel,[{opacity:0},{opacity:1}],{delay:2300,duration:400,fill:"forwards"});
+  const removedLabel = T("deregistered — traffic stops routing there", 900, 585, {"text-anchor":"middle","font-size":13, fill:"var(--red)", opacity:0});
+  stage.appendChild(removedLabel);
+  anim(removedLabel,[{opacity:0},{opacity:1}],{delay:2700,duration:400,fill:"forwards"});
+}});
+
+// 13 — health check timeline / formula
+slides.push({section:SEC.disc, title:"How fast does the registry notice?", sub:"", build: ()=>{
+  const formula = T("detection time ≈ missed_beats × heartbeat_interval", 800, 260, {"text-anchor":"middle","font-size":24,"font-weight":700, fill:"var(--gold)"});
+  popIn(formula, 100, 600);
+  const example = T("e.g. 3 missed beats × 5s interval ≈ 15s until removal", 800, 310, {"text-anchor":"middle","font-size":16, fill:"var(--muted)"});
+  fadeIn(example, 700, 500, 8);
+
+  // timeline
+  const y = 500;
+  stage.appendChild(E("line",{x1:200,y1:y,x2:1400,y2:y,stroke:"#333"}));
+  const beats = [200,470,740,1010,1280];
+  beats.forEach((x,i)=>{
+    const c = E("circle",{cx:x,cy:y,r:8,fill: i<3? "var(--green)":"var(--dim)"});
+    fadeInAt(c, 1300+i*300, 250);
+    if(i>=2){
+      const label = T(i===2?"missed":i===3?"missed":"missed", x, y+34, {"text-anchor":"middle","font-size":12, fill:"var(--red)"});
+      if(i>=2) fadeInAt(label, 1300+i*300+150, 250);
+    }
+  });
+  const removedAt = T("✕ deregistered", 1280, y-30, {"text-anchor":"middle","font-size":14,"font-weight":700, fill:"var(--red)"});
+  fadeIn(removedAt, 2900, 400, -8);
+  const tip = T("Tune the interval: too fast → false positives on GC pauses. Too slow → traffic hits dead instances.", 800, 650, {"text-anchor":"middle","font-size":15.5, fill:"var(--muted)"});
+  fadeIn(tip, 3400, 500, 8);
+}});
+
+// 14 — gap only: who looks it up
+slides.push({section:SEC.disc, title:"", sub:"", build: gapOnlySlide(
+  "We have a registry — but WHO actually looks it up: the caller itself, or something standing in between?"
+)});
+
+// 15 — compare client-side vs server-side discovery
+slides.push({section:SEC.disc, title:"Client-side vs Server-side Discovery", sub:"", tag:"FILL", build: ()=>{
+  // divider
+  const div = E("line",{x1:800,y1:170,x2:800,y2:760,stroke:"#22262c"});
+  fadeInAt(div, 0, 300);
+  const lhead = T("CLIENT-SIDE", 420, 210, {"text-anchor":"middle","font-size":15,"letter-spacing":2,"font-weight":800, fill:"var(--blue)"});
+  const rhead = T("SERVER-SIDE", 1180, 210, {"text-anchor":"middle","font-size":15,"letter-spacing":2,"font-weight":800, fill:"var(--orange)"});
+  fadeInAt(lhead,150,300); fadeInAt(rhead,150,300);
+
+  // left: client queries registry directly then calls instance
+  const lc = node(420,280,"Client","var(--gold)",34);
+  const lr = box(420,420,150,60,["Registry"],"var(--green)",{fs:13,fw:700});
+  const li = node(420,580,"Instance","var(--blue)",34);
+  [lc,lr,li].forEach((n,i)=>fadeIn(n,400+i*250));
+  const la1 = arrow(420,314,420,388,"var(--grey)"); fadeInAt(la1,900,300);
+  const la1b = T("1. ask registry", 500,355,{"font-size":12, fill:"var(--muted)"}); fadeInAt(la1b,1000,300);
+  const la2 = arrow(420,452,420,544,"var(--grey)"); fadeInAt(la2,1400,300);
+  const la2b = T("2. call instance directly", 500,505,{"font-size":12, fill:"var(--muted)"}); fadeInAt(la2b,1500,300);
+
+  // right: client calls fixed router which discovers
+  const rc = node(1180,280,"Client","var(--gold)",34);
+  const rrt = box(1180,420,170,60,["Router / LB"],"var(--orange)",{fs:13,fw:700});
+  const rr = box(1350,420,120,50,["Registry"],"var(--green)",{fs:12,fw:700});
+  const ri = node(1180,580,"Instance","var(--blue)",34);
+  [rc,rrt,rr,ri].forEach((n,i)=>fadeIn(n,2000+i*220));
+  const ra1 = arrow(1180,314,1180,388,"var(--grey)"); fadeInAt(ra1,2500,300);
+  const ra2 = arrow(1245,420,1292,420,"var(--dim)",{w:1.6}); fadeInAt(ra2,2900,300);
+  const ra3 = arrow(1180,452,1180,544,"var(--grey)"); fadeInAt(ra3,3300,300);
+  const rlabel = T("client stays simple; router does the lookup", 1180, 660, {"text-anchor":"middle","font-size":13, fill:"var(--muted)"}); fadeIn(rlabel,3700,400,6);
+  const llabel = T("no extra hop; discovery logic lives in every client", 420, 660, {"text-anchor":"middle","font-size":13, fill:"var(--muted)"}); fadeIn(llabel,1900,400,6);
+}});
+
+// 16 — table comparison
+slides.push({section:SEC.disc, title:"Discovery — in practice", sub:"", build: tableSlide({
+  header:["APPROACH","REAL-WORLD EXAMPLE"],
+  rows:[
+    {a:"Client-side", b:"Netflix Eureka + Ribbon — client library queries registry, load-balances itself", color:"var(--blue)"},
+    {a:"Server-side", b:"Kubernetes Service (kube-proxy / DNS), AWS ALB — client just calls a stable name", color:"var(--orange)"},
+    {a:"Trade-off", b:"client-side = one hop, more client complexity; server-side = simpler client, one more hop", color:"var(--grey)"},
+  ]
+})});
+
+// 17 — recap/gap -> mesh
+slides.push({section:SEC.mesh, title:"", sub:"", build: recapGapSlide({
+  recap:"We can discover, route, gateway, and tailor per client.",
+  gap:"But every service still hand-rolls retries, timeouts, circuit breaking, mTLS, tracing — in every language. What if that logic lived outside the app entirely?",
+  color:"var(--red)"
+})});
+
+// 18 — service mesh diagram
+slides.push({section:SEC.mesh, title:"Service Mesh", sub:"Cross-cutting concerns move out of app code, into the network layer", tag:"FILL", build: ()=>{
+  const names = ["A","B","C","D","E"];
+  const centerX=800, centerY=480, R=250;
+  const proxies = [];
+  names.forEach((n,i)=>{
+    const ang = (i/names.length)*2*Math.PI - Math.PI/2;
+    const x = centerX + R*Math.cos(ang), y = centerY + R*Math.sin(ang);
+    const svc = box(x, y-30, 90,50,["svc "+n],"var(--blue)",{fs:13,fw:700});
+    const proxy = box(x, y+35, 70,34,["proxy"],"var(--green)",{fs:10.5,fw:700});
+    fadeIn(svc, i*180); fadeIn(proxy, i*180+120);
+    proxies.push([x,y+35]);
+  });
+  proxies.forEach((p1,i)=>{
+    proxies.forEach((p2,j)=>{
+      if(j>i){
+        const l = arrow(p1[0],p1[1],p2[0],p2[1],"var(--dim)",{w:1});
+        fadeInAt(l, 1100+ (i+j)*60, 300);
+      }
+    });
+  });
+  const cp = box(centerX, centerY, 200, 80, ["Control Plane"], "var(--purple)", {fs:15,fw:800});
+  popIn(cp, 1900, 550);
+  const note = T("app talks to app; the proxy underneath actually makes the call", 800, 810, {"text-anchor":"middle","font-size":14.5, fill:"var(--muted)"});
+  fadeIn(note, 2400, 450, 6);
+}});
+
+// 19 — mesh theory
+slides.push({section:SEC.mesh, title:"Service Mesh — data plane vs control plane", sub:"", build: ()=>{
+  const dp = box(420, 320, 340, 130, ["Data Plane","(sidecar proxies)"], "var(--green)", {fs:17,fw:800});
+  const cp = box(1180, 320, 340, 130, ["Control Plane","(policy & config)"], "var(--purple)", {fs:17,fw:800});
+  fadeIn(dp, 0); fadeIn(cp, 250);
+  const a = arrow(590,320,1010,320,"var(--grey)"); fadeInAt(a, 700, 350);
+  const label = T("pushes retry budgets, mTLS certs, routing rules — to every proxy", 800, 260, {"text-anchor":"middle","font-size":13.5, fill:"var(--muted)"});
+  fadeInAt(label, 1100, 400);
+
+  const good = T("✓ uniform security & observability, zero app code changes", 420, 520, {"text-anchor":"middle","font-size":15.5, fill:"var(--green)"});
+  const bad = T("✗ extra network hop per call + real operational complexity", 1180, 520, {"text-anchor":"middle","font-size":15.5, fill:"var(--red)"});
+  fadeIn(good, 1600, 500, 8); fadeIn(bad, 1850, 500, 8);
+}});
+
+// 20 — mesh practical
+slides.push({section:SEC.mesh, title:"Service Mesh — in practice", sub:"", build: tableSlide({
+  header:["TOOL","NOTE"],
+  rows:[
+    {a:"Istio (on Envoy)", b:"most feature-rich mesh; strong traffic-shaping & security policy model", color:"var(--purple)"},
+    {a:"Linkerd", b:"lighter-weight, simpler ops footprint, faster to adopt incrementally", color:"var(--green)"},
+    {a:"Consul Connect", b:"mesh bolted onto HashiCorp's existing service-discovery ecosystem", color:"var(--blue)"},
+  ]
+})});
+
+// 21 — gap: what is "next to"
+slides.push({section:SEC.side, title:"", sub:"", build: gapOnlySlide(
+  "We keep saying \u201Ca proxy sits next to every service.\u201D What does \u201Cnext to\u201D actually mean at deployment time?"
+)});
+
+// 22 — sidecar diagram
+slides.push({section:SEC.side, title:"Sidecar", sub:"Same pod, separate process — deployed and scaled together", tag:"FILL", build: ()=>{
+  const podBox = E("rect",{x:520,y:280,width:560,height:280,rx:20,fill:"none",stroke:"var(--dim)","stroke-width":2,"stroke-dasharray":"6 5"});
+  fadeInAt(podBox, 0, 500);
+  const podLabel = T("Pod", 800, 260, {"text-anchor":"middle","font-size":15,"letter-spacing":2, fill:"var(--dim)"});
+  fadeInAt(podLabel, 300, 350);
+  const app = box(680, 420, 190, 130, ["App","container"], "var(--blue)", {fs:16,fw:700});
+  const car = box(940, 420, 190, 130, ["Sidecar","(proxy)"], "var(--green)", {fs:16,fw:700});
+  fadeIn(app, 600); fadeIn(car, 900);
+  const link = arrow(775,420,845,420,"var(--grey)",{w:2}); fadeInAt(link,1300,300);
+  const link2 = arrow(845,440,775,440,"var(--grey)",{w:2}); fadeInAt(link2,1450,300);
+  const shared = T("shares network namespace — talk over localhost", 800, 600, {"text-anchor":"middle","font-size":14, fill:"var(--muted)"});
+  fadeIn(shared, 1700, 450, 6);
+  const gen = T("General pattern, not just meshes: logging sidecars, config-reload sidecars, too.", 800, 720, {"text-anchor":"middle","font-size":15, fill:"var(--muted)"});
+  fadeIn(gen, 2300, 500, 8);
+}});
+
+// 23 — sidecar practical
+slides.push({section:SEC.side, title:"Sidecar — in practice", sub:"", build: tableSlide({
+  header:["EXAMPLE","ROLE"],
+  rows:[
+    {a:"Envoy (in Istio)", b:"handles retries, mTLS, and telemetry for the app container next to it", color:"var(--green)"},
+    {a:"Fluent Bit", b:"tails app logs and ships them out — app never touches the log pipeline", color:"var(--orange)"},
+    {a:"Dapr sidecar", b:"gives any language a common API for state, pub/sub, and bindings", color:"var(--purple)"},
+  ]
+})});
+
+// 24 — gap: outbound calls
+slides.push({section:SEC.amb, title:"", sub:"", build: gapOnlySlide(
+  "Sidecar handles inbound & local concerns. What handles calls going OUT to a flaky legacy or third-party system — without the app worrying about it?"
+)});
+
+// 25 — ambassador diagram
+slides.push({section:SEC.amb, title:"Ambassador", sub:"A sidecar dedicated to outbound calls", tag:"FILL", build: ()=>{
+  const app = box(360, 420, 190, 120, ["App"], "var(--blue)", {fs:17,fw:700});
+  const amb = box(660, 420, 220, 120, ["Ambassador"], "var(--green)", {fs:16,fw:800});
+  const ext = box(1100, 300, 220, 100, ["Legacy DB"], "var(--orange)", {fs:15,fw:700});
+  const ext2 = box(1100, 540, 220, 100, ["3rd-party API"], "var(--orange)", {fs:15,fw:700});
+  fadeIn(app,0); fadeIn(amb,300); fadeIn(ext,700); fadeIn(ext2,900);
+  const a1 = arrow(455,420,550,420,"var(--grey)"); fadeInAt(a1,1200,300);
+  const a2 = arrow(770,395,990,325,"var(--grey)"); fadeInAt(a2,1600,300);
+  const a3 = arrow(770,445,990,515,"var(--grey)"); fadeInAt(a3,1900,300);
+  ["retries","circuit breaking","protocol translation"].forEach((l,i)=>{
+    const t = T("• "+l, 660, 570+i*32, {"text-anchor":"middle","font-size":14, fill:"var(--muted)"});
+    fadeIn(t, 2300+i*160, 400, 6);
+  });
+}});
+
+// 26 — ambassador practical
+slides.push({section:SEC.amb, title:"Ambassador — in practice", sub:"", build: tableSlide({
+  header:["EXAMPLE","WHY IT HELPS"],
+  rows:[
+    {a:"DB connection ambassador", b:"handles read-replica failover transparently — app just connects to \u201Clocalhost\u201D", color:"var(--green)"},
+    {a:"Cloud API ambassador", b:"absorbs auth-token refresh and rate-limit backoff for a third-party API", color:"var(--orange)"},
+  ]
+})});
+
+// 27 — gap: log formats
+slides.push({section:SEC.ad, title:"", sub:"", build: gapOnlySlide(
+  "The app emits logs and health checks in its own custom format, but your monitoring stack expects a standard one. Do we rewrite the app?"
+)});
+
+// 28 — adapter diagram
+slides.push({section:SEC.ad, title:"Adapter", sub:"Translates the app's output into a standard shape — no app changes", tag:"FILL", build: ()=>{
+  const raw = box(340, 420, 220, 110, ["custom log","format"], "var(--red)", {fs:14,fw:700});
+  const adapter = box(750, 420, 220, 130, ["Adapter"], "var(--green)", {fs:18,fw:800});
+  const std = box(1180, 420, 240, 110, ["Prometheus /","JSON logs"], "var(--blue)", {fs:14,fw:700});
+  fadeIn(raw,0); fadeIn(adapter,400); fadeIn(std,900);
+  const a1 = arrow(450,420,640,420,"var(--grey)"); fadeInAt(a1,1300,350);
+  const a2 = arrow(860,420,1060,420,"var(--grey)"); fadeInAt(a2,1700,350);
+  const note = T("standardizes logs, metrics, or health endpoints without touching app code", 800, 600, {"text-anchor":"middle","font-size":15, fill:"var(--muted)"});
+  fadeIn(note, 2100, 500, 8);
+}});
+
+// 29 — adapter practical
+slides.push({section:SEC.ad, title:"Adapter — in practice", sub:"", build: tableSlide({
+  header:["EXAMPLE","WHAT IT NORMALIZES"],
+  rows:[
+    {a:"Prometheus exporters", b:"e.g. mysqld_exporter — turns MySQL's own stats into Prometheus metrics", color:"var(--blue)"},
+    {a:"Legacy health-check adapter", b:"wraps an old app's ad-hoc status page into a k8s-compatible /healthz", color:"var(--green)"},
+  ]
+})});
+
+// 30 — gap: aggregation
+slides.push({section:SEC.agg, title:"", sub:"", build: gapOnlySlide(
+  "The client needs pricing, inventory, and reviews — all for ONE product page. Should the client fire all three requests itself?"
+)});
+
+// 31 — aggregator diagram
+slides.push({section:SEC.agg, title:"Aggregator", sub:"Fan out in parallel, compose one response", tag:"FILL", build: ()=>{
+  const client = node(230,470,"Client","var(--gold)",38);
+  fadeIn(client,0);
+  const agg = box(620,470,190,110,["Aggregator"],"var(--green)",{fs:16,fw:800});
+  fadeIn(agg,300);
+  const a0 = arrow(270,470,522,470,"var(--grey)"); fadeInAt(a0,700,300);
+  const services = [["Pricing",1050,270],["Inventory",1050,470],["Reviews",1050,670]];
+  services.forEach(([label,x,y],i)=>{
+    const n = node(x,y,label,"var(--blue)",40);
+    fadeIn(n, 1100+i*250);
+    const out = arrow(715,470,x-44,y,"var(--grey)"); fadeInAt(out,1100+i*250+150,300);
+  });
+  const back = T("→ merged response", 800, 780, {"text-anchor":"middle","font-size":15, fill:"var(--muted)"});
+  fadeIn(back, 2200, 450, 6);
+  // converge lines back
+  services.forEach(([label,x,y])=>{
+    const ret = arrow(x-46,y+10,724,485,"var(--dim)",{w:1.3,dash:"4 4"});
+    fadeInAt(ret, 2500, 400);
+  });
+}});
+
+// 32 — aggregator theory
+slides.push({section:SEC.agg, title:"Aggregator vs BFF", sub:"", build: ()=>{
+  const bffT = T("BFF", 420, 300, {"text-anchor":"middle","font-size":26,"font-weight":800, fill:"var(--purple)"});
+  const aggT = T("Aggregator", 1180, 300, {"text-anchor":"middle","font-size":26,"font-weight":800, fill:"var(--green)"});
+  fadeIn(bffT,0); fadeIn(aggT,200);
+  const bffD = TSpan(wrapText("owned per client experience; can hold light orchestration logic",28),420,360,24,{"text-anchor":"middle","font-size":15, fill:"var(--muted)"});
+  const aggD = TSpan(wrapText("reusable composition step; often stateless, used inside a gateway or as its own service",28),1180,360,24,{"text-anchor":"middle","font-size":15, fill:"var(--muted)"});
+  fadeIn(bffD,500,500,6); fadeIn(aggD,700,500,6);
+  const div = E("line",{x1:800,y1:230,x2:800,y2:520,stroke:"#22262c"}); fadeInAt(div,300,300);
+  const warn = T("if Reviews times out — return partial data with a fallback, don't fail the whole page", 800, 640, {"text-anchor":"middle","font-size":16.5,"font-weight":600, fill:"var(--red)"});
+  fadeIn(warn, 1500, 550, 8);
+}});
+
+// 33 — aggregator practical
+slides.push({section:SEC.agg, title:"Aggregator — in practice", sub:"", build: tableSlide({
+  header:["EXAMPLE","NOTE"],
+  rows:[
+    {a:"GraphQL / Apollo Federation", b:"lets a query span multiple underlying services in one round trip", color:"var(--purple)"},
+    {a:"Product-page composition service", b:"classic e-commerce case: pricing + inventory + reviews in one call", color:"var(--green)"},
+  ]
+})});
+
+// 34 — recap/gap -> strangler fig
+slides.push({section:SEC.strang, title:"", sub:"", build: recapGapSlide({
+  recap:"All patterns so far assumed the services already exist.",
+  gap:"But real systems start as ONE monolith. How do you get to microservices without a risky big-bang rewrite?",
+  color:"var(--red)"
+})});
+
+// 35 — strangler fig step 1
+slides.push({section:SEC.strang, title:"Strangler Fig", sub:"Named after the vine that grows around a tree and slowly replaces it", tag:"FILL", build: ()=>{
+  const mono = box(800, 480, 480, 260, ["Monolith"], "var(--orange)", {fs:24,fw:800, rx:14});
+  popIn(mono, 0, 600);
+  const facade = box(800, 280, 260, 80, ["Facade / Gateway"], "var(--green)", {fs:16,fw:800});
+  fadeIn(facade, 700);
+  const a = arrow(800,320,800,350,"var(--grey)"); fadeInAt(a,1200,300);
+  const note = T("all traffic enters through the facade first", 800, 780, {"text-anchor":"middle","font-size":15, fill:"var(--muted)"});
+  fadeIn(note, 1600, 450, 6);
+}});
+
+// 36 — strangler fig step 2-4 (shrink)
+slides.push({section:SEC.strang, title:"Strangler Fig — shrinking the monolith", sub:"", build: ()=>{
+  const facade = box(800, 220, 260, 70, ["Facade / Gateway"], "var(--green)", {fs:15,fw:800});
+  fadeIn(facade,0);
+  let monoW = 460, monoH=430;
+  const mono = box(800, 560, monoW, monoH, ["Monolith"], "var(--orange)", {fs:20,fw:800, rx:14});
+  fadeIn(mono, 250);
+
+  const steps = [
+    {label:"checkout-service", dy:-140, delay:900, shrink:110},
+    {label:"users-service", dy:0, delay:2200, shrink:100},
+    {label:"search-service", dy:140, delay:3500, shrink:90},
+  ];
+  steps.forEach((s,i)=>{
+    const svc = node(1250, 220+ i*0 + 0, s.label, "var(--blue)", 0); // placeholder unused
+  });
+  // simpler: place new services stacked at right, animate monolith rect shrink via width attr changes
+  const monoRect = mono.querySelector("rect");
+  const monoText = mono.querySelector("text");
+  let curW = monoW, curH = monoH;
+  steps.forEach((s,i)=>{
+    setTimeout(()=>{
+      const svcNode = node(1280, 260+i*180, s.label, "var(--blue)", 42);
+      fadeIn(svcNode, 0, 450);
+      const route = arrow(930,220,1240,255+i*180,"var(--grey)",{w:1.8});
+      fadeInAt(route, 250, 300);
+      curW -= s.shrink; curH -= 60;
+      anim(monoRect,[
+        {width:monoRect.getAttribute("width"), height:monoRect.getAttribute("height"), x:monoRect.getAttribute("x"), y:monoRect.getAttribute("y")},
+        {width:curW, height:curH, x:-curW/2, y:-curH/2}
+      ],{duration:600, delay:400, fill:"forwards"});
+      setTimeout(()=>{
+        monoRect.setAttribute("width",curW); monoRect.setAttribute("height",curH);
+        monoRect.setAttribute("x",-curW/2); monoRect.setAttribute("y",-curH/2);
+      }, 400+600+s.delay*0);
+    }, s.delay);
+  });
+  setTimeout(()=>{
+    const done = T("each cut is low-risk — and reversible: route back to the monolith if the new service misbehaves", 800, 830, {"text-anchor":"middle","font-size":14.5, fill:"var(--muted)"});
+    fadeIn(done, 0, 500, 6);
+  }, 4800);
+}});
+
+// 37 — strangler fig practical
+slides.push({section:SEC.strang, title:"Strangler Fig — in practice", sub:"", build: tableSlide({
+  header:["EXAMPLE","WHY IT WORKS"],
+  rows:[
+    {a:"Shopify-style migrations", b:"route one URL path at a time to a new service; monolith shrinks feature by feature", color:"var(--orange)"},
+    {a:"Always keep a rollback path", b:"if the new service breaks, flip the route back to the monolith instantly", color:"var(--red)"},
+  ]
+})});
+
+// 38 — gap: ACL
+slides.push({section:SEC.acl, title:"", sub:"", build: gapOnlySlide(
+  "While migrating, the new clean service still has to talk to the legacy system's messy data model. How do we stop that mess from leaking in?"
+)});
+
+// 39 — ACL diagram
+slides.push({section:SEC.acl, title:"Anti-corruption Layer", sub:"A translation boundary that keeps legacy mess out of your clean model", tag:"FILL", build: ()=>{
+  const legacy = box(320, 420, 240, 140, ["Legacy schema","CUST_REC_TYP=3"], "var(--red)", {fs:13,fw:700});
+  const acl = box(750, 420, 220, 140, ["Anti-corruption","Layer"], "var(--green)", {fs:15,fw:800});
+  const clean = box(1180, 420, 240, 140, ["Customer","(clean domain model)"], "var(--blue)", {fs:14,fw:700});
+  fadeIn(legacy,0); fadeIn(acl,400); fadeIn(clean,900);
+  const a1 = arrow(440,420,640,420,"var(--grey)"); fadeInAt(a1,1300,350);
+  const a2 = arrow(860,420,1060,420,"var(--grey)"); fadeInAt(a2,1700,350);
+  const note = T("from Domain-Driven Design — translate at the boundary, once", 800, 610, {"text-anchor":"middle","font-size":15, fill:"var(--muted)"});
+  fadeIn(note, 2100, 500, 8);
+}});
+
+// 40 — ACL practical
+slides.push({section:SEC.acl, title:"Anti-corruption Layer — in practice", sub:"", build: tableSlide({
+  header:["EXAMPLE","WHY IT HELPS"],
+  rows:[
+    {a:"Wrapping a mainframe/SOAP system", b:"exposes a clean REST/domain interface; keeps the ugliness contained to one layer", color:"var(--green)"},
+    {a:"During a Strangler Fig migration", b:"new services talk to the ACL, never directly to the legacy schema", color:"var(--orange)"},
+  ]
+})});
+
+// 41 — grand recap
+slides.push({section:SEC.close, title:"All twelve, at a glance", sub:"", build: ()=>{
+  const groups = [
+    {name:"EDGE", color:"var(--green)", items:["API Gateway","BFF"], x:230},
+    {name:"DISCOVERY", color:"var(--blue)", items:["Service Discovery","Client-side","Server-side"], x:560},
+    {name:"MESH", color:"var(--purple)", items:["Service Mesh","Sidecar","Ambassador","Adapter"], x:930},
+    {name:"COMPOSE / MIGRATE", color:"var(--orange)", items:["Aggregator","Strangler Fig","Anti-corruption Layer"], x:1330},
+  ];
+  groups.forEach((g,gi)=>{
+    const head = T(g.name, g.x, 220, {"text-anchor":"middle","font-size":14,"letter-spacing":2,"font-weight":800, fill:g.color});
+    fadeInAt(head, gi*250, 350);
+    g.items.forEach((it,i)=>{
+      const t = box(g.x, 300+i*90, 220, 60, [it], g.color, {fs:13.5, fw:700});
+      fadeIn(t, gi*250+300+i*160, 450, 10);
+    });
+  });
+}});
+
+// 42 — decision cheat sheet
+slides.push({section:SEC.close, title:"When facing this — reach for that", sub:"", build: tableSlide({
+  header:["FACING", "REACH FOR"],
+  rowH:66, startY:220,
+  rows:[
+    {a:"Many clients, one entry needed", b:"API Gateway", color:"var(--green)"},
+    {a:"Wildly different client shapes", b:"Backend-for-Frontend", color:"var(--gold)"},
+    {a:"Instances scale up/down constantly", b:"Service Discovery", color:"var(--blue)"},
+    {a:"Duplicated retry/mTLS logic per service", b:"Service Mesh (+ Sidecar)", color:"var(--purple)"},
+    {a:"Outbound calls to a flaky external system", b:"Ambassador", color:"var(--orange)"},
+    {a:"Non-standard logs/metrics/health checks", b:"Adapter", color:"var(--blue)"},
+    {a:"One page needs several services' data", b:"Aggregator", color:"var(--green)"},
+    {a:"Migrating a monolith safely", b:"Strangler Fig + Anti-corruption Layer", color:"var(--red)"},
+  ]
+})});
+
+// 43 — closing feynman line
+slides.push({section:SEC.close, title:"", sub:"", build: statementSlide({
+  tag:"", color:"var(--gold)",
+  lines:["If you can't explain WHY a pattern exists —","as the answer to one specific pain —","you've memorized a name, not learned the idea."]
+})});
+
+// ============================================================
+// ENGINE
+// ============================================================
+let idx = 0;
+const titleEl = document.getElementById("titleText");
+const subEl = document.getElementById("subText");
+const capEl = document.getElementById("captionText");
+const recapEl = document.getElementById("recapText");
+const secEl = document.getElementById("sectionLabel");
+const tagEl = document.getElementById("tagLabel");
+const progFill = document.getElementById("progFill");
+const counterEl = document.getElementById("counter");
+const clickHintEl = document.getElementById("clickHint");
+
+function render(i){
+  clearAnims();
+  stage.innerHTML = "";
+  const s = slides[i];
+  secEl.textContent = s.section || "";
+  titleEl.textContent = s.title || "";
+  subEl.textContent = s.sub || "";
+  capEl.textContent = "";
+  recapEl.textContent = "";
+  tagEl.textContent = s.tag || "";
+  tagEl.style.fill = s.tag==="GAP" ? "var(--red)" : s.tag==="FILL" ? "var(--green)" : "var(--muted)";
+  progFill.setAttribute("width", (1480 * (i+1)/slides.length).toFixed(1));
+  counterEl.textContent = (i+1) + " / " + slides.length;
+  clickHintEl.textContent = "click → next";
+  s.build();
+}
+
+function next(){ if(idx < slides.length-1){ idx++; render(idx);} }
+function prev(){ if(idx > 0){ idx--; render(idx);} }
+function replay(){ render(idx); }
+
+document.getElementById("stageSvg").addEventListener("click", next);
+window.addEventListener("keydown", (e)=>{
+  if(e.key==="ArrowRight" || e.key===" "){ e.preventDefault(); next(); }
+  else if(e.key==="ArrowLeft"){ e.preventDefault(); prev(); }
+  else if(e.key.toLowerCase()==="r"){ replay(); }
+});
+document.addEventListener("visibilitychange", ()=>{
+  if(document.hidden){ liveAnims.forEach(a=>{try{a.pause();}catch(e){}}); }
+  else { liveAnims.forEach(a=>{try{a.play();}catch(e){}}); }
+});
+
+render(0);
+</script>
+</body>
+</html>

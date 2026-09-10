@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Computational Geometry — A Visual Course</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<style>
+  :root{
+    --bg:#0a0a0f; --blue:#4A90C4; --yellow:#D4C55A; --green:#6BAA75;
+    --red:#C4605A; --gray:#8A8F98; --text:#EDEDED; --caption:#9AA0A8;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;width:100%;height:100%;background:#000;overflow:hidden;font-family:'Helvetica Neue',Arial,sans-serif;}
+  #deck-scaler{width:1600px;height:900px;background:var(--bg);position:absolute;top:50%;left:50%;transform-origin:center center;}
+  .slide{position:absolute;inset:0;display:none;}
+  .slide.active{display:block;}
+  .zone-title{position:absolute;top:40px;left:80px;right:80px;height:80px;display:flex;align-items:center;color:var(--text);font-size:34px;font-weight:600;letter-spacing:.4px;}
+  .zone-kicker{position:absolute;top:16px;left:80px;color:var(--gray);font-size:15px;letter-spacing:2px;text-transform:uppercase;}
+  .zone-stage{position:absolute;top:140px;left:80px;right:80px;height:630px;}
+  .zone-caption{position:absolute;top:786px;left:120px;right:120px;height:62px;display:flex;align-items:center;justify-content:center;color:var(--caption);font-size:18px;line-height:1.28;text-align:center;white-space:normal;overflow-wrap:break-word;overflow:visible;}
+  svg .stroke-obj{fill:none;stroke-width:3px;}
+  .draw-in{stroke-dasharray:var(--len);stroke-dashoffset:var(--len);}
+  .draw-in.go{animation:drawShape 800ms cubic-bezier(.65,0,.35,1) forwards;}
+  @keyframes drawShape{to{stroke-dashoffset:0;}}
+  .fade-in{opacity:0;transform:translateY(8px) scale(.98);transition:opacity 500ms ease-out, transform 500ms ease-out;}
+  .fade-in.go{opacity:1;transform:translateY(0) scale(1);}
+  .indicate.go{animation:indicate 650ms ease-in-out;}
+  @keyframes indicate{0%{transform:scale(1);filter:none;}50%{transform:scale(1.1);filter:drop-shadow(0 0 4px currentColor);}100%{transform:scale(1);filter:none;}}
+  .morph-path{transition:d 700ms cubic-bezier(.65,0,.35,1), fill 500ms ease;}
+  .mover{position:absolute;}
+  .eq-box{position:absolute;color:var(--text);text-align:center;}
+  .eq-write{clip-path:inset(0 100% 0 0);animation:writeClip 900ms ease-out forwards;}
+  @keyframes writeClip{to{clip-path:inset(0 0% 0 0);}}
+  .katex{color:var(--text);}
+  .pulse-dot{animation:pulse 1.4s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+  #nav{position:fixed;bottom:6px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:14px;z-index:10;background:rgba(10,10,15,0.65);padding:4px 14px;border-radius:20px;}
+  #nav button{background:transparent;border:1.5px solid var(--gray);color:var(--text);width:30px;height:30px;border-radius:50%;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:border-color .2s,color .2s;}
+  #nav button:hover{border-color:var(--blue);color:var(--blue);}
+  #dots{display:flex;gap:6px;max-width:520px;flex-wrap:wrap;justify-content:center;}
+  @media (max-width:640px){ #dots{display:none;} #nav{gap:10px;} }
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--gray);opacity:.5;transition:background .2s,opacity .2s,transform .2s;}
+  .dot.on{background:var(--blue);opacity:1;transform:scale(1.4);}
+  #slideCounter{color:var(--gray);font-size:14px;letter-spacing:.5px;min-width:56px;text-align:center;}
+  .tag{position:absolute;color:var(--gray);font-size:16px;letter-spacing:1px;}
+</style>
+</head>
+<body>
+<div id="deck-scaler">
+
+<!-- ============ SLIDE 0 — TITLE / ROADMAP ============ -->
+<section class="slide" data-slide="0">
+  <div class="zone-title">Computational Geometry</div>
+  <div class="zone-stage">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <g id="s0-icons"></g>
+    </svg>
+  </div>
+  <div class="zone-caption fade-in" id="s0-cap">The math of shapes, boundaries, and space — turned into algorithms a computer can run.</div>
+</section>
+
+<!-- ============ SLIDE 1 — POINTS & VECTORS ============ -->
+<section class="slide" data-slide="1">
+  <div class="zone-kicker">Foundations</div>
+  <div class="zone-title">A point is a number pair. A vector is a move.</div>
+  <div class="zone-stage" style="position:relative;">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <line x1="120" y1="500" x2="1320" y2="500" stroke="var(--gray)" stroke-width="1.5"/>
+      <line x1="200" y1="580" x2="200" y2="120" stroke="var(--gray)" stroke-width="1.5"/>
+      <circle id="s1-P" cx="200" cy="500" r="7" fill="var(--yellow)" class="fade-in"/>
+      <text x="185" y="540" fill="var(--caption)" font-size="18">O</text>
+      <circle id="s1-A" cx="620" cy="320" r="7" fill="var(--blue)" class="fade-in"/>
+      <text id="s1-Alabel" x="600" y="290" fill="var(--text)" font-size="20" class="fade-in">A = (5, 3)</text>
+      <line id="s1-vec" class="stroke-obj draw-in" x1="200" y1="500" x2="620" y2="320" stroke="var(--green)" marker-end="url(#s1arrow)"/>
+      <defs><marker id="s1arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--green)"/></marker></defs>
+      <text id="s1-veclabel" x="330" y="390" fill="var(--green)" font-size="20" class="fade-in">v = A − O</text>
+    </svg>
+  </div>
+  <div class="zone-caption fade-in" id="cap1">Every shape is built from points; every relationship between two points is a vector.</div>
+</section>
+
+<!-- ============ SLIDE 2 — ORIENTATION (the turn test) ============ -->
+<section class="slide" data-slide="2">
+  <div class="zone-kicker">Foundations</div>
+  <div class="zone-title">The one question geometry keeps asking: which way do we turn?</div>
+  <div class="zone-stage" style="position:relative;">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <circle cx="260" cy="460" r="6" fill="var(--yellow)"/>
+      <text x="240" y="500" fill="var(--caption)" font-size="18">A</text>
+      <circle cx="620" cy="460" r="6" fill="var(--yellow)"/>
+      <text x="605" y="500" fill="var(--caption)" font-size="18">B</text>
+      <line class="stroke-obj draw-in" id="s2-ab" x1="260" y1="460" x2="620" y2="460" stroke="var(--gray)"/>
+      <circle id="s2-C" cx="820" cy="220" r="6" fill="var(--blue)" class="fade-in"/>
+      <text id="s2-Clab" x="835" y="215" fill="var(--blue)" font-size="18" class="fade-in">C</text>
+      <line class="stroke-obj draw-in" id="s2-bc" x1="620" y1="460" x2="820" y2="220" stroke="var(--blue)"/>
+      <text id="s2-verdict" x="720" y="140" text-anchor="middle" fill="var(--green)" font-size="26" class="fade-in">left turn → counter-clockwise</text>
+    </svg>
+    <div class="eq-box fade-in" id="s2-eq" data-tex="\text{orient}(A,B,C)=(B_x-A_x)(C_y-A_y)-(B_y-A_y)(C_x-A_x)" style="left:220px;top:560px;width:1000px;font-size:21px;"></div>
+  </div>
+  <div class="zone-caption fade-in" id="cap2">Walking A→B→C, do we bend left, bend right, or stay straight? That single fact powers hulls, polygons, and intersections.</div>
+</section>
+
+<!-- ============ SLIDE 3 — CROSS PRODUCT ============ -->
+<section class="slide" data-slide="3">
+  <div class="zone-kicker">Foundations</div>
+  <div class="zone-title">The cross product turns "which way" into a number</div>
+  <div class="zone-stage" style="position:relative;">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <polygon id="s3-para" class="fade-in" points="250,500 650,500 750,230 350,230" fill="var(--blue)" opacity="0.16" stroke="none"/>
+      <line class="stroke-obj draw-in" id="s3-u" x1="250" y1="500" x2="650" y2="500" stroke="var(--yellow)" marker-end="url(#s3a1)"/>
+      <line class="stroke-obj draw-in" id="s3-v" x1="250" y1="500" x2="350" y2="230" stroke="var(--green)" marker-end="url(#s3a2)"/>
+      <defs>
+        <marker id="s3a1" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--yellow)"/></marker>
+        <marker id="s3a2" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--green)"/></marker>
+      </defs>
+      <text x="440" y="530" fill="var(--yellow)" font-size="20" class="fade-in">u</text>
+      <text x="290" y="360" fill="var(--green)" font-size="20" class="fade-in">v</text>
+      <text id="s3-area" x="1050" y="365" text-anchor="middle" fill="var(--text)" font-size="22" class="fade-in">signed area of the parallelogram</text>
+    </svg>
+    <div class="eq-box fade-in" id="s3-eq" data-tex="u\times v \;=\; u_x v_y - u_y v_x" style="left:420px;top:560px;width:600px;font-size:24px;"></div>
+  </div>
+  <div class="zone-caption fade-in" id="cap3">u × v = uₓvᵧ − uᵧvₓ. Positive → v is left of u (CCW). Negative → right (CW). Zero → collinear.</div>
+</section>
+
+<!-- ============ SLIDE 4 — DOT PRODUCT ============ -->
+<section class="slide" data-slide="4">
+  <div class="zone-kicker">Foundations</div>
+  <div class="zone-title">RECAP → GAP: cross tells us the turn. What tells us "how aligned"?</div>
+  <div class="zone-stage" style="position:relative;">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <line x1="250" y1="480" x2="1050" y2="480" stroke="var(--gray)" stroke-width="1"/>
+      <line class="stroke-obj draw-in" id="s4-u" x1="250" y1="480" x2="900" y2="480" stroke="var(--yellow)" marker-end="url(#s4a1)"/>
+      <line class="stroke-obj draw-in" id="s4-v" x1="250" y1="480" x2="820" y2="240" stroke="var(--green)" marker-end="url(#s4a2)"/>
+      <defs>
+        <marker id="s4a1" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--yellow)"/></marker>
+        <marker id="s4a2" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--green)"/></marker>
+      </defs>
+      <line id="s4-shadow" class="stroke-obj draw-in" x1="820" y1="240" x2="694" y2="480" stroke="var(--gray)" stroke-dasharray="4 6"/>
+      <line id="s4-proj" class="stroke-obj draw-in" x1="250" y1="480" x2="694" y2="480" stroke="var(--blue)"/>
+      <text x="620" y="510" fill="var(--blue)" font-size="18" class="fade-in" id="s4-projlab">projection of v onto u</text>
+      <text x="960" y="460" fill="var(--yellow)" font-size="20" class="fade-in">u</text>
+      <text x="770" y="330" fill="var(--green)" font-size="20" class="fade-in">v</text>
+    </svg>
+    <div class="eq-box fade-in" id="s4-eq" data-tex="u\cdot v \;=\; u_xv_x+u_yv_y \;=\; |u||v|\cos\theta" style="left:380px;top:560px;width:680px;font-size:22px;"></div>
+  </div>
+  <div class="zone-caption fade-in" id="cap4">u·v = uₓvₓ + uᵧvᵧ = |u||v|cosθ. It measures alignment: v's shadow cast onto u's direction.</div>
+</section>
+
+<!-- ============ SLIDE 5 — LINES ============ -->
+<section class="slide" data-slide="5">
+  <div class="zone-kicker">Objects</div>
+  <div class="zone-title">A line: every point, one equation</div>
+  <div class="zone-stage" style="position:relative;">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <circle cx="300" cy="470" r="6" fill="var(--yellow)" class="fade-in"/>
+      <circle cx="900" cy="220" r="6" fill="var(--yellow)" class="fade-in"/>
+      <text x="280" y="510" fill="var(--caption)" font-size="18" class="fade-in">P₁</text>
+      <text x="910" y="215" fill="var(--caption)" font-size="18" class="fade-in">P₂</text>
+      <line class="stroke-obj draw-in" id="s5-seg" x1="300" y1="470" x2="900" y2="220" stroke="var(--gray)"/>
+      <line class="stroke-obj draw-in" id="s5-ext" x1="100" y1="555" x2="1300" y2="55" stroke="var(--blue)" stroke-dasharray="2 8" opacity="0.7"/>
+      <g id="s5-eqbox" class="fade-in" transform="translate(720,470)">
+        <text text-anchor="middle" fill="var(--text)" font-size="24">a·x + b·y = c</text>
+        <text text-anchor="middle" y="34" fill="var(--caption)" font-size="17">a = y₂−y₁,  b = x₁−x₂,  c = a·x₁ + b·y₁</text>
+      </g>
+    </svg>
+  </div>
+  <div class="zone-caption fade-in" id="cap5">Two points fix a direction, and the general form ax+by=c describes the whole infinite line through them.</div>
+</section>
+
+<!-- ============ SLIDE 6 — LINE INTERSECTION ============ -->
+<section class="slide" data-slide="6">
+  <div class="zone-kicker">Objects</div>
+  <div class="zone-title">Two lines meet at exactly one solved point</div>
+  <div class="zone-stage" style="position:relative;">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <line class="stroke-obj draw-in" id="s6-l1" x1="120" y1="500" x2="1150" y2="140" stroke="var(--yellow)"/>
+      <line class="stroke-obj draw-in" id="s6-l2" x1="150" y1="140" x2="1250" y2="500" stroke="var(--green)"/>
+      <circle id="s6-pt" cx="700" cy="320" r="0" fill="var(--blue)" class="fade-in"/>
+      <text id="s6-lab" x="720" y="300" fill="var(--blue)" font-size="20" class="fade-in">(x, y)</text>
+      <g id="s6-eq" class="fade-in" transform="translate(720,600)">
+        <text text-anchor="middle" fill="var(--text)" font-size="22">solve  a₁x+b₁y=c₁  and  a₂x+b₂y=c₂  simultaneously (Cramer's rule)</text>
+      </g>
+    </svg>
+  </div>
+  <div class="zone-caption fade-in" id="cap6">If the determinant a₁b₂−a₂b₁ is zero, the lines are parallel — no single solution exists.</div>
+</section>
+
+<!-- ============ SLIDE 7 — SEGMENTS NEED BOUNDS ============ -->
+<section class="slide" data-slide="7">
+  <div class="zone-kicker">Objects</div>
+  <div class="zone-title">A segment is a line that got cut short</div>
+  <div class="zone-stage" style="position:relative;">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <line id="s7-full" class="stroke-obj draw-in" x1="80" y1="500" x2="1360" y2="140" stroke="var(--gray)" stroke-dasharray="2 8" opacity="0.55"/>
+      <line id="s7-seg" class="stroke-obj draw-in" x1="420" y1="410" x2="1020" y2="240" stroke="var(--yellow)"/>
+      <circle cx="420" cy="410" r="7" fill="var(--yellow)" class="fade-in"/>
+      <circle cx="1020" cy="240" r="7" fill="var(--yellow)" class="fade-in"/>
+      <text x="400" y="450" fill="var(--caption)" font-size="18" class="fade-in">A</text>
+      <text x="1030" y="235" fill="var(--caption)" font-size="18" class="fade-in">B</text>
+      <circle id="s7-x" cx="1220" cy="180" r="6" fill="var(--red)" class="fade-in"/>
+      <text id="s7-xlab" x="1150" y="150" fill="var(--red)" font-size="18" class="fade-in">on the line, but not on the segment</text>
+    </svg>
+  </div>
+  <div class="zone-caption fade-in" id="cap7">Solving the line equation isn't enough — we must also check the point lands between A and B.</div>
+</section>
+
+<!-- ============ SLIDE 8 — SEGMENT INTERSECTION VIA ORIENTATION ============ -->
+<section class="slide" data-slide="8">
+  <div class="zone-kicker">Objects</div>
+  <div class="zone-title">Two segments cross only if each straddles the other</div>
+  <div class="zone-stage" style="position:relative;">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <line class="stroke-obj draw-in" id="s8-p1p2" x1="220" y1="500" x2="900" y2="180" stroke="var(--yellow)"/>
+      <line class="stroke-obj draw-in" id="s8-q1q2" x1="300" y1="180" x2="1050" y2="470" stroke="var(--green)"/>
+      <circle cx="220" cy="500" r="6" fill="var(--yellow)" class="fade-in"/><text x="185" y="540" fill="var(--caption)" font-size="17" class="fade-in">P1</text>
+      <circle cx="900" cy="180" r="6" fill="var(--yellow)" class="fade-in"/><text x="915" y="170" fill="var(--caption)" font-size="17" class="fade-in">P2</text>
+      <circle cx="300" cy="180" r="6" fill="var(--green)" class="fade-in"/><text x="245" y="165" fill="var(--caption)" font-size="17" class="fade-in">Q1</text>
+      <circle cx="1050" cy="470" r="6" fill="var(--green)" class="fade-in"/><text x="1065" y="470" fill="var(--caption)" font-size="17" class="fade-in">Q2</text>
+      <circle id="s8-hit" cx="612" cy="337" r="0" fill="var(--blue)"/>
+      <text id="s8-cond" x="1220" y="330" text-anchor="middle" fill="var(--text)" font-size="19" class="fade-in">orient(P1,P2,Q1) ≠ orient(P1,P2,Q2)&#10;AND orient(Q1,Q2,P1) ≠ orient(Q1,Q2,P2)</text>
+    </svg>
+  </div>
+  <div class="zone-caption fade-in" id="cap8">Four orientation tests, no division needed — Q1 and Q2 must fall on opposite sides of line P, and vice versa.</div>
+</section>
+
+<!-- ============ SLIDE 9 — RECAP/GAP/FILL → CONVEX HULL ============ -->
+<section class="slide" data-slide="9">
+  <div class="zone-kicker">Bridge</div>
+  <div class="zone-title">RECAP → GAP: we can test one pair of segments. What about a thousand points at once?</div>
+  <div class="zone-stage" style="position:relative;">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <g id="s9-cloud"></g>
+      <text id="s9-q" x="720" y="580" text-anchor="middle" fill="var(--yellow)" font-size="24" class="fade-in">what is the tightest boundary wrapping all of them?</text>
+    </svg>
+  </div>
+  <div class="zone-caption fade-in" id="cap9">FILL: the convex hull — the outer rubber-band boundary of a point set.</div>
+</section>
+
+<!-- ============ SLIDE 10 — CONVEX HULL CONCEPT ============ -->
+<section class="slide" data-slide="10">
+  <div class="zone-kicker">Hull &amp; Sorting</div>
+  <div class="zone-title">Convex hull: the shape a rubber band snaps into</div>
+  <div class="zone-stage" style="position:relative;">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <g id="s10-cloud"></g>
+      <polygon id="s10-hull" class="stroke-obj draw-in" points="" stroke="var(--blue)"/>
+    </svg>
+  </div>
+  <div class="zone-caption fade-in" id="cap10">Convex = every segment between two hull points stays inside it. No dent ever points inward.</div>
+</section>
+
+<!-- ============ SLIDE 11 — GRAHAM SCAN STEP 1 ============ -->
+<section class="slide" data-slide="11">
+  <div class="zone-kicker">Hull — Graham Scan (1/3)</div>
+  <div class="zone-title">Step 1 — anchor on the lowest point</div>
+  <div class="zone-stage" style="position:relative;">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <g id="s11-cloud"></g>
+      <circle id="s11-pivot" cx="0" cy="0" r="0" fill="var(--yellow)"/>
+      <text id="s11-lab" x="720" y="580" text-anchor="middle" fill="var(--yellow)" font-size="22" class="fade-in">pivot: the point with the smallest y (ties broken by smallest x)</text>
+    </svg>
+  </div>
+  <div class="zone-caption fade-in" id="cap11">This pivot is guaranteed to sit on the hull — nothing can be "below" it, so it anchors our sweep.</div>
+</section>
+
+<!-- ============ SLIDE 12 — GRAHAM SCAN STEP 2 ============ -->
+<section class="slide" data-slide="12">
+  <div class="zone-kicker">Hull — Graham Scan (2/3)</div>
+  <div class="zone-title">Step 2 — sort every other point by angle from the pivot</div>
+  <div class="zone-stage" style="position:relative;">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <g id="s12-cloud"></g>
+      <path id="s12-sweep" class="stroke-obj" d="M 720 560 L 1300 560" stroke="var(--green)" opacity="0"/>
+    </svg>
+  </div>
+  <div class="zone-caption fade-in" id="cap12">A radar sweep from the pivot, left to right, gives the exact order the hull will visit points in.</div>
+</section>
+
+<!-- ============ SLIDE 13 — GRAHAM SCAN STEP 3 ============ -->
+<section class="slide" data-slide="13">
+  <div class="zone-kicker">Hull — Graham Scan (3/3)</div>
+  <div class="zone-title">Step 3 — walk the order, pop on a right turn</div>
+  <div class="zone-stage" style="position:relative;">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <g id="s13-cloud"></g>
+      <polyline id="s13-stack" class="stroke-obj" points="" stroke="var(--blue)" fill="none"/>
+      <text id="s13-status" x="720" y="590" text-anchor="middle" fill="var(--text)" font-size="20" class="fade-in">stack: []</text>
+    </svg>
+  </div>
+  <div class="zone-caption fade-in" id="cap13">Keep a stack. For each new point, while the last turn is clockwise, pop — then push. O(n log n) total, driven entirely by the orientation test.</div>
+</section>
+
+<!-- ============ SLIDE 14 — MONOTONIC CHAIN ============ -->
+<section class="slide" data-slide="14">
+  <div class="zone-kicker">Hull — Alternative</div>
+  <div class="zone-title">Monotone chain: sort by x, build two chains</div>
+  <div class="zone-stage" style="position:relative;">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <g id="s14-cloud"></g>
+      <polyline id="s14-lower" class="stroke-obj draw-in" points="" stroke="var(--blue)" fill="none"/>
+      <polyline id="s14-upper" class="stroke-obj draw-in" points="" stroke="var(--green)" fill="none"/>
+      <text x="1180" y="560" fill="var(--blue)" font-size="18" class="fade-in" id="s14-llab">lower chain</text>
+      <text x="1180" y="200" fill="var(--green)" font-size="18" class="fade-in" id="s14-ulab">upper chain</text>
+    </svg>
+  </div>
+  <div class="zone-caption fade-in" id="cap14">Andrew's algorithm (2001): sort points by x, sweep left→right for the lower chain, right→left for the upper — same pop-on-right-turn rule, no angle sort needed.</div>
+</section>
+
+<!-- ============ SLIDE 15 — RECAP/GAP/FILL → CLOSEST PAIR ============ -->
+<section class="slide" data-slide="15">
+  <div class="zone-kicker">Bridge</div>
+  <div class="zone-title">RECAP → GAP: hull finds the outer boundary. But which two points sit closest together?</div>
+  <div class="zone-stage" style="position:relative;">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <g id="s15-cloud"></g>
+    </svg>
+  </div>
+  <div class="zone-caption fade-in" id="cap15">FILL: checking every pair is O(n²) — divide and conquer brings it to O(n log n).</div>
+</section>
+
+<!-- ============ SLIDE 16 — CLOSEST PAIR: BRUTE FORCE ============ -->
+<section class="slide" data-slide="16">
+  <div class="zone-kicker">Closest Pair (1/2)</div>
+  <div class="zone-title">Baseline: check every pair — O(n²)</div>
+  <div class="zone-stage" style="position:relative;">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <g id="s16-cloud"></g>
+      <line id="s16-scanline" class="stroke-obj" x1="0" y1="0" x2="0" y2="0" stroke="var(--red)" opacity="0"/>
+    </svg>
+  </div>
+  <div class="zone-caption fade-in" id="cap16">n points ⇒ n(n−1)/2 distance checks. Fine for small n, painful at scale — 1 million points is half a trillion pairs.</div>
+</section>
+
+<!-- ============ SLIDE 17 — CLOSEST PAIR: DIVIDE & CONQUER ============ -->
+<section class="slide" data-slide="17">
+  <div class="zone-kicker">Closest Pair (2/2)</div>
+  <div class="zone-title">Split, conquer, then check only the seam</div>
+  <div class="zone-stage" style="position:relative;">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <g id="s17-cloud"></g>
+      <line id="s17-mid" class="stroke-obj draw-in" x1="720" y1="100" x2="720" y2="560" stroke="var(--gray)" stroke-dasharray="3 6"/>
+      <rect id="s17-strip" x="620" y="100" width="200" height="460" fill="var(--yellow)" opacity="0"/>
+    </svg>
+  </div>
+  <div class="zone-caption fade-in" id="cap17">Split by x, solve each half recursively, then only re-check points within δ of the midline — provably at most a handful per point. Total: O(n log n).</div>
+</section>
+
+<!-- ============ SLIDE 18 — POLYGON AREA (SHOELACE) ============ -->
+<section class="slide" data-slide="18">
+  <div class="zone-kicker">Measurement</div>
+  <div class="zone-title">The shoelace formula: area from coordinates alone</div>
+  <div class="zone-stage" style="position:relative;">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <polygon id="s18-poly" class="stroke-obj draw-in" points="500,480 900,420 1000,220 700,120 420,240" stroke="var(--blue)"/>
+      <polygon id="s18-fill" points="500,480 900,420 1000,220 700,120 420,240" fill="var(--blue)" opacity="0"/>
+      <text id="s18-count" x="720" y="60" text-anchor="middle" fill="var(--yellow)" font-size="30" font-weight="600" class="fade-in">0</text>
+    </svg>
+    <div class="eq-box fade-in" id="s18-eq" data-tex="A=\tfrac{1}{2}\left|\sum_{i}(x_iy_{i+1}-x_{i+1}y_i)\right|" style="left:420px;top:560px;width:600px;font-size:22px;"></div>
+  </div>
+  <div class="zone-caption fade-in" id="cap18">Cross each vertex with the next, sum the signed triangles from the origin — the outer parts cancel and only the polygon's area survives.</div>
+</section>
+
+<!-- ============ SLIDE 19 — POINT IN POLYGON ============ -->
+<section class="slide" data-slide="19">
+  <div class="zone-kicker">Queries</div>
+  <div class="zone-title">Inside or outside? Fire a ray and count crossings</div>
+  <div class="zone-stage" style="position:relative;">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <polygon id="s19-poly" class="stroke-obj draw-in" points="360,500 780,560 980,380 860,180 520,140 320,300" stroke="var(--blue)"/>
+      <circle id="s19-P" cx="600" cy="360" r="6" fill="var(--yellow)" class="fade-in"/>
+      <text x="615" y="355" fill="var(--yellow)" font-size="18" class="fade-in">P</text>
+      <line id="s19-ray" class="stroke-obj draw-in" x1="600" y1="360" x2="1400" y2="360" stroke="var(--green)" stroke-dasharray="3 6"/>
+      <circle id="s19-x1" cx="893" cy="360" r="5" fill="var(--red)" class="fade-in"/>
+      <circle id="s19-x2" cx="1000000" cy="360" r="5" fill="var(--red)" opacity="0"/>
+      <text id="s19-count" x="1180" y="330" fill="var(--text)" font-size="22" class="fade-in">crossings: 1 → odd → inside</text>
+    </svg>
+  </div>
+  <div class="zone-caption fade-in" id="cap19">Odd number of crossings means P is inside; even means outside. Careful edge cases: rays through a vertex must count consistently.</div>
+</section>
+
+<!-- ============ SLIDE 20 — RECAP/GAP/FILL → SWEEP LINE ============ -->
+<section class="slide" data-slide="20">
+  <div class="zone-kicker">Bridge</div>
+  <div class="zone-title">RECAP → GAP: we can test one point, one polygon. What about thousands of segments, all at once?</div>
+  <div class="zone-stage" style="position:relative;">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <g id="s20-lines"></g>
+    </svg>
+  </div>
+  <div class="zone-caption fade-in" id="cap20">FILL: sweep a line across the plane, and only ever compare neighbors that are actually adjacent right now.</div>
+</section>
+
+<!-- ============ SLIDE 21 — SWEEP LINE ============ -->
+<section class="slide" data-slide="21">
+  <div class="zone-kicker">Sweep Line</div>
+  <div class="zone-title">Turn a 2D problem into a 1D problem, frame by frame</div>
+  <div class="zone-stage" style="position:relative;">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <g id="s21-lines"></g>
+      <line id="s21-sweep" class="stroke-obj" x1="120" y1="90" x2="120" y2="560" stroke="var(--yellow)"/>
+      <text id="s21-status" x="720" y="600" text-anchor="middle" fill="var(--text)" font-size="20" class="fade-in">active set: {}</text>
+    </svg>
+  </div>
+  <div class="zone-caption fade-in" id="cap21">An imaginary vertical line glides left→right; a status structure tracks which segments it currently crosses, ordered top to bottom — intersections can only happen between neighbors that swap order.</div>
+</section>
+
+<!-- ============ SLIDE 22 — VORONOI ============ -->
+<section class="slide" data-slide="22">
+  <div class="zone-kicker">Spatial Structures</div>
+  <div class="zone-title">Voronoi: color the plane by "nearest seed"</div>
+  <div class="zone-stage" style="position:relative;">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <g id="s22-cells"></g>
+      <g id="s22-seeds"></g>
+    </svg>
+  </div>
+  <div class="zone-caption fade-in" id="cap22">Every region is the set of points closer to its seed than any other. The boundary between two regions is always the perpendicular bisector between their seeds — its dual graph (connect neighboring seeds) is the Delaunay triangulation.</div>
+</section>
+
+<!-- ============ SLIDE 23 — RECAP/GAP/FILL → KD-TREE ============ -->
+<section class="slide" data-slide="23">
+  <div class="zone-kicker">Bridge</div>
+  <div class="zone-title">RECAP → GAP: Voronoi answers "nearest seed" beautifully — but building it for a million points, every query, is expensive. A faster structure?</div>
+  <div class="zone-stage" style="position:relative;">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <g id="s23-cloud"></g>
+    </svg>
+  </div>
+  <div class="zone-caption fade-in" id="cap23">FILL: the k-d tree — recursively slice space in half, alternating axis, and prune whole halves during search.</div>
+</section>
+
+<!-- ============ SLIDE 24 — KD-TREE CONSTRUCTION ============ -->
+<section class="slide" data-slide="24">
+  <div class="zone-kicker">KD-Tree (1/2)</div>
+  <div class="zone-title">Build: alternate the cutting axis at every depth</div>
+  <div class="zone-stage" style="position:relative;">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <g id="s24-cloud"></g>
+      <g id="s24-cuts"></g>
+    </svg>
+  </div>
+  <div class="zone-caption fade-in" id="cap24">Depth 0 splits by x at the median point, depth 1 splits by y, depth 2 back to x — a balanced tree in O(n log n), each node owning one point and one rectangle of space.</div>
+</section>
+
+<!-- ============ SLIDE 25 — KD-TREE NEAREST NEIGHBOR ============ -->
+<section class="slide" data-slide="25">
+  <div class="zone-kicker">KD-Tree (2/2)</div>
+  <div class="zone-title">Search: descend, backtrack, prune what can't win</div>
+  <div class="zone-stage" style="position:relative;">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <g id="s25-cloud"></g>
+      <g id="s25-cuts"></g>
+      <circle id="s25-q" cx="0" cy="0" r="0" fill="var(--yellow)"/>
+      <circle id="s25-radius" cx="0" cy="0" r="0" fill="none" stroke="var(--yellow)" stroke-width="1.5" opacity="0"/>
+    </svg>
+  </div>
+  <div class="zone-caption fade-in" id="cap25">Walk down to the query's leaf region for a first guess, then climb back up — only entering a sibling branch if its splitting plane is closer than the current best distance. Most branches get skipped entirely.</div>
+</section>
+
+<!-- ============ SLIDE 26 — FINAL RECAP ============ -->
+<section class="slide" data-slide="26">
+  <div class="zone-title">The whole map, in one frame</div>
+  <div class="zone-stage">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <g id="s26-map"></g>
+    </svg>
+  </div>
+  <div class="zone-caption fade-in" id="cap26">Points and vectors gave us orientation and the two products. Orientation gave us intersection and the hull. The hull and brute force gave us divide-and-conquer. Ray casting and sweeping gave us queries at scale. Voronoi and k-d trees gave us space itself, indexed.</div>
+</section>
+
+</div>
+<div id="nav">
+  <button id="prevBtn" aria-label="Previous">‹</button>
+  <div id="dots"></div>
+  <span id="slideCounter">1 / 1</span>
+  <button id="nextBtn" aria-label="Next">›</button>
+</div>
+<script>
+/* ---------------- scaling ---------------- */
+function fitScale(){
+  const vw = (window.visualViewport && window.visualViewport.width)  || window.innerWidth;
+  const vh = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+  const s = Math.min(vw/1600, vh/900);
+  document.getElementById('deck-scaler').style.transform = `translate(-50%,-50%) scale(${s})`;
+}
+window.addEventListener('resize', fitScale);
+window.addEventListener('orientationchange', fitScale);
+if(window.visualViewport) window.visualViewport.addEventListener('resize', fitScale);
+fitScale();
+
+/* ---------------- generic helpers ---------------- */
+function beat(fn, ms){ fn(); return new Promise(r=>setTimeout(r, ms+150)); }
+function wait(ms){ return new Promise(r=>setTimeout(r,ms)); }
+function prepDraw(pathEl){ const len = pathEl.getTotalLength(); pathEl.style.setProperty('--len', len); }
+function svgEl(tag, attrs){
+  const e = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  for(const k in attrs) e.setAttribute(k, attrs[k]);
+  return e;
+}
+function animateAttr(el, attr, from, to, ms, unit){
+  return new Promise(resolve=>{
+    const t0 = performance.now();
+    function step(t){
+      const p = Math.min(1,(t-t0)/ms);
+      const e = 1-Math.pow(1-p,3);
+      const v = from + (to-from)*e;
+      el.setAttribute(attr, unit? v+unit : v);
+      if(p<1) requestAnimationFrame(step); else resolve();
+    }
+    requestAnimationFrame(step);
+  });
+}
+function animatePoint(el, from, to, ms){
+  return new Promise(resolve=>{
+    const t0 = performance.now();
+    function step(t){
+      const p = Math.min(1,(t-t0)/ms);
+      const e = 1-Math.pow(1-p,3);
+      el.style.left = (from.x+(to.x-from.x)*e)+'px';
+      el.style.top  = (from.y+(to.y-from.y)*e)+'px';
+      if(p<1) requestAnimationFrame(step); else resolve();
+    }
+    requestAnimationFrame(step);
+  });
+}
+function animateNumber(el, from, to, ms, decimals=0){
+  const t0 = performance.now();
+  function step(t){
+    const p = Math.min(1,(t-t0)/ms);
+    const val = from+(to-from)*(1-Math.pow(1-p,3));
+    el.textContent = val.toFixed(decimals);
+    if(p<1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+function buildCloud(g, pts, color, r=7){
+  g.innerHTML='';
+  Object.entries(pts).forEach(([id,[x,y]])=>{
+    const c = svgEl('circle', {cx:x, cy:y, r:r, fill:color});
+    c.classList.add('fade-in');
+    c.dataset.id = id;
+    g.appendChild(c);
+  });
+}
+async function revealCloud(g, staggerMs=50){
+  for(const k of Array.from(g.children)){ k.classList.add('go'); await wait(staggerMs); }
+}
+function clearGo(root){
+  root.querySelectorAll('.draw-in, .fade-in, .indicate').forEach(el=>{
+    el.classList.remove('go');
+  });
+}
+
+/* ---------------- shared datasets ---------------- */
+const CLOUD_A = { P0:[300,520], P1:[480,560], P2:[700,540], P3:[900,500], P4:[1050,380],
+                   P5:[1120,220], P6:[950,130], P7:[700,100], P8:[450,160], P9:[620,350], P10:[780,320] };
+const HULL_ORDER = ['P1','P0','P8','P7','P6','P5','P4','P3','P2','P1'];
+const CLOUD_B = { Q0:[200,480], Q1:[420,540], Q2:[650,470], Q3:[870,510], Q4:[1080,430],
+                   Q5:[1250,300], Q6:[980,180], Q7:[700,140], Q8:[430,220], Q9:[760,340], Q10:[792,352] };
+const LINES_SET = [
+  {a:[150,120], b:[500,520], c:'var(--yellow)'},
+  {a:[300,500], b:[700,140], c:'var(--green)'},
+  {a:[550,150], b:[950,500], c:'var(--yellow)'},
+  {a:[800,480], b:[1200,160], c:'var(--green)'},
+  {a:[1000,140], b:[1350,500], c:'var(--yellow)'},
+];
+const VORONOI_SEEDS = { S0:[400,220,'var(--blue)',140], S1:[950,180,'var(--green)',161],
+  S2:[1150,450,'var(--yellow)',161], S3:[650,520,'var(--red)',187], S4:[250,470,'var(--gray)',140] };
+
+/* ---------------- katex render (script runs at end of body, DOM already parsed) ---------------- */
+document.querySelectorAll('[data-tex]').forEach(el=>{
+  try{ katex.render(el.dataset.tex, el, {throwOnError:false, displayMode:true}); }catch(e){}
+});
+
+/* ---------------- roadmap icon builder (slides 0 & 26) ---------------- */
+function buildRoadmap(g, connected){
+  g.innerHTML='';
+  const items = [
+    {label:'Foundations', cx:120, draw:(grp,x,y)=>{ grp.appendChild(svgEl('circle',{cx:x,cy:y,r:8,fill:'var(--yellow)'})); grp.appendChild(svgEl('line',{x1:x,y1:y,x2:x+50,y2:y-40,stroke:'var(--green)','stroke-width':3})); }},
+    {label:'Predicates', cx:368, draw:(grp,x,y)=>{ grp.appendChild(svgEl('polyline',{points:`${x-40},${y+20} ${x},${y-30} ${x+40},${y+20}`,fill:'none',stroke:'var(--blue)','stroke-width':3})); }},
+    {label:'Intersections', cx:616, draw:(grp,x,y)=>{ grp.appendChild(svgEl('line',{x1:x-40,y1:y+30,x2:x+40,y2:y-30,stroke:'var(--yellow)','stroke-width':3})); grp.appendChild(svgEl('line',{x1:x-40,y1:y-30,x2:x+40,y2:y+30,stroke:'var(--green)','stroke-width':3})); }},
+    {label:'Hull &amp; distance', cx:864, draw:(grp,x,y)=>{ grp.appendChild(svgEl('polygon',{points:`${x},${y-40} ${x+38},${y-10} ${x+24},${y+35} ${x-24},${y+35} ${x-38},${y-10}`,fill:'none',stroke:'var(--blue)','stroke-width':3})); }},
+    {label:'Area &amp; queries', cx:1112, draw:(grp,x,y)=>{ grp.appendChild(svgEl('rect',{x:x-35,y:y-35,width:70,height:70,fill:'var(--green)',opacity:0.18})); grp.appendChild(svgEl('rect',{x:x-35,y:y-35,width:70,height:70,fill:'none',stroke:'var(--green)','stroke-width':3})); }},
+    {label:'Space, indexed', cx:1340, draw:(grp,x,y)=>{ grp.appendChild(svgEl('line',{x1:x,y1:y-40,x2:x,y2:y+40,stroke:'var(--blue)','stroke-width':3})); grp.appendChild(svgEl('line',{x1:x-35,y1:y-10,x2:x,y2:y-10,stroke:'var(--green)','stroke-width':3})); grp.appendChild(svgEl('line',{x1:x,y1:y+15,x2:x+35,y2:y+15,stroke:'var(--green)','stroke-width':3})); }},
+  ];
+  items.forEach((it,idx)=>{
+    const y=300;
+    const grp = svgEl('g',{class:'fade-in'});
+    it.draw(grp,it.cx,y);
+    const lab = svgEl('text',{x:it.cx,y:460,'text-anchor':'middle',fill:'var(--caption)','font-size':19});
+    lab.textContent = it.label.replace('&amp;','&');
+    grp.appendChild(lab);
+    g.appendChild(grp);
+    if(connected && idx>0){
+      const prevCx = items[idx-1].cx;
+      g.insertBefore(svgEl('line',{x1:prevCx+45,y1:y,x2:it.cx-45,y2:y,stroke:'var(--gray)','stroke-width':1.5,opacity:0.5}), grp);
+    }
+  });
+}
+
+/* ---------------- scenes ---------------- */
+const scenes = {};
+
+scenes[0] = { enter: async (root)=>{ buildRoadmap(root.querySelector('#s0-icons'), false);
+    await beat(()=>{ root.querySelectorAll('#s0-icons .fade-in').forEach((el,i)=>setTimeout(()=>el.classList.add('go'), i*180)); }, 1300);
+    await beat(()=>root.querySelector('#s0-cap').classList.add('go'), 400);
+  }, exit: (root)=>clearGo(root) };
+
+scenes[1] = { enter: async (root)=>{
+    root.querySelector('#s1-P').classList.add('go');
+    await beat(()=>{ const l=root.querySelector('#s1-vec'); prepDraw(l); l.classList.add('go'); }, 700);
+    await beat(()=>{ root.querySelector('#s1-A').classList.add('go'); root.querySelector('#s1-Alabel').classList.add('go'); }, 400);
+    await beat(()=>root.querySelector('#s1-veclabel').classList.add('go'), 400);
+    await beat(()=>root.querySelector('#cap1').classList.add('go'), 300);
+  }, exit:(root)=>clearGo(root) };
+
+scenes[2] = { enter: async (root)=>{
+    const ab=root.querySelector('#s2-ab'), bc=root.querySelector('#s2-bc');
+    prepDraw(ab); await beat(()=>ab.classList.add('go'), 700);
+    prepDraw(bc); await beat(()=>bc.classList.add('go'), 700);
+    await beat(()=>{ root.querySelector('#s2-C').classList.add('go'); root.querySelector('#s2-Clab').classList.add('go'); }, 300);
+    await beat(()=>root.querySelector('#s2-verdict').classList.add('go'), 400);
+    await beat(()=>root.querySelector('#s2-eq').classList.add('go'), 400);
+    await beat(()=>root.querySelector('#cap2').classList.add('go'), 300);
+  }, exit:(root)=>clearGo(root) };
+
+scenes[3] = { enter: async (root)=>{
+    const u=root.querySelector('#s3-u'), v=root.querySelector('#s3-v');
+    prepDraw(u); await beat(()=>u.classList.add('go'), 700);
+    prepDraw(v); await beat(()=>v.classList.add('go'), 700);
+    await beat(()=>root.querySelector('#s3-para').classList.add('go'), 500);
+    await beat(()=>{ root.querySelectorAll('.zone-stage text.fade-in').forEach(el=>el.classList.add('go')); }, 400);
+    await beat(()=>root.querySelector('#s3-eq').classList.add('go'), 400);
+    await beat(()=>root.querySelector('#cap3').classList.add('go'), 300);
+  }, exit:(root)=>clearGo(root) };
+
+scenes[4] = { enter: async (root)=>{
+    const u=root.querySelector('#s4-u'), v=root.querySelector('#s4-v');
+    prepDraw(u); await beat(()=>u.classList.add('go'), 700);
+    prepDraw(v); await beat(()=>v.classList.add('go'), 700);
+    const shadow=root.querySelector('#s4-shadow'), proj=root.querySelector('#s4-proj');
+    prepDraw(shadow); await beat(()=>shadow.classList.add('go'), 600);
+    prepDraw(proj); await beat(()=>proj.classList.add('go'), 600);
+    await beat(()=>root.querySelectorAll('.zone-stage text.fade-in').forEach(el=>el.classList.add('go')), 400);
+    await beat(()=>root.querySelector('#s4-eq').classList.add('go'), 400);
+    await beat(()=>root.querySelector('#cap4').classList.add('go'), 300);
+  }, exit:(root)=>clearGo(root) };
+
+scenes[5] = { enter: async (root)=>{
+    root.querySelectorAll('circle.fade-in, text.fade-in').forEach(c=>c.classList.add('go'));
+    const seg=root.querySelector('#s5-seg'); prepDraw(seg); await beat(()=>seg.classList.add('go'), 700);
+    const ext=root.querySelector('#s5-ext'); prepDraw(ext); await beat(()=>ext.classList.add('go'), 900);
+    await beat(()=>root.querySelector('#s5-eqbox').classList.add('go'), 400);
+    await beat(()=>root.querySelector('#cap5').classList.add('go'), 300);
+  }, exit:(root)=>clearGo(root) };
+
+scenes[6] = { enter: async (root)=>{
+    const l1=root.querySelector('#s6-l1'), l2=root.querySelector('#s6-l2');
+    prepDraw(l1); await beat(()=>l1.classList.add('go'), 700);
+    prepDraw(l2); await beat(()=>l2.classList.add('go'), 700);
+    await beat(()=>{ const p=root.querySelector('#s6-pt'); p.setAttribute('r',8); p.classList.add('go'); root.querySelector('#s6-lab').classList.add('go'); }, 400);
+    await beat(()=>root.querySelector('#s6-eq').classList.add('go'), 400);
+    await beat(()=>root.querySelector('#cap6').classList.add('go'), 300);
+  }, exit:(root)=>{ clearGo(root); root.querySelector('#s6-pt').setAttribute('r',0); } };
+
+scenes[7] = { enter: async (root)=>{
+    const full=root.querySelector('#s7-full'); prepDraw(full); await beat(()=>full.classList.add('go'), 800);
+    const seg=root.querySelector('#s7-seg'); prepDraw(seg); await beat(()=>seg.classList.add('go'), 700);
+    root.querySelectorAll('circle.fade-in, text.fade-in').forEach(el=>el.classList.add('go'));
+    await beat(()=>{}, 400);
+    await beat(()=>root.querySelector('#cap7').classList.add('go'), 300);
+  }, exit:(root)=>clearGo(root) };
+
+scenes[8] = { enter: async (root)=>{
+    const p=root.querySelector('#s8-p1p2'); prepDraw(p); await beat(()=>p.classList.add('go'), 700);
+    const q=root.querySelector('#s8-q1q2'); prepDraw(q); await beat(()=>q.classList.add('go'), 700);
+    root.querySelectorAll('circle.fade-in, text.fade-in').forEach(el=>el.classList.add('go'));
+    await beat(()=>{ const h=root.querySelector('#s8-hit'); h.setAttribute('r',8); h.classList.add('indicate','go'); }, 500);
+    await beat(()=>root.querySelector('#cap8').classList.add('go'), 300);
+  }, exit:(root)=>{ clearGo(root); root.querySelector('#s8-hit').setAttribute('r',0); } };
+
+scenes[9] = { enter: async (root)=>{
+    buildCloud(root.querySelector('#s9-cloud'), CLOUD_A, 'var(--yellow)');
+    await revealCloud(root.querySelector('#s9-cloud'));
+    await beat(()=>root.querySelector('#s9-q').classList.add('go'), 400);
+    await beat(()=>root.querySelector('#cap9').classList.add('go'), 300);
+  }, exit:(root)=>clearGo(root) };
+
+scenes[10] = { enter: async (root)=>{
+    buildCloud(root.querySelector('#s10-cloud'), CLOUD_A, 'var(--yellow)');
+    await revealCloud(root.querySelector('#s10-cloud'));
+    const pts = HULL_ORDER.map(id=>CLOUD_A[id].join(',')).join(' ');
+    const hull = root.querySelector('#s10-hull');
+    hull.setAttribute('points', pts);
+    prepDraw(hull);
+    await beat(()=>hull.classList.add('go'), 900);
+    await beat(()=>root.querySelector('#cap10').classList.add('go'), 300);
+  }, exit:(root)=>{ clearGo(root); } };
+
+scenes[11] = { enter: async (root)=>{
+    buildCloud(root.querySelector('#s11-cloud'), CLOUD_A, 'var(--yellow)');
+    await revealCloud(root.querySelector('#s11-cloud'));
+    const piv = root.querySelector('#s11-pivot');
+    piv.setAttribute('cx', CLOUD_A.P1[0]); piv.setAttribute('cy', CLOUD_A.P1[1]);
+    await beat(()=>{ piv.setAttribute('r',12); piv.classList.add('indicate','go'); }, 600);
+    await beat(()=>root.querySelector('#s11-lab').classList.add('go'), 400);
+    await beat(()=>root.querySelector('#cap11').classList.add('go'), 300);
+  }, exit:(root)=>{ clearGo(root); root.querySelector('#s11-pivot').setAttribute('r',0); } };
+
+scenes[12] = { enter: async (root)=>{
+    buildCloud(root.querySelector('#s12-cloud'), CLOUD_A, 'var(--yellow)');
+    await revealCloud(root.querySelector('#s12-cloud'));
+    const order = ['P0','P8','P9','P7','P6','P10','P5','P4','P3','P2'];
+    const [px,py] = CLOUD_A.P1;
+    const sweep = root.querySelector('#s12-sweep');
+    sweep.style.opacity = 1;
+    for(const id of order){
+      const [x,y] = CLOUD_A[id];
+      sweep.setAttribute('d', `M ${px} ${py} L ${x} ${y}`);
+      const dot = root.querySelector(`#s12-cloud circle[data-id="${id}"]`);
+      dot.classList.add('indicate','go');
+      await wait(280);
+    }
+    await beat(()=>root.querySelector('#cap12').classList.add('go'), 300);
+  }, exit:(root)=>{ clearGo(root); root.querySelector('#s12-sweep').style.opacity=0; } };
+
+scenes[13] = { enter: async (root)=>{
+    buildCloud(root.querySelector('#s13-cloud'), CLOUD_A, 'var(--yellow)');
+    await revealCloud(root.querySelector('#s13-cloud'));
+    const events = [
+      {a:'push',id:'P0'}, {a:'push',id:'P8'}, {a:'push',id:'P9'}, {a:'pop'},
+      {a:'push',id:'P7'}, {a:'push',id:'P6'}, {a:'push',id:'P10'}, {a:'pop'},
+      {a:'push',id:'P5'}, {a:'push',id:'P4'}, {a:'push',id:'P3'}, {a:'push',id:'P2'},
+    ];
+    let stack = ['P1'];
+    const poly = root.querySelector('#s13-stack');
+    const status = root.querySelector('#s13-status');
+    const setPoly = ()=> poly.setAttribute('points', stack.map(id=>CLOUD_A[id].join(',')).join(' '));
+    setPoly(); status.classList.add('go');
+    for(const ev of events){
+      if(ev.a==='push'){ stack.push(ev.id); const dot = root.querySelector(`#s13-cloud circle[data-id="${ev.id}"]`); dot.classList.add('indicate','go'); }
+      else { const popped = stack.pop(); const dot = root.querySelector(`#s13-cloud circle[data-id="${popped}"]`); if(dot){ dot.setAttribute('fill','var(--red)'); dot.classList.add('indicate','go'); setTimeout(()=>dot.setAttribute('fill','var(--yellow)'),500);} }
+      setPoly();
+      status.textContent = 'stack: [' + stack.join(', ') + ']';
+      await wait(420);
+    }
+    await beat(()=>root.querySelector('#cap13').classList.add('go'), 300);
+  }, exit:(root)=>{ clearGo(root); root.querySelector('#s13-stack').setAttribute('points',''); } };
+
+scenes[14] = { enter: async (root)=>{
+    buildCloud(root.querySelector('#s14-cloud'), CLOUD_A, 'var(--yellow)');
+    await revealCloud(root.querySelector('#s14-cloud'));
+    const lowerOrder = ['P0','P1','P2','P3','P4','P5'];
+    const upperOrder = ['P5','P6','P7','P8','P0'];
+    const lower = root.querySelector('#s14-lower'), upper = root.querySelector('#s14-upper');
+    lower.setAttribute('points', lowerOrder.map(id=>CLOUD_A[id].join(',')).join(' '));
+    upper.setAttribute('points', upperOrder.map(id=>CLOUD_A[id].join(',')).join(' '));
+    prepDraw(lower); await beat(()=>lower.classList.add('go'), 900);
+    prepDraw(upper); await beat(()=>upper.classList.add('go'), 900);
+    await beat(()=>{ root.querySelector('#s14-llab').classList.add('go'); root.querySelector('#s14-ulab').classList.add('go'); }, 400);
+    await beat(()=>root.querySelector('#cap14').classList.add('go'), 300);
+  }, exit:(root)=>clearGo(root) };
+
+scenes[15] = { enter: async (root)=>{
+    buildCloud(root.querySelector('#s15-cloud'), CLOUD_B, 'var(--yellow)');
+    await revealCloud(root.querySelector('#s15-cloud'));
+    await beat(()=>root.querySelector('#cap15').classList.add('go'), 300);
+  }, exit:(root)=>clearGo(root) };
+
+scenes[16] = { enter: async (root)=>{
+    buildCloud(root.querySelector('#s16-cloud'), CLOUD_B, 'var(--yellow)');
+    await revealCloud(root.querySelector('#s16-cloud'), 40);
+    const ids = Object.keys(CLOUD_B);
+    const g = root.querySelector('#s16-cloud');
+    let count = 0;
+    // sample a handful of pair-checks for the visual, ending on the true closest pair
+    const sampleChecks = [['Q0','Q3'],['Q1','Q4'],['Q2','Q5'],['Q6','Q8'],['Q7','Q3'],['Q9','Q10']];
+    for(const [a,b] of sampleChecks){
+      const [ax,ay]=CLOUD_B[a], [bx,by]=CLOUD_B[b];
+      const line = svgEl('line',{x1:ax,y1:ay,x2:bx,y2:by,stroke: (a==='Q9'?'var(--red)':'var(--gray)'), 'stroke-width': (a==='Q9'?3:1.5), opacity: (a==='Q9'?1:0.5)});
+      root.querySelector('svg').insertBefore(line, g);
+      count += ids.length-1;
+      await wait(320);
+    }
+    await beat(()=>root.querySelector('#cap16').classList.add('go'), 300);
+  }, exit:(root)=>{ clearGo(root); const svg = root.querySelector('svg'); svg.querySelectorAll('line').forEach(l=>l.remove()); } };
+
+scenes[17] = { enter: async (root)=>{
+    buildCloud(root.querySelector('#s17-cloud'), CLOUD_B, 'var(--yellow)');
+    await revealCloud(root.querySelector('#s17-cloud'), 40);
+    const mid = root.querySelector('#s17-mid'); prepDraw(mid); await beat(()=>mid.classList.add('go'), 700);
+    const strip = root.querySelector('#s17-strip');
+    await beat(()=>{ strip.style.transition='opacity 500ms ease'; strip.style.opacity=0.16; }, 500);
+    const [qx1,qy1]=CLOUD_B.Q9, [qx2,qy2]=CLOUD_B.Q10;
+    const line = svgEl('line',{x1:qx1,y1:qy1,x2:qx2,y2:qy2,stroke:'var(--red)','stroke-width':3});
+    root.querySelector('svg').appendChild(line);
+    line.classList.add('indicate','go');
+    await beat(()=>root.querySelector('#cap17').classList.add('go'), 300);
+  }, exit:(root)=>{ clearGo(root); root.querySelector('#s17-strip').style.opacity=0; const svg=root.querySelector('svg'); svg.querySelectorAll('line[stroke="var(--red)"]').forEach(l=>l.remove()); } };
+
+scenes[18] = { enter: async (root)=>{
+    const poly = root.querySelector('#s18-poly'); prepDraw(poly); await beat(()=>poly.classList.add('go'), 900);
+    const fill = root.querySelector('#s18-fill');
+    await beat(()=>{ fill.style.transition='opacity 500ms ease'; fill.style.opacity=0.18; }, 500);
+    const countEl = root.querySelector('#s18-count');
+    countEl.classList.add('go');
+    animateNumber(countEl, 0, 68300, 1200, 0);
+    await beat(()=>root.querySelector('#s18-eq').classList.add('go'), 400);
+    await beat(()=>root.querySelector('#cap18').classList.add('go'), 300);
+  }, exit:(root)=>{ clearGo(root); root.querySelector('#s18-fill').style.opacity=0; root.querySelector('#s18-count').textContent='0'; } };
+
+scenes[19] = { enter: async (root)=>{
+    const poly = root.querySelector('#s19-poly'); prepDraw(poly); await beat(()=>poly.classList.add('go'), 900);
+    await beat(()=>{ root.querySelector('#s19-P').classList.add('go'); root.querySelectorAll('.zone-stage text.fade-in').forEach(t=>t.classList.add('go')); }, 400);
+    const ray = root.querySelector('#s19-ray'); prepDraw(ray); await beat(()=>ray.classList.add('go'), 700);
+    await beat(()=>{ root.querySelector('#s19-x1').classList.add('indicate','go'); }, 500);
+    await beat(()=>root.querySelector('#s19-count').classList.add('go'), 400);
+    await beat(()=>root.querySelector('#cap19').classList.add('go'), 300);
+  }, exit:(root)=>clearGo(root) };
+
+scenes[20] = { enter: async (root)=>{
+    const g = root.querySelector('#s20-lines'); g.innerHTML='';
+    LINES_SET.forEach(l=>{
+      const line = svgEl('line',{x1:l.a[0],y1:l.a[1],x2:l.b[0],y2:l.b[1],stroke:l.c,class:'stroke-obj draw-in'});
+      g.appendChild(line);
+    });
+    for(const line of g.children){ prepDraw(line); await beat(()=>line.classList.add('go'), 500); }
+    await beat(()=>root.querySelector('#cap20').classList.add('go'), 300);
+  }, exit:(root)=>clearGo(root) };
+
+scenes[21] = { enter: async (root)=>{
+    const g = root.querySelector('#s21-lines'); g.innerHTML='';
+    LINES_SET.forEach(l=>{
+      const line = svgEl('line',{x1:l.a[0],y1:l.a[1],x2:l.b[0],y2:l.b[1],stroke:l.c,class:'stroke-obj draw-in'});
+      g.appendChild(line);
+    });
+    for(const line of g.children){ prepDraw(line); await beat(()=>line.classList.add('go'), 350); }
+    const sweep = root.querySelector('#s21-sweep');
+    const status = root.querySelector('#s21-status'); status.classList.add('go');
+    const hits = [ {x:402,y:408}, {x:866,y:427} ];
+    const svg = root.querySelector('svg');
+    let hi = 0;
+    for(let x=120; x<=1380; x+=12){
+      sweep.setAttribute('x1',x); sweep.setAttribute('x2',x);
+      if(hi<hits.length && Math.abs(x-hits[hi].x)<8){
+        const dot = svgEl('circle',{cx:hits[hi].x, cy:hits[hi].y, r:7, fill:'var(--red)'});
+        svg.appendChild(dot); dot.classList.add('indicate','go');
+        status.textContent = 'active set: neighbors just swapped → intersection found';
+        hi++;
+        await wait(260);
+      } else {
+        await wait(9);
+      }
+    }
+    status.textContent = 'sweep complete — every crossing found in one left-to-right pass';
+    await beat(()=>root.querySelector('#cap21').classList.add('go'), 300);
+  }, exit:(root)=>{ clearGo(root); const svg=root.querySelector('svg'); svg.querySelectorAll('circle[fill="var(--red)"]').forEach(c=>c.remove()); } };
+
+scenes[22] = { enter: async (root)=>{
+    const cellsG = root.querySelector('#s22-cells'), seedsG = root.querySelector('#s22-seeds');
+    cellsG.innerHTML=''; seedsG.innerHTML='';
+    const circles = {};
+    Object.entries(VORONOI_SEEDS).forEach(([id,[x,y,color,rmax]])=>{
+      const c = svgEl('circle',{cx:x,cy:y,r:0,fill:color,opacity:0.22});
+      cellsG.appendChild(c); circles[id]=c;
+      const seed = svgEl('circle',{cx:x,cy:y,r:6,fill:color,class:'fade-in'});
+      seedsG.appendChild(seed);
+    });
+    Array.from(seedsG.children).forEach(s=>s.classList.add('go'));
+    await wait(300);
+    const proms = Object.entries(VORONOI_SEEDS).map(([id,[x,y,color,rmax]])=>animateAttr(circles[id],'r',0,rmax,1100));
+    await Promise.all(proms);
+    await beat(()=>root.querySelector('#cap22').classList.add('go'), 300);
+  }, exit:(root)=>{ clearGo(root); root.querySelector('#s22-cells').innerHTML=''; root.querySelector('#s22-seeds').innerHTML=''; } };
+
+scenes[23] = { enter: async (root)=>{
+    buildCloud(root.querySelector('#s23-cloud'), CLOUD_A, 'var(--yellow)');
+    await revealCloud(root.querySelector('#s23-cloud'));
+    await beat(()=>root.querySelector('#cap23').classList.add('go'), 300);
+  }, exit:(root)=>clearGo(root) };
+
+function drawKdCuts(g){
+  g.innerHTML='';
+  const cuts = [
+    {x1:700,y1:80,x2:700,y2:580, c:'var(--blue)'},
+    {x1:60,y1:350,x2:700,y2:350, c:'var(--green)'},
+    {x1:700,y1:300,x2:1380,y2:300, c:'var(--green)'},
+    {x1:380,y1:350,x2:380,y2:580, c:'var(--blue)'},
+    {x1:1000,y1:80,x2:1000,y2:300, c:'var(--blue)'},
+  ];
+  cuts.forEach(cut=>{
+    const l = svgEl('line',{x1:cut.x1,y1:cut.y1,x2:cut.x2,y2:cut.y2, stroke:cut.c, class:'stroke-obj draw-in'});
+    g.appendChild(l);
+  });
+  return cuts;
+}
+
+scenes[24] = { enter: async (root)=>{
+    buildCloud(root.querySelector('#s24-cloud'), CLOUD_A, 'var(--yellow)');
+    await revealCloud(root.querySelector('#s24-cloud'));
+    const g = root.querySelector('#s24-cuts');
+    drawKdCuts(g);
+    for(const line of g.children){ prepDraw(line); await beat(()=>line.classList.add('go'), 550); }
+    await beat(()=>root.querySelector('#cap24').classList.add('go'), 300);
+  }, exit:(root)=>{ clearGo(root); root.querySelector('#s24-cuts').innerHTML=''; } };
+
+scenes[25] = { enter: async (root)=>{
+    buildCloud(root.querySelector('#s25-cloud'), CLOUD_A, 'var(--yellow)');
+    await revealCloud(root.querySelector('#s25-cloud'));
+    const g = root.querySelector('#s25-cuts');
+    const cuts = drawKdCuts(g);
+    g.querySelectorAll('line').forEach(l=>{ prepDraw(l); l.classList.add('go'); });
+    await wait(200);
+    const q = root.querySelector('#s25-q');
+    q.setAttribute('cx',520); q.setAttribute('cy',420); q.setAttribute('r',8);
+    await beat(()=>q.classList.add('go'), 400);
+    const rc = root.querySelector('#s25-radius');
+    rc.setAttribute('cx',520); rc.setAttribute('cy',420); rc.style.opacity=1;
+    await animateAttr(rc,'r',0,122,900);
+    const best = root.querySelector('#s25-cloud circle[data-id="P9"]');
+    best.classList.add('indicate','go');
+    await beat(()=>root.querySelector('#cap25').classList.add('go'), 300);
+  }, exit:(root)=>{ clearGo(root); root.querySelector('#s25-cuts').innerHTML=''; const rc=root.querySelector('#s25-radius'); rc.setAttribute('r',0); rc.style.opacity=0; root.querySelector('#s25-q').setAttribute('r',0); } };
+
+scenes[26] = { enter: async (root)=>{
+    buildRoadmap(root.querySelector('#s26-map'), true);
+    await beat(()=>{ root.querySelectorAll('#s26-map .fade-in, #s26-map line').forEach((el,i)=>setTimeout(()=>el.classList ? el.classList.add('go') : el.style.opacity=0.5, i*150)); }, 1300);
+    await beat(()=>root.querySelector('#cap26').classList.add('go'), 400);
+  }, exit:(root)=>clearGo(root) };
+
+/* ---------------- default enter/exit for slides without a custom scene ---------------- */
+async function defaultEnter(root){
+  const draws = root.querySelectorAll('.draw-in');
+  for(const d of draws){ prepDraw(d); await beat(()=>d.classList.add('go'), 650); }
+  root.querySelectorAll('.fade-in').forEach(f=>f.classList.add('go'));
+}
+function defaultExit(root){ clearGo(root); }
+
+/* ---------------- deck controller ---------------- */
+class SlideDeck{
+  constructor(){
+    this.slides = Array.from(document.querySelectorAll('.slide'));
+    this.i = 0;
+    this.dotsEl = document.getElementById('dots');
+    this.counterEl = document.getElementById('slideCounter');
+    this.slides.forEach(()=>{ const d=document.createElement('div'); d.className='dot'; this.dotsEl.appendChild(d); });
+    document.getElementById('nextBtn').onclick = ()=>this.go(this.i+1);
+    document.getElementById('prevBtn').onclick = ()=>this.go(this.i-1);
+    window.addEventListener('keydown', e=>{
+      if(e.key==='ArrowRight'||e.key===' ') this.go(this.i+1);
+      if(e.key==='ArrowLeft') this.go(this.i-1);
+    });
+    this.show(0);
+  }
+  show(idx){
+    this.slides.forEach((s,k)=>s.classList.toggle('active', k===idx));
+    Array.from(this.dotsEl.children).forEach((d,k)=>d.classList.toggle('on', k===idx));
+    this.counterEl.textContent = `${idx+1} / ${this.slides.length}`;
+    const scene = scenes[idx];
+    if(scene && scene.enter) scene.enter(this.slides[idx]); else defaultEnter(this.slides[idx]);
+  }
+  go(idx){
+    if(idx<0 || idx>=this.slides.length) return;
+    const prevScene = scenes[this.i];
+    if(prevScene && prevScene.exit) prevScene.exit(this.slides[this.i]); else defaultExit(this.slides[this.i]);
+    this.i = idx;
+    this.show(idx);
+  }
+}
+new SlideDeck();
+</script>
+</body>
+</html>
