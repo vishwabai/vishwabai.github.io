@@ -1,0 +1,1113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Deep Learning — From a Single Neuron to Mixture of Experts</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0a0a0c;
+  --ink:#eceef1;
+  --sub:#9598a3;
+  --dim:#5c5e68;
+  --line:rgba(255,255,255,.14);
+  --card:rgba(255,255,255,.035);
+  --cardline:rgba(255,255,255,.10);
+  --dot:rgba(255,255,255,.055);
+  --blue:#6f9ceb;
+  --teal:#52b3a4;
+  --amber:#d3a25f;
+  --rose:#c98198;
+  --violet:#a08de0;
+  --green:#7cb88f;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;background:var(--bg);height:100%;overflow:hidden;}
+body{
+  font-family:'Inter',sans-serif;color:var(--ink);
+  background-color:var(--bg);
+  background-image:radial-gradient(circle, var(--dot) 1.3px, transparent 1.3px);
+  background-size:26px 26px;
+}
+h1,h2,h3,.disp{font-family:'Space Grotesk',sans-serif;}
+.mono{font-family:'JetBrains Mono',monospace;}
+
+#viewport{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding-bottom:92px;box-sizing:border-box;}
+#stage{width:1280px;height:720px;position:relative;transform-origin:center center;flex-shrink:0;
+  background:radial-gradient(ellipse at 50% 0%, rgba(255,255,255,.035), rgba(255,255,255,0) 60%);
+  border:1px solid rgba(255,255,255,.06); border-radius:6px; overflow:hidden;}
+
+.slide{position:absolute;inset:0;opacity:0;pointer-events:none;transition:opacity .35s ease;}
+.slide.active{opacity:1;pointer-events:auto;}
+
+.eyebrow{position:absolute;left:64px;top:38px;font-family:'JetBrains Mono',monospace;font-size:12.5px;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--blue);opacity:0;transform:translateY(8px);
+  transition:opacity .5s ease,transform .5s ease;}
+.title{position:absolute;left:64px;top:60px;font-family:'Space Grotesk',sans-serif;font-weight:600;
+  font-size:32px;max-width:1100px;line-height:1.15;opacity:0;transform:translateY(8px);
+  transition:opacity .5s ease .06s,transform .5s ease .06s;}
+.slide.active .eyebrow, .slide.active .title{opacity:1;transform:translateY(0);}
+
+.content{position:absolute;left:64px;right:64px;top:128px;bottom:66px;display:flex;gap:40px;}
+.caption{position:absolute;left:64px;right:64px;bottom:16px;font-size:12.5px;color:var(--dim);
+  border-top:1px solid var(--line);padding-top:10px;font-family:'JetBrains Mono',monospace;}
+.section-tag{position:absolute;right:64px;top:40px;font-family:'JetBrains Mono',monospace;font-size:11px;
+  color:var(--dim);letter-spacing:.08em;}
+
+/* reveal */
+.rv{opacity:0;transform:translateY(14px);transition:opacity .55s ease,transform .55s ease;}
+.rv.in{opacity:1;transform:translateY(0);}
+.rv.pop{transform:scale(.9) translateY(10px);}
+.rv.pop.in{transform:scale(1) translateY(0);}
+
+/* generic cumulative steps (up to 4) */
+.st2,.st3,.st4{opacity:0;transform:translateY(10px);transition:opacity .5s ease,transform .5s ease;}
+.slide.show2 .st2{opacity:1;transform:none;}
+.slide.show3 .st2{opacity:1;transform:none;}
+.slide.show3 .st3{opacity:1;transform:none;}
+.slide.show4 .st2{opacity:1;transform:none;}
+.slide.show4 .st3{opacity:1;transform:none;}
+.slide.show4 .st4{opacity:1;transform:none;}
+
+/* concept slide layout */
+.diagram-pane{flex:1.1;display:flex;align-items:center;justify-content:center;position:relative;min-width:0;}
+.dsvg{width:100%;max-width:540px;height:auto;overflow:visible;}
+.info-pane{flex:1;display:flex;flex-direction:column;justify-content:center;gap:14px;min-width:0;}
+.analogy{font-size:15.5px;color:var(--sub);font-style:italic;line-height:1.5;border-left:2px solid var(--cardline);padding-left:14px;}
+.formula-card{background:var(--card);border:1px solid var(--cardline);border-radius:8px;padding:14px 16px;
+  box-shadow:0 1px 3px rgba(0,0,0,.3);}
+.f-label{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.1em;color:var(--dim);
+  text-transform:uppercase;margin-bottom:6px;}
+.f-body{font-family:'JetBrains Mono',monospace;font-size:14.5px;color:var(--ink);line-height:1.7;}
+.f-body sub{font-size:10px;}
+.f-body sup{font-size:10px;}
+.facts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:7px;}
+.facts li{font-size:13.5px;color:var(--ink);padding-left:16px;position:relative;line-height:1.45;}
+.facts li::before{content:'';position:absolute;left:0;top:7px;width:6px;height:1.5px;background:var(--blue);}
+.chips{display:flex;flex-wrap:wrap;gap:7px;}
+.chip{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--sub);border:1px solid var(--cardline);
+  background:rgba(255,255,255,.02);border-radius:100px;padding:5px 11px;}
+
+/* svg node/link */
+.node{fill:rgba(255,255,255,.055);stroke:var(--blue);stroke-width:1.6;}
+.nlabel{fill:var(--ink);font-family:'JetBrains Mono',monospace;font-size:12px;text-anchor:middle;}
+.slabel{fill:var(--sub);font-family:'JetBrains Mono',monospace;font-size:10.5px;text-anchor:middle;}
+.link{stroke:rgba(255,255,255,.22);stroke-width:1.2;fill:none;}
+.arrow{stroke:var(--ink);stroke-width:1.6;fill:none;marker-end:url(#arrowhead);}
+
+/* bridge slide */
+.bridge-wrap{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:34px;padding:0 120px;}
+.b-row{display:flex;align-items:flex-start;gap:20px;width:100%;max-width:920px;}
+.b-tag{font-family:'JetBrains Mono',monospace;font-size:11.5px;letter-spacing:.12em;color:var(--dim);
+  border:1px solid var(--cardline);border-radius:5px;padding:4px 10px;flex-shrink:0;margin-top:2px;}
+.b-text{font-size:19px;line-height:1.5;color:var(--sub);padding-top:3px;}
+.gap-tag{color:var(--amber);border-color:rgba(211,162,95,.4);}
+.gap-text{color:var(--ink);font-weight:500;}
+.gap .gap-text::after{content:'';}
+.fill-card{border:1px solid;border-radius:10px;padding:20px 24px;background:var(--card);flex:1;
+  box-shadow:0 1px 3px rgba(0,0,0,.35),0 10px 30px rgba(0,0,0,.25);}
+.fill-eyebrow{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;margin-bottom:6px;}
+.fill-title{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:24px;margin-bottom:6px;}
+.fill-line{font-size:14.5px;color:var(--sub);line-height:1.5;}
+.pulse-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--amber);margin-right:9px;
+  animation:pulsedot 1.4s ease-in-out infinite;}
+@keyframes pulsedot{0%,100%{opacity:.35;transform:scale(.85);}50%{opacity:1;transform:scale(1.15);}}
+
+/* title slide */
+.hero{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:18px;}
+.hero .kicker{font-family:'JetBrains Mono',monospace;font-size:13px;letter-spacing:.18em;color:var(--blue);text-transform:uppercase;}
+.hero h1{font-size:52px;margin:0;line-height:1.15;max-width:920px;font-weight:600;}
+.hero .sub{font-size:16.5px;color:var(--sub);max-width:640px;line-height:1.55;}
+.hero .startline{font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--dim);margin-top:14px;}
+.route{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;max-width:920px;margin-top:6px;}
+.route span{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--dim);border:1px solid var(--cardline);
+  border-radius:100px;padding:4px 10px;}
+
+/* recap / closing */
+.recap-grid{position:absolute;left:64px;right:64px;top:128px;bottom:66px;display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
+.recap-col{display:flex;flex-direction:column;gap:10px;}
+.recap-head{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);margin-bottom:2px;}
+.recap-item{background:var(--card);border:1px solid var(--cardline);border-radius:8px;padding:10px 13px;}
+.recap-item .ri-title{font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:600;margin-bottom:3px;}
+.recap-item .ri-line{font-size:12px;color:var(--sub);line-height:1.4;}
+
+/* diagram specific */
+.gridcell{fill:rgba(255,255,255,.04);stroke:rgba(255,255,255,.12);stroke-width:1;}
+.gridcell.hot{fill:rgba(111,156,235,.30);}
+.filterbox{fill:rgba(211,162,95,.10);stroke:var(--amber);stroke-width:2;transition:x .6s ease,y .6s ease;}
+.outcell{fill:rgba(255,255,255,.035);stroke:rgba(255,255,255,.15);stroke-width:1;transition:fill .3s ease,stroke .3s ease;}
+.outcell.active{fill:rgba(211,162,95,.35);stroke:var(--amber);}
+.tokbox{fill:rgba(255,255,255,.05);stroke:var(--cardline);stroke-width:1.4;transition:stroke .3s ease;}
+.tokbox.query{stroke:var(--violet);}
+.attline{stroke:var(--violet);fill:none;transition:opacity .4s ease,stroke-width .4s ease;}
+.expbox{fill:rgba(255,255,255,.05);stroke:var(--cardline);stroke-width:1.4;transition:fill .35s ease,stroke .35s ease,opacity .35s ease;}
+.expbox.active{fill:rgba(124,184,143,.28);stroke:var(--green);}
+.gatediamond{fill:rgba(255,255,255,.06);stroke:var(--green);stroke-width:1.6;}
+.ghost{opacity:.35;}
+.tstack rect{transition:opacity .3s ease;}
+.wave{fill:none;stroke-width:1.6;}
+
+/* nav */
+#nav{position:fixed;left:0;right:0;bottom:0;height:92px;display:flex;align-items:center;justify-content:center;
+  gap:16px;background:linear-gradient(to top, rgba(0,0,0,.85), rgba(0,0,0,0));z-index:50;}
+#nav button{font-family:'JetBrains Mono',monospace;font-size:13px;background:rgba(255,255,255,.04);
+  color:var(--ink);border:1px solid var(--cardline);border-radius:8px;padding:10px 18px;cursor:pointer;
+  transition:background .2s ease,border-color .2s ease;}
+#nav button:hover{background:rgba(255,255,255,.09);border-color:rgba(255,255,255,.25);}
+#nav button:disabled{opacity:.3;cursor:default;}
+#nav button:disabled:hover{background:rgba(255,255,255,.04);}
+#navcount{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--dim);min-width:70px;text-align:center;}
+#navtitle{position:absolute;left:24px;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--dim);}
+
+#collbadge{position:fixed;top:14px;right:14px;font-family:'JetBrains Mono',monospace;font-size:12px;
+  padding:6px 12px;border-radius:6px;z-index:100;display:none;}
+</style>
+</head>
+<body>
+
+<div id="viewport"><div id="stage"></div></div>
+
+<div id="nav">
+  <div id="navtitle">Deep Learning · Foundations to Frontier</div>
+  <button id="prevBtn">← Prev</button>
+  <span id="navcount">1 / 1</span>
+  <button id="nextBtn">Next →</button>
+</div>
+<div id="collbadge"></div>
+
+<script>
+/* =========================================================
+   SVG DIAGRAM BUILDERS
+   ========================================================= */
+const DEFS = `<defs>
+  <marker id="arrowhead" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+    <path d="M0,0 L6,3 L0,6 Z" fill="var(--ink)"/>
+  </marker>
+</defs>`;
+
+function svgWrap(inner, vb){ return `<svg viewBox="0 0 ${vb||'560 420'}" class="dsvg">${DEFS}${inner}</svg>`; }
+
+function perceptronSVG(){
+  const xs=[90,210,330], labels=['x₁','x₂','x₃'], w=['w₁','w₂','w₃'];
+  let s='';
+  xs.forEach((y,i)=>{
+    s+=`<line x1="70" y1="${y}" x2="280" y2="210" class="link"/>`;
+    s+=`<text x="${(70+280)/2 - 6*(i-1)}" y="${(y+210)/2 - 8}" class="slabel">${w[i]}</text>`;
+  });
+  xs.forEach((y,i)=>{
+    s+=`<circle cx="70" cy="${y}" r="20" class="node"/><text x="70" y="${y+5}" class="nlabel">${labels[i]}</text>`;
+  });
+  s+=`<circle cx="280" cy="210" r="34" class="node" style="stroke:var(--amber)"/>`;
+  s+=`<text x="280" y="206" class="nlabel">Σ</text><text x="280" y="222" class="slabel">step</text>`;
+  s+=`<line x1="314" y1="210" x2="470" y2="210" class="arrow"/>`;
+  s+=`<text x="490" y="215" class="nlabel">y</text>`;
+  s+=`<text x="70" y="380" class="slabel">inputs</text><text x="280" y="380" class="slabel">neuron</text><text x="480" y="380" class="slabel">output</text>`;
+  return svgWrap(s);
+}
+
+function mlpSVG(){
+  const inX=80, hidX=280, outX=480;
+  const inY=[110,210,310], hidY=[60,160,260,360], outY=[150,270];
+  let links='';
+  inY.forEach(y1=>hidY.forEach(y2=>{ links+=`<line x1="${inX}" y1="${y1}" x2="${hidX}" y2="${y2}" class="link"/>`; }));
+  hidY.forEach(y1=>outY.forEach(y2=>{ links+=`<line x1="${hidX}" y1="${y1}" x2="${outX}" y2="${y2}" class="link"/>`; }));
+  let nodes='';
+  inY.forEach(y=>nodes+=`<circle cx="${inX}" cy="${y}" r="15" class="node"/>`);
+  hidY.forEach(y=>nodes+=`<circle cx="${hidX}" cy="${y}" r="15" class="node" style="stroke:var(--amber)"/>`);
+  outY.forEach(y=>nodes+=`<circle cx="${outX}" cy="${y}" r="15" class="node" style="stroke:var(--teal)"/>`);
+  const labels=`<text x="${inX}" y="400" class="slabel">input</text>
+    <text x="${hidX}" y="400" class="slabel">hidden (σ)</text>
+    <text x="${outX}" y="400" class="slabel">output (ŷ)</text>`;
+  return svgWrap(links+nodes+labels);
+}
+
+function cnnSVG(){
+  const g0=20, cs=38, n=6;
+  let cells='';
+  const hotset=new Set(['1-1','1-2','2-1','2-2','2-3','3-2','3-3']);
+  for(let r=0;r<n;r++)for(let c=0;c<n;c++){
+    const hot = hotset.has(r+'-'+c) ? ' hot':'';
+    cells+=`<rect x="${g0+c*cs}" y="${g0+r*cs}" width="${cs-3}" height="${cs-3}" class="gridcell${hot}"/>`;
+  }
+  const filter=`<rect id="cnnFilter" x="${g0}" y="${g0}" width="${cs*3-3}" height="${cs*3-3}" rx="4" class="filterbox"/>`;
+  const arrow=`<line x1="270" y1="130" x2="330" y2="130" class="arrow"/><text x="300" y="118" class="slabel">conv</text>`;
+  const og=340, ocs=32, on=4;
+  let out='';
+  for(let r=0;r<on;r++)for(let c=0;c<on;c++){
+    out+=`<rect id="cnnOut-${r}-${c}" x="${og+c*ocs}" y="${g0+56+r*ocs}" width="${ocs-3}" height="${ocs-3}" class="outcell"/>`;
+  }
+  const lbl=`<text x="${g0+n*cs/2-18}" y="270" class="slabel">6×6 input</text>
+    <text x="${og+on*ocs/2-10}" y="270" class="slabel">4×4 feature map</text>
+    <text x="150" y="315" class="slabel">3×3 filter slides step by step →</text>`;
+  return svgWrap(cells+filter+arrow+out+lbl);
+}
+
+function rnnSVG(){
+  let s='';
+  const xs=[80,220,360,500], y=200;
+  for(let i=0;i<4;i++){
+    s+=`<g class="st${i+1}">`;
+    if(i>0) s+=`<line x1="${xs[i-1]+34}" y1="${y}" x2="${xs[i]-34}" y2="${y}" class="arrow"/>`;
+    s+=`<rect x="${xs[i]-32}" y="${y-32}" width="64" height="64" rx="8" class="node"/>`;
+    s+=`<text x="${xs[i]}" y="${y+5}" class="nlabel">h${'₁₂₃₄'[i]}</text>`;
+    s+=`<line x1="${xs[i]}" y1="${y+32}" x2="${xs[i]}" y2="${y+80}" class="arrow"/>`;
+    s+=`<text x="${xs[i]}" y="${y+100}" class="slabel">x${'₁₂₃₄'[i]}</text>`;
+    s+=`</g>`;
+  }
+  s+=`<text x="290" y="90" class="slabel">hidden state passed forward, step by step</text>`;
+  return svgWrap(s);
+}
+
+function lstmSVG(){
+  let s='';
+  // cell state highway
+  s+=`<line x1="40" y1="70" x2="520" y2="70" class="link" style="stroke:var(--teal);stroke-width:2"/>`;
+  s+=`<text x="40" y="55" class="slabel" style="text-anchor:start">cell state Cₜ (protected highway)</text>`;
+  s+=`<g class="st1"><rect x="60" y="150" width="110" height="60" rx="8" class="node"/><text x="115" y="184" class="nlabel">forget f</text><text x="115" y="230" class="slabel">σ</text></g>`;
+  s+=`<g class="st2"><rect x="205" y="150" width="110" height="60" rx="8" class="node" style="stroke:var(--amber)"/><text x="260" y="184" class="nlabel">input i</text><text x="260" y="230" class="slabel">σ</text></g>`;
+  s+=`<g class="st3"><rect x="350" y="150" width="110" height="60" rx="8" class="node" style="stroke:var(--violet)"/><text x="405" y="184" class="nlabel">C̃ candidate</text><text x="405" y="230" class="slabel">tanh</text></g>`;
+  s+=`<g class="st4"><rect x="205" y="280" width="110" height="60" rx="8" class="node" style="stroke:var(--rose)"/><text x="260" y="314" class="nlabel">output o</text><text x="260" y="360" class="slabel">σ → hₜ</text></g>`;
+  return svgWrap(s);
+}
+
+function gruSVG(){
+  let s='';
+  s+=`<g class="st1"><rect x="90" y="150" width="140" height="64" rx="8" class="node"/><text x="160" y="185" class="nlabel">reset r</text><text x="160" y="232" class="slabel">σ — how much past to forget</text></g>`;
+  s+=`<g class="st2"><rect x="330" y="150" width="140" height="64" rx="8" class="node" style="stroke:var(--amber)"/><text x="400" y="185" class="nlabel">update z</text><text x="400" y="232" class="slabel">σ — blend old vs new</text></g>`;
+  s+=`<g class="st3"><line x1="90" y1="290" x2="470" y2="290" class="link" style="stroke:var(--teal);stroke-width:2"/><text x="280" y="270" class="slabel">hₜ = (1−z)⊙hₜ₋₁ + z⊙h̃ₜ</text></g>`;
+  return svgWrap(s);
+}
+
+function attentionSVG(){
+  const toks=['The','cat','sat','on','mat'];
+  const xs=[60,168,276,384,468];
+  const y=230;
+  let boxes='', lines='';
+  toks.forEach((t,i)=>{
+    boxes+=`<rect id="attn-box-${i}" x="${xs[i]-34}" y="${y-24}" width="68" height="48" rx="7" class="tokbox"/>`;
+    boxes+=`<text x="${xs[i]}" y="${y+5}" class="nlabel">${t}</text>`;
+    const midx=(xs[i]+xs[2])/2, topy = y-24-30-Math.abs(i-2)*8;
+    lines+=`<path id="attn-l-${i}" d="M${xs[2]},${y-24} Q${midx},${topy} ${xs[i]},${y-24}" class="attline" opacity="0.15" stroke-width="1.5"/>`;
+  });
+  const lbl=`<text x="270" y="90" class="slabel" id="attn-qlabel">query = "sat" looks at every word directly</text>`;
+  return svgWrap(lines+boxes+lbl);
+}
+
+function embedSVG(){
+  const pts=[
+    {x:120,y:280,l:'man'},{x:150,y:150,l:'king'},
+    {x:340,y:300,l:'woman'},{x:372,y:170,l:'queen'},
+    {x:440,y:90,l:'cat'},{x:480,y:60,l:'dog'}
+  ];
+  let s='<line x1="20" y1="360" x2="20" y2="20" class="link"/><line x1="20" y1="360" x2="530" y2="360" class="link"/>';
+  s+=`<line x1="150" y1="150" x2="372" y2="170" class="arrow" style="stroke:var(--violet)"/>`;
+  s+=`<line x1="120" y1="280" x2="340" y2="300" class="arrow" style="stroke:var(--violet)" opacity="0.55"/>`;
+  pts.forEach(p=>{
+    s+=`<circle cx="${p.x}" cy="${p.y}" r="6" fill="var(--amber)"/>`;
+    s+=`<text x="${p.x+12}" y="${p.y+4}" class="slabel" style="text-anchor:start">${p.l}</text>`;
+  });
+  s+=`<text x="270" y="400" class="slabel">meaning-space: similar words sit near each other</text>`;
+  return svgWrap(s);
+}
+
+function posencSVG(){
+  let s='';
+  const freqs=[0.9,0.55,0.32,0.18];
+  const colors=['var(--blue)','var(--teal)','var(--amber)','var(--violet)'];
+  freqs.forEach((f,i)=>{
+    let d='';
+    for(let x=0;x<=520;x+=8){
+      const yy = 70 + i*80 + Math.sin(x*f/40)*26;
+      d += (x===0?'M':'L')+x+','+yy+' ';
+    }
+    s+=`<path d="M20,${70+i*80} ${d}" class="wave" style="stroke:${colors[i]}" transform="translate(0,0)"/>`;
+    s+=`<text x="545" y="${70+i*80+5}" class="slabel">dim ${i}</text>`;
+  });
+  s+=`<text x="270" y="20" class="slabel">position signature: each dim a different wave frequency</text>`;
+  for(let p=0;p<5;p++){
+    s+=`<text x="${40+p*110}" y="400" class="slabel">pos ${p}</text>`;
+  }
+  return svgWrap(s);
+}
+
+function normSVG(){
+  const raw=[0.9,0.2,0.7,0.05,0.55,0.35,0.85,0.15];
+  const norm=[0.5,0.45,0.55,0.4,0.6,0.48,0.52,0.42];
+  let s='';
+  const bw=24, gap=10, startx=40;
+  raw.forEach((v,i)=>{
+    const h=v*140;
+    s+=`<rect x="${startx+i*(bw+gap)}" y="${210-h}" width="${bw}" height="${h}" class="node" style="stroke:var(--rose)"/>`;
+  });
+  s+=`<text x="270" y="240" class="slabel">raw activations — wildly different scales</text>`;
+  s+=`<line x1="270" y1="260" x2="270" y2="300" class="arrow"/><text x="330" y="290" class="slabel">normalize</text>`;
+  norm.forEach((v,i)=>{
+    const h=v*80;
+    s+=`<rect x="${startx+i*(bw+gap)}" y="${390-h}" width="${bw}" height="${h}" class="node" style="stroke:var(--teal)"/>`;
+  });
+  s+=`<text x="270" y="410" class="slabel">normalized — centered, comparable scale</text>`;
+  return svgWrap(s);
+}
+
+function residualSVG(){
+  let s='';
+  s+=`<line x1="60" y1="210" x2="200" y2="210" class="arrow"/>`;
+  s+=`<rect x="200" y="160" width="140" height="100" rx="10" class="node" style="stroke:var(--amber)"/>`;
+  s+=`<text x="270" y="215" class="nlabel">layer F(x)</text>`;
+  s+=`<line x1="340" y1="210" x2="440" y2="210" class="link"/>`;
+  s+=`<path d="M200,160 Q270,40 440,160" class="arrow" fill="none" style="stroke:var(--teal)"/>`;
+  s+=`<text x="270" y="60" class="slabel">bypass: +x</text>`;
+  s+=`<circle cx="460" cy="185" r="20" class="node" style="stroke:var(--violet)"/><text x="460" y="190" class="nlabel">+</text>`;
+  s+=`<line x1="480" y1="185" x2="530" y2="185" class="arrow"/>`;
+  s+=`<text x="270" y="290" class="slabel">out = x + F(x) — a direct shortcut around the layer</text>`;
+  return svgWrap(s);
+}
+
+function transformerSVG(){
+  let s='';
+  const rows=[
+    {y:320,label:'input embedding + positional encoding',cls:'st1',color:'var(--blue)'},
+    {y:250,label:'multi-head self-attention',cls:'st2',color:'var(--violet)'},
+    {y:200,label:'add & norm',cls:'st2',color:'var(--rose)',sm:true},
+    {y:130,label:'feed-forward network',cls:'st3',color:'var(--amber)'},
+    {y:80,label:'add & norm',cls:'st3',color:'var(--rose)',sm:true},
+  ];
+  rows.forEach(r=>{
+    const h=r.sm?26:44;
+    s+=`<g class="${r.cls}"><rect x="120" y="${r.y-h/2}" width="320" height="${h}" rx="8" class="node" style="stroke:${r.color}"/>`;
+    s+=`<text x="280" y="${r.y+5}" class="nlabel">${r.label}</text></g>`;
+  });
+  for(let i=0;i<rows.length-1;i++){
+    s+=`<line x1="280" y1="${rows[i].y-22}" x2="280" y2="${rows[i+1].y+22}" class="link"/>`;
+  }
+  s+=`<g class="st4"><path d="M460,60 L470,60 L470,340 L460,340" class="link" style="stroke:var(--dim)"/><text x="500" y="205" class="nlabel">× N</text></g>`;
+  return svgWrap(s);
+}
+
+function encoderSVG(){
+  const toks=['I','love','deep','learning'];
+  const xs=[100,220,340,460], y=220;
+  let s='';
+  toks.forEach((t,i)=>{
+    s+=`<rect x="${xs[i]-40}" y="${y-24}" width="80" height="48" rx="7" class="node"/>`;
+    s+=`<text x="${xs[i]}" y="${y+5}" class="nlabel">${t}</text>`;
+  });
+  for(let i=0;i<toks.length;i++)for(let j=0;j<toks.length;j++){
+    if(i===j) continue;
+    s+=`<path d="M${xs[i]},${y-24} Q${(xs[i]+xs[j])/2},${y-90} ${xs[j]},${y-24}" class="attline" opacity="0.18" stroke-width="1.2"/>`;
+  }
+  s+=`<text x="280" y="330" class="slabel">every token attends to every other token — both directions, all at once</text>`;
+  return svgWrap(s);
+}
+
+function decoderSVG(){
+  const toks=['<s>','Je','aime'];
+  const xs=[130,280,430], y=220;
+  let s='';
+  toks.forEach((t,i)=>{
+    s+=`<rect x="${xs[i]-40}" y="${y-24}" width="80" height="48" rx="7" class="node" style="stroke:var(--rose)"/>`;
+    s+=`<text x="${xs[i]}" y="${y+5}" class="nlabel">${t}</text>`;
+  });
+  for(let i=0;i<toks.length;i++)for(let j=0;j<=i;j++){
+    if(i===j) continue;
+    s+=`<path d="M${xs[i]},${y-24} Q${(xs[i]+xs[j])/2},${y-80} ${xs[j]},${y-24}" class="attline" opacity="0.35" stroke-width="1.4" style="stroke:var(--rose)"/>`;
+  }
+  s+=`<text x="280" y="60" class="slabel">masked self-attention: only looks backward — can't peek at future words</text>`;
+  s+=`<text x="280" y="330" class="slabel">generates one token at a time, feeding its own output back in</text>`;
+  return svgWrap(s);
+}
+
+function encdecSVG(){
+  const src=['Le','chat'], srcX=[110,230], srcY=110;
+  const tgt=['The','cat'], tgtX=[110,230], tgtY=330;
+  let s='';
+  s+=`<g class="st1">`;
+  src.forEach((t,i)=>{ s+=`<rect x="${srcX[i]-36}" y="${srcY-22}" width="72" height="44" rx="7" class="node"/><text x="${srcX[i]}" y="${srcY+5}" class="nlabel">${t}</text>`; });
+  s+=`<text x="170" y="70" class="slabel">encoder reads full source</text></g>`;
+  s+=`<g class="st2">`;
+  tgt.forEach((t,i)=>{ s+=`<rect x="${tgtX[i]-36}" y="${tgtY-22}" width="72" height="44" rx="7" class="node" style="stroke:var(--rose)"/><text x="${tgtX[i]}" y="${tgtY+5}" class="nlabel">${t}</text>`; });
+  s+=`<text x="170" y="380" class="slabel">decoder generates target, one token at a time</text></g>`;
+  s+=`<g class="st3">`;
+  srcX.forEach((sx,i)=>{ tgtX.forEach((tx,j)=>{
+    s+=`<path d="M${sx},${srcY+22} Q${(sx+tx)/2},${(srcY+tgtY)/2} ${tx},${tgtY-22}" class="attline" opacity="0.3" stroke-width="1.3" style="stroke:var(--violet)"/>`;
+  });});
+  s+=`<text x="380" y="220" class="slabel">cross-attention</text></g>`;
+  s+=`<g class="st4"><text x="380" y="245" class="slabel">decoder queries encoder's</text><text x="380" y="262" class="slabel">output at every step</text></g>`;
+  return svgWrap(s);
+}
+
+function moeSVG(){
+  const cols=4, rows=2, bw=90, bh=54, gx=30, gy=30;
+  let s='';
+  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
+    const idx=r*cols+c;
+    const x=40+c*(bw+gx), y=40+r*(bh+gy);
+    s+=`<rect id="moe-exp-${idx}" x="${x}" y="${y}" width="${bw}" height="${bh}" rx="8" class="expbox"/>`;
+    s+=`<text x="${x+bw/2}" y="${y+bh/2+5}" class="nlabel">E${idx+1}</text>`;
+  }
+  s+=`<polygon points="270,240 300,270 270,300 240,270" class="gatediamond"/>`;
+  s+=`<text x="270" y="274" class="nlabel">gate</text>`;
+  s+=`<line x1="270" y1="300" x2="270" y2="340" class="arrow"/>`;
+  s+=`<text id="moe-token" x="270" y="365" class="nlabel">"Hello"</text>`;
+  return svgWrap(s);
+}
+
+/* =========================================================
+   SLIDE TEMPLATES
+   ========================================================= */
+function conceptSlide(o){
+  return `<section class="slide" data-id="${o.id}" data-steps="${o.steps||1}">
+    <div class="eyebrow" style="color:var(--${o.color})">${o.eyebrow}</div>
+    <div class="title">${o.title}</div>
+    <div class="section-tag">${o.tag||''}</div>
+    <div class="content">
+      <div class="diagram-pane rv" data-d="1">${o.diagram}</div>
+      <div class="info-pane">
+        <div class="analogy rv" data-d="2">${o.analogy}</div>
+        <div class="formula-card rv" data-d="3">
+          <div class="f-label">${o.flabel}</div>
+          <div class="f-body">${o.formula}</div>
+        </div>
+        <ul class="facts rv" data-d="4">${o.facts.map(f=>'<li>'+f+'</li>').join('')}</ul>
+        <div class="chips rv" data-d="5">${o.chips.map(c=>'<span class="chip">'+c+'</span>').join('')}</div>
+      </div>
+    </div>
+    <div class="caption">${o.caption}</div>
+  </section>`;
+}
+
+function bridgeSlide(o){
+  return `<section class="slide bridge" data-id="${o.id}" data-steps="3">
+    <div class="bridge-wrap">
+      <div class="b-row recap st1"><span class="b-tag">RECAP</span><span class="b-text">${o.recap}</span></div>
+      <div class="b-row gap st2"><span class="b-tag gap-tag"><span class="pulse-dot"></span>GAP</span><span class="b-text gap-text">${o.gap}</span></div>
+      <div class="b-row fill st3">
+        <span class="b-tag fill-tag" style="color:var(--${o.color});border-color:var(--${o.color})">FILL</span>
+        <div class="fill-card" style="border-color:var(--${o.color})">
+          <div class="fill-eyebrow" style="color:var(--${o.color})">${o.fillEyebrow}</div>
+          <div class="fill-title">${o.fillTitle}</div>
+          <div class="fill-line">${o.fillLine}</div>
+        </div>
+      </div>
+    </div>
+  </section>`;
+}
+
+/* =========================================================
+   SLIDE DATA
+   ========================================================= */
+const SLIDES = [];
+
+SLIDES.push(`<section class="slide" data-id="title" data-steps="1">
+  <div class="hero">
+    <div class="kicker rv" data-d="1">A Feynman-style walkthrough</div>
+    <h1 class="rv pop" data-d="2">Deep Learning<br>From a Single Neuron to Mixture of Experts</h1>
+    <div class="sub rv" data-d="3">Sixteen ideas, each one solving the exact limitation of the idea before it.
+      We'll build the field from scratch — one gap, one fix, one gap, one fix.</div>
+    <div class="route rv" data-d="4">
+      <span>Perceptron</span><span>MLP</span><span>CNN</span><span>RNN</span><span>LSTM</span><span>GRU</span>
+      <span>Attention</span><span>Embeddings</span><span>Positional Encoding</span><span>Normalization</span>
+      <span>Residuals</span><span>Transformer</span><span>Encoder</span><span>Decoder</span>
+      <span>Encoder–Decoder</span><span>Mixture of Experts</span>
+    </div>
+    <div class="startline rv" data-d="5">press → to begin</div>
+  </div>
+</section>`);
+
+/* ---------- 1. PERCEPTRON ---------- */
+SLIDES.push(conceptSlide({
+  id:'perceptron', color:'blue', eyebrow:'01 · Foundations', tag:'THE FIRST NEURON',
+  title:'Perceptron — a single neuron that votes yes or no',
+  diagram:perceptronSVG(),
+  analogy:'Think of a bouncer at a club with a checklist: are you on the list (×3), are you dressed right (×1), do you look sober (×2). He multiplies each answer by how much he cares about it, adds it up, and if the total clears a threshold — you\'re in.',
+  flabel:'Formula', formula:'y = step( Σ w<sub>i</sub>x<sub>i</sub> + b )',
+  facts:[
+    'Each input xᵢ gets a learned weight wᵢ — how much that input matters.',
+    'b (bias) shifts how easy it is to cross the threshold.',
+    'Geometrically: it draws one straight line (or flat plane) that separates yes from no.'
+  ],
+  chips:['Logic gates (AND / OR)','Simple binary classifiers','The building block of every network since'],
+  caption:'1957 · Frank Rosenblatt — the very first learning machine.'
+}));
+SLIDES.push(bridgeSlide({
+  id:'b-perceptron', color:'blue',
+  recap:'One neuron draws one straight line to split yes from no.',
+  gap:'But most real data can\'t be separated by a single straight line — a curved, twisted boundary is needed. How do we bend it?',
+  fillEyebrow:'02 · Foundations', fillTitle:'Stack neurons into layers',
+  fillLine:'Chain many perceptrons together, with layers in between — the Multi-Layer Perceptron.'
+}));
+
+/* ---------- 2. MLP ---------- */
+SLIDES.push(conceptSlide({
+  id:'mlp', color:'blue', eyebrow:'02 · Foundations', tag:'STACKING NEURONS',
+  title:'MLP — many neurons, in layers, bend the boundary',
+  diagram:mlpSVG(),
+  analogy:'One straight cut can\'t separate a spiral pattern. But cut it many times, from many angles, and combine the cuts — now you can carve out any shape. That\'s what a hidden layer of neurons does to the decision boundary.',
+  flabel:'Forward pass', formula:'h = σ(W₁x + b₁) &nbsp;→&nbsp; ŷ = σ(W₂h + b₂)',
+  facts:[
+    'A non-linear activation σ (sigmoid, ReLU) between layers is what lets curves happen — stacking linear layers alone is still just one line.',
+    'Trained by backpropagation: compare ŷ to the true answer, push the error backward, nudge every weight a little.',
+    'With enough hidden units, an MLP can approximate almost any function (Universal Approximation Theorem).'
+  ],
+  chips:['Tabular data prediction','Fraud detection','Function approximation','Basic recommender scoring'],
+  caption:'1986 · Rumelhart, Hinton & Williams popularize backpropagation for training these.'
+}));
+SLIDES.push(bridgeSlide({
+  id:'b-mlp', color:'teal',
+  recap:'Layers of neurons, trained by backprop, can approximate almost any function.',
+  gap:'A single 224×224 color photo is 150,000 numbers. Fully connecting every pixel to every neuron explodes the parameter count — and ignores that nearby pixels belong together. What\'s a smarter way to look at an image?',
+  fillEyebrow:'03 · Vision', fillTitle:'Slide a small filter across the image',
+  fillLine:'Reuse the same small pattern-detector everywhere — the Convolutional Neural Network.'
+}));
+
+/* ---------- 3. CNN ---------- */
+SLIDES.push(conceptSlide({
+  id:'cnn', color:'teal', eyebrow:'03 · Vision', tag:'SPATIAL PATTERNS', steps:3,
+  title:'CNN — a small filter, reused across the whole image',
+  diagram:cnnSVG(),
+  analogy:'Imagine scanning a page with a magnifying glass, looking for the same shape — an edge, a curve — everywhere on the page, instead of memorizing every pixel position separately. That reused, sliding glass is the convolution filter.',
+  flabel:'Convolution', formula:'F[i,j] = Σ<sub>m,n</sub> X[i+m, j+n] · K[m,n] + b',
+  facts:[
+    'The same small kernel K (e.g. 3×3) slides over every position — massively fewer parameters than a fully-connected layer.',
+    'Stacking conv layers builds up a hierarchy: edges → textures → parts → whole objects.',
+    'Pooling layers shrink the map, keeping only the strongest signal in each region.'
+  ],
+  chips:['Image classification','Object detection','Medical imaging (X-ray / MRI)','Face recognition'],
+  caption:'1989 · Yann LeCun — LeNet reads handwritten digits on checks. Click → to slide the filter across the image.'
+}));
+SLIDES.push(bridgeSlide({
+  id:'b-cnn', color:'amber',
+  recap:'CNNs learn spatial patterns by sliding filters over a fixed-size grid.',
+  gap:'A sentence or a stock chart has no fixed size, and order changes everything — "dog bites man" is not "man bites dog." How does a network handle a sequence, where what came before matters?',
+  fillEyebrow:'04 · Sequences', fillTitle:'Carry a memory forward, one step at a time',
+  fillLine:'Read the sequence in order, updating a running summary as you go — the Recurrent Neural Network.'
+}));
+
+/* ---------- 4. RNN ---------- */
+SLIDES.push(conceptSlide({
+  id:'rnn', color:'amber', eyebrow:'04 · Sequences', tag:'MEMORY OVER TIME', steps:4,
+  title:'RNN — read left to right, carrying memory forward',
+  diagram:rnnSVG(),
+  analogy:'It\'s reading a sentence like a relay race: at each word you pass a baton (the hidden state) forward, updated with whatever this new word added. By the last word, the baton carries a summary of everything read so far.',
+  flabel:'Recurrence', formula:'h<sub>t</sub> = tanh( W<sub>x</sub>x<sub>t</sub> + W<sub>h</sub>h<sub>t-1</sub> + b )',
+  facts:[
+    'The same weights Wₓ, Wₕ are reused at every timestep — one small rule applied over and over.',
+    'Trained with backpropagation through time (BPTT): errors flow backward through every step.',
+    'hₜ is a fixed-size compressed memory of everything seen up to step t.'
+  ],
+  chips:['Early speech recognition','Time-series forecasting','Simple text generation'],
+  caption:'Click → to step through the chain, one timestep at a time.'
+}));
+SLIDES.push(bridgeSlide({
+  id:'b-rnn', color:'amber',
+  recap:'RNNs pass a hidden state forward, step after step, like a relay baton.',
+  gap:'But at each step that memory gets multiplied by a small number — after 50 steps the baton has faded to almost nothing. How do we remember something said far back?',
+  fillEyebrow:'05 · Sequences', fillTitle:'Give memory its own protected highway',
+  fillLine:'Add gates that decide what to keep, forget, and output — Long Short-Term Memory.'
+}));
+
+/* ---------- 5. LSTM ---------- */
+SLIDES.push(conceptSlide({
+  id:'lstm', color:'amber', eyebrow:'05 · Sequences', tag:'GATED MEMORY', steps:4,
+  title:'LSTM — a memory cell with gates',
+  diagram:lstmSVG(),
+  analogy:'Think of a notebook with three staff: one decides what old notes to erase (forget gate), one decides what new note to write (input gate), one decides what to read aloud right now (output gate). The notebook itself (cell state) stays mostly untouched unless a gate says otherwise.',
+  flabel:'Gate equations', formula:'f<sub>t</sub>=σ(...) &nbsp; i<sub>t</sub>=σ(...) &nbsp; C<sub>t</sub>=f<sub>t</sub>⊙C<sub>t-1</sub>+i<sub>t</sub>⊙C̃<sub>t</sub> &nbsp; h<sub>t</sub>=o<sub>t</sub>⊙tanh(C<sub>t</sub>)',
+  facts:[
+    'The cell state Cₜ is a near-untouched conveyor belt — gradients can flow along it without shrinking, fixing vanishing memory.',
+    'Each gate is its own tiny neural net (a sigmoid layer) — forget, input, output.',
+    'Click → to open each gate one at a time and watch the cell state update.'
+  ],
+  chips:['Machine translation (pre-2017)','Speech-to-text','Sensor / stock sequence prediction'],
+  caption:'1997 · Hochreiter & Schmidhuber — solved the vanishing-gradient problem for sequences.'
+}));
+SLIDES.push(bridgeSlide({
+  id:'b-lstm', color:'amber',
+  recap:'LSTM protects long-term memory with three gates: forget, input, output.',
+  gap:'Three gates means three extra sets of weights per cell — powerful, but heavy to train. Can we keep most of the benefit with less machinery?',
+  fillEyebrow:'06 · Sequences', fillTitle:'Merge the gates down to two',
+  fillLine:'Combine forget-and-input into one update gate — the Gated Recurrent Unit.'
+}));
+
+/* ---------- 6. GRU ---------- */
+SLIDES.push(conceptSlide({
+  id:'gru', color:'amber', eyebrow:'06 · Sequences', tag:'LEANER GATES', steps:3,
+  title:'GRU — the same idea, two gates instead of four',
+  diagram:gruSVG(),
+  analogy:'Same notebook idea as LSTM, but one assistant now handles "how much of the old note to keep" and "how much of the new note to blend in" as a single decision, instead of separate forget/input/output staff. Fewer roles, similar result, faster to train.',
+  flabel:'Update rule', formula:'z<sub>t</sub>=σ(...) &nbsp; r<sub>t</sub>=σ(...) &nbsp; h<sub>t</sub>=(1−z<sub>t</sub>)⊙h<sub>t-1</sub> + z<sub>t</sub>⊙h̃<sub>t</sub>',
+  facts:[
+    'No separate cell state — hidden state hₜ does double duty as memory and output.',
+    'Fewer parameters than LSTM, trains faster, often near-identical accuracy.',
+    'Both LSTM and GRU still process token 1, then 2, then 3 — strictly in order.'
+  ],
+  chips:['Lightweight seq2seq models','On-device / mobile speech models','Faster training than LSTM'],
+  caption:'2014 · Cho et al. — a simpler gated recurrent cell.'
+}));
+SLIDES.push(bridgeSlide({
+  id:'b-gru', color:'violet',
+  recap:'GRUs are a leaner memory cell — still processing one token at a time.',
+  gap:'Every recurrent model — RNN, LSTM, GRU — must finish step 1 before starting step 2, so it can\'t be parallelized on a GPU, and very long sequences still blur together. What if a word could look directly at any other word, instantly, no relay required?',
+  fillEyebrow:'07 · The Attention Era', fillTitle:'Let every position query every other position',
+  fillLine:'Skip the relay entirely — compute relevance directly between any two tokens: Attention.'
+}));
+
+/* ---------- 7. ATTENTION ---------- */
+SLIDES.push(conceptSlide({
+  id:'attention', color:'violet', eyebrow:'07 · The Attention Era', tag:'DIRECT LOOKUP', steps:3,
+  title:'Attention — look directly at what matters, skip the relay',
+  diagram:attentionSVG(),
+  analogy:'Instead of passing a baton down a line, imagine every word in the room can just ask a direct question — "who\'s relevant to me?" — and glance straight at the words that answer loudest. No relay, no fading signal.',
+  flabel:'Scaled dot-product attention', formula:'Attention(Q,K,V) = softmax( QK<sup>T</sup> / √d<sub>k</sub> ) · V',
+  facts:[
+    'Every token makes a Query ("what am I looking for?"), a Key ("what do I offer?"), a Value ("what do I actually carry?").',
+    'softmax turns raw similarity scores into weights that sum to 1 — a weighted blend of every other token\'s Value.',
+    'Multi-head attention runs several of these in parallel, each free to focus on a different kind of relationship.'
+  ],
+  chips:['Neural machine translation (2015, Bahdanau)','Image captioning focus maps','Interpretable "what the model looked at"'],
+  caption:'Click → to change which word is asking the question, and watch the focus shift.'
+}));
+SLIDES.push(bridgeSlide({
+  id:'b-attention', color:'violet',
+  recap:'Attention lets any token look directly at any other token and weigh how relevant it is.',
+  gap:'But attention runs on vectors of numbers — what number actually represents the word "dog" in the first place?',
+  fillEyebrow:'08 · Representation', fillTitle:'Turn each word into a point in meaning-space',
+  fillLine:'Give every word a vector, learned so that similar meanings sit near each other — Embeddings.'
+}));
+
+/* ---------- 8. EMBEDDINGS ---------- */
+SLIDES.push(conceptSlide({
+  id:'embeddings', color:'violet', eyebrow:'08 · Representation', tag:'MEANING AS GEOMETRY',
+  title:'Embeddings — words become points in space',
+  diagram:embedSVG(),
+  analogy:'Imagine a map where every word gets a coordinate, and words with similar meaning end up as neighbors — "king" near "queen," "cat" near "dog." The famous trick: king − man + woman lands almost exactly on queen.',
+  flabel:'Lookup', formula:'E ∈ ℝ<sup>V×d</sup> &nbsp;·&nbsp; word index → row vector',
+  facts:[
+    'V = vocabulary size, d = embedding dimension (e.g. 768, 4096) — a big table, one learned row per word.',
+    'Older approach: word2vec / GloVe, trained by predicting neighboring words.',
+    'Modern models learn embeddings jointly with everything else, end-to-end.'
+  ],
+  chips:['Semantic search','Recommendation systems','RAG retrieval vectors','Clustering & similarity'],
+  caption:'2013 · Mikolov et al. — word2vec shows meaning can be captured as arithmetic.'
+}));
+SLIDES.push(bridgeSlide({
+  id:'b-embeddings', color:'violet',
+  recap:'Embeddings place words with similar meaning near each other in vector space.',
+  gap:'But the embedding for "dog" is the exact same vector whether it\'s word #1 or word #10 — attention has no built-in sense of order at all. So how does the model know "dog bites man" isn\'t the same bag of words as "man bites dog"?',
+  fillEyebrow:'09 · Representation', fillTitle:'Stamp a unique position signature onto every token',
+  fillLine:'Add a pattern that encodes "where" a word sits in the sequence — Positional Encoding.'
+}));
+
+/* ---------- 9. POSITIONAL ENCODING ---------- */
+SLIDES.push(conceptSlide({
+  id:'posenc', color:'violet', eyebrow:'09 · Representation', tag:'INJECTING ORDER',
+  title:'Positional Encoding — a fingerprint for "where"',
+  diagram:posencSVG(),
+  analogy:'Like assigning every seat in a theater a unique combination of row and section markings — the seat itself doesn\'t move, but its signature tells you exactly where it sits relative to every other seat.',
+  flabel:'Sinusoidal encoding', formula:'PE(pos,2i)=sin(pos / 10000<sup>2i/d</sup>) &nbsp; PE(pos,2i+1)=cos(pos / 10000<sup>2i/d</sup>)',
+  facts:[
+    'Each dimension oscillates at a different frequency — together they give every position a unique, smoothly-varying signature.',
+    'Simply added to the word embedding before it enters the network — same vector space, no extra machinery.',
+    'Newer variants (RoPE, ALiBi) bake position directly into the attention math instead of adding it up front.'
+  ],
+  chips:['Enables Transformers to model order at all','Used in Vision Transformers for image patches','Active research area: long-context extrapolation'],
+  caption:'2017 · Vaswani et al., "Attention Is All You Need."'
+}));
+SLIDES.push(bridgeSlide({
+  id:'b-posenc', color:'rose',
+  recap:'Adding a position signal lets the model tell order apart, with no recurrence at all.',
+  gap:'Stack a dozen attention layers and the numbers flowing through start exploding or shrinking, layer after layer — training gets unstable. What keeps every layer\'s output on a sane, comparable scale?',
+  fillEyebrow:'10 · Stability', fillTitle:'Re-center and re-scale every layer\'s output',
+  fillLine:'Standardize the numbers flowing through the network — Normalization.'
+}));
+
+/* ---------- 10. NORMALIZATION ---------- */
+SLIDES.push(conceptSlide({
+  id:'norm', color:'rose', eyebrow:'10 · Stability', tag:'KEEPING SCALE SANE',
+  title:'Normalization — put every layer on the same scale',
+  diagram:normSVG(),
+  analogy:'Like standardizing test scores from different classes onto the same curve before comparing them — raw scores of 40 and 95 might mean the same thing on different tests. Normalization does that to a layer\'s numbers, every single layer.',
+  flabel:'Layer Normalization', formula:'y = γ · (x − μ) / √(σ² + ε) + β',
+  facts:[
+    'μ, σ² are the mean and variance computed per token, across its own features — no dependence on other examples in the batch.',
+    'γ, β are learned — the network can still choose to re-scale/re-shift if that helps.',
+    'Transformers use LayerNorm (not BatchNorm) because sequence lengths vary and it works cleanly per-token.'
+  ],
+  chips:['Stabilizes deep transformer training','Speeds up convergence','Present in every layer of every modern LLM'],
+  caption:'2016 · Ba, Kiros & Hinton — Layer Normalization.'
+}));
+SLIDES.push(bridgeSlide({
+  id:'b-norm', color:'rose',
+  recap:'Normalization keeps every layer\'s numbers on a consistent, comparable scale.',
+  gap:'Even with stable numbers, stacking 24, 48, 96 layers means a gradient has to survive that many multiplications on the way back — it still fades toward zero. How does information, and gradient, survive a very deep stack?',
+  fillEyebrow:'11 · Stability', fillTitle:'Give every layer a direct shortcut around itself',
+  fillLine:'Let the input skip straight past a layer and rejoin the output — Residual Connections.'
+}));
+
+/* ---------- 11. RESIDUAL ---------- */
+SLIDES.push(conceptSlide({
+  id:'residual', color:'rose', eyebrow:'11 · Stability', tag:'SKIP CONNECTIONS',
+  title:'Residual connections — a shortcut around every layer',
+  diagram:residualSVG(),
+  analogy:'Like a highway with a bypass lane around every tollbooth: traffic (information) can take the tollbooth if it has something to add, or just cruise past on the bypass if it doesn\'t. Nothing is ever forced through a layer that isn\'t helping.',
+  flabel:'Residual formula', formula:'out = x + F(x)',
+  facts:[
+    'If F(x) learns to output near-zero, the layer becomes a no-op — the network can "skip" layers it doesn\'t need.',
+    'During backprop, gradient can flow straight through the "+x" path, bypassing vanishing through F entirely.',
+    'This is what made 100+ layer networks (ResNet) — and every Transformer block — actually trainable.'
+  ],
+  chips:['ResNet — 152-layer image networks','Backbone of every Transformer layer','Prevents vanishing gradients in deep nets'],
+  caption:'2015 · He et al. — Deep Residual Learning (ResNet).'
+}));
+SLIDES.push(bridgeSlide({
+  id:'b-residual', color:'rose',
+  recap:'Residual connections let a layer\'s output skip straight through if it has nothing useful to add.',
+  gap:'We now have every ingredient — vectors for meaning, a position stamp, attention to relate tokens, normalization to keep numbers stable, residuals to let them flow. How do you actually wire these five pieces into one working block?',
+  fillEyebrow:'12 · Architecture', fillTitle:'Stack them in a fixed, repeated pattern',
+  fillLine:'Attention, then feed-forward, each wrapped in norm and a residual — the Transformer.'
+}));
+
+/* ---------- 12. TRANSFORMER ---------- */
+SLIDES.push(conceptSlide({
+  id:'transformer', color:'rose', eyebrow:'12 · Architecture', tag:'THE FULL BLOCK', steps:4,
+  title:'Transformer — one block, repeated N times',
+  diagram:transformerSVG(),
+  analogy:'Think of it as an assembly line station repeated N times: gather context from everyone else (attention), stabilize (norm), think about it individually (feed-forward), stabilize again — then hand off to the next identical station.',
+  flabel:'Per block', formula:'x = x + MHA(LN(x)) &nbsp;&nbsp; x = x + FFN(LN(x))',
+  facts:[
+    'MHA = multi-head attention (mixes information across tokens). FFN = a small MLP applied to each token independently.',
+    'Every arrow you see is doing real work: embeddings give meaning, positional encoding gives order, attention relates tokens, norm keeps scale sane, residuals let gradient flow.',
+    'Stack N of these blocks (12, 32, 96...) and you have GPT, BERT, T5 — the entire modern LLM family.'
+  ],
+  chips:['GPT / BERT / T5 all built on this exact block','Vision Transformers (ViT) — same block, image patches','AlphaFold — same attention idea, protein structure'],
+  caption:'Click → to build the block bottom-up, one component at a time.'
+}));
+SLIDES.push(bridgeSlide({
+  id:'b-transformer', color:'green',
+  recap:'A Transformer block is attention + feed-forward, wrapped in norm and residuals, stacked N times.',
+  gap:'The exact same block can be used two very different ways — to read a whole sentence at once, or to generate one word at a time without ever peeking ahead. What actually changes between those two jobs?',
+  fillEyebrow:'13 · Architecture', fillTitle:'Two variants of the same block',
+  fillLine:'Full visibility for understanding, restricted visibility for generating — the Encoder and the Decoder.'
+}));
+
+/* ---------- 13. ENCODER ---------- */
+SLIDES.push(conceptSlide({
+  id:'encoder', color:'green', eyebrow:'13 · Architecture', tag:'READS EVERYTHING AT ONCE',
+  title:'Encoder — full-sentence understanding',
+  diagram:encoderSVG(),
+  analogy:'Like proofreading a finished paragraph: you can look at word 1 while knowing what word 10 says, because the whole sentence is already in front of you. Nothing is hidden.',
+  flabel:'Self-attention (unmasked)', formula:'every token attends to every other token, in both directions',
+  facts:[
+    'Bidirectional — token 3 can directly see tokens 1, 2, 4, 5... everything, all at once.',
+    'Great for understanding tasks: classification, embeddings, search, sentiment.',
+    'Not built to generate text word-by-word — it sees the whole input, not a growing output.'
+  ],
+  chips:['BERT — search & classification','Sentence embeddings','Named-entity recognition'],
+  caption:'2018 · Devlin et al. — BERT: Bidirectional Encoder Representations from Transformers.'
+}));
+
+/* ---------- 14. DECODER ---------- */
+SLIDES.push(conceptSlide({
+  id:'decoder', color:'green', eyebrow:'13 · Architecture', tag:'GENERATES ONE STEP AT A TIME',
+  title:'Decoder — generate, without peeking ahead',
+  diagram:decoderSVG(),
+  analogy:'Like writing a sentence live, one word at a time: you can reread everything you\'ve already written, but you\'re not allowed to see the word you haven\'t written yet — because it doesn\'t exist.',
+  flabel:'Masked self-attention', formula:'attention(token t) → only tokens ≤ t are visible',
+  facts:[
+    'A "causal mask" blocks any token from attending to future positions during training.',
+    'At inference, it runs autoregressively: predict the next token, append it, repeat.',
+    'This is the architecture behind almost every chatbot and code-completion model today.'
+  ],
+  chips:['GPT — chat, text generation, code completion','Autoregressive language modeling'],
+  caption:'2018 · Radford et al. — GPT: Generative Pre-trained Transformer.'
+}));
+SLIDES.push(bridgeSlide({
+  id:'b-decoder', color:'violet',
+  recap:'Encoders read a full sequence at once; decoders generate one token at a time without peeking ahead.',
+  gap:'Translation needs both — fully understand the French sentence, AND generate the English sentence word by word while constantly referring back to it. How do you connect a decoder to an encoder\'s understanding?',
+  fillEyebrow:'14 · Architecture', fillTitle:'Let the decoder attend into the encoder\'s output',
+  fillLine:'Add a second kind of attention that looks across the two sequences — the Encoder–Decoder.'
+}));
+
+/* ---------- 15. ENCODER-DECODER ---------- */
+SLIDES.push(conceptSlide({
+  id:'encdec', color:'violet', eyebrow:'14 · Architecture', tag:'CROSS-ATTENTION', steps:4,
+  title:'Encoder–Decoder — understand, then generate while referring back',
+  diagram:encdecSVG(),
+  analogy:'Like a live interpreter: they first listen to the entire sentence in French (encoder), then start speaking English one word at a time, glancing back at specific parts of the French sentence as needed (cross-attention) — not just their own growing English output.',
+  flabel:'Cross-attention', formula:'Q from decoder &nbsp;·&nbsp; K, V from encoder output',
+  facts:[
+    'The decoder has two attentions per block: masked self-attention (its own output so far) and cross-attention (the encoder\'s output).',
+    'This was the original 2017 Transformer design — built specifically for machine translation.',
+    'Later models often specialize: encoder-only (BERT) or decoder-only (GPT) skip the half they don\'t need.'
+  ],
+  chips:['Machine translation (Google Translate)','Summarization','T5 — text-to-text transfer transformer'],
+  caption:'Click → to walk through encode, decode, and cross-attend, step by step.'
+}));
+SLIDES.push(bridgeSlide({
+  id:'b-encdec', color:'green',
+  recap:'Encoder–decoder models connect full-sequence understanding to step-by-step generation via cross-attention.',
+  gap:'Transformers scale beautifully — bigger model, better results — but making every layer bigger means every single token pays the full compute cost, even easy ones like "the." How do you add capacity without taxing every token equally?',
+  fillEyebrow:'15 · Scaling', fillTitle:'Route each token to only a few specialists',
+  fillLine:'Out of many expert sub-networks, activate only a handful per token — Mixture of Experts.'
+}));
+
+/* ---------- 16. MIXTURE OF EXPERTS ---------- */
+SLIDES.push(conceptSlide({
+  id:'moe', color:'green', eyebrow:'15 · Scaling', tag:'SPARSE COMPUTE', steps:3,
+  title:'Mixture of Experts — many specialists, few consulted per token',
+  diagram:moeSVG(),
+  analogy:'Like a hospital reception desk: you don\'t see every doctor in the building for a routine checkup — a gate routes you to the one or two specialists actually relevant to you. The other fifty doctors stay idle, and the hospital can afford to have that many specialists in the first place.',
+  flabel:'Sparse gating', formula:'y = Σ<sub>i∈TopK</sub> G(x)<sub>i</sub> · E<sub>i</sub>(x) &nbsp;&nbsp; G(x) = softmax(W<sub>g</sub>·x)',
+  facts:[
+    'The feed-forward layer is replaced by many smaller "expert" FFNs — a gate picks the top-k (often k=2) per token.',
+    'Total parameter count can be huge (trillions), but compute per token only touches a couple of experts — sparse, not dense.',
+    'A load-balancing loss during training discourages the gate from always picking the same few experts.'
+  ],
+  chips:['Mixtral 8×7B','Switch Transformer (Google)','GPT-4 (rumored MoE)','Trillion-parameter-scale models, affordable inference'],
+  caption:'Click → to watch different tokens get routed to different expert pairs.'
+}));
+
+/* ---------- RECAP + CLOSING ---------- */
+SLIDES.push(`<section class="slide" data-id="recap" data-steps="1">
+  <div class="eyebrow" style="color:var(--blue)">The Full Journey</div>
+  <div class="title">Sixteen ideas, one continuous chain of "yes, but—"</div>
+  <div class="recap-grid">
+    <div class="recap-col rv pop" data-d="1">
+      <div class="recap-head" style="color:var(--blue)">Foundations</div>
+      <div class="recap-item"><div class="ri-title">Perceptron</div><div class="ri-line">one neuron, one straight line</div></div>
+      <div class="recap-item"><div class="ri-title">MLP</div><div class="ri-line">stacked neurons bend the line</div></div>
+      <div class="recap-item"><div class="ri-title">CNN</div><div class="ri-line">a filter reused across space</div></div>
+      <div class="recap-head" style="color:var(--amber);margin-top:6px">Sequences</div>
+      <div class="recap-item"><div class="ri-title">RNN</div><div class="ri-line">memory passed step by step</div></div>
+      <div class="recap-item"><div class="ri-title">LSTM</div><div class="ri-line">gated memory highway</div></div>
+      <div class="recap-item"><div class="ri-title">GRU</div><div class="ri-line">the same idea, leaner</div></div>
+    </div>
+    <div class="recap-col rv pop" data-d="2">
+      <div class="recap-head" style="color:var(--violet)">Attention Era</div>
+      <div class="recap-item"><div class="ri-title">Attention</div><div class="ri-line">look directly, skip the relay</div></div>
+      <div class="recap-item"><div class="ri-title">Embeddings</div><div class="ri-line">meaning as a point in space</div></div>
+      <div class="recap-item"><div class="ri-title">Positional Encoding</div><div class="ri-line">a fingerprint for order</div></div>
+      <div class="recap-head" style="color:var(--rose);margin-top:6px">Stability</div>
+      <div class="recap-item"><div class="ri-title">Normalization</div><div class="ri-line">keep every layer on scale</div></div>
+      <div class="recap-item"><div class="ri-title">Residuals</div><div class="ri-line">a shortcut around every layer</div></div>
+    </div>
+    <div class="recap-col rv pop" data-d="3">
+      <div class="recap-head" style="color:var(--green)">Architecture</div>
+      <div class="recap-item"><div class="ri-title">Transformer</div><div class="ri-line">all five ingredients, assembled</div></div>
+      <div class="recap-item"><div class="ri-title">Encoder</div><div class="ri-line">reads everything at once</div></div>
+      <div class="recap-item"><div class="ri-title">Decoder</div><div class="ri-line">generates without peeking ahead</div></div>
+      <div class="recap-item"><div class="ri-title">Encoder–Decoder</div><div class="ri-line">understand, then generate</div></div>
+      <div class="recap-head" style="color:var(--green);margin-top:6px">Scaling</div>
+      <div class="recap-item"><div class="ri-title">Mixture of Experts</div><div class="ri-line">many specialists, few consulted</div></div>
+    </div>
+  </div>
+  <div class="caption">Every arrow in this deck pointed at a real limitation — and every fix became the next chapter of deep learning.</div>
+</section>`);
+
+SLIDES.push(`<section class="slide" data-id="closing" data-steps="1">
+  <div class="hero">
+    <div class="kicker rv" data-d="1">That's the whole chain</div>
+    <h1 class="rv pop" data-d="2">One neuron → one model that understands language</h1>
+    <div class="sub rv" data-d="3">Every architecture here is still in production today, often combined: a modern LLM is a
+      decoder-only Transformer, with embeddings, positional encoding, normalization, residuals — and increasingly, Mixture of Experts, underneath.</div>
+    <div class="sub rv" data-d="4" style="font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--dim)">
+      Next step: pick one block, re-derive its formula from scratch, and implement it in ~30 lines of code.
+    </div>
+  </div>
+</section>`);
+
+/* =========================================================
+   RENDER + NAV CONTROLLER
+   ========================================================= */
+const stage = document.getElementById('stage');
+stage.innerHTML = SLIDES.join('');
+const slideEls = Array.from(document.querySelectorAll('.slide'));
+let cur = 0;
+const prevBtn = document.getElementById('prevBtn');
+const nextBtn = document.getElementById('nextBtn');
+const navcount = document.getElementById('navcount');
+
+function revealIn(container, stepMs){
+  stepMs = stepMs || 100;
+  const els = container.querySelectorAll('.rv');
+  els.forEach((el,i)=>{
+    const d = parseInt(el.getAttribute('data-d')||i+1);
+    setTimeout(()=>{ el.classList.add('in'); }, d*stepMs);
+  });
+}
+function resetReveal(container){
+  container.querySelectorAll('.rv').forEach(el=>el.classList.remove('in'));
+}
+
+/* custom per-slide step effects (motion beyond simple cumulative reveal) */
+const STEP_FX = {
+  cnn: function(slide, step){
+    const positions = [
+      {x:20,y:20, out:[0,0]},
+      {x:20+38,y:20+38, out:[1,1]},
+      {x:20+38*3,y:20+38*3, out:[3,3]}
+    ];
+    const p = positions[Math.min(step-1,2)];
+    const filter = slide.querySelector('#cnnFilter');
+    if(filter){ filter.setAttribute('x', p.x); filter.setAttribute('y', p.y); }
+    slide.querySelectorAll('.outcell').forEach(c=>c.classList.remove('active'));
+    const target = slide.querySelector('#cnnOut-'+p.out[0]+'-'+p.out[1]);
+    if(target) target.classList.add('active');
+  },
+  attention: function(slide, step){
+    const weightSets = [
+      [0.5,0.2,0.1,0.1,0.1],
+      [0.15,0.4,0.25,0.1,0.1],
+      [0.1,0.35,0.3,0.15,0.1]
+    ];
+    const queryIdx = [0,1,2];
+    const w = weightSets[Math.min(step-1,2)];
+    const qi = queryIdx[Math.min(step-1,2)];
+    slide.querySelectorAll('.tokbox').forEach(b=>b.classList.remove('query'));
+    const qbox = slide.querySelector('#attn-box-'+qi);
+    if(qbox) qbox.classList.add('query');
+    for(let i=0;i<5;i++){
+      const line = slide.querySelector('#attn-l-'+i);
+      if(!line) continue;
+      line.setAttribute('opacity', 0.15 + w[i]*0.75);
+      line.setAttribute('stroke-width', 1 + w[i]*6);
+    }
+    const qlabel = slide.querySelector('#attn-qlabel');
+    const words = ['The','cat','sat'];
+    if(qlabel) qlabel.textContent = 'query = "'+words[Math.min(step-1,2)]+'" looks at every word directly';
+  },
+  moe: function(slide, step){
+    const routes = [
+      {tok:'"Hello"', experts:[1,4]},
+      {tok:'"world"', experts:[0,6]},
+      {tok:'"!"', experts:[2,7]}
+    ];
+    const r = routes[Math.min(step-1,2)];
+    slide.querySelectorAll('.expbox').forEach(e=>e.classList.remove('active'));
+    r.experts.forEach(idx=>{
+      const box = slide.querySelector('#moe-exp-'+idx);
+      if(box) box.classList.add('active');
+    });
+    const tokEl = slide.querySelector('#moe-token');
+    if(tokEl) tokEl.textContent = r.tok;
+  }
+};
+
+function applyStepFX(slide){
+  const id = slide.dataset.id;
+  const step = parseInt(slide.dataset.step||'1');
+  if(STEP_FX[id]) STEP_FX[id](slide, step);
+}
+
+function goTo(i){
+  if(i<0 || i>=slideEls.length) return;
+  slideEls[cur].classList.remove('active','show2','show3','show4');
+  slideEls[cur].dataset.step = '1';
+  resetReveal(slideEls[cur]);
+  cur = i;
+  const s = slideEls[cur];
+  s.dataset.step = '1';
+  s.classList.add('active');
+  resetReveal(s);
+  revealIn(s);
+  applyStepFX(s);
+  updateNav();
+}
+
+function forward(){
+  const s = slideEls[cur];
+  const maxStep = parseInt(s.dataset.steps||'1');
+  const step = parseInt(s.dataset.step||'1');
+  if(step < maxStep){
+    const ns = step+1;
+    s.dataset.step = ns;
+    s.classList.add('show'+ns);
+    applyStepFX(s);
+    updateNav();
+    return;
+  }
+  goTo(cur+1);
+}
+function backward(){
+  const s = slideEls[cur];
+  const step = parseInt(s.dataset.step||'1');
+  if(step > 1){
+    s.classList.remove('show'+step);
+    s.dataset.step = step-1;
+    applyStepFX(s);
+    updateNav();
+    return;
+  }
+  goTo(cur-1);
+}
+
+function updateNav(){
+  navcount.textContent = (cur+1)+' / '+slideEls.length;
+  prevBtn.disabled = (cur===0 && parseInt(slideEls[cur].dataset.step||'1')===1);
+  nextBtn.disabled = (cur===slideEls.length-1 && parseInt(slideEls[cur].dataset.step||'1')>=parseInt(slideEls[cur].dataset.steps||'1'));
+}
+
+prevBtn.addEventListener('click', backward);
+nextBtn.addEventListener('click', forward);
+window.addEventListener('keydown', (e)=>{
+  if(e.key==='ArrowRight' || e.key===' '){ forward(); e.preventDefault(); }
+  else if(e.key==='ArrowLeft'){ backward(); e.preventDefault(); }
+  else if(e.key.toLowerCase()==='c'){ mnCheckCollisions(); }
+});
+
+function fitStage(){
+  const vw = window.innerWidth, vh = window.innerHeight - 92;
+  const scale = Math.min(vw/1280, vh/720) * 0.96;
+  stage.style.transform = 'scale(' + scale + ')';
+}
+window.addEventListener('resize', fitStage);
+fitStage();
+
+slideEls[0].classList.add('active');
+revealIn(slideEls[0]);
+updateNav();
+
+/* collision detector dev tool */
+function mnCheckCollisions(opts){
+  opts = opts || {};
+  const active = document.querySelector('.slide.active');
+  if(!active) return;
+  const scale = parseFloat((stage.style.transform.match(/scale\\(([\\d.]+)\\)/)||[0,1])[1]);
+  const stageRect = stage.getBoundingClientRect();
+  const nodes = active.querySelectorAll('[style*="left"], .eyebrow, .title, .caption, .chip, .recap-item');
+  const boxes = [];
+  nodes.forEach(n=>{
+    const r = n.getBoundingClientRect();
+    if(r.width===0||r.height===0) return;
+    boxes.push({el:n, x:(r.left-stageRect.left)/scale, y:(r.top-stageRect.top)/scale, w:r.width/scale, h:r.height/scale});
+  });
+  let collisions = 0;
+  const offenders = [];
+  for(let i=0;i<boxes.length;i++){
+    for(let j=i+1;j<boxes.length;j++){
+      const a=boxes[i], b=boxes[j];
+      if(a.el.contains(b.el) || b.el.contains(a.el)) continue;
+      const overlap = !(a.x+a.w < b.x || b.x+b.w < a.x || a.y+a.h < b.y || b.y+b.h < a.y);
+      if(overlap){ collisions++; offenders.push([a.el,b.el]); }
+    }
+  }
+  const badge = document.getElementById('collbadge');
+  badge.style.display='block';
+  if(collisions===0){
+    badge.style.background='rgba(124,184,143,.15)'; badge.style.color='var(--green)'; badge.style.border='1px solid var(--green)';
+    badge.textContent='no overlaps';
+  } else {
+    badge.style.background='rgba(201,129,152,.15)'; badge.style.color='var(--rose)'; badge.style.border='1px solid var(--rose)';
+    badge.textContent=collisions+' overlaps';
+    console.log('Collisions:', offenders);
+  }
+  if(opts.highlight!==false){
+    offenders.forEach(pair=>pair.forEach(el=>{ el.style.outline='1px dashed var(--rose)'; }));
+  }
+}
+</script>
+</body>
+</html>

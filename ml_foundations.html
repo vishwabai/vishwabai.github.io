@@ -1,0 +1,1880 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ML Foundations — A Feynman Walkthrough</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<style>
+  :root{
+    --bg:#0a0a0f;
+    --blue:#4A90C4;
+    --yellow:#D4C55A;
+    --green:#6BAA75;
+    --red:#C4605A;
+    --gray:#8A8F98;
+    --text:#EDEDED;
+    --caption:#9AA0A8;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; width:100%; height:100%;
+    background:#000; overflow:hidden;
+    font-family:'Helvetica Neue',Arial,sans-serif;
+  }
+  #deck-scaler{
+    width:1600px; height:900px;
+    background:var(--bg);
+    position:absolute; top:50%; left:50%;
+    transform-origin:center center;
+  }
+  .slide{ position:absolute; inset:0; display:none; }
+  .slide.active{ display:block; }
+
+  .zone-title{
+    position:absolute; top:40px; left:80px; right:80px; height:80px;
+    display:flex; align-items:center;
+    color:var(--text); font-size:34px; font-weight:600; letter-spacing:.3px;
+  }
+  .zone-stage{
+    position:absolute; top:140px; left:80px; right:80px; height:630px;
+  }
+  .zone-caption{
+    position:absolute; top:790px; left:120px; right:120px; height:90px;
+    display:flex; align-items:center; justify-content:center;
+    color:var(--caption); font-size:20px; line-height:1.35; text-align:center;
+    white-space:normal; overflow-wrap:break-word; overflow:visible;
+  }
+
+  svg .stroke-obj{ fill:none; stroke-width:3px; }
+  .draw-in{ stroke-dasharray:var(--len); stroke-dashoffset:var(--len); }
+  .draw-in.go{ animation:drawShape 900ms cubic-bezier(.65,0,.35,1) forwards; }
+  @keyframes drawShape{ to{ stroke-dashoffset:0; } }
+
+  .fade-in{ opacity:0; }
+  .fade-in.go{ animation:fadeIn 500ms ease-out forwards; }
+  @keyframes fadeIn{
+    from{ opacity:0; transform:translateY(8px) scale(.98); }
+    to{ opacity:1; transform:translateY(0) scale(1); }
+  }
+
+  .indicate.go{ animation:indicate 650ms ease-in-out; }
+  @keyframes indicate{
+    0%{ transform:scale(1); filter:none; }
+    50%{ transform:scale(1.1); filter:drop-shadow(0 0 4px currentColor); }
+    100%{ transform:scale(1); filter:none; }
+  }
+
+  .morph-path{ transition:d 700ms cubic-bezier(.65,0,.35,1); }
+  .morph-transform{ transition:transform 800ms cubic-bezier(.65,0,.35,1); }
+  .mover{ position:absolute; }
+
+  .eq-box{ position:absolute; color:var(--text); font-size:26px; }
+  .eq-write{ clip-path:inset(0 100% 0 0); }
+  .eq-write.go{ animation:writeClip 800ms ease-out forwards; }
+  @keyframes writeClip{ to{ clip-path:inset(0 0% 0 0); } }
+
+  .bar{ transition:height 700ms cubic-bezier(.65,0,.35,1), opacity 500ms ease; }
+  .hbar{ transition:width 700ms cubic-bezier(.65,0,.35,1); }
+
+  /* Divider slides */
+  .divider-wrap{ height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:22px; }
+  .divider-tag{ font-size:16px; letter-spacing:4px; text-transform:uppercase; color:var(--gray); opacity:0; }
+  .divider-tag.go{ animation:fadeIn 500ms ease-out forwards; }
+  .divider-title{ font-size:66px; font-weight:700; text-align:center; color:var(--text); }
+  .divider-underline{ height:3px; width:0; transition:width 700ms cubic-bezier(.65,0,.35,1); }
+  .divider-sub{ font-size:24px; color:var(--caption); text-align:center; opacity:0; }
+  .divider-sub.go{ animation:fadeIn 500ms ease-out forwards; }
+
+  /* Bridge slides */
+  .bridge-wrap{ height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:38px; }
+  .bridge-line{ text-align:center; max-width:1150px; opacity:0; }
+  .bridge-line.go{ animation:fadeIn 550ms ease-out forwards; }
+  .bridge-recap{ color:var(--caption); font-size:26px; }
+  .bridge-gap{ color:var(--yellow); font-size:32px; font-weight:600; }
+  .bridge-fill{ color:var(--blue); font-size:48px; font-weight:700; }
+
+  /* Nav */
+  #nav{
+    position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+    display:flex; align-items:center; gap:18px; z-index:10;
+  }
+  #nav button{
+    background:transparent; border:1.5px solid var(--gray); color:var(--text);
+    width:40px; height:40px; border-radius:50%; font-size:18px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    transition:border-color .2s, color .2s;
+  }
+  #nav button:hover{ border-color:var(--blue); color:var(--blue); }
+  #dots{ display:flex; gap:6px; max-width:600px; flex-wrap:wrap; justify-content:center; }
+  .dot{
+    width:7px; height:7px; border-radius:50%; background:var(--gray); opacity:.5;
+    transition:background .2s, opacity .2s, transform .2s;
+  }
+  .dot.on{ background:var(--blue); opacity:1; transform:scale(1.3); }
+  #slideCounter{ color:var(--gray); font-size:14px; letter-spacing:.5px; min-width:56px; text-align:center; }
+</style>
+</head>
+<body>
+<div id="deck-scaler">
+
+<!-- ===================== 0 : TITLE ===================== -->
+<section class="slide" data-slide="0">
+  <div class="zone-stage">
+    <div class="divider-wrap">
+      <div class="divider-tag fade-in" id="d0tag">A FEYNMAN WALKTHROUGH</div>
+      <div class="divider-title" id="d0title">Foundations of Machine Learning</div>
+      <div class="divider-underline" id="d0line" style="background:var(--blue);"></div>
+      <div class="divider-sub fade-in" id="d0sub">If you can't build the intuition from scratch, you don't understand it yet.</div>
+    </div>
+  </div>
+  <div class="zone-caption fade-in" id="cap0">Nine ideas. One connected story. Let's build it piece by piece.</div>
+</section>
+
+<!-- ===================== 1 : ROADMAP ===================== -->
+<section class="slide" data-slide="1">
+  <div class="zone-title">The journey ahead</div>
+  <div class="zone-stage" style="position:relative;">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <!-- 9 nodes in a snake path, 3 rows x 3, each 400x150 apart. row y: 90,300,510 -->
+      <path id="roadPath" class="stroke-obj draw-in" stroke="var(--gray)" stroke-width="2"
+        d="M 160,90 L 720,90 L 1280,90 L 1280,300 L 720,300 L 160,300 L 160,510 L 720,510 L 1280,510"/>
+      <g id="roadNodes"></g>
+    </svg>
+  </div>
+  <div class="zone-caption fade-in" id="cap1">Each idea reveals the next: representation, uncertainty, estimation, search, error, and generalization.</div>
+</section>
+
+<!-- ===================== 2 : DIVIDER - Linear Algebra ===================== -->
+<section class="slide" data-slide="2">
+  <div class="zone-stage">
+    <div class="divider-wrap">
+      <div class="divider-tag fade-in" id="d2tag">PART 1</div>
+      <div class="divider-title">Linear Algebra</div>
+      <div class="divider-underline" id="d2line" style="background:var(--blue);"></div>
+      <div class="divider-sub fade-in" id="d2sub">The language for representing data</div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 3 : Vectors as arrows ===================== -->
+<section class="slide" data-slide="3">
+  <div class="zone-title">Data is just an arrow</div>
+  <div class="zone-stage">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <!-- axes: origin (200,550) -->
+      <line class="stroke-obj draw-in" id="ax3x" x1="200" y1="550" x2="1280" y2="550" stroke="var(--gray)" stroke-width="2"/>
+      <line class="stroke-obj draw-in" id="ax3y" x1="200" y1="550" x2="200" y2="90" stroke="var(--gray)" stroke-width="2"/>
+      <text x="1250" y="580" fill="var(--caption)" font-size="20">size</text>
+      <text x="150" y="100" fill="var(--caption)" font-size="20">price</text>
+      <line class="stroke-obj draw-in" id="vec3" x1="200" y1="550" x2="700" y2="220" stroke="var(--yellow)" stroke-width="4"
+        marker-end="url(#arrow3)"/>
+      <defs><marker id="arrow3" markerWidth="10" markerHeight="10" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L6,3 z" fill="var(--yellow)"/></marker></defs>
+      <text class="fade-in" id="lab3" x="720" y="210" fill="var(--text)" font-size="24">(1500 sqft, 480k)</text>
+      <text class="fade-in" id="lab3b" x="720" y="245" fill="var(--caption)" font-size="20">v = [1500, 480000]</text>
+    </svg>
+  </div>
+  <div class="zone-caption fade-in" id="cap3">A vector is an ordered list of numbers — and, geometrically, a point (or arrow) in space.</div>
+</section>
+
+<!-- ===================== 4 : Vector addition ===================== -->
+<section class="slide" data-slide="4">
+  <div class="zone-title">Vectors combine by stacking movements</div>
+  <div class="zone-stage">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <defs>
+        <marker id="arrow4a" markerWidth="10" markerHeight="10" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L6,3 z" fill="var(--blue)"/></marker>
+        <marker id="arrow4b" markerWidth="10" markerHeight="10" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L6,3 z" fill="var(--green)"/></marker>
+        <marker id="arrow4c" markerWidth="10" markerHeight="10" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L6,3 z" fill="var(--yellow)"/></marker>
+      </defs>
+      <line class="stroke-obj draw-in" id="va" x1="220" y1="540" x2="620" y2="380" stroke="var(--blue)" stroke-width="4" marker-end="url(#arrow4a)"/>
+      <text class="fade-in" id="valab" x="380" y="430" fill="var(--blue)" font-size="22">a</text>
+      <line class="stroke-obj draw-in" id="vb" x1="620" y1="380" x2="860" y2="180" stroke="var(--green)" stroke-width="4" marker-end="url(#arrow4b)"/>
+      <text class="fade-in" id="vblab" x="770" y="260" fill="var(--green)" font-size="22">b</text>
+      <line class="stroke-obj draw-in" id="vc" x1="220" y1="540" x2="860" y2="180" stroke="var(--yellow)" stroke-width="4" stroke-dasharray="10 8" marker-end="url(#arrow4c)"/>
+      <text class="fade-in" id="vclab" x="900" y="170" fill="var(--yellow)" font-size="24">a + b</text>
+    </svg>
+  </div>
+  <div class="zone-caption fade-in" id="cap4">Add vectors tip-to-tail. This is literally how a neural network layer sums incoming signals.</div>
+</section>
+
+<!-- ===================== 5 : Dot product & cosine similarity ===================== -->
+<section class="slide" data-slide="5">
+  <div class="zone-title">How similar are two directions?</div>
+  <div class="zone-stage" style="position:relative;">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <defs><marker id="arrow5" markerWidth="10" markerHeight="10" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L6,3 z" fill="currentColor"/></marker></defs>
+      <line x1="260" y1="500" x2="900" y2="180" stroke="var(--blue)" stroke-width="4" marker-end="url(#arrow5)" color="var(--blue)"/>
+      <g id="vecB5" style="transform-origin:260px 500px;" class="morph-transform">
+        <line x1="260" y1="500" x2="900" y2="480" stroke="var(--green)" stroke-width="4" marker-end="url(#arrow5)" color="var(--green)"/>
+      </g>
+      <text x="920" y="185" fill="var(--blue)" font-size="22">song A</text>
+      <text x="920" y="475" fill="var(--green)" font-size="22">song B</text>
+    </svg>
+    <div class="eq-box" id="eq5" style="top:40px; left:60px; width:520px;"
+      data-katex="\vec{a}\cdot\vec{b} = |\vec{a}||\vec{b}|\cos\theta"></div>
+    <div style="position:absolute; top:540px; left:60px; color:var(--text); font-size:22px;">similarity = <span id="simVal5">0.10</span></div>
+  </div>
+  <div class="zone-caption fade-in" id="cap5">As two vectors point the same way, their dot product — and similarity score — grows. This is how recommendation systems find "similar" songs or products.</div>
+</section>
+
+<!-- ===================== 6 : Matrices as transformations ===================== -->
+<section class="slide" data-slide="6">
+  <div class="zone-title">A matrix moves the whole plane</div>
+  <div class="zone-stage">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <g id="grid6" class="morph-transform" style="transform-origin:720px 315px;">
+        <!-- simple grid of lines around center -->
+        <g stroke="var(--gray)" stroke-width="1.5" opacity="0.6">
+          <line x1="420" y1="115" x2="420" y2="515"/>
+          <line x1="620" y1="115" x2="620" y2="515"/>
+          <line x1="820" y1="115" x2="820" y2="515"/>
+          <line x1="1020" y1="115" x2="1020" y2="515"/>
+          <line x1="320" y1="165" x2="1120" y2="165"/>
+          <line x1="320" y1="315" x2="1120" y2="315"/>
+          <line x1="320" y1="465" x2="1120" y2="465"/>
+        </g>
+        <line x1="320" y1="315" x2="1120" y2="315" stroke="var(--blue)" stroke-width="2.5"/>
+        <line x1="720" y1="115" x2="720" y2="515" stroke="var(--green)" stroke-width="2.5"/>
+        <circle cx="820" cy="215" r="8" fill="var(--yellow)"/>
+      </g>
+    </svg>
+  </div>
+  <div class="zone-caption fade-in" id="cap6">A matrix stretches, rotates, or shears every point in space at once. This is exactly what a neural-network layer does to your data.</div>
+</section>
+
+<!-- ===================== 7 : Matrix multiplication mechanics ===================== -->
+<section class="slide" data-slide="7">
+  <div class="zone-title">Multiplying is transforming, entry by entry</div>
+  <div class="zone-stage" style="position:relative;">
+    <div class="eq-box" id="eq7" style="top:20px; left:520px; width:400px;" data-katex="y = Wx + b"></div>
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <!-- W matrix rows -->
+      <text x="300" y="260" fill="var(--blue)" font-size="26">w11  w12</text>
+      <text x="300" y="300" fill="var(--blue)" font-size="26">w21  w22</text>
+      <text x="620" y="280" fill="var(--text)" font-size="30">×</text>
+      <text x="700" y="260" fill="var(--green)" font-size="26">x1</text>
+      <text x="700" y="300" fill="var(--green)" font-size="26">x2</text>
+      <text x="850" y="280" fill="var(--text)" font-size="30">=</text>
+      <line id="arrow7a" class="stroke-obj draw-in" x1="380" y1="255" x2="960" y2="240" stroke="var(--yellow)" stroke-width="2"/>
+      <line id="arrow7b" class="stroke-obj draw-in" x1="380" y1="295" x2="960" y2="240" stroke="var(--yellow)" stroke-width="2"/>
+      <text class="fade-in" id="out7a" x="960" y="245" fill="var(--yellow)" font-size="26">y1</text>
+      <line id="arrow7c" class="stroke-obj draw-in" x1="380" y1="255" x2="960" y2="330" stroke="var(--red)" stroke-width="2"/>
+      <line id="arrow7d" class="stroke-obj draw-in" x1="380" y1="295" x2="960" y2="330" stroke="var(--red)" stroke-width="2"/>
+      <text class="fade-in" id="out7b" x="960" y="335" fill="var(--red)" font-size="26">y2</text>
+    </svg>
+  </div>
+  <div class="zone-caption fade-in" id="cap7">Each output is a weighted sum of every input. Every layer in a neural network is literally this operation, repeated.</div>
+</section>
+
+<!-- ===================== 8 : Eigenvectors -> PCA ===================== -->
+<section class="slide" data-slide="8">
+  <div class="zone-title">Some directions don't rotate — they only stretch</div>
+  <div class="zone-stage" style="position:relative;">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <defs><marker id="arrow8" markerWidth="10" markerHeight="10" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L6,3 z" fill="currentColor"/></marker></defs>
+      <g id="ell8" class="stroke-obj draw-in" stroke="var(--gray)">
+        <ellipse cx="720" cy="300" rx="260" ry="120" transform="rotate(20 720 300)"/>
+      </g>
+      <line id="ev8" x1="720" y1="300" x2="900" y2="230" stroke="var(--yellow)" stroke-width="4" marker-end="url(#arrow8)" color="var(--yellow)" class="indicate"/>
+      <text class="fade-in" id="evlab8" x="915" y="220" fill="var(--yellow)" font-size="22">eigenvector (stays on its line)</text>
+    </svg>
+    <div class="eq-box" id="eq8" style="top:520px; left:600px; width:260px;" data-katex="Av = \lambda v"></div>
+  </div>
+  <div class="zone-caption fade-in" id="cap8">Transform the whole ellipse, and this one direction only stretches by λ. The eigenvector with the biggest λ is the direction data varies most — that's the idea behind PCA.</div>
+</section>
+
+<!-- ===================== 9 : BRIDGE LA -> Probability ===================== -->
+<section class="slide" data-slide="9">
+  <div class="zone-stage">
+    <div class="bridge-wrap">
+      <div class="bridge-line bridge-recap" id="b9a">So far: we can represent data as vectors, and transform it with matrices.</div>
+      <div class="bridge-line bridge-gap" id="b9b">But real data is noisy and uncertain — how do we model what we don't know for sure?</div>
+      <div class="bridge-line bridge-fill" id="b9c">→ Probability</div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 10 : DIVIDER - Probability ===================== -->
+<section class="slide" data-slide="10">
+  <div class="zone-stage">
+    <div class="divider-wrap">
+      <div class="divider-tag fade-in" id="d10tag">PART 2</div>
+      <div class="divider-title">Probability</div>
+      <div class="divider-underline" id="d10line" style="background:var(--yellow);"></div>
+      <div class="divider-sub fade-in" id="d10sub">The language for representing uncertainty</div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 11 : Random variables & distributions ===================== -->
+<section class="slide" data-slide="11">
+  <div class="zone-title">Not every outcome is equally likely</div>
+  <div class="zone-stage" style="position:relative;">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <line x1="150" y1="560" x2="1300" y2="560" stroke="var(--gray)" stroke-width="2"/>
+      <g id="bars11"></g>
+      <path id="curve11" class="stroke-obj" stroke="var(--yellow)" stroke-width="3" fill="none" opacity="0"/>
+    </svg>
+  </div>
+  <div class="zone-caption fade-in" id="cap11">Roll enough dice and outcomes pile up unevenly — that shape is a probability distribution. This is why we model house prices as a range, not a single guess.</div>
+</section>
+
+<!-- ===================== 12 : Joint & conditional probability ===================== -->
+<section class="slide" data-slide="12">
+  <div class="zone-title">Probability changes when you know more</div>
+  <div class="zone-stage" style="position:relative;">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <circle id="circA12" class="stroke-obj draw-in" cx="600" cy="315" r="220" stroke="var(--blue)"/>
+      <circle id="circB12" class="stroke-obj draw-in" cx="840" cy="315" r="220" stroke="var(--green)"/>
+      <text x="480" y="200" fill="var(--blue)" font-size="24">A: rain</text>
+      <text x="900" y="200" fill="var(--green)" font-size="24">B: clouds</text>
+      <path id="overlap12" d="M 720,140 A 220,220 0 0 1 720,490 A 220,220 0 0 1 720,140 Z" fill="var(--yellow)" opacity="0" />
+      <text class="fade-in" id="jointlab12" x="660" y="320" fill="var(--text)" font-size="20">P(A∩B)</text>
+    </svg>
+  </div>
+  <div class="zone-caption fade-in" id="cap12">P(A∩B) is the overlap. Zoom into just circle B, and the overlap's share of B is the conditional probability P(A|B) — "given it's cloudy, how likely is rain?"</div>
+</section>
+
+<!-- ===================== 13 : Bayes' theorem ===================== -->
+<section class="slide" data-slide="13">
+  <div class="zone-title">Updating belief with evidence</div>
+  <div class="zone-stage" style="position:relative;">
+    <div class="eq-box" id="eq13" style="top:30px; left:420px; width:600px; font-size:30px;"
+      data-katex="P(\text{spam}\mid\text{word}) = \dfrac{P(\text{word}\mid\text{spam})\,P(\text{spam})}{P(\text{word})}"></div>
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <text x="300" y="330" fill="var(--caption)" font-size="22">prior P(spam)</text>
+      <rect id="prior13" x="300" y="350" width="120" height="30" fill="var(--blue)"/>
+      <text x="300" y="470" fill="var(--caption)" font-size="22">posterior after seeing "free money"</text>
+      <rect id="post13" x="300" y="490" width="120" height="30" fill="var(--yellow)"/>
+    </svg>
+  </div>
+  <div class="zone-caption fade-in" id="cap13">Seeing evidence updates belief — the same math powers spam filters and how doctors read medical test results.</div>
+</section>
+
+<!-- ===================== 14 : BRIDGE Prob -> Stats ===================== -->
+<section class="slide" data-slide="14">
+  <div class="zone-stage">
+    <div class="bridge-wrap">
+      <div class="bridge-line bridge-recap" id="b14a">Probability lets us reason about uncertain outcomes — once we know the rules.</div>
+      <div class="bridge-line bridge-gap" id="b14b">But in the real world, we never know the true distribution — we only have samples. How do we learn it?</div>
+      <div class="bridge-line bridge-fill" id="b14c">→ Statistics</div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 15 : DIVIDER - Statistics ===================== -->
+<section class="slide" data-slide="15">
+  <div class="zone-stage">
+    <div class="divider-wrap">
+      <div class="divider-tag fade-in" id="d15tag">PART 3</div>
+      <div class="divider-title">Statistics</div>
+      <div class="divider-underline" id="d15line" style="background:var(--green);"></div>
+      <div class="divider-sub fade-in" id="d15sub">Learning the unknowns from data</div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 16 : Mean / variance / std dev ===================== -->
+<section class="slide" data-slide="16">
+  <div class="zone-title">Summarizing a cloud of numbers</div>
+  <div class="zone-stage" style="position:relative;">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <line x1="150" y1="320" x2="1300" y2="320" stroke="var(--gray)" stroke-width="2"/>
+      <g id="dots16"></g>
+      <line id="meanline16" x1="700" y1="220" x2="700" y2="420" stroke="var(--yellow)" stroke-width="3" opacity="0"/>
+      <text class="fade-in" id="meanlab16" x="660" y="200" fill="var(--yellow)" font-size="22">mean μ</text>
+      <g id="devs16"></g>
+    </svg>
+    <div class="eq-box" id="eq16a" style="top:520px; left:200px; width:300px;" data-katex="\mu = \tfrac{1}{n}\sum x_i"></div>
+    <div class="eq-box" id="eq16b" style="top:520px; left:820px; width:340px;" data-katex="\sigma^2 = \tfrac{1}{n}\sum (x_i-\mu)^2"></div>
+  </div>
+  <div class="zone-caption fade-in" id="cap16">Mean finds the center of mass. Variance measures how far, on average, points spread from it.</div>
+</section>
+
+<!-- ===================== 17 : Normal distribution & CLT ===================== -->
+<section class="slide" data-slide="17">
+  <div class="zone-title">Why the bell curve shows up everywhere</div>
+  <div class="zone-stage">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <line x1="150" y1="560" x2="1300" y2="560" stroke="var(--gray)" stroke-width="2"/>
+      <g id="bars17"></g>
+      <path id="bell17" class="stroke-obj draw-in" stroke="var(--green)" stroke-width="3" fill="none"
+        d="M 150,558 C 400,558 480,120 720,120 C 960,120 1040,558 1300,558"/>
+    </svg>
+  </div>
+  <div class="zone-caption fade-in" id="cap17">Add up enough independent random things — dice rolls, measurement errors, user behaviors — and you always get this same bell shape. That's the Central Limit Theorem.</div>
+</section>
+
+<!-- ===================== 18 : MLE ===================== -->
+<section class="slide" data-slide="18">
+  <div class="zone-title">Finding the parameters that best explain the data</div>
+  <div class="zone-stage" style="position:relative;">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <g id="dots18"></g>
+      <path id="curve18" class="stroke-obj" stroke="var(--yellow)" stroke-width="3" fill="none"
+        d="M 250,500 C 400,500 480,480 600,480 C 720,480 780,500 900,500"/>
+    </svg>
+    <div class="eq-box" id="eq18" style="top:60px; left:520px; width:420px;" data-katex="\hat\theta = \arg\max_\theta\, P(D\mid\theta)"></div>
+    <div style="position:absolute; top:560px; left:600px; color:var(--text); font-size:22px;">likelihood: <span id="likeVal18">0.02</span></div>
+  </div>
+  <div class="zone-caption fade-in" id="cap18">Slide the curve's center and width until the data becomes as likely as possible under it — that's Maximum Likelihood Estimation, the same idea behind "fitting a model."</div>
+</section>
+
+<!-- ===================== 19 : BRIDGE Stats -> Optimization ===================== -->
+<section class="slide" data-slide="19">
+  <div class="zone-stage">
+    <div class="bridge-wrap">
+      <div class="bridge-line bridge-recap" id="b19a">Statistics lets us estimate the parameters — like that curve — that best explain our data.</div>
+      <div class="bridge-line bridge-gap" id="b19b">But "best fit" can't be found by trial and error when a model has millions of parameters. How do we search efficiently?</div>
+      <div class="bridge-line bridge-fill" id="b19c">→ Optimization</div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 20 : DIVIDER - Optimization ===================== -->
+<section class="slide" data-slide="20">
+  <div class="zone-stage">
+    <div class="divider-wrap">
+      <div class="divider-tag fade-in" id="d20tag">PART 4</div>
+      <div class="divider-title">Optimization</div>
+      <div class="divider-underline" id="d20line" style="background:var(--blue);"></div>
+      <div class="divider-sub fade-in" id="d20sub">Finding the best parameters</div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 21 : Loss landscape ===================== -->
+<section class="slide" data-slide="21">
+  <div class="zone-title">Every set of parameters has a cost</div>
+  <div class="zone-stage" style="position:relative;">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <g id="contours21" stroke="var(--gray)" fill="none" stroke-width="1.5" opacity="0.7">
+        <ellipse cx="720" cy="330" rx="480" ry="220"/>
+        <ellipse cx="720" cy="330" rx="360" ry="165"/>
+        <ellipse cx="720" cy="330" rx="240" ry="110"/>
+        <ellipse cx="720" cy="330" rx="120" ry="55"/>
+      </g>
+      <circle id="pt21" cx="1000" cy="220" r="10" fill="var(--yellow)"/>
+      <text class="fade-in" id="lab21" x="1020" y="215" fill="var(--yellow)" font-size="22">current parameters</text>
+    </svg>
+    <div style="position:absolute; top:560px; left:600px; color:var(--text); font-size:22px;">loss = <span id="lossVal21">8.40</span></div>
+  </div>
+  <div class="zone-caption fade-in" id="cap21">Training a model means finding the lowest point on this landscape — the point of least loss.</div>
+</section>
+
+<!-- ===================== 22 : Convex vs non-convex ===================== -->
+<section class="slide" data-slide="22">
+  <div class="zone-title">Not all landscapes have one valley</div>
+  <div class="zone-stage">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <text x="450" y="100" fill="var(--blue)" font-size="24" text-anchor="middle">convex</text>
+      <path id="bowlL22" class="stroke-obj draw-in" stroke="var(--blue)" stroke-width="3" fill="none"
+        d="M 150,450 C 250,150 650,150 750,450"/>
+      <circle id="ballL22" cx="180" cy="435" r="12" fill="var(--yellow)"/>
+      <text x="990" y="100" fill="var(--red)" font-size="24" text-anchor="middle">non-convex</text>
+      <path id="bowlR22" class="stroke-obj draw-in" stroke="var(--red)" stroke-width="3" fill="none"
+        d="M 850,300 C 900,470 1000,470 1050,380 C 1100,300 1180,300 1230,450"/>
+      <circle id="ballR22" cx="880" cy="290" r="12" fill="var(--yellow)"/>
+      <text class="fade-in" id="labR22" x="1050" y="420" fill="var(--caption)" font-size="18">stuck in a local dip</text>
+    </svg>
+  </div>
+  <div class="zone-caption fade-in" id="cap22">A convex bowl always leads to the true minimum. A non-convex landscape can trap a search in a valley that isn't the lowest one.</div>
+</section>
+
+<!-- ===================== 23 : Derivative = slope, gradient = direction ===================== -->
+<section class="slide" data-slide="23">
+  <div class="zone-title">The slope tells you which way is downhill</div>
+  <div class="zone-stage">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <path id="curve23" class="stroke-obj draw-in" stroke="var(--blue)" stroke-width="3" fill="none"
+        d="M 200,480 C 400,80 900,80 1150,420"/>
+      <circle cx="820" cy="180" r="8" fill="var(--yellow)"/>
+      <line id="tan23" class="stroke-obj draw-in" x1="700" y1="260" x2="940" y2="100" stroke="var(--yellow)" stroke-width="2.5"/>
+      <text class="fade-in" id="lab23" x="960" y="95" fill="var(--yellow)" font-size="20">tangent slope</text>
+      <line id="grad23" class="stroke-obj draw-in" x1="820" y1="180" x2="820" y2="80" stroke="var(--green)" stroke-width="3" opacity="0"/>
+      <text class="fade-in" id="lab23b" x="840" y="80" fill="var(--green)" font-size="20" opacity="0">−gradient → downhill</text>
+    </svg>
+  </div>
+  <div class="zone-caption fade-in" id="cap23">The derivative is the slope at a point. In many dimensions that slope becomes a gradient vector — and its negative points straight downhill.</div>
+</section>
+
+<!-- ===================== 24 : BRIDGE Opt -> GD ===================== -->
+<section class="slide" data-slide="24">
+  <div class="zone-stage">
+    <div class="bridge-wrap">
+      <div class="bridge-line bridge-recap" id="b24a">The gradient tells us which direction is downhill on the loss landscape.</div>
+      <div class="bridge-line bridge-gap" id="b24b">But knowing the direction once isn't enough — how do we actually reach the bottom, step by step?</div>
+      <div class="bridge-line bridge-fill" id="b24c">→ Gradient Descent</div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 25 : DIVIDER - Gradient Descent ===================== -->
+<section class="slide" data-slide="25">
+  <div class="zone-stage">
+    <div class="divider-wrap">
+      <div class="divider-tag fade-in" id="d25tag">PART 5</div>
+      <div class="divider-title">Gradient Descent</div>
+      <div class="divider-underline" id="d25line" style="background:var(--yellow);"></div>
+      <div class="divider-sub fade-in" id="d25sub">How optimization actually happens, step by step</div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 26 : Ball rolling downhill ===================== -->
+<section class="slide" data-slide="26">
+  <div class="zone-title">Take a step, look again, repeat</div>
+  <div class="zone-stage" style="position:relative;">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <path class="stroke-obj draw-in" id="bowl26" stroke="var(--blue)" stroke-width="3" fill="none"
+        d="M 200,180 C 350,560 1090,560 1240,180"/>
+      <g id="steps26"></g>
+    </svg>
+    <div class="mover" id="ball26" style="width:16px;height:16px;border-radius:50%;background:var(--yellow);top:174px;left:192px;"></div>
+  </div>
+  <div class="zone-caption fade-in" id="cap26">Each step: check the slope, move a little downhill, repeat — until the steps get tiny and you've settled at the bottom.</div>
+</section>
+
+<!-- ===================== 27 : Update rule formula ===================== -->
+<section class="slide" data-slide="27">
+  <div class="zone-title">The formula behind every step</div>
+  <div class="zone-stage" style="position:relative;">
+    <div class="eq-box" id="eq27" style="top:120px; left:430px; width:600px; font-size:44px;"
+      data-katex="\theta \leftarrow \theta - \eta \, \nabla J(\theta)"></div>
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <text class="fade-in" id="p27a" x="260" y="420" fill="var(--yellow)" font-size="22">θ — the parameters</text>
+      <text class="fade-in" id="p27b" x="560" y="470" fill="var(--green)" font-size="22">η — the learning rate (step size)</text>
+      <text class="fade-in" id="p27c" x="900" y="420" fill="var(--blue)" font-size="22">∇J(θ) — direction of steepest increase</text>
+    </svg>
+  </div>
+  <div class="zone-caption fade-in" id="cap27">Subtract a small fraction of the gradient from the current parameters, and repeat until it stops changing much.</div>
+</section>
+
+<!-- ===================== 28 : Learning rate too small/big/right ===================== -->
+<section class="slide" data-slide="28">
+  <div class="zone-title">Step size matters more than you'd think</div>
+  <div class="zone-stage" style="position:relative;">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <!-- three panels: x centers 220-500(small), 570-870(right), 940-1240(big) -->
+      <path class="stroke-obj" stroke="var(--gray)" stroke-width="2" fill="none" d="M 220,480 C 280,200 460,200 520,480"/>
+      <text x="370" y="130" fill="var(--red)" font-size="20" text-anchor="middle">too small</text>
+      <g id="pathSmall28"></g>
+
+      <path class="stroke-obj" stroke="var(--gray)" stroke-width="2" fill="none" d="M 630,480 C 690,200 870,200 930,480"/>
+      <text x="780" y="130" fill="var(--green)" font-size="20" text-anchor="middle">just right</text>
+      <g id="pathRight28"></g>
+
+      <path class="stroke-obj" stroke="var(--gray)" stroke-width="2" fill="none" d="M 1040,480 C 1100,200 1280,200 1340,480"/>
+      <text x="1190" y="130" fill="var(--red)" font-size="20" text-anchor="middle">too big</text>
+      <g id="pathBig28"></g>
+    </svg>
+  </div>
+  <div class="zone-caption fade-in" id="cap28">Too small: crawls forever. Too big: overshoots and bounces around, sometimes diverging. Just right: settles smoothly.</div>
+</section>
+
+<!-- ===================== 29 : Batch / stochastic / mini-batch ===================== -->
+<section class="slide" data-slide="29">
+  <div class="zone-title">How much data per step?</div>
+  <div class="zone-stage" style="position:relative;">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <g id="dots29"></g>
+      <path id="path29" class="stroke-obj draw-in" stroke="var(--yellow)" stroke-width="3" fill="none" d="M 250,500 L 250,500"/>
+    </svg>
+    <div style="position:absolute; top:40px; left:500px; color:var(--text); font-size:26px; font-weight:600;" id="mode29">Full batch — uses every point each step</div>
+  </div>
+  <div class="zone-caption fade-in" id="cap29">Full-batch is smooth but slow per step. Stochastic (one point) is fast but noisy. Mini-batch — a small random group — is the practical middle ground almost everyone uses.</div>
+</section>
+
+<!-- ===================== 30 : Momentum ===================== -->
+<section class="slide" data-slide="30">
+  <div class="zone-title">Remembering where you've been</div>
+  <div class="zone-stage">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <path class="stroke-obj draw-in" id="valley30" stroke="var(--gray)" stroke-width="2" fill="none"
+        d="M 250,300 C 400,600 1040,600 1190,300"/>
+      <path id="jitter30" class="stroke-obj draw-in" stroke="var(--red)" stroke-width="2.5" fill="none"
+        d="M 300,320 L 900,560 L 500,480 L 800,540 L 620,510 L 720,525"/>
+      <path id="smooth30" class="stroke-obj draw-in" stroke="var(--green)" stroke-width="3" fill="none"
+        d="M 300,320 C 500,530 620,540 720,525"/>
+    </svg>
+  </div>
+  <div class="zone-caption fade-in" id="cap30">Plain gradient descent jitters back and forth in narrow valleys (red). Momentum carries velocity forward, smoothing and speeding the path (green) — the core trick behind Adam and friends.</div>
+</section>
+
+<!-- ===================== 31 : BRIDGE GD -> Loss ===================== -->
+<section class="slide" data-slide="31">
+  <div class="zone-stage">
+    <div class="bridge-wrap">
+      <div class="bridge-line bridge-recap" id="b31a">Gradient descent walks downhill on the loss landscape, one careful step at a time.</div>
+      <div class="bridge-line bridge-gap" id="b31b">But we've been saying "loss" as if it's obvious — what exactly are we measuring?</div>
+      <div class="bridge-line bridge-fill" id="b31c">→ Loss Functions</div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 32 : DIVIDER - Loss Functions ===================== -->
+<section class="slide" data-slide="32">
+  <div class="zone-stage">
+    <div class="divider-wrap">
+      <div class="divider-tag fade-in" id="d32tag">PART 6</div>
+      <div class="divider-title">Loss Functions</div>
+      <div class="divider-underline" id="d32line" style="background:var(--green);"></div>
+      <div class="divider-sub fade-in" id="d32sub">Defining what "best" even means</div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 33 : What loss measures ===================== -->
+<section class="slide" data-slide="33">
+  <div class="zone-title">The gap between prediction and truth</div>
+  <div class="zone-stage" style="position:relative;">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <circle cx="500" cy="300" r="12" fill="var(--green)"/>
+      <text x="480" y="260" fill="var(--green)" font-size="20">truth</text>
+      <g id="predMark33">
+        <line x1="880" y1="280" x2="920" y2="320" stroke="var(--red)" stroke-width="4"/>
+        <line x1="920" y1="280" x2="880" y2="320" stroke="var(--red)" stroke-width="4"/>
+      </g>
+      <text x="870" y="260" fill="var(--red)" font-size="20">prediction</text>
+      <line id="gap33" class="stroke-obj draw-in" x1="512" y1="300" x2="888" y2="300" stroke="var(--yellow)" stroke-width="2.5" stroke-dasharray="8 6"/>
+    </svg>
+    <div style="position:absolute; top:460px; left:600px; color:var(--text); font-size:24px;">loss = <span id="gapVal33">0</span></div>
+  </div>
+  <div class="zone-caption fade-in" id="cap33">Loss is just: how wrong were we, turned into a single number we can minimize.</div>
+</section>
+
+<!-- ===================== 34 : MSE ===================== -->
+<section class="slide" data-slide="34">
+  <div class="zone-title">Squaring the error — punishing big mistakes more</div>
+  <div class="zone-stage" style="position:relative;">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <line id="regline34" class="stroke-obj draw-in" x1="200" y1="480" x2="1250" y2="180" stroke="var(--blue)" stroke-width="3"/>
+      <g id="pts34"></g>
+      <g id="resid34"></g>
+    </svg>
+    <div class="eq-box" id="eq34" style="top:560px; left:520px; width:420px;" data-katex="J=\tfrac{1}{n}\sum (y_i-\hat y_i)^2"></div>
+  </div>
+  <div class="zone-caption fade-in" id="cap34">Mean Squared Error: measure each residual, square it (punishing outliers hard), and average. Used for regression — predicting continuous values like price or temperature.</div>
+</section>
+
+<!-- ===================== 35 : Cross-entropy ===================== -->
+<section class="slide" data-slide="35">
+  <div class="zone-title">Penalizing confident wrong answers</div>
+  <div class="zone-stage" style="position:relative;">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <line x1="200" y1="540" x2="1300" y2="540" stroke="var(--gray)" stroke-width="2"/>
+      <line x1="200" y1="540" x2="200" y2="120" stroke="var(--gray)" stroke-width="2"/>
+      <text x="130" y="130" fill="var(--caption)" font-size="18">loss</text>
+      <text x="1250" y="570" fill="var(--caption)" font-size="18">p(correct)</text>
+      <path id="negLog35" class="stroke-obj draw-in" stroke="var(--red)" stroke-width="3" fill="none"
+        d="M 230,140 C 350,300 500,430 700,500 C 900,530 1100,538 1280,540"/>
+      <circle id="dot35" cx="700" cy="500" r="9" fill="var(--yellow)"/>
+    </svg>
+    <div class="eq-box" id="eq35" style="top:60px; left:540px; width:360px;" data-katex="J=-\sum y_i \log(\hat y_i)"></div>
+  </div>
+  <div class="zone-caption fade-in" id="cap35">As predicted confidence in the correct class drops toward zero, loss explodes. Used for classification — like recognizing digits or images.</div>
+</section>
+
+<!-- ===================== 36 : BRIDGE Loss -> Fit ===================== -->
+<section class="slide" data-slide="36">
+  <div class="zone-stage">
+    <div class="bridge-wrap">
+      <div class="bridge-line bridge-recap" id="b36a">Loss functions measure exactly how wrong a model's predictions are.</div>
+      <div class="bridge-line bridge-gap" id="b36b">But minimizing loss on the data we have isn't the same as being right on new data. What goes wrong?</div>
+      <div class="bridge-line bridge-fill" id="b36c">→ Overfitting &amp; Underfitting</div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 37 : DIVIDER - Over/Underfitting ===================== -->
+<section class="slide" data-slide="37">
+  <div class="zone-stage">
+    <div class="divider-wrap">
+      <div class="divider-tag fade-in" id="d37tag">PART 7</div>
+      <div class="divider-title">Overfitting &amp; Underfitting</div>
+      <div class="divider-underline" id="d37line" style="background:var(--red);"></div>
+      <div class="divider-sub fade-in" id="d37sub">When "low loss on training data" isn't enough</div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 38 : Underfitting ===================== -->
+<section class="slide" data-slide="38">
+  <div class="zone-title">Too simple to see the pattern</div>
+  <div class="zone-stage">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <g id="pts38"></g>
+      <line id="flatline38" class="stroke-obj draw-in" x1="200" y1="420" x2="1250" y2="380" stroke="var(--blue)" stroke-width="3"/>
+    </svg>
+  </div>
+  <div class="zone-caption fade-in" id="cap38">A straight line can't follow this curve. High bias: the model is too rigid, and it's wrong almost everywhere — on training data and new data alike.</div>
+</section>
+
+<!-- ===================== 39 : Overfitting ===================== -->
+<section class="slide" data-slide="39">
+  <div class="zone-title">Too flexible — memorizing the noise</div>
+  <div class="zone-stage">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <g id="pts39"></g>
+      <path id="wiggle39" class="stroke-obj morph-path" stroke="var(--red)" stroke-width="3" fill="none"
+        d="M 200,420 C 500,420 700,420 1250,380"/>
+    </svg>
+  </div>
+  <div class="zone-caption fade-in" id="cap39">Same data — but now the curve contorts to pass through every point exactly. High variance: perfect on this data, wild and unreliable on new data.</div>
+</section>
+
+<!-- ===================== 40 : Train vs validation curves ===================== -->
+<section class="slide" data-slide="40">
+  <div class="zone-title">Watch two curves diverge</div>
+  <div class="zone-stage">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <line x1="180" y1="540" x2="1300" y2="540" stroke="var(--gray)" stroke-width="2"/>
+      <line x1="180" y1="540" x2="180" y2="100" stroke="var(--gray)" stroke-width="2"/>
+      <text x="1150" y="570" fill="var(--caption)" font-size="18">training time →</text>
+      <path id="trainCurve40" class="stroke-obj draw-in" stroke="var(--blue)" stroke-width="3" fill="none"
+        d="M 200,480 C 450,300 750,220 1280,160"/>
+      <path id="valCurve40" class="stroke-obj draw-in" stroke="var(--green)" stroke-width="3" fill="none"
+        d="M 200,500 C 450,320 700,230 850,220 C 1000,215 1150,280 1280,420"/>
+      <line id="stopLine40" x1="850" y1="120" x2="850" y2="540" stroke="var(--yellow)" stroke-width="2" stroke-dasharray="6 6" opacity="0"/>
+      <text class="fade-in" id="stopLab40" x="870" y="130" fill="var(--yellow)" font-size="20">stop here</text>
+      <text x="1290" y="150" fill="var(--blue)" font-size="18">train loss</text>
+      <text x="1290" y="430" fill="var(--green)" font-size="18">val loss</text>
+    </svg>
+  </div>
+  <div class="zone-caption fade-in" id="cap40">Training loss always keeps falling. Validation loss falls, then rises — that turning point is where overfitting begins. Stopping there is called early stopping.</div>
+</section>
+
+<!-- ===================== 41 : BRIDGE Fit -> Regularization ===================== -->
+<section class="slide" data-slide="41">
+  <div class="zone-stage">
+    <div class="bridge-wrap">
+      <div class="bridge-line bridge-recap" id="b41a">Overfitting happens when a model has too much freedom to chase noise.</div>
+      <div class="bridge-line bridge-gap" id="b41b">Can we keep a flexible model, but discourage it from getting too wild?</div>
+      <div class="bridge-line bridge-fill" id="b41c">→ Regularization</div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 42 : DIVIDER - Regularization ===================== -->
+<section class="slide" data-slide="42">
+  <div class="zone-stage">
+    <div class="divider-wrap">
+      <div class="divider-tag fade-in" id="d42tag">PART 8</div>
+      <div class="divider-title">Regularization</div>
+      <div class="divider-underline" id="d42line" style="background:var(--blue);"></div>
+      <div class="divider-sub fade-in" id="d42sub">Keeping models honest</div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 43 : Penalizing complexity ===================== -->
+<section class="slide" data-slide="43">
+  <div class="zone-title">Add a cost for complexity itself</div>
+  <div class="zone-stage" style="position:relative;">
+    <div class="eq-box" id="eq43" style="top:220px; left:380px; width:700px; font-size:38px;"
+      data-katex="J = \text{Loss}(y,\hat y) \;+\; \lambda \cdot \text{penalty}(w)"></div>
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <text class="fade-in indicate" id="pen43" x="900" y="420" fill="var(--red)" font-size="22">↑ this term grows if weights grow</text>
+    </svg>
+  </div>
+  <div class="zone-caption fade-in" id="cap43">Now the model pays a price for having large weights — it must earn every bit of complexity by actually reducing error.</div>
+</section>
+
+<!-- ===================== 44 : L2 Ridge ===================== -->
+<section class="slide" data-slide="44">
+  <div class="zone-title">L2 (Ridge): shrinking weights smoothly</div>
+  <div class="zone-stage" style="position:relative;">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <line x1="200" y1="560" x2="1300" y2="560" stroke="var(--gray)" stroke-width="2"/>
+      <g id="bars44"></g>
+      <circle id="circle44" class="stroke-obj draw-in" cx="1050" cy="300" r="160" stroke="var(--blue)" opacity="0"/>
+    </svg>
+    <div class="eq-box" id="eq44" style="top:60px; left:520px; width:380px;" data-katex="\lambda \sum w_i^2"></div>
+    <div style="position:absolute; top:560px; left:220px; color:var(--text); font-size:20px;">λ = <span id="lamVal44">0.0</span></div>
+  </div>
+  <div class="zone-caption fade-in" id="cap44">As λ grows, every weight shrinks toward zero smoothly — none reach exactly zero. Geometrically, the penalty is a circular boundary the weights can't cross.</div>
+</section>
+
+<!-- ===================== 45 : L1 Lasso ===================== -->
+<section class="slide" data-slide="45">
+  <div class="zone-title">L1 (Lasso): pushing weak weights to exactly zero</div>
+  <div class="zone-stage" style="position:relative;">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <line x1="200" y1="560" x2="1300" y2="560" stroke="var(--gray)" stroke-width="2"/>
+      <g id="bars45"></g>
+      <path id="diamond45" class="stroke-obj draw-in" stroke="var(--green)" fill="none"
+        d="M 1050,150 L 1200,300 L 1050,450 L 900,300 Z" opacity="0"/>
+    </svg>
+    <div class="eq-box" id="eq45" style="top:60px; left:520px; width:380px;" data-katex="\lambda \sum |w_i|"></div>
+  </div>
+  <div class="zone-caption fade-in" id="cap45">L1's sharp corners let the optimal point land exactly on an axis — some weights vanish completely. That's automatic feature selection.</div>
+</section>
+
+<!-- ===================== 46 : BRIDGE Reg -> Bias-Variance ===================== -->
+<section class="slide" data-slide="46">
+  <div class="zone-stage">
+    <div class="bridge-wrap">
+      <div class="bridge-line bridge-recap" id="b46a">Regularization trades a little training fit for a lot of generalization.</div>
+      <div class="bridge-line bridge-gap" id="b46b">Underfitting, overfitting, regularization — is there one idea underneath all of it?</div>
+      <div class="bridge-line bridge-fill" id="b46c">→ The Bias–Variance Tradeoff</div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 47 : DIVIDER - Bias-Variance ===================== -->
+<section class="slide" data-slide="47">
+  <div class="zone-stage">
+    <div class="divider-wrap">
+      <div class="divider-tag fade-in" id="d47tag">PART 9</div>
+      <div class="divider-title">Bias–Variance Tradeoff</div>
+      <div class="divider-underline" id="d47line" style="background:var(--yellow);"></div>
+      <div class="divider-sub fade-in" id="d47sub">The idea underneath everything we just built</div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 48 : Bias visual ===================== -->
+<section class="slide" data-slide="48">
+  <div class="zone-title">Bias: consistently off-target</div>
+  <div class="zone-stage">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <circle cx="720" cy="330" r="220" fill="none" stroke="var(--gray)" stroke-width="1.5"/>
+      <circle cx="720" cy="330" r="140" fill="none" stroke="var(--gray)" stroke-width="1.5"/>
+      <circle cx="720" cy="330" r="60" fill="none" stroke="var(--gray)" stroke-width="1.5"/>
+      <circle cx="720" cy="330" r="6" fill="var(--text)"/>
+      <g id="throwsBias48"></g>
+    </svg>
+  </div>
+  <div class="zone-caption fade-in" id="cap48">All throws land tightly together — but consistently off to one side. That's bias: a systematic error, the same mistake made every time.</div>
+</section>
+
+<!-- ===================== 49 : Variance visual ===================== -->
+<section class="slide" data-slide="49">
+  <div class="zone-title">Variance: inconsistent, scattered</div>
+  <div class="zone-stage">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <circle cx="720" cy="330" r="220" fill="none" stroke="var(--gray)" stroke-width="1.5"/>
+      <circle cx="720" cy="330" r="140" fill="none" stroke="var(--gray)" stroke-width="1.5"/>
+      <circle cx="720" cy="330" r="60" fill="none" stroke="var(--gray)" stroke-width="1.5"/>
+      <circle cx="720" cy="330" r="6" fill="var(--text)"/>
+      <g id="throwsVar49"></g>
+    </svg>
+  </div>
+  <div class="zone-caption fade-in" id="cap49">This time throws average out near the center — but each individual one lands somewhere wildly different. That's variance: high sensitivity to which data you happened to train on.</div>
+</section>
+
+<!-- ===================== 50 : Total error U-curve ===================== -->
+<section class="slide" data-slide="50">
+  <div class="zone-title">Balancing both is the real skill</div>
+  <div class="zone-stage" style="position:relative;">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <line x1="180" y1="540" x2="1300" y2="540" stroke="var(--gray)" stroke-width="2"/>
+      <line x1="180" y1="540" x2="180" y2="100" stroke="var(--gray)" stroke-width="2"/>
+      <text x="1120" y="570" fill="var(--caption)" font-size="18">model complexity →</text>
+      <path id="biasCurve50" class="stroke-obj draw-in" stroke="var(--blue)" stroke-width="2.5" fill="none"
+        d="M 220,150 C 500,300 800,470 1260,500"/>
+      <path id="varCurve50" class="stroke-obj draw-in" stroke="var(--green)" stroke-width="2.5" fill="none"
+        d="M 220,500 C 500,470 800,300 1260,150"/>
+      <path id="totalCurve50" class="stroke-obj draw-in" stroke="var(--yellow)" stroke-width="3.5" fill="none"
+        d="M 220,200 C 500,400 650,430 740,430 C 830,430 950,400 1260,220"/>
+      <circle id="sweet50" cx="740" cy="430" r="10" fill="var(--yellow)" opacity="0" class="indicate"/>
+      <text class="fade-in" id="sweetLab50" x="700" y="480" fill="var(--yellow)" font-size="20">sweet spot</text>
+      <text x="1270" y="150" fill="var(--blue)" font-size="18">bias²</text>
+      <text x="1270" y="155" dy="20" fill="var(--green)" font-size="18">variance</text>
+    </svg>
+  </div>
+  <div class="zone-caption fade-in" id="cap50">Total error = bias² + variance + irreducible noise. Too simple → bias dominates. Too complex → variance dominates. The best model sits at the minimum of the U — exactly what regularization and early stopping search for.</div>
+</section>
+
+<!-- ===================== 51 : FINAL RECAP ===================== -->
+<section class="slide" data-slide="51">
+  <div class="zone-title">The full pipeline, in one picture</div>
+  <div class="zone-stage">
+    <svg viewBox="0 0 1440 630" width="100%" height="100%">
+      <path id="roadPathR" class="stroke-obj draw-in" stroke="var(--gray)" stroke-width="2"
+        d="M 160,90 L 720,90 L 1280,90 L 1280,300 L 720,300 L 160,300 L 160,510 L 720,510 L 1280,510"/>
+      <g id="roadNodesR"></g>
+    </svg>
+  </div>
+  <div class="zone-caption fade-in" id="cap51">Represent data → model uncertainty → estimate parameters → search the landscape → walk it with gradients → measure error → watch for overfitting → regularize → balance bias and variance. Every ML model you'll ever build walks this same path.</div>
+</section>
+
+</div>
+
+<div id="nav">
+  <button id="prevBtn" aria-label="Previous">‹</button>
+  <div id="dots"></div>
+  <span id="slideCounter">1 / 1</span>
+  <button id="nextBtn" aria-label="Next">›</button>
+</div>
+
+<script>
+// ---------- scaling ----------
+function fitScale(){
+  const vw = (window.visualViewport && window.visualViewport.width)  || window.innerWidth;
+  const vh = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+  const s = Math.min(vw / 1600, vh / 900);
+  document.getElementById('deck-scaler').style.transform = `translate(-50%,-50%) scale(${s})`;
+}
+window.addEventListener('resize', fitScale);
+window.addEventListener('orientationchange', fitScale);
+if (window.visualViewport) window.visualViewport.addEventListener('resize', fitScale);
+fitScale();
+
+// ---------- helpers ----------
+function beat(fn, ms){ fn(); return new Promise(r=>setTimeout(r, ms+150)); }
+function wait(ms){ return new Promise(r=>setTimeout(r, ms)); }
+function prepDraw(pathEl){ if(!pathEl) return; const len = pathEl.getTotalLength(); pathEl.style.setProperty('--len', len); }
+function prepDrawAll(root, sel){ root.querySelectorAll(sel).forEach(prepDraw); }
+
+function animateNumber(el, from, to, ms, decimals=2){
+  const t0 = performance.now();
+  function step(t){
+    const p = Math.min(1, (t-t0)/ms);
+    const val = from + (to-from)*(1-Math.pow(1-p,3));
+    el.textContent = val.toFixed(decimals);
+    if(p<1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+function animatePoint(el, from, to, ms){
+  return new Promise(resolve=>{
+    const t0 = performance.now();
+    function step(t){
+      const p = Math.min(1, (t-t0)/ms);
+      const e = 1-Math.pow(1-p,3);
+      el.style.left = (from.x + (to.x-from.x)*e)+'px';
+      el.style.top  = (from.y + (to.y-from.y)*e)+'px';
+      if(p<1) requestAnimationFrame(step); else resolve();
+    }
+    requestAnimationFrame(step);
+  });
+}
+const SVGNS = 'http://www.w3.org/2000/svg';
+function mk(tag, attrs){
+  const el = document.createElementNS(SVGNS, tag);
+  for(const k in attrs) el.setAttribute(k, attrs[k]);
+  return el;
+}
+
+// ---------- render all KaTeX eq-boxes once ----------
+document.querySelectorAll('[data-katex]').forEach(el=>{
+  try{ katex.render(el.getAttribute('data-katex'), el, {throwOnError:false}); }catch(e){}
+  el.classList.add('eq-write');
+});
+
+// ================= factories for divider / bridge slides =================
+function makeDividerScene(idx){
+  return {
+    enter: async (root) => {
+      const tag = root.querySelector(`#d${idx}tag`);
+      const line = root.querySelector(`#d${idx}line`);
+      const sub = root.querySelector(`#d${idx}sub`);
+      if(tag) await beat(()=>tag.classList.add('go'), 400);
+      if(line) await beat(()=>{ line.style.width='340px'; }, 700);
+      if(sub) await beat(()=>sub.classList.add('go'), 500);
+    },
+    exit: (root) => {
+      const tag = root.querySelector(`#d${idx}tag`);
+      const line = root.querySelector(`#d${idx}line`);
+      const sub = root.querySelector(`#d${idx}sub`);
+      if(tag) tag.classList.remove('go');
+      if(line) line.style.width='0';
+      if(sub) sub.classList.remove('go');
+    }
+  };
+}
+function makeBridgeScene(idx){
+  return {
+    enter: async (root) => {
+      const a = root.querySelector(`#b${idx}a`);
+      const b = root.querySelector(`#b${idx}b`);
+      const c = root.querySelector(`#b${idx}c`);
+      await beat(()=>a.classList.add('go'), 600);
+      await beat(()=>b.classList.add('go'), 700);
+      await wait(400); // cliffhanger pause before the reveal
+      await beat(()=>c.classList.add('go'), 600);
+    },
+    exit: (root) => {
+      root.querySelectorAll('.bridge-line').forEach(el=>el.classList.remove('go'));
+    }
+  };
+}
+
+// ================= per-slide scenes =================
+const scenes = {};
+
+// 0: Title
+scenes[0] = {
+  enter: async (root) => {
+    await beat(()=>root.querySelector('#d0tag').classList.add('go'), 400);
+    await beat(()=>{ root.querySelector('#d0line').style.width='420px'; }, 700);
+    await beat(()=>root.querySelector('#d0sub').classList.add('go'), 500);
+    await beat(()=>root.querySelector('#cap0').classList.add('go'), 500);
+  },
+  exit: (root) => {
+    root.querySelector('#d0tag').classList.remove('go');
+    root.querySelector('#d0line').style.width='0';
+    root.querySelector('#d0sub').classList.remove('go');
+    root.querySelector('#cap0').classList.remove('go');
+  }
+};
+
+// 1: Roadmap
+const pillars = [
+  {name:'Linear\nAlgebra', color:'var(--blue)'}, {name:'Probability', color:'var(--yellow)'}, {name:'Statistics', color:'var(--green)'},
+  {name:'Overfitting /\nUnderfitting', color:'var(--red)'}, {name:'Loss\nFunctions', color:'var(--green)'}, {name:'Gradient\nDescent', color:'var(--yellow)'},
+  {name:'Optimization', color:'var(--blue)'}, {name:'Regularization', color:'var(--blue)'}, {name:'Bias–Variance', color:'var(--yellow)'}
+];
+const nodePos = [ {x:160,y:90},{x:720,y:90},{x:1280,y:90}, {x:1280,y:300},{x:720,y:300},{x:160,y:300}, {x:160,y:510},{x:720,y:510},{x:1280,y:510} ];
+function buildRoadNodes(groupEl, order){
+  groupEl.innerHTML='';
+  order.forEach((p,i)=>{
+    const pos = nodePos[i];
+    const c = mk('circle', {cx:pos.x, cy:pos.y, r:34, fill:'none', stroke:p.color, 'stroke-width':2.5, opacity:0, class:'road-node'});
+    groupEl.appendChild(c);
+    const lines = p.name.split('\n');
+    lines.forEach((ln,li)=>{
+      const t = mk('text', {x:pos.x, y: pos.y + 60 + li*22, 'text-anchor':'middle', fill:'var(--text)', 'font-size':17, opacity:0, class:'road-label'});
+      t.textContent = ln;
+      groupEl.appendChild(t);
+    });
+  });
+}
+scenes[1] = {
+  enter: async (root) => {
+    const path = root.querySelector('#roadPath');
+    prepDraw(path);
+    const g = root.querySelector('#roadNodes');
+    buildRoadNodes(g, pillars);
+    await beat(()=>path.classList.add('go'), 1200);
+    const nodes = Array.from(g.querySelectorAll('.road-node'));
+    const labels = Array.from(g.querySelectorAll('.road-label'));
+    for(let i=0;i<nodes.length;i++){
+      nodes[i].style.transition='opacity 300ms ease'; nodes[i].style.opacity=1;
+      await wait(180);
+    }
+    labels.forEach(l=>{ l.style.transition='opacity 300ms ease'; l.style.opacity=1; });
+    await beat(()=>root.querySelector('#cap1').classList.add('go'), 400);
+  },
+  exit: (root) => {
+    root.querySelector('#roadPath').classList.remove('go');
+    root.querySelector('#roadNodes').innerHTML='';
+    root.querySelector('#cap1').classList.remove('go');
+  }
+};
+
+[2,10,15,20,25,32,37,42,47].forEach(idx=>{ scenes[idx] = makeDividerScene(idx); });
+[9,14,19,24,31,36,41,46].forEach(idx=>{ scenes[idx] = makeBridgeScene(idx); });
+
+// 3: Vectors as arrows
+scenes[3] = {
+  enter: async (root) => {
+    prepDrawAll(root, '#ax3x, #ax3y, #vec3');
+    await beat(()=>root.querySelector('#ax3x').classList.add('go'), 500);
+    await beat(()=>root.querySelector('#ax3y').classList.add('go'), 400);
+    await beat(()=>root.querySelector('#vec3').classList.add('go'), 700);
+    await beat(()=>{ root.querySelector('#lab3').classList.add('go'); root.querySelector('#lab3b').classList.add('go'); }, 500);
+    await beat(()=>root.querySelector('#cap3').classList.add('go'), 400);
+  },
+  exit: (root) => {
+    root.querySelectorAll('.draw-in').forEach(el=>el.classList.remove('go'));
+    root.querySelectorAll('.fade-in').forEach(el=>el.classList.remove('go'));
+  }
+};
+
+// 4: Vector addition
+scenes[4] = {
+  enter: async (root) => {
+    prepDrawAll(root, '#va, #vb, #vc');
+    await beat(()=>{ root.querySelector('#va').classList.add('go'); root.querySelector('#valab').classList.add('go'); }, 700);
+    await beat(()=>{ root.querySelector('#vb').classList.add('go'); root.querySelector('#vblab').classList.add('go'); }, 700);
+    await beat(()=>{ root.querySelector('#vc').classList.add('go'); root.querySelector('#vclab').classList.add('go'); }, 700);
+    await beat(()=>root.querySelector('#cap4').classList.add('go'), 400);
+  },
+  exit: (root) => {
+    root.querySelectorAll('.draw-in, .fade-in').forEach(el=>el.classList.remove('go'));
+  }
+};
+
+// 5: Dot product & cosine similarity
+scenes[5] = {
+  enter: async (root) => {
+    const vecB = root.querySelector('#vecB5');
+    const sim = root.querySelector('#simVal5');
+    const eq = root.querySelector('#eq5');
+    await beat(()=>eq.classList.add('go'), 800);
+    await wait(200);
+    vecB.style.transform = 'rotate(-58deg)';
+    animateNumber(sim, 0.10, 0.86, 1000, 2);
+    await wait(1200);
+    await beat(()=>root.querySelector('#cap5').classList.add('go'), 400);
+  },
+  exit: (root) => {
+    root.querySelector('#vecB5').style.transform='rotate(0deg)';
+    root.querySelector('#simVal5').textContent='0.10';
+    root.querySelector('#eq5').classList.remove('go');
+    root.querySelector('#cap5').classList.remove('go');
+  }
+};
+
+// 6: Matrices as transformations
+scenes[6] = {
+  enter: async (root) => {
+    const g = root.querySelector('#grid6');
+    await wait(300);
+    g.style.transform = 'matrix(1.3, 0.35, -0.2, 0.85, 0, 0)';
+    await wait(1000);
+    await beat(()=>root.querySelector('#cap6').classList.add('go'), 400);
+  },
+  exit: (root) => {
+    root.querySelector('#grid6').style.transform='matrix(1,0,0,1,0,0)';
+    root.querySelector('#cap6').classList.remove('go');
+  }
+};
+
+// 7: Matrix multiplication mechanics
+scenes[7] = {
+  enter: async (root) => {
+    await beat(()=>root.querySelector('#eq7').classList.add('go'), 700);
+    prepDrawAll(root, '#arrow7a, #arrow7b, #arrow7c, #arrow7d');
+    await beat(()=>{ root.querySelector('#arrow7a').classList.add('go'); root.querySelector('#arrow7b').classList.add('go'); }, 700);
+    await beat(()=>root.querySelector('#out7a').classList.add('go'), 400);
+    await beat(()=>{ root.querySelector('#arrow7c').classList.add('go'); root.querySelector('#arrow7d').classList.add('go'); }, 700);
+    await beat(()=>root.querySelector('#out7b').classList.add('go'), 400);
+    await beat(()=>root.querySelector('#cap7').classList.add('go'), 400);
+  },
+  exit: (root) => {
+    root.querySelectorAll('.draw-in, .fade-in').forEach(el=>el.classList.remove('go'));
+    root.querySelector('#eq7').classList.remove('go');
+  }
+};
+
+// 8: Eigenvectors & PCA
+scenes[8] = {
+  enter: async (root) => {
+    prepDraw(root.querySelector('#ell8').querySelector('ellipse') || root.querySelector('#ell8'));
+    const ell = root.querySelector('#ell8 ellipse');
+    prepDraw(ell);
+    await beat(()=>ell.classList.add('go'), 900);
+    const ev = root.querySelector('#ev8');
+    await beat(()=>{ ev.setAttribute('x2','960'); ev.setAttribute('y2','195'); }, 500);
+    await beat(()=>ev.classList.add('go'), 650);
+    await beat(()=>root.querySelector('#evlab8').classList.add('go'), 400);
+    await beat(()=>root.querySelector('#eq8').classList.add('go'), 700);
+    await beat(()=>root.querySelector('#cap8').classList.add('go'), 400);
+  },
+  exit: (root) => {
+    const ell = root.querySelector('#ell8 ellipse'); ell.classList.remove('go');
+    const ev = root.querySelector('#ev8');
+    ev.setAttribute('x2','900'); ev.setAttribute('y2','230'); ev.classList.remove('go');
+    root.querySelectorAll('.fade-in').forEach(el=>el.classList.remove('go'));
+    root.querySelector('#eq8').classList.remove('go');
+  }
+};
+
+// 11: Random variables & distributions
+scenes[11] = {
+  enter: async (root) => {
+    const g = root.querySelector('#bars11');
+    g.innerHTML='';
+    const heights = [40,90,150,210,260,300,260,210,150,90,40];
+    const n = heights.length, w = 70, gap = 15, startX = 200;
+    const bars = heights.map((h,i)=>{
+      const x = startX + i*(w+gap);
+      const b = mk('rect', {x, y:560, width:w, height:0, fill:'var(--blue)', class:'bar', opacity:0.85});
+      g.appendChild(b);
+      return {el:b, h};
+    });
+    for(const b of bars){
+      b.el.setAttribute('y', 560-b.h);
+      b.el.setAttribute('height', b.h);
+      await wait(60);
+    }
+    await wait(400);
+    await beat(()=>root.querySelector('#cap11').classList.add('go'), 400);
+  },
+  exit: (root) => {
+    root.querySelector('#bars11').innerHTML='';
+    root.querySelector('#cap11').classList.remove('go');
+  }
+};
+
+// 12: Joint & conditional probability
+scenes[12] = {
+  enter: async (root) => {
+    prepDrawAll(root, '#circA12, #circB12');
+    await beat(()=>root.querySelector('#circA12').classList.add('go'), 700);
+    await beat(()=>root.querySelector('#circB12').classList.add('go'), 700);
+    await beat(()=>{ root.querySelector('#overlap12').style.transition='opacity 500ms'; root.querySelector('#overlap12').style.opacity=0.5; root.querySelector('#jointlab12').classList.add('go'); }, 500);
+    await beat(()=>root.querySelector('#cap12').classList.add('go'), 400);
+  },
+  exit: (root) => {
+    root.querySelectorAll('.draw-in, .fade-in').forEach(el=>el.classList.remove('go'));
+    root.querySelector('#overlap12').style.opacity=0;
+  }
+};
+
+// 13: Bayes theorem
+scenes[13] = {
+  enter: async (root) => {
+    await beat(()=>root.querySelector('#eq13').classList.add('go'), 900);
+    const prior = root.querySelector('#prior13');
+    const post = root.querySelector('#post13');
+    await beat(()=>{ prior.style.width='120px'; }, 500);
+    await wait(300);
+    await beat(()=>{ post.style.width='560px'; post.style.fill='var(--yellow)'; }, 700);
+    await beat(()=>root.querySelector('#cap13').classList.add('go'), 400);
+  },
+  exit: (root) => {
+    root.querySelector('#eq13').classList.remove('go');
+    root.querySelector('#post13').style.width='120px';
+    root.querySelector('#cap13').classList.remove('go');
+  }
+};
+
+// 16: Mean/variance/std dev
+scenes[16] = {
+  enter: async (root) => {
+    const g = root.querySelector('#dots16');
+    g.innerHTML='';
+    const xs = [280,360,430,520,610,680,760,850,930,1020,1090,1180];
+    const dots = xs.map(x=>{
+      const d = mk('circle', {cx:x, cy:320, r:8, fill:'var(--green)', opacity:0});
+      g.appendChild(d);
+      return d;
+    });
+    for(const d of dots){ d.style.transition='opacity 250ms'; d.style.opacity=1; await wait(50); }
+    await wait(300);
+    const meanline = root.querySelector('#meanline16');
+    meanline.style.transition='opacity 400ms'; meanline.style.opacity=1;
+    await beat(()=>root.querySelector('#meanlab16').classList.add('go'), 500);
+    const devs = root.querySelector('#devs16');
+    devs.innerHTML='';
+    xs.forEach(x=>{
+      const l = mk('line', {x1:x, y1:320, x2:700, y2:320, stroke:'var(--yellow)', 'stroke-width':1.2, opacity:0.35});
+      devs.appendChild(l);
+    });
+    await beat(()=>{ root.querySelector('#eq16a').classList.add('go'); }, 700);
+    await beat(()=>{ root.querySelector('#eq16b').classList.add('go'); }, 700);
+    await beat(()=>root.querySelector('#cap16').classList.add('go'), 400);
+  },
+  exit: (root) => {
+    root.querySelector('#dots16').innerHTML='';
+    root.querySelector('#devs16').innerHTML='';
+    root.querySelector('#meanline16').style.opacity=0;
+    root.querySelectorAll('.fade-in').forEach(el=>el.classList.remove('go'));
+    root.querySelector('#eq16a').classList.remove('go');
+    root.querySelector('#eq16b').classList.remove('go');
+  }
+};
+
+// 17: Normal distribution & CLT
+scenes[17] = {
+  enter: async (root) => {
+    const g = root.querySelector('#bars17');
+    g.innerHTML='';
+    const heights = [15,35,70,120,190,260,300,260,190,120,70,35,15];
+    const w = 60, gap = 10, startX = 175;
+    const bars = heights.map((h,i)=>{
+      const x = startX + i*(w+gap);
+      const b = mk('rect', {x, y:560, width:w, height:0, fill:'var(--blue)', class:'bar', opacity:0.7});
+      g.appendChild(b);
+      return {el:b,h};
+    });
+    for(const b of bars){ b.el.setAttribute('y', 560-b.h); b.el.setAttribute('height', b.h); await wait(45); }
+    await wait(300);
+    const bell = root.querySelector('#bell17');
+    prepDraw(bell);
+    await beat(()=>bell.classList.add('go'), 900);
+    await beat(()=>root.querySelector('#cap17').classList.add('go'), 400);
+  },
+  exit: (root) => {
+    root.querySelector('#bars17').innerHTML='';
+    root.querySelector('#bell17').classList.remove('go');
+    root.querySelector('#cap17').classList.remove('go');
+  }
+};
+
+// 18: MLE
+scenes[18] = {
+  enter: async (root) => {
+    const g = root.querySelector('#dots18');
+    g.innerHTML='';
+    const xs = [560,590,610,630,650,670,690,710,730,760];
+    xs.forEach(x=>{
+      const d = mk('circle', {cx:x, cy:490+Math.random()*20-10, r:6, fill:'var(--green)', opacity:0});
+      g.appendChild(d);
+    });
+    Array.from(g.children).forEach((d,i)=>{ setTimeout(()=>{ d.style.transition='opacity 250ms'; d.style.opacity=1; }, i*60); });
+    await wait(800);
+    await beat(()=>root.querySelector('#eq18').classList.add('go'), 700);
+    const curve = root.querySelector('#curve18');
+    const likeVal = root.querySelector('#likeVal18');
+    await beat(()=>{ curve.setAttribute('d','M 250,500 C 400,500 480,490 600,490 C 720,490 780,500 900,500'); }, 500);
+    await beat(()=>{ curve.setAttribute('d','M 250,500 C 400,505 500,300 640,300 C 780,300 850,505 900,500'); animateNumber(likeVal, 0.02, 0.91, 900, 2); }, 900);
+    await beat(()=>root.querySelector('#cap18').classList.add('go'), 400);
+  },
+  exit: (root) => {
+    root.querySelector('#dots18').innerHTML='';
+    root.querySelector('#curve18').setAttribute('d','M 250,500 C 400,500 480,480 600,480 C 720,480 780,500 900,500');
+    root.querySelector('#likeVal18').textContent='0.02';
+    root.querySelector('#eq18').classList.remove('go');
+    root.querySelector('#cap18').classList.remove('go');
+  }
+};
+
+// 21: Loss landscape
+scenes[21] = {
+  enter: async (root) => {
+    const pt = root.querySelector('#pt21');
+    const lossVal = root.querySelector('#lossVal21');
+    await beat(()=>root.querySelector('#lab21').classList.add('go'), 500);
+    await animatePoint(pt, {x:1000-5,y:220-5}, {x:770,y:340}, 1400);
+    animateNumber(lossVal, 8.40, 0.35, 1400, 2);
+    await wait(1400);
+    await beat(()=>root.querySelector('#cap21').classList.add('go'), 400);
+  },
+  exit: (root) => {
+    root.querySelector('#pt21').setAttribute('cx','1000');
+    root.querySelector('#pt21').setAttribute('cy','220');
+    root.querySelector('#lossVal21').textContent='8.40';
+    root.querySelector('#lab21').classList.remove('go');
+    root.querySelector('#cap21').classList.remove('go');
+  }
+};
+
+// 22: Convex vs non-convex
+scenes[22] = {
+  enter: async (root) => {
+    prepDrawAll(root, '#bowlL22, #bowlR22');
+    await beat(()=>{ root.querySelector('#bowlL22').classList.add('go'); root.querySelector('#bowlR22').classList.add('go'); }, 900);
+    const ballL = root.querySelector('#ballL22'), ballR = root.querySelector('#ballR22');
+    await animatePoint(ballL, {x:168,y:423}, {x:438,y:438}, 1200);
+    await wait(0);
+    await animatePoint(ballR, {x:868,y:278}, {x:1038,y:368}, 1200);
+    await beat(()=>root.querySelector('#labR22').classList.add('go'), 400);
+    await beat(()=>root.querySelector('#cap22').classList.add('go'), 400);
+  },
+  exit: (root) => {
+    root.querySelectorAll('.draw-in, .fade-in').forEach(el=>el.classList.remove('go'));
+    root.querySelector('#ballL22').setAttribute('cx','180'); root.querySelector('#ballL22').setAttribute('cy','435');
+    root.querySelector('#ballR22').setAttribute('cx','880'); root.querySelector('#ballR22').setAttribute('cy','290');
+  }
+};
+
+// 23: derivative/gradient
+scenes[23] = {
+  enter: async (root) => {
+    prepDrawAll(root, '#curve23, #tan23, #grad23');
+    await beat(()=>root.querySelector('#curve23').classList.add('go'), 900);
+    await beat(()=>{ root.querySelector('#tan23').classList.add('go'); root.querySelector('#lab23').classList.add('go'); }, 700);
+    await beat(()=>{
+      const g = root.querySelector('#grad23'); g.style.opacity=1; g.classList.add('go');
+      const l = root.querySelector('#lab23b'); l.style.opacity=1; l.classList.add('go');
+    }, 700);
+    await beat(()=>root.querySelector('#cap23').classList.add('go'), 400);
+  },
+  exit: (root) => {
+    root.querySelectorAll('.draw-in, .fade-in').forEach(el=>el.classList.remove('go'));
+    root.querySelector('#grad23').style.opacity=0;
+    root.querySelector('#lab23b').style.opacity=0;
+  }
+};
+
+// 26: ball rolling downhill
+scenes[26] = {
+  enter: async (root) => {
+    const bowl = root.querySelector('#bowl26');
+    prepDraw(bowl);
+    await beat(()=>bowl.classList.add('go'), 900);
+    const ball = root.querySelector('#ball26');
+    const steps = [ {x:192,y:174}, {x:340,y:420}, {x:520,y:520}, {x:720,y:552}, {x:920,y:520}, {x:1100,y:420}, {x:1232,y:174} ];
+    // actually settle in the middle bottom, correct path toward the true minimum (center):
+    const path = [ {x:192,y:174}, {x:360,y:400}, {x:520,y:500}, {x:640,y:545}, {x:700,y:552}, {x:720,y:553} ];
+    const g = root.querySelector('#steps26');
+    g.innerHTML='';
+    let cur = path[0];
+    for(let i=1;i<path.length;i++){
+      const next = path[i];
+      await animatePoint(ball, cur, next, 550);
+      const dot = mk('circle', {cx:next.x+8, cy:next.y+8, r:4, fill:'var(--gray)', opacity:0.6});
+      g.appendChild(dot);
+      cur = next;
+      await wait(120);
+    }
+    await beat(()=>root.querySelector('#cap26').classList.add('go'), 400);
+  },
+  exit: (root) => {
+    root.querySelector('#bowl26').classList.remove('go');
+    root.querySelector('#steps26').innerHTML='';
+    root.querySelector('#ball26').style.left='192px';
+    root.querySelector('#ball26').style.top='174px';
+    root.querySelector('#cap26').classList.remove('go');
+  }
+};
+
+// 27: update rule
+scenes[27] = {
+  enter: async (root) => {
+    await beat(()=>root.querySelector('#eq27').classList.add('go'), 900);
+    await beat(()=>root.querySelector('#p27a').classList.add('go'), 400);
+    await beat(()=>root.querySelector('#p27b').classList.add('go'), 400);
+    await beat(()=>root.querySelector('#p27c').classList.add('go'), 400);
+    await beat(()=>root.querySelector('#cap27').classList.add('go'), 400);
+  },
+  exit: (root) => {
+    root.querySelector('#eq27').classList.remove('go');
+    root.querySelectorAll('.fade-in').forEach(el=>el.classList.remove('go'));
+  }
+};
+
+// 28: learning rate comparison
+scenes[28] = {
+  enter: async (root) => {
+    const small = root.querySelector('#pathSmall28');
+    const right = root.querySelector('#pathRight28');
+    const big = root.querySelector('#pathBig28');
+    [small,right,big].forEach(g=>g.innerHTML='');
+    function addDot(g,x,y,color){ const d = mk('circle',{cx:x,cy:y,r:7,fill:color,opacity:0}); g.appendChild(d); return d; }
+    // small: many tiny steps
+    const smallSteps = [220,240,260,282,306,330,356,382,408,434,460,486,510]; 
+    for(const x of smallSteps){ const d = addDot(small, x, 475-(x-220)*0.1, 'var(--red)'); d.style.transition='opacity 150ms'; d.style.opacity=1; await wait(60); }
+    // right: 4 clean steps to bottom
+    const rightSteps = [{x:630,y:475},{x:700,y:380},{x:760,y:330},{x:800,y:310}];
+    for(const s of rightSteps){ const d = addDot(right, s.x, s.y, 'var(--green)'); d.style.transition='opacity 200ms'; d.style.opacity=1; await wait(180); }
+    // big: overshoots bouncing
+    const bigSteps = [{x:1040,y:475},{x:1330,y:475},{x:1050,y:310},{x:1320,y:310},{x:1150,y:330}];
+    for(const s of bigSteps){ const d = addDot(big, s.x, s.y, 'var(--red)'); d.style.transition='opacity 200ms'; d.style.opacity=1; await wait(180); }
+    await beat(()=>root.querySelector('#cap28').classList.add('go'), 400);
+  },
+  exit: (root) => {
+    root.querySelector('#pathSmall28').innerHTML='';
+    root.querySelector('#pathRight28').innerHTML='';
+    root.querySelector('#pathBig28').innerHTML='';
+    root.querySelector('#cap28').classList.remove('go');
+  }
+};
+
+// 29: batch / stochastic / mini-batch
+scenes[29] = {
+  enter: async (root) => {
+    const g = root.querySelector('#dots29');
+    g.innerHTML='';
+    const pts = [];
+    for(let i=0;i<24;i++){
+      const x = 250 + (i%8)*130 + Math.random()*20;
+      const y = 200 + Math.floor(i/8)*130 + Math.random()*20;
+      pts.push({x,y});
+      const d = mk('circle',{cx:x,cy:y,r:7,fill:'var(--gray)',opacity:0.6});
+      g.appendChild(d);
+    }
+    const modeLabel = root.querySelector('#mode29');
+    const dots = Array.from(g.children);
+    // full batch: all highlight together
+    modeLabel.textContent = 'Full batch — uses every point each step';
+    dots.forEach(d=>{ d.style.transition='fill 300ms'; d.setAttribute('fill','var(--blue)'); });
+    await wait(1000);
+    dots.forEach(d=>d.setAttribute('fill','var(--gray)'));
+    // stochastic: one at a time
+    modeLabel.textContent = 'Stochastic — one random point per step (noisy)';
+    for(let i=0;i<6;i++){
+      const d = dots[Math.floor(Math.random()*dots.length)];
+      d.setAttribute('fill','var(--red)');
+      await wait(180);
+      d.setAttribute('fill','var(--gray)');
+    }
+    // mini-batch: small cluster
+    modeLabel.textContent = 'Mini-batch — a small random group per step (the practical middle ground)';
+    for(let i=0;i<4;i++){
+      const chosen = [];
+      for(let k=0;k<4;k++) chosen.push(dots[Math.floor(Math.random()*dots.length)]);
+      chosen.forEach(d=>d.setAttribute('fill','var(--yellow)'));
+      await wait(350);
+      chosen.forEach(d=>d.setAttribute('fill','var(--gray)'));
+    }
+    await beat(()=>root.querySelector('#cap29').classList.add('go'), 400);
+  },
+  exit: (root) => {
+    root.querySelector('#dots29').innerHTML='';
+    root.querySelector('#mode29').textContent='Full batch — uses every point each step';
+    root.querySelector('#cap29').classList.remove('go');
+  }
+};
+
+// 30: momentum
+scenes[30] = {
+  enter: async (root) => {
+    prepDrawAll(root, '#valley30, #jitter30, #smooth30');
+    await beat(()=>root.querySelector('#valley30').classList.add('go'), 700);
+    await beat(()=>root.querySelector('#jitter30').classList.add('go'), 1000);
+    await wait(300);
+    await beat(()=>root.querySelector('#smooth30').classList.add('go'), 900);
+    await beat(()=>root.querySelector('#cap30').classList.add('go'), 400);
+  },
+  exit: (root) => {
+    root.querySelectorAll('.draw-in').forEach(el=>el.classList.remove('go'));
+    root.querySelector('#cap30').classList.remove('go');
+  }
+};
+
+// 33: what loss measures
+scenes[33] = {
+  enter: async (root) => {
+    await beat(()=>{}, 200);
+    prepDraw(root.querySelector('#gap33'));
+    await beat(()=>root.querySelector('#gap33').classList.add('go'), 700);
+    animateNumber(root.querySelector('#gapVal33'), 0, 3.8, 900, 2);
+    await wait(900);
+    await beat(()=>root.querySelector('#cap33').classList.add('go'), 400);
+  },
+  exit: (root) => {
+    root.querySelector('#gap33').classList.remove('go');
+    root.querySelector('#gapVal33').textContent='0';
+    root.querySelector('#cap33').classList.remove('go');
+  }
+};
+
+// 34: MSE
+scenes[34] = {
+  enter: async (root) => {
+    const line = root.querySelector('#regline34');
+    prepDraw(line);
+    await beat(()=>line.classList.add('go'), 700);
+    const g = root.querySelector('#pts34');
+    const r = root.querySelector('#resid34');
+    g.innerHTML=''; r.innerHTML='';
+    const xs = [280,400,520,640,760,880,1000,1120];
+    const offsets = [40,-55,30,60,-35,45,-50,35];
+    for(let i=0;i<xs.length;i++){
+      const x = xs[i];
+      const lineY = 480 - (x-200)*(300/1050);
+      const py = lineY + offsets[i];
+      const dot = mk('circle',{cx:x,cy:py,r:7,fill:'var(--green)',opacity:0});
+      g.appendChild(dot);
+      dot.style.transition='opacity 250ms'; 
+      const seg = mk('line',{x1:x,y1:py,x2:x,y2:lineY,stroke:'var(--red)','stroke-width':2,opacity:0});
+      r.appendChild(seg);
+      setTimeout(()=>{ dot.style.opacity=1; }, i*70);
+      setTimeout(()=>{ seg.style.transition='opacity 300ms'; seg.style.opacity=0.8; }, i*70+300);
+    }
+    await wait(1400);
+    await beat(()=>root.querySelector('#eq34').classList.add('go'), 700);
+    await beat(()=>root.querySelector('#cap34').classList.add('go'), 400);
+  },
+  exit: (root) => {
+    root.querySelector('#regline34').classList.remove('go');
+    root.querySelector('#pts34').innerHTML='';
+    root.querySelector('#resid34').innerHTML='';
+    root.querySelector('#eq34').classList.remove('go');
+    root.querySelector('#cap34').classList.remove('go');
+  }
+};
+
+// 35: cross-entropy
+scenes[35] = {
+  enter: async (root) => {
+    const curve = root.querySelector('#negLog35');
+    prepDraw(curve);
+    await beat(()=>curve.classList.add('go'), 900);
+    await beat(()=>root.querySelector('#eq35').classList.add('go'), 700);
+    const dot = root.querySelector('#dot35');
+    await animatePoint(dot, {x:691,y:491}, {x:260,y:150}, 1200);
+    await wait(300);
+    await animatePoint(dot, {x:251,y:141}, {x:1240,y:531}, 1400);
+    await beat(()=>root.querySelector('#cap35').classList.add('go'), 400);
+  },
+  exit: (root) => {
+    root.querySelector('#negLog35').classList.remove('go');
+    root.querySelector('#eq35').classList.remove('go');
+    root.querySelector('#dot35').setAttribute('cx','700');
+    root.querySelector('#dot35').setAttribute('cy','500');
+    root.querySelector('#cap35').classList.remove('go');
+  }
+};
+
+// 38: underfitting
+scenes[38] = {
+  enter: async (root) => {
+    const g = root.querySelector('#pts38');
+    g.innerHTML='';
+    const xs = [230,320,410,500,590,680,770,860,950,1040,1130,1220];
+    xs.forEach((x,i)=>{
+      const t = (x-230)/(1220-230);
+      const y = 460 - Math.sin(t*Math.PI*1.5)*140 - t*40;
+      const d = mk('circle',{cx:x,cy:y,r:7,fill:'var(--green)',opacity:0});
+      g.appendChild(d);
+    });
+    Array.from(g.children).forEach((d,i)=>{ setTimeout(()=>{ d.style.transition='opacity 250ms'; d.style.opacity=1; }, i*60); });
+    await wait(900);
+    const line = root.querySelector('#flatline38');
+    prepDraw(line);
+    await beat(()=>line.classList.add('go'), 800);
+    await beat(()=>root.querySelector('#cap38').classList.add('go'), 400);
+  },
+  exit: (root) => {
+    root.querySelector('#pts38').innerHTML='';
+    root.querySelector('#flatline38').classList.remove('go');
+    root.querySelector('#cap38').classList.remove('go');
+  }
+};
+
+// 39: overfitting
+scenes[39] = {
+  enter: async (root) => {
+    const g = root.querySelector('#pts39');
+    g.innerHTML='';
+    const xs = [230,320,410,500,590,680,770,860,950,1040,1130,1220];
+    const pts = xs.map((x,i)=>{
+      const t = (x-230)/(1220-230);
+      const y = 460 - Math.sin(t*Math.PI*1.5)*140 - t*40;
+      return {x,y};
+    });
+    pts.forEach(p=>{
+      const d = mk('circle',{cx:p.x,cy:p.y,r:7,fill:'var(--green)',opacity:0});
+      g.appendChild(d);
+    });
+    Array.from(g.children).forEach((d,i)=>{ setTimeout(()=>{ d.style.transition='opacity 250ms'; d.style.opacity=1; }, i*60); });
+    await wait(900);
+    const wiggle = root.querySelector('#wiggle39');
+    let d = 'M ' + pts[0].x + ',' + pts[0].y;
+    for(let i=1;i<pts.length;i++){ d += ' L ' + pts[i].x + ',' + pts[i].y; }
+    await beat(()=>{ wiggle.setAttribute('d', d); }, 900);
+    await beat(()=>root.querySelector('#cap39').classList.add('go'), 400);
+  },
+  exit: (root) => {
+    root.querySelector('#pts39').innerHTML='';
+    root.querySelector('#wiggle39').setAttribute('d','M 200,420 C 500,420 700,420 1250,380');
+    root.querySelector('#cap39').classList.remove('go');
+  }
+};
+
+// 40: train vs val curves
+scenes[40] = {
+  enter: async (root) => {
+    prepDrawAll(root, '#trainCurve40, #valCurve40');
+    await beat(()=>root.querySelector('#trainCurve40').classList.add('go'), 1100);
+    await beat(()=>{}, 0);
+    await beat(()=>root.querySelector('#valCurve40').classList.add('go'), 1100);
+    const stop = root.querySelector('#stopLine40');
+    stop.style.transition='opacity 400ms'; stop.style.opacity=1;
+    await beat(()=>root.querySelector('#stopLab40').classList.add('go'), 400);
+    await beat(()=>root.querySelector('#cap40').classList.add('go'), 400);
+  },
+  exit: (root) => {
+    root.querySelectorAll('.draw-in, .fade-in').forEach(el=>el.classList.remove('go'));
+    root.querySelector('#stopLine40').style.opacity=0;
+  }
+};
+
+// 43: penalizing complexity
+scenes[43] = {
+  enter: async (root) => {
+    await beat(()=>root.querySelector('#eq43').classList.add('go'), 900);
+    await beat(()=>root.querySelector('#pen43').classList.add('go'), 500);
+    await beat(()=>root.querySelector('#pen43').classList.add('go'), 700);
+    await beat(()=>root.querySelector('#cap43').classList.add('go'), 400);
+  },
+  exit: (root) => {
+    root.querySelector('#eq43').classList.remove('go');
+    root.querySelector('#pen43').classList.remove('go');
+    root.querySelector('#cap43').classList.remove('go');
+  }
+};
+
+// 44: L2 Ridge
+scenes[44] = {
+  enter: async (root) => {
+    const g = root.querySelector('#bars44');
+    g.innerHTML='';
+    const heights = [260,190,320,110,230,160];
+    const startX = 260, w=90, gap=40;
+    const bars = heights.map((h,i)=>{
+      const x = startX+i*(w+gap);
+      const b = mk('rect',{x,y:560-h,width:w,height:h,fill:'var(--blue)',class:'bar'});
+      g.appendChild(b);
+      return {el:b, h};
+    });
+    await beat(()=>root.querySelector('#eq44').classList.add('go'), 700);
+    const lamVal = root.querySelector('#lamVal44');
+    animateNumber(lamVal, 0.0, 2.0, 1400, 1);
+    for(const b of bars){
+      const newH = b.h*0.35;
+      b.el.setAttribute('y', 560-newH);
+      b.el.setAttribute('height', newH);
+    }
+    root.querySelector('#circle44').style.transition='opacity 500ms';
+    root.querySelector('#circle44').style.opacity=1;
+    await wait(1400);
+    await beat(()=>root.querySelector('#cap44').classList.add('go'), 400);
+  },
+  exit: (root) => {
+    root.querySelector('#bars44').innerHTML='';
+    root.querySelector('#eq44').classList.remove('go');
+    root.querySelector('#circle44').style.opacity=0;
+    root.querySelector('#lamVal44').textContent='0.0';
+    root.querySelector('#cap44').classList.remove('go');
+  }
+};
+
+// 45: L1 Lasso
+scenes[45] = {
+  enter: async (root) => {
+    const g = root.querySelector('#bars45');
+    g.innerHTML='';
+    const heights = [260,90,320,60,230,70];
+    const startX = 260, w=90, gap=40;
+    const bars = heights.map((h,i)=>{
+      const x = startX+i*(w+gap);
+      const b = mk('rect',{x,y:560-h,width:w,height:h,fill:'var(--green)',class:'bar'});
+      g.appendChild(b);
+      return {el:b, h};
+    });
+    await beat(()=>root.querySelector('#eq45').classList.add('go'), 700);
+    const diamond = root.querySelector('#diamond45');
+    prepDraw(diamond);
+    diamond.style.opacity=1;
+    await beat(()=>diamond.classList.add('go'), 800);
+    bars.forEach(b=>{
+      if(b.h < 150){ b.el.setAttribute('height',0); b.el.setAttribute('y',560); b.el.style.opacity=0.3; }
+    });
+    await wait(900);
+    await beat(()=>root.querySelector('#cap45').classList.add('go'), 400);
+  },
+  exit: (root) => {
+    root.querySelector('#bars45').innerHTML='';
+    root.querySelector('#eq45').classList.remove('go');
+    root.querySelector('#diamond45').classList.remove('go');
+    root.querySelector('#diamond45').style.opacity=0;
+    root.querySelector('#cap45').classList.remove('go');
+  }
+};
+
+// 48: bias visual
+scenes[48] = {
+  enter: async (root) => {
+    const g = root.querySelector('#throwsBias48');
+    g.innerHTML='';
+    const pts = [ {x:940,y:260},{x:960,y:290},{x:930,y:310},{x:965,y:255},{x:950,y:300},{x:945,y:275} ];
+    for(const p of pts){
+      const d = mk('circle',{cx:p.x,cy:p.y,r:9,fill:'var(--red)',opacity:0});
+      g.appendChild(d);
+      d.style.transition='opacity 300ms';
+      await wait(180);
+      d.style.opacity=1;
+    }
+    await beat(()=>root.querySelector('#cap48').classList.add('go'), 400);
+  },
+  exit: (root) => {
+    root.querySelector('#throwsBias48').innerHTML='';
+    root.querySelector('#cap48').classList.remove('go');
+  }
+};
+
+// 49: variance visual
+scenes[49] = {
+  enter: async (root) => {
+    const g = root.querySelector('#throwsVar49');
+    g.innerHTML='';
+    const pts = [ {x:720,y:330},{x:850,y:220},{x:600,y:440},{x:900,y:420},{x:560,y:250},{x:780,y:470} ];
+    for(const p of pts){
+      const d = mk('circle',{cx:p.x,cy:p.y,r:9,fill:'var(--green)',opacity:0});
+      g.appendChild(d);
+      d.style.transition='opacity 300ms';
+      await wait(180);
+      d.style.opacity=1;
+    }
+    await beat(()=>root.querySelector('#cap49').classList.add('go'), 400);
+  },
+  exit: (root) => {
+    root.querySelector('#throwsVar49').innerHTML='';
+    root.querySelector('#cap49').classList.remove('go');
+  }
+};
+
+// 50: total error U-curve
+scenes[50] = {
+  enter: async (root) => {
+    prepDrawAll(root, '#biasCurve50, #varCurve50, #totalCurve50');
+    await beat(()=>root.querySelector('#biasCurve50').classList.add('go'), 800);
+    await beat(()=>root.querySelector('#varCurve50').classList.add('go'), 800);
+    await beat(()=>root.querySelector('#totalCurve50').classList.add('go'), 1000);
+    const sweet = root.querySelector('#sweet50');
+    sweet.style.transition='opacity 300ms'; sweet.style.opacity=1;
+    await beat(()=>{ sweet.classList.add('go'); root.querySelector('#sweetLab50').classList.add('go'); }, 650);
+    await beat(()=>root.querySelector('#cap50').classList.add('go'), 400);
+  },
+  exit: (root) => {
+    root.querySelectorAll('.draw-in, .fade-in').forEach(el=>el.classList.remove('go'));
+    root.querySelector('#sweet50').style.opacity=0;
+    root.querySelector('#sweet50').classList.remove('go');
+  }
+};
+
+// 51: final recap
+scenes[51] = {
+  enter: async (root) => {
+    const path = root.querySelector('#roadPathR');
+    prepDraw(path);
+    const g = root.querySelector('#roadNodesR');
+    buildRoadNodes(g, pillars);
+    await beat(()=>path.classList.add('go'), 1200);
+    const nodes = Array.from(g.querySelectorAll('.road-node'));
+    const labels = Array.from(g.querySelectorAll('.road-label'));
+    for(let i=0;i<nodes.length;i++){
+      nodes[i].style.transition='opacity 300ms ease, fill 300ms ease';
+      nodes[i].style.opacity=1;
+      nodes[i].setAttribute('fill', nodes[i].getAttribute('stroke'));
+      nodes[i].style.fillOpacity=0.15;
+      await wait(160);
+    }
+    labels.forEach(l=>{ l.style.transition='opacity 300ms ease'; l.style.opacity=1; });
+    await beat(()=>root.querySelector('#cap51').classList.add('go'), 500);
+  },
+  exit: (root) => {
+    root.querySelector('#roadPathR').classList.remove('go');
+    root.querySelector('#roadNodesR').innerHTML='';
+    root.querySelector('#cap51').classList.remove('go');
+  }
+};
+
+// ---------- deck controller ----------
+class SlideDeck{
+  constructor(){
+    this.slides = Array.from(document.querySelectorAll('.slide'));
+    this.i = 0;
+    this.dotsEl = document.getElementById('dots');
+    this.counterEl = document.getElementById('slideCounter');
+    this.slides.forEach(()=>{
+      const d = document.createElement('div');
+      d.className='dot'; this.dotsEl.appendChild(d);
+    });
+    document.getElementById('nextBtn').onclick = ()=>this.go(this.i+1);
+    document.getElementById('prevBtn').onclick = ()=>this.go(this.i-1);
+    window.addEventListener('keydown', e=>{
+      if(e.key==='ArrowRight' || e.key===' ') this.go(this.i+1);
+      if(e.key==='ArrowLeft') this.go(this.i-1);
+    });
+    this.show(0);
+  }
+  show(idx){
+    this.slides.forEach((s,k)=>s.classList.toggle('active', k===idx));
+    Array.from(this.dotsEl.children).forEach((d,k)=>d.classList.toggle('on', k===idx));
+    this.counterEl.textContent = `${idx+1} / ${this.slides.length}`;
+    const scene = scenes[idx];
+    if(scene && scene.enter) scene.enter(this.slides[idx]);
+  }
+  go(idx){
+    if(idx<0 || idx>=this.slides.length) return;
+    const prevScene = scenes[this.i];
+    if(prevScene && prevScene.exit) prevScene.exit(this.slides[this.i]);
+    this.i = idx;
+    this.show(idx);
+  }
+}
+new SlideDeck();
+</script>
+</body>
+</html>

@@ -1,0 +1,2398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Testing Patterns — a visual deep dive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0a10;
+    --panel:#111319;
+    --panel-2:#15171f;
+    --line:#262933;
+    --ink:#e9e8e4;
+    --muted:#868b96;
+    --dim:#4d515c;
+    --teal:#5fb3ac;
+    --amber:#d9a25b;
+    --rose:#c9776f;
+    --violet:#8b83c9;
+    --blue:#6f9fc9;
+    --green:#7fae6f;
+    --red:#b6594f;
+    --sans:'IBM Plex Sans', sans-serif;
+    --mono:'IBM Plex Mono', monospace;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{
+    background:#000;
+    height:100%;
+    overflow:hidden;
+    font-family:var(--sans);
+    color:var(--ink);
+  }
+  .frame{
+    position:fixed; inset:0;
+    display:flex; align-items:center; justify-content:center;
+    background:radial-gradient(ellipse at 50% 30%, #0c0d13 0%, #000 78%);
+  }
+  .stage-wrap{
+    position:relative;
+    width:100%;
+    max-width:min(94vw, 177.78vh);
+    aspect-ratio:16/9;
+    max-height:88vh;
+  }
+  .stage{
+    position:relative;
+    width:100%; height:100%;
+    background:var(--bg);
+    border:1px solid var(--line);
+    border-radius:6px;
+    overflow:hidden;
+    box-shadow:0 40px 100px -30px rgba(0,0,0,.9);
+  }
+  .slide{
+    position:absolute; inset:0;
+    display:none;
+    opacity:0;
+  }
+  .slide.active{ display:block; opacity:1; }
+  .slide svg{ width:100%; height:100%; display:block; }
+
+  /* ---- reveal system ---- */
+  .rv{ opacity:0; transform:translateY(10px); transition:opacity .55s cubic-bezier(.2,.7,.3,1), transform .55s cubic-bezier(.2,.7,.3,1); }
+  .rv.show{ opacity:1; transform:translateY(0); }
+  .rv-l{ opacity:0; transform:translateX(-14px); transition:opacity .55s ease, transform .55s ease; }
+  .rv-l.show{ opacity:1; transform:translateX(0); }
+  .rv-r{ opacity:0; transform:translateX(14px); transition:opacity .55s ease, transform .55s ease; }
+  .rv-r.show{ opacity:1; transform:translateX(0); }
+  .rv-s{ opacity:0; transform:scale(.85); transition:opacity .5s ease, transform .5s cubic-bezier(.3,1.4,.4,1); transform-box:fill-box; transform-origin:center; }
+  .rv-s.show{ opacity:1; transform:scale(1); }
+  .draw{ transition:stroke-dashoffset 1s cubic-bezier(.3,.6,.2,1); }
+  .grow-w{ width:0; transition:width 1s cubic-bezier(.3,.6,.2,1); }
+  .grow-w.show{ }
+  .grow-h{ transition:height 1s cubic-bezier(.3,.6,.2,1), y 1s cubic-bezier(.3,.6,.2,1); }
+  .bar{ transition:height 1s cubic-bezier(.3,.6,.2,1), y 1s cubic-bezier(.3,.6,.2,1); }
+  .pulse{ animation:pulse 2.2s ease-in-out infinite; }
+  @keyframes pulse{ 0%,100%{opacity:1} 50%{opacity:.45} }
+  .drift{ animation:drift 5s ease-in-out infinite; }
+  @keyframes drift{ 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+  .spin-slow{ animation:spin 14s linear infinite; transform-box:fill-box; transform-origin:center; }
+  @keyframes spin{ to{ transform:rotate(360deg) } }
+
+  text{ font-family:var(--sans); }
+  .mono{ font-family:var(--mono); }
+  .tag{ font-size:16px; fill:var(--dim); letter-spacing:.02em; }
+  .h1{ font-size:46px; font-weight:600; fill:var(--ink); }
+  .h2{ font-size:26px; font-weight:500; fill:var(--muted); }
+  .lbl{ font-size:20px; font-weight:500; fill:var(--ink); }
+  .lbl-sm{ font-size:16px; fill:var(--muted); }
+  .body-t{ font-size:19px; fill:var(--muted); }
+  .code{ font-family:var(--mono); font-size:17px; fill:#a9b0bb; }
+  .kicker{ font-size:15px; fill:var(--dim); letter-spacing:.03em; }
+
+  .rule{ stroke:var(--line); stroke-width:1.5; }
+
+  /* ---- chrome ---- */
+  .chrome{
+    position:fixed; inset:0; pointer-events:none;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .navzone{
+    position:absolute; top:0; bottom:0; width:14%;
+    pointer-events:auto; cursor:pointer;
+    display:flex; align-items:center;
+    opacity:0; transition:opacity .25s ease;
+  }
+  .stage-wrap:hover .navzone{ opacity:1; }
+  .navzone.prev{ left:calc(50% - min(47vw, 88.89vh)); justify-content:flex-start; }
+  .navzone.next{ right:calc(50% - min(47vw, 88.89vh)); justify-content:flex-end; }
+  .navbtn{
+    width:44px; height:44px; margin:0 10px;
+    border-radius:50%;
+    background:rgba(20,21,27,.85);
+    border:1px solid var(--line);
+    display:flex; align-items:center; justify-content:center;
+    color:var(--ink);
+  }
+  .navbtn svg{ width:18px; height:18px; }
+
+  .hud{
+    position:fixed; left:0; right:0; bottom:18px;
+    display:flex; flex-direction:column; align-items:center; gap:10px;
+    pointer-events:none;
+  }
+  .dots{ display:flex; gap:7px; pointer-events:auto; }
+  .dot{
+    width:7px; height:7px; border-radius:50%;
+    background:var(--dim); cursor:pointer;
+    transition:background .3s ease, transform .3s ease;
+  }
+  .dot.on{ background:var(--teal); transform:scale(1.35); }
+  .counter{
+    font-family:var(--mono); font-size:12px; color:var(--dim);
+    letter-spacing:.05em;
+  }
+  .hint{
+    position:fixed; top:18px; right:22px;
+    font-family:var(--mono); font-size:11px; color:var(--dim);
+    letter-spacing:.03em; opacity:.7;
+  }
+
+  /* footer RECAP/GAP band shared styling (drawn inside svg, these are just for legend) */
+  .recap-tag{ fill:var(--teal); font-size:15px; font-weight:600; letter-spacing:.04em; }
+  .gap-tag{ fill:var(--amber); font-size:15px; font-weight:600; letter-spacing:.04em; }
+  .fill-tag{ fill:var(--rose); font-size:15px; font-weight:600; letter-spacing:.04em; }
+  .recap-t{ fill:var(--muted); font-size:18px; }
+  .gap-t{ fill:#e3c896; font-size:19px; font-style:italic; }
+</style>
+</head>
+<body>
+<div class="frame">
+  <div class="stage-wrap" id="stageWrap">
+    <div class="stage" id="stage">
+      <!-- ============ SLIDE 1 — TITLE ============ -->
+      <section class="slide" id="s1">
+        <svg viewBox="0 0 1600 900">
+          <line class="rule" x1="80" y1="820" x2="1520" y2="820"/>
+          <g class="rv" style="transition-delay:.05s">
+            <text x="80" y="120" class="kicker mono">SOFTWARE ENGINEERING</text>
+          </g>
+          <g class="rv" style="transition-delay:.2s">
+            <text x="78" y="220" style="font-size:74px; font-weight:700; fill:#f2f1ee;">From a commit</text>
+          </g>
+          <g class="rv" style="transition-delay:.32s">
+            <text x="78" y="300" style="font-size:74px; font-weight:700; fill:#f2f1ee;">to a proof it works</text>
+          </g>
+          <g class="rv" style="transition-delay:.5s">
+            <text x="80" y="345" class="h2">version control · code review · CI/CD · every testing pattern that follows</text>
+          </g>
+
+          <!-- Feynman-esque hook: an assumption box getting hit -->
+          <g class="rv-s" style="transition-delay:.7s">
+            <rect x="120" y="440" width="280" height="110" rx="6" fill="none" stroke="#3a3e48" stroke-width="1.5"/>
+            <text x="260" y="485" text-anchor="middle" class="lbl">your code</text>
+            <text x="260" y="515" text-anchor="middle" class="lbl-sm mono">"it works on my machine"</text>
+          </g>
+          <g class="rv-s" style="transition-delay:.95s">
+            <circle cx="600" cy="495" r="46" fill="none" stroke="#5fb3ac" stroke-width="2"/>
+            <text x="600" y="503" text-anchor="middle" class="lbl mono" style="fill:#5fb3ac;">test</text>
+          </g>
+          <line class="rv" style="transition-delay:1.15s" x1="404" y1="495" x2="548" y2="495" stroke="#7d828d" stroke-width="2" marker-end="url(#arrow)"/>
+
+          <g class="rv-s" style="transition-delay:1.35s">
+            <rect x="700" y="440" width="330" height="110" rx="6" fill="none" stroke="#4a3238" stroke-width="1.5"/>
+            <text x="865" y="485" text-anchor="middle" class="lbl">reality</text>
+            <text x="865" y="515" text-anchor="middle" class="lbl-sm mono" style="fill:#c9776f;">every input you didn't imagine</text>
+          </g>
+          <line class="rv" style="transition-delay:1.55s" x1="646" y1="495" x2="695" y2="495" stroke="#5fb3ac" stroke-width="2" marker-end="url(#arrowTeal)"/>
+
+          <g class="rv" style="transition-delay:1.8s">
+            <text x="1120" y="470" class="body-t" style="font-size:19px;">every practice in this deck exists</text>
+            <text x="1120" y="497" class="body-t" style="font-size:19px;">to close that gap a little more —</text>
+            <text x="1120" y="524" class="body-t" style="font-size:19px;">from how code is shared, to how</text>
+            <text x="1120" y="551" class="body-t" style="font-size:19px;">it's proven correct under fire.</text>
+          </g>
+
+          <g class="rv" style="transition-delay:2s">
+            <text x="80" y="860" class="lbl-sm mono">01 / 31</text>
+            <text x="1520" y="860" text-anchor="end" class="lbl-sm mono">a Feynman-style walkthrough · git → review → CI/CD → testing patterns</text>
+          </g>
+        </svg>
+      </section>
+
+      <!-- ============ SLIDE 2 — VERSION CONTROL & GIT ============ -->
+      <section class="slide" id="svc1">
+        <svg viewBox="0 0 1600 900">
+          <g class="rv" style="transition-delay:0s"><text x="80" y="80" class="tag mono">02 · FOUNDATIONS</text></g>
+          <g class="rv" style="transition-delay:.08s"><text x="80" y="140" class="h1">Version Control &amp; Git</text></g>
+          <g class="rv" style="transition-delay:.2s"><text x="80" y="178" class="h2">a running history of snapshots, so change is never a leap of faith</text></g>
+          <line class="rule" x1="80" y1="210" x2="1520" y2="210"/>
+
+          <g class="rv" style="transition-delay:.3s">
+            <text x="80" y="255" class="body-t" style="font-size:18px;">before: <tspan style="fill:#c9776f;">final_v2_ACTUALLY_final.zip</tspan> emailed between people.</text>
+            <text x="80" y="280" class="body-t" style="font-size:18px;">after: every change is a timestamped, attributable, reversible snapshot.</text>
+          </g>
+
+          <!-- commit chain -->
+          <g class="rv" style="transition-delay:.5s">
+            <line x1="150" y1="420" x2="1250" y2="420" stroke="#3a3e48" stroke-width="1.5"/>
+          </g>
+          <g class="rv-s" style="transition-delay:.65s">
+            <circle cx="220" cy="420" r="10" fill="#5fb3ac"/>
+            <text x="220" y="380" text-anchor="middle" class="lbl-sm mono" style="font-size:12px;">a1c9e2f</text>
+            <text x="220" y="455" text-anchor="middle" class="body-t" style="font-size:14px;">init project</text>
+          </g>
+          <g class="rv-s" style="transition-delay:.8s">
+            <circle cx="520" cy="420" r="10" fill="#5fb3ac"/>
+            <text x="520" y="380" text-anchor="middle" class="lbl-sm mono" style="font-size:12px;">7bd410a</text>
+            <text x="520" y="455" text-anchor="middle" class="body-t" style="font-size:14px;">add login form</text>
+          </g>
+          <g class="rv-s" style="transition-delay:.95s">
+            <circle cx="820" cy="420" r="10" fill="#5fb3ac"/>
+            <text x="820" y="380" text-anchor="middle" class="lbl-sm mono" style="font-size:12px;">e02f88c</text>
+            <text x="820" y="455" text-anchor="middle" class="body-t" style="font-size:14px;">fix validation bug</text>
+          </g>
+          <g class="rv-s" style="transition-delay:1.1s">
+            <circle cx="1120" cy="420" r="11" fill="none" stroke="#d9a25b" stroke-width="2.5"/>
+            <text x="1120" y="380" text-anchor="middle" class="lbl-sm mono" style="font-size:12px; fill:#d9a25b;">HEAD → main</text>
+            <text x="1120" y="455" text-anchor="middle" class="body-t" style="font-size:14px;">(you are here)</text>
+          </g>
+
+          <g class="rv" style="transition-delay:1.3s">
+            <rect x="1000" y="240" width="450" height="150" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="1020" y="272" class="lbl-sm" style="fill:#8a8f98;">the core idea</text>
+            <text x="1020" y="304" class="body-t" style="font-size:16px;">each commit is content-addressed —</text>
+            <text x="1020" y="326" class="body-t" style="font-size:16px;">its ID is a hash of its contents + parent.</text>
+            <text x="1020" y="348" class="body-t" style="font-size:16px;">change one byte, the whole chain of</text>
+            <text x="1020" y="370" class="body-t" style="font-size:16px;">IDs after it changes too — tamper-evident.</text>
+          </g>
+
+          <g class="rv" style="transition-delay:1.55s">
+            <rect x="150" y="520" width="900" height="180" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="170" y="552" class="lbl-sm" style="fill:#8a8f98;">practical commands you'll actually type</text>
+            <text x="170" y="584" class="code">git commit -m "message"   git log --oneline   git diff</text>
+            <text x="170" y="612" class="code">git checkout &lt;hash&gt;        git blame file.py   git bisect</text>
+            <text x="170" y="644" class="body-t" style="font-size:16px; fill:#697080;"><tspan style="fill:#5fb3ac;">git bisect</tspan> is underrated: binary-searches your history</text>
+            <text x="170" y="668" class="body-t" style="font-size:16px; fill:#697080;">to find the exact commit that introduced a regression.</text>
+          </g>
+
+          <g class="rv" style="transition-delay:1.8s">
+            <text x="80" y="800" class="recap-tag mono">RECAP</text>
+            <text x="80" y="826" class="recap-t">git gives every change a permanent, provable place in history.</text>
+          </g>
+          <g class="rv" style="transition-delay:2s">
+            <rect x="900" y="775" width="540" height="65" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="920" y="800" class="gap-tag mono">GAP</text>
+            <text x="920" y="825" class="gap-t" style="font-size:16px;">but real teams write in parallel — how do many people edit at once?</text>
+          </g>
+        </svg>
+      </section>
+
+      <!-- ============ SLIDE 3 — BRANCHING ============ -->
+      <section class="slide" id="svc2">
+        <svg viewBox="0 0 1600 900">
+          <g class="rv" style="transition-delay:0s"><text x="80" y="80" class="fill-tag mono">FILL</text></g>
+          <g class="rv" style="transition-delay:.08s"><text x="80" y="140" class="h1">Branching</text></g>
+          <g class="rv" style="transition-delay:.2s"><text x="80" y="178" class="h2">a branch is just a movable label pointing at a commit — cheap to create, safe to abandon</text></g>
+          <line class="rule" x1="80" y1="210" x2="1520" y2="210"/>
+
+          <!-- main line -->
+          <line class="rv" style="transition-delay:.3s" x1="150" y1="380" x2="1450" y2="380" stroke="#3a3e48" stroke-width="1.5"/>
+          <g class="rv-s" style="transition-delay:.45s"><circle cx="220" cy="380" r="9" fill="#5fb3ac"/></g>
+          <g class="rv-s" style="transition-delay:.55s"><circle cx="420" cy="380" r="9" fill="#5fb3ac"/></g>
+          <g class="rv" style="transition-delay:.6s"><text x="420" y="345" text-anchor="middle" class="lbl-sm mono" style="fill:#d9a25b; font-size:13px;">main</text></g>
+          <g class="rv-s" style="transition-delay:.7s"><circle cx="920" cy="380" r="9" fill="#5fb3ac"/></g>
+          <g class="rv-s" style="transition-delay:.8s"><circle cx="1300" cy="380" r="9" fill="none" stroke="#d9a25b" stroke-width="2.5"/></g>
+          <g class="rv" style="transition-delay:.85s"><text x="1300" y="345" text-anchor="middle" class="lbl-sm mono" style="fill:#d9a25b; font-size:13px;">main (later)</text></g>
+
+          <!-- branch diverging from commit 420 -->
+          <path class="rv draw" style="transition-delay:1s" d="M420,380 C500,380 520,540 620,540" stroke="#5fb3ac" stroke-width="1.8" fill="none" stroke-dasharray="240" stroke-dashoffset="240" data-dash="240"/>
+          <g class="rv-s" style="transition-delay:1.3s"><circle cx="680" cy="540" r="9" fill="#5fb3ac"/></g>
+          <g class="rv-s" style="transition-delay:1.4s"><circle cx="900" cy="540" r="9" fill="#5fb3ac"/></g>
+          <g class="rv-s" style="transition-delay:1.5s"><circle cx="1130" cy="540" r="9" fill="none" stroke="#5c8a9c" stroke-width="2.5"/></g>
+          <line class="rv draw" style="transition-delay:1.15s" x1="450" y1="540" x2="1130" y2="540" stroke="#3a3e48" stroke-width="1.5" stroke-dasharray="680" stroke-dashoffset="680" data-dash="680"/>
+          <g class="rv" style="transition-delay:1.6s"><text x="1130" y="505" text-anchor="middle" class="lbl-sm mono" style="fill:#5c8a9c; font-size:13px;">feature/checkout-v2</text></g>
+
+          <!-- meanwhile main kept moving independently -->
+          <g class="rv" style="transition-delay:1.8s">
+            <text x="920" y="345" text-anchor="middle" class="lbl-sm mono" style="fill:#697080; font-size:12px;">(main kept shipping too)</text>
+          </g>
+
+          <g class="rv" style="transition-delay:2s">
+            <rect x="150" y="610" width="1300" height="150" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="170" y="642" class="lbl-sm" style="fill:#8a8f98;">why this matters in practice</text>
+            <text x="170" y="674" class="body-t" style="font-size:17px;">branches let a risky feature, an experiment, or a hotfix develop in isolation —</text>
+            <text x="170" y="698" class="body-t" style="font-size:17px;">nobody else's work is blocked, and nothing merges into <tspan style="fill:#d9a25b;">main</tspan> until it's ready.</text>
+            <text x="170" y="722" class="body-t" style="font-size:17px; fill:#697080;">convention: short-lived branches, one per feature/fix, deleted after merge.</text>
+          </g>
+
+          <g class="rv" style="transition-delay:2.25s">
+            <text x="80" y="800" class="recap-tag mono">RECAP</text>
+            <text x="80" y="826" class="recap-t">branches let history diverge safely, so parallel work never collides.</text>
+          </g>
+          <g class="rv" style="transition-delay:2.45s">
+            <rect x="900" y="775" width="540" height="65" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="920" y="800" class="gap-tag mono">GAP</text>
+            <text x="920" y="825" class="gap-t" style="font-size:16px;">diverged work has to come back — how do two histories become one?</text>
+          </g>
+        </svg>
+      </section>
+
+      <!-- ============ SLIDE 4 — MERGING ============ -->
+      <section class="slide" id="svc3">
+        <svg viewBox="0 0 1600 900">
+          <g class="rv" style="transition-delay:0s"><text x="80" y="80" class="fill-tag mono">FILL</text></g>
+          <g class="rv" style="transition-delay:.08s"><text x="80" y="140" class="h1">Merging</text></g>
+          <g class="rv" style="transition-delay:.2s"><text x="80" y="178" class="h2">weave two histories into one — automatically, unless the same lines changed differently</text></g>
+          <line class="rule" x1="80" y1="210" x2="1520" y2="210"/>
+
+          <line class="rv" style="transition-delay:.3s" x1="150" y1="340" x2="1000" y2="340" stroke="#3a3e48" stroke-width="1.5"/>
+          <g class="rv-s" style="transition-delay:.4s"><circle cx="220" cy="340" r="9" fill="#5fb3ac"/></g>
+          <g class="rv-s" style="transition-delay:.5s"><circle cx="420" cy="340" r="9" fill="#5fb3ac"/></g>
+          <g class="rv" style="transition-delay:.55s"><text x="420" y="305" text-anchor="middle" class="lbl-sm mono" style="fill:#d9a25b; font-size:12px;">main</text></g>
+
+          <path class="rv draw" style="transition-delay:.7s" d="M420,340 C500,340 520,480 620,480" stroke="#5c8a9c" stroke-width="1.8" fill="none" stroke-dasharray="240" stroke-dashoffset="240" data-dash="240"/>
+          <g class="rv-s" style="transition-delay:1s"><circle cx="680" cy="480" r="9" fill="#5c8a9c"/></g>
+          <g class="rv-s" style="transition-delay:1.1s"><circle cx="850" cy="480" r="9" fill="#5c8a9c"/></g>
+          <line class="rv draw" style="transition-delay:.85s" x1="450" y1="480" x2="850" y2="480" stroke="#3a3e48" stroke-width="1.5" stroke-dasharray="400" stroke-dashoffset="400" data-dash="400"/>
+          <g class="rv" style="transition-delay:1.2s"><text x="850" y="445" text-anchor="middle" class="lbl-sm mono" style="fill:#5c8a9c; font-size:12px;">feature</text></g>
+
+          <!-- both converge into merge commit -->
+          <path class="rv draw" style="transition-delay:1.35s" d="M420,340 C600,340 900,340 1020,395" stroke="#7d828d" stroke-width="1.5" fill="none" stroke-dasharray="700" stroke-dashoffset="700" data-dash="700"/>
+          <path class="rv draw" style="transition-delay:1.35s" d="M850,480 C950,480 990,430 1020,395" stroke="#7d828d" stroke-width="1.5" fill="none" stroke-dasharray="180" stroke-dashoffset="180" data-dash="180"/>
+          <g class="rv-s" style="transition-delay:1.6s">
+            <path d="M1020,375 L1050,395 L1020,415 L990,395 Z" fill="#141620" stroke="#7fae6f" stroke-width="2.5"/>
+          </g>
+          <g class="rv" style="transition-delay:1.75s"><text x="1020" y="440" text-anchor="middle" class="lbl-sm mono" style="fill:#7fae6f; font-size:12px;">merge commit</text><text x="1020" y="460" text-anchor="middle" class="lbl-sm mono" style="fill:#697080; font-size:11px;">two parents</text></g>
+
+          <!-- conflict example -->
+          <g class="rv" style="transition-delay:2s">
+            <rect x="1100" y="270" width="400" height="220" rx="6" fill="#141620" stroke="#c9776f" stroke-width="1.5"/>
+            <text x="1120" y="300" class="lbl-sm" style="fill:#c9776f;">when it can't auto-merge</text>
+            <text x="1120" y="330" class="code" style="font-size:13px; fill:#c9776f;">&lt;&lt;&lt;&lt;&lt;&lt;&lt; HEAD</text>
+            <text x="1120" y="352" class="code" style="font-size:13px;">price = base * 1.08;</text>
+            <text x="1120" y="374" class="code" style="font-size:13px; fill:#c9776f;">=======</text>
+            <text x="1120" y="396" class="code" style="font-size:13px;">price = base * TAX_RATE;</text>
+            <text x="1120" y="418" class="code" style="font-size:13px; fill:#c9776f;">&gt;&gt;&gt;&gt;&gt;&gt;&gt; feature</text>
+            <text x="1120" y="450" class="body-t" style="font-size:14px; fill:#697080;">a human decides which — or both.</text>
+            <text x="1120" y="472" class="body-t" style="font-size:14px; fill:#697080;">this is exactly what tests re-check next.</text>
+          </g>
+
+          <g class="rv" style="transition-delay:2.2s">
+            <rect x="150" y="560" width="900" height="150" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="170" y="592" class="lbl-sm" style="fill:#8a8f98;">why the merge commit itself matters</text>
+            <text x="170" y="624" class="body-t" style="font-size:17px;">it records exactly what state existed at the moment two lines of</text>
+            <text x="170" y="648" class="body-t" style="font-size:17px;">work combined — full, honest history, including every detour.</text>
+            <text x="170" y="672" class="body-t" style="font-size:17px; fill:#697080;">cost: history gets a lot of "Merge branch 'x' into 'y'" noise.</text>
+          </g>
+
+          <g class="rv" style="transition-delay:2.4s">
+            <text x="80" y="800" class="recap-tag mono">RECAP</text>
+            <text x="80" y="826" class="recap-t">merging combines diverged work, preserving exactly how it happened.</text>
+          </g>
+          <g class="rv" style="transition-delay:2.6s">
+            <rect x="900" y="775" width="540" height="65" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="920" y="798" class="gap-tag mono">GAP</text>
+            <text x="920" y="820" class="gap-t" style="font-size:15px;">what if we want that history to read as one clean line?</text>
+          </g>
+        </svg>
+      </section>
+
+      <!-- ============ SLIDE 5 — REBASING ============ -->
+      <section class="slide" id="svc4">
+        <svg viewBox="0 0 1600 900">
+          <g class="rv" style="transition-delay:0s"><text x="80" y="80" class="fill-tag mono">FILL</text></g>
+          <g class="rv" style="transition-delay:.08s"><text x="80" y="140" class="h1">Rebasing</text></g>
+          <g class="rv" style="transition-delay:.2s"><text x="80" y="178" class="h2">detach your commits, replay them on the new tip — same changes, brand-new history</text></g>
+          <line class="rule" x1="80" y1="210" x2="1520" y2="210"/>
+
+          <g class="rv" style="transition-delay:.3s"><text x="80" y="250" class="lbl-sm" style="fill:#8a8f98;">before</text></g>
+          <line class="rv" style="transition-delay:.35s" x1="150" y1="300" x2="700" y2="300" stroke="#3a3e48" stroke-width="1.5"/>
+          <g class="rv-s" style="transition-delay:.45s"><circle cx="220" cy="300" r="8" fill="#5fb3ac"/></g>
+          <g class="rv-s" style="transition-delay:.55s"><circle cx="450" cy="300" r="8" fill="#5fb3ac"/></g>
+          <g class="rv" style="transition-delay:.6s"><text x="450" y="270" text-anchor="middle" class="lbl-sm mono" style="fill:#d9a25b; font-size:11px;">main</text></g>
+          <path class="rv draw" style="transition-delay:.7s" d="M300,300 C360,300 380,380 440,380" stroke="#5c8a9c" stroke-width="1.5" fill="none" stroke-dasharray="120" stroke-dashoffset="120" data-dash="120"/>
+          <g class="rv-s" style="transition-delay:.9s"><circle cx="480" cy="380" r="8" fill="#5c8a9c"/></g>
+          <g class="rv-s" style="transition-delay:1s"><circle cx="600" cy="380" r="8" fill="#5c8a9c"/></g>
+          <line class="rv draw" style="transition-delay:.8s" x1="480" y1="380" x2="600" y2="380" stroke="#3a3e48" stroke-width="1.5" stroke-dasharray="120" stroke-dashoffset="120" data-dash="120"/>
+          <g class="rv" style="transition-delay:1.05s"><text x="600" y="350" text-anchor="middle" class="lbl-sm mono" style="fill:#5c8a9c; font-size:11px;">feature</text></g>
+
+          <line class="rv" style="transition-delay:1.2s" x1="750" y1="340" x2="850" y2="340" stroke="#7d828d" stroke-width="2" marker-end="url(#arrow)"/>
+          <g class="rv" style="transition-delay:1.3s"><text x="800" y="325" text-anchor="middle" class="lbl-sm mono" style="fill:#697080; font-size:12px;">rebase</text></g>
+
+          <g class="rv" style="transition-delay:1.45s"><text x="900" y="250" class="lbl-sm" style="fill:#8a8f98;">after</text></g>
+          <line class="rv" style="transition-delay:1.5s" x1="900" y1="330" x2="1470" y2="330" stroke="#3a3e48" stroke-width="1.5"/>
+          <g class="rv-s" style="transition-delay:1.6s"><circle cx="970" cy="330" r="8" fill="#5fb3ac"/></g>
+          <g class="rv-s" style="transition-delay:1.7s"><circle cx="1130" cy="330" r="8" fill="#5fb3ac"/></g>
+          <g class="rv" style="transition-delay:1.75s"><text x="1130" y="300" text-anchor="middle" class="lbl-sm mono" style="fill:#d9a25b; font-size:11px;">main</text></g>
+          <g class="rv-s" style="transition-delay:1.85s"><circle cx="1290" cy="330" r="8" fill="none" stroke="#5c8a9c" stroke-width="2.5"/></g>
+          <g class="rv-s" style="transition-delay:1.95s"><circle cx="1420" cy="330" r="8" fill="none" stroke="#5c8a9c" stroke-width="2.5"/></g>
+          <g class="rv" style="transition-delay:2.05s"><text x="1355" y="365" text-anchor="middle" class="lbl-sm mono" style="fill:#5c8a9c; font-size:11px;">feature — replayed, new hashes, one line</text></g>
+
+          <g class="rv" style="transition-delay:2.25s">
+            <rect x="150" y="440" width="1300" height="200" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="170" y="472" class="lbl-sm" style="fill:#8a8f98;">the trade-off — and the golden rule</text>
+            <text x="170" y="504" class="body-t" style="font-size:17px;">rebasing rewrites commit hashes: <tspan style="fill:#5fb3ac;">cleaner</tspan>, linear history, easier to</text>
+            <text x="170" y="528" class="body-t" style="font-size:17px;">read — but if anyone else already pulled the old commits, their history</text>
+            <text x="170" y="552" class="body-t" style="font-size:17px;">now conflicts with reality.</text>
+            <text x="170" y="588" class="body-t" style="font-size:19px; fill:#d9a25b;">golden rule: never rebase a branch other people have pulled from.</text>
+            <text x="170" y="614" class="body-t" style="font-size:16px; fill:#697080;">safe use: cleaning up your own local, not-yet-pushed commits before opening a PR.</text>
+          </g>
+
+          <g class="rv" style="transition-delay:2.5s">
+            <text x="80" y="720" class="recap-tag mono">RECAP</text>
+            <text x="80" y="746" class="recap-t">merge preserves the messy truth; rebase trades that truth for a clean line — pick deliberately.</text>
+          </g>
+          <g class="rv" style="transition-delay:2.7s">
+            <rect x="150" y="765" width="900" height="65" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="170" y="790" class="gap-tag mono">GAP</text>
+            <text x="170" y="815" class="gap-t" style="font-size:16px;">history is clean now — but is the CODE itself good, before it merges?</text>
+          </g>
+        </svg>
+      </section>
+
+      <!-- ============ SLIDE 6 — CODE REVIEW ============ -->
+      <section class="slide" id="svc5">
+        <svg viewBox="0 0 1600 900">
+          <g class="rv" style="transition-delay:0s"><text x="80" y="80" class="fill-tag mono">FILL</text></g>
+          <g class="rv" style="transition-delay:.08s"><text x="80" y="140" class="h1">Code Review</text></g>
+          <g class="rv" style="transition-delay:.2s"><text x="80" y="178" class="h2">another human reads the diff before it merges — the last check that isn't automatable</text></g>
+          <line class="rule" x1="80" y1="210" x2="1520" y2="210"/>
+
+          <!-- diff view -->
+          <g class="rv-s" style="transition-delay:.35s">
+            <rect x="120" y="260" width="620" height="270" rx="6" fill="#141620" stroke="#3a3e48" stroke-width="1.5"/>
+            <text x="140" y="292" class="lbl-sm mono" style="fill:#697080; font-size:13px;">pull_request.diff</text>
+            <line x1="120" y1="304" x2="740" y2="304" stroke="#262933"/>
+            <text x="140" y="332" class="code" style="font-size:14px; fill:#697080;">&#160;&#160;def charge(amount):</text>
+            <text x="140" y="356" class="code" style="font-size:14px; fill:#c9776f;">-&#160;&#160;&#160;log(amount)</text>
+            <text x="140" y="380" class="code" style="font-size:14px; fill:#7fae6f;">+&#160;&#160;&#160;log(sanitize(amount))</text>
+            <text x="140" y="404" class="code" style="font-size:14px; fill:#7fae6f;">+&#160;&#160;&#160;if amount &lt;= 0: raise ValueError</text>
+            <text x="140" y="428" class="code" style="font-size:14px; fill:#697080;">&#160;&#160;&#160;&#160;return gateway.send(amount)</text>
+          </g>
+          <g class="rv-s" style="transition-delay:.7s">
+            <rect x="640" y="365" width="270" height="80" rx="5" fill="#1a1c24" stroke="#d9a25b" stroke-width="1.5"/>
+            <text x="660" y="390" class="lbl-sm mono" style="fill:#d9a25b; font-size:12px;">reviewer comment</text>
+            <text x="660" y="412" class="body-t" style="font-size:13px;">what happens if gateway.send</text>
+            <text x="660" y="430" class="body-t" style="font-size:13px;">throws — is amount refunded?</text>
+          </g>
+
+          <g class="rv" style="transition-delay:1s">
+            <rect x="900" y="260" width="500" height="270" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="920" y="292" class="lbl-sm" style="fill:#8a8f98;">what review catches that tests can't</text>
+            <text x="920" y="324" class="body-t" style="font-size:16px;">— does this fit the system's design?</text>
+            <text x="920" y="348" class="body-t" style="font-size:16px;">— is there tacit context a newcomer lacks?</text>
+            <text x="920" y="372" class="body-t" style="font-size:16px;">— naming, readability, "future-you" clarity</text>
+            <text x="920" y="396" class="body-t" style="font-size:16px;">— security &amp; edge cases the author didn't</text>
+            <text x="920" y="418" class="body-t" style="font-size:16px;">&#160;&#160;think to write a test for at all</text>
+            <line x1="920" y1="438" x2="1370" y2="438" stroke="#262933"/>
+            <text x="920" y="466" class="body-t" style="font-size:15px; fill:#5fb3ac;">bonus effect: spreads knowledge across the</text>
+            <text x="920" y="488" class="body-t" style="font-size:15px; fill:#5fb3ac;">team — nobody is the sole owner of any file.</text>
+          </g>
+
+          <g class="rv" style="transition-delay:1.3s">
+            <rect x="120" y="580" width="1280" height="140" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="140" y="612" class="lbl-sm" style="fill:#8a8f98;">practical use</text>
+            <text x="140" y="644" class="body-t" style="font-size:17px;">small, focused PRs get reviewed well; a 3,000-line PR gets a rubber-stamp.</text>
+            <text x="140" y="668" class="body-t" style="font-size:17px;">pair with automated gates (next few slides) so reviewers focus on judgment,</text>
+            <text x="140" y="692" class="body-t" style="font-size:17px;">not re-deriving things a machine could already have flagged.</text>
+          </g>
+
+          <g class="rv" style="transition-delay:1.5s">
+            <text x="80" y="770" class="recap-tag mono">RECAP</text>
+            <text x="80" y="796" class="recap-t">review adds human judgment — design fit, context, and things no test was written for.</text>
+          </g>
+          <g class="rv" style="transition-delay:1.7s">
+            <rect x="900" y="805" width="540" height="65" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="920" y="828" class="gap-tag mono">GAP</text>
+            <text x="920" y="850" class="gap-t" style="font-size:14px;">humans get tired and forget rules — what checks EVERY commit, automatically?</text>
+          </g>
+        </svg>
+      </section>
+
+      <!-- ============ SLIDE 7 — STATIC ANALYSIS ============ -->
+      <section class="slide" id="svc6">
+        <svg viewBox="0 0 1600 900">
+          <g class="rv" style="transition-delay:0s"><text x="80" y="80" class="fill-tag mono">FILL</text></g>
+          <g class="rv" style="transition-delay:.08s"><text x="80" y="140" class="h1">Static Analysis</text></g>
+          <g class="rv" style="transition-delay:.2s"><text x="80" y="178" class="h2">scan the source without ever running it — find whole classes of bugs by reading structure</text></g>
+          <line class="rule" x1="80" y1="210" x2="1520" y2="210"/>
+
+          <g class="rv-s" style="transition-delay:.35s">
+            <rect x="120" y="270" width="560" height="260" rx="6" fill="#141620" stroke="#3a3e48" stroke-width="1.5"/>
+            <text x="140" y="300" class="lbl-sm mono" style="fill:#697080; font-size:12px;">checkout.py</text>
+            <line x1="120" y1="312" x2="680" y2="312" stroke="#262933"/>
+            <text x="140" y="342" class="code" style="font-size:14px;">def total(cart):</text>
+            <text x="140" y="368" class="code" style="font-size:14px;">&#160;&#160;items = cart.items</text>
+            <text x="140" y="394" class="code" style="font-size:14px;">&#160;&#160;query = "SELECT * FROM t WHERE id=" + id</text>
+            <text x="140" y="420" class="code" style="font-size:14px;">&#160;&#160;discount = None</text>
+            <text x="140" y="446" class="code" style="font-size:14px;">&#160;&#160;return sum(items) * discount</text>
+          </g>
+
+          <!-- scanning beam -->
+          <g class="rv" style="transition-delay:.6s">
+            <rect class="draw" x="120" y="270" width="560" height="0" fill="#5fb3ac" opacity=".08" style="stroke:none;"/>
+          </g>
+
+          <!-- flags -->
+          <g class="rv-s" style="transition-delay:.9s">
+            <circle cx="690" cy="394" r="9" fill="#c9776f"/>
+            <text x="712" y="398" class="body-t" style="font-size:14px; fill:#c9776f;">SQL injection risk — unescaped string concat</text>
+          </g>
+          <g class="rv-s" style="transition-delay:1.1s">
+            <circle cx="690" cy="446" r="9" fill="#d9a25b"/>
+            <text x="712" y="450" class="body-t" style="font-size:14px; fill:#d9a25b;">type error — multiplying by None</text>
+          </g>
+          <g class="rv-s" style="transition-delay:1.3s">
+            <circle cx="690" cy="368" r="9" fill="#8b83c9"/>
+            <text x="712" y="372" class="body-t" style="font-size:14px; fill:#8b83c9;">unused variable — "items" shadowed below</text>
+          </g>
+
+          <g class="rv" style="transition-delay:1.55s">
+            <rect x="120" y="560" width="1280" height="170" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="140" y="592" class="lbl-sm" style="fill:#8a8f98;">the three flavors, and why they're free confidence</text>
+            <text x="140" y="624" class="body-t" style="font-size:17px;"><tspan style="fill:#5fb3ac;">type checkers</tspan> (mypy, TypeScript) catch shape mismatches before runtime.</text>
+            <text x="140" y="648" class="body-t" style="font-size:17px;"><tspan style="fill:#c9776f;">SAST security scanners</tspan> catch injection, secrets, unsafe deserialization.</text>
+            <text x="140" y="672" class="body-t" style="font-size:17px;"><tspan style="fill:#8b83c9;">complexity/quality linters</tspan> flag deeply nested, hard-to-test functions.</text>
+            <text x="140" y="700" class="body-t" style="font-size:16px; fill:#697080;">all three run in seconds, on every commit, and never get tired or distracted.</text>
+          </g>
+
+          <g class="rv" style="transition-delay:1.8s">
+            <text x="80" y="770" class="recap-tag mono">RECAP</text>
+            <text x="80" y="796" class="recap-t">static analysis finds structural bugs by reading code, without running a single line.</text>
+          </g>
+          <g class="rv" style="transition-delay:2s">
+            <rect x="900" y="805" width="540" height="65" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="920" y="828" class="gap-tag mono">GAP</text>
+            <text x="920" y="850" class="gap-t" style="font-size:15px;">what about the small stuff — tabs vs spaces, naming style?</text>
+          </g>
+        </svg>
+      </section>
+
+      <!-- ============ SLIDE 8 — LINTING & FORMATTING ============ -->
+      <section class="slide" id="svc7">
+        <svg viewBox="0 0 1600 900">
+          <g class="rv" style="transition-delay:0s"><text x="80" y="80" class="fill-tag mono">FILL</text></g>
+          <g class="rv" style="transition-delay:.08s"><text x="80" y="140" class="h1">Linting &amp; Formatting</text></g>
+          <g class="rv" style="transition-delay:.2s"><text x="80" y="178" class="h2">two different jobs — one flags bad patterns, the other removes style opinions entirely</text></g>
+          <line class="rule" x1="80" y1="210" x2="1520" y2="210"/>
+
+          <g class="rv" style="transition-delay:.35s">
+            <text x="120" y="255" class="lbl-sm" style="fill:#5fb3ac;">LINTING — finds problems, doesn't fix them</text>
+          </g>
+          <g class="rv-s" style="transition-delay:.5s">
+            <rect x="120" y="275" width="620" height="130" rx="6" fill="#141620" stroke="#3a3e48" stroke-width="1.5"/>
+            <text x="140" y="308" class="code" style="font-size:14px;">import os, sys</text>
+            <text x="140" y="334" class="code" style="font-size:14px;">def process(data):</text>
+            <text x="140" y="360" class="code" style="font-size:14px;">&#160;&#160;unused_var = 42</text>
+            <text x="140" y="386" class="code" style="font-size:14px;">&#160;&#160;return data</text>
+          </g>
+          <g class="rv-s" style="transition-delay:.75s">
+            <text x="640" y="308" class="lbl-sm mono" style="fill:#d9a25b; font-size:12px;">← 'sys' imported, unused</text>
+            <text x="640" y="360" class="lbl-sm mono" style="fill:#d9a25b; font-size:12px;">← unused_var never read</text>
+          </g>
+
+          <g class="rv" style="transition-delay:1s">
+            <text x="120" y="465" class="lbl-sm" style="fill:#d9a25b;">FORMATTING — rewrites the file for you, deterministically</text>
+          </g>
+          <g class="rv-s" style="transition-delay:1.15s">
+            <rect x="120" y="485" width="300" height="110" rx="6" fill="#141620" stroke="#3a3e48" stroke-width="1.5"/>
+            <text x="140" y="515" class="code" style="font-size:13px; fill:#697080;">const x={a:1,b:2}</text>
+            <text x="140" y="540" class="code" style="font-size:13px; fill:#697080;">function f( x ) {</text>
+            <text x="140" y="565" class="code" style="font-size:13px; fill:#697080;">return x}</text>
+          </g>
+          <line class="rv" style="transition-delay:1.3s" x1="430" y1="540" x2="500" y2="540" stroke="#7d828d" stroke-width="2" marker-end="url(#arrow)"/>
+          <g class="rv-s" style="transition-delay:1.45s">
+            <rect x="510" y="485" width="330" height="110" rx="6" fill="#141620" stroke="#7fae6f" stroke-width="1.5"/>
+            <text x="530" y="515" class="code" style="font-size:13px;">const x = { a: 1, b: 2 };</text>
+            <text x="530" y="540" class="code" style="font-size:13px;">function f(x) {</text>
+            <text x="530" y="565" class="code" style="font-size:13px;">&#160;&#160;return x;</text>
+            <text x="530" y="590" class="code" style="font-size:13px;">}</text>
+          </g>
+
+          <g class="rv" style="transition-delay:1.7s">
+            <rect x="900" y="270" width="500" height="330" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="920" y="302" class="lbl-sm" style="fill:#8a8f98;">why formatters end debates for good</text>
+            <text x="920" y="334" class="body-t" style="font-size:16px;">once a formatter runs on save/commit,</text>
+            <text x="920" y="356" class="body-t" style="font-size:16px;">"tabs vs spaces" is no longer a human</text>
+            <text x="920" y="378" class="body-t" style="font-size:16px;">conversation — it's a config file.</text>
+            <text x="920" y="402" class="body-t" style="font-size:16px;">code review diffs shrink to logic only,</text>
+            <text x="920" y="424" class="body-t" style="font-size:16px;">since style noise never appears.</text>
+            <line x1="920" y1="446" x2="1370" y2="446" stroke="#262933"/>
+            <text x="920" y="476" class="body-t" style="font-size:15px; fill:#697080;">tools: ESLint / Pylint / Checkstyle (lint)</text>
+            <text x="920" y="500" class="body-t" style="font-size:15px; fill:#697080;">Prettier / Black / gofmt / rustfmt (format)</text>
+            <text x="920" y="530" class="body-t" style="font-size:15px; fill:#5fb3ac;">both run in a pre-commit hook or CI, not</text>
+            <text x="920" y="552" class="body-t" style="font-size:15px; fill:#5fb3ac;">as an afterthought a human has to remember.</text>
+          </g>
+
+          <g class="rv" style="transition-delay:1.9s">
+            <text x="80" y="800" class="recap-tag mono">RECAP</text>
+            <text x="80" y="826" class="recap-t">linting flags risky patterns; formatting removes style debate from the conversation entirely.</text>
+          </g>
+          <g class="rv" style="transition-delay:2.1s">
+            <rect x="1000" y="775" width="440" height="65" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="1020" y="798" class="gap-tag mono">GAP</text>
+            <text x="1020" y="820" class="gap-t" style="font-size:14px;">how do we trust the code we DIDN'T write?</text>
+          </g>
+        </svg>
+      </section>
+
+      <!-- ============ SLIDE 9 — DEPENDENCY MANAGEMENT ============ -->
+      <section class="slide" id="svc8">
+        <svg viewBox="0 0 1600 900">
+          <g class="rv" style="transition-delay:0s"><text x="80" y="80" class="fill-tag mono">FILL</text></g>
+          <g class="rv" style="transition-delay:.08s"><text x="80" y="140" class="h1">Dependency Management</text></g>
+          <g class="rv" style="transition-delay:.2s"><text x="80" y="178" class="h2">your app is built on other people's code — track exactly which versions, and pin them</text></g>
+          <line class="rule" x1="80" y1="210" x2="1520" y2="210"/>
+
+          <!-- dependency tree -->
+          <g class="rv-s" style="transition-delay:.35s">
+            <rect x="600" y="270" width="200" height="60" rx="6" fill="#141620" stroke="#5fb3ac" stroke-width="2"/>
+            <text x="700" y="306" text-anchor="middle" class="lbl-sm mono">your-app</text>
+          </g>
+          <path class="rv draw" style="transition-delay:.55s" d="M650,330 L400,410" stroke="#7d828d" stroke-width="1.5" fill="none" marker-end="url(#arrow)" stroke-dasharray="290" stroke-dashoffset="290" data-dash="290"/>
+          <path class="rv draw" style="transition-delay:.6s" d="M700,330 L700,410" stroke="#7d828d" stroke-width="1.5" fill="none" marker-end="url(#arrow)" stroke-dasharray="80" stroke-dashoffset="80" data-dash="80"/>
+          <path class="rv draw" style="transition-delay:.65s" d="M750,330 L1000,410" stroke="#7d828d" stroke-width="1.5" fill="none" marker-end="url(#arrow)" stroke-dasharray="290" stroke-dashoffset="290" data-dash="290"/>
+
+          <g class="rv-s" style="transition-delay:.85s">
+            <rect x="300" y="420" width="200" height="55" rx="6" fill="#141620" stroke="#5c8a9c" stroke-width="1.5"/>
+            <text x="400" y="453" text-anchor="middle" class="lbl-sm mono" style="font-size:13px;">web-framework@4.2</text>
+          </g>
+          <g class="rv-s" style="transition-delay:.95s">
+            <rect x="600" y="420" width="200" height="55" rx="6" fill="#141620" stroke="#5c8a9c" stroke-width="1.5"/>
+            <text x="700" y="453" text-anchor="middle" class="lbl-sm mono" style="font-size:13px;">orm-lib@2.9</text>
+          </g>
+          <g class="rv-s" style="transition-delay:1.05s">
+            <rect x="900" y="420" width="200" height="55" rx="6" fill="#141620" stroke="#5c8a9c" stroke-width="1.5"/>
+            <text x="1000" y="453" text-anchor="middle" class="lbl-sm mono" style="font-size:13px;">http-client@1.6</text>
+          </g>
+
+          <!-- transitive dep -->
+          <path class="rv draw" style="transition-delay:1.2s" d="M400,475 L400,540" stroke="#7d828d" stroke-width="1.3" fill="none" marker-end="url(#arrow)" stroke-dasharray="65" stroke-dashoffset="65" data-dash="65"/>
+          <g class="rv-s" style="transition-delay:1.35s">
+            <rect x="300" y="545" width="200" height="55" rx="6" fill="#141620" stroke="#c9776f" stroke-width="1.5" stroke-dasharray="4 4"/>
+            <text x="400" y="578" text-anchor="middle" class="lbl-sm mono" style="fill:#c9776f; font-size:12px;">json-parser@0.4</text>
+          </g>
+          <g class="rv" style="transition-delay:1.5s">
+            <text x="520" y="578" class="body-t" style="font-size:14px; fill:#c9776f;">← transitive: you never</text>
+            <text x="520" y="598" class="body-t" style="font-size:14px; fill:#c9776f;">chose this, but you ship it</text>
+          </g>
+
+          <g class="rv" style="transition-delay:1.7s">
+            <rect x="1080" y="380" width="400" height="220" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="1100" y="412" class="lbl-sm" style="fill:#8a8f98;">manifest vs lockfile</text>
+            <text x="1100" y="444" class="body-t" style="font-size:15px;"><tspan style="fill:#5fb3ac;">manifest</tspan> (package.json): ranges you</text>
+            <text x="1100" y="466" class="body-t" style="font-size:15px;">allow, e.g. ^4.2.0</text>
+            <text x="1100" y="496" class="body-t" style="font-size:15px;"><tspan style="fill:#d9a25b;">lockfile</tspan> (package-lock.json): the EXACT</text>
+            <text x="1100" y="518" class="body-t" style="font-size:15px;">resolved tree, byte for byte</text>
+            <text x="1100" y="548" class="body-t" style="font-size:14px; fill:#697080;">commit both — reproducible builds</text>
+            <text x="1100" y="570" class="body-t" style="font-size:14px; fill:#697080;">require the lockfile to be checked in.</text>
+          </g>
+
+          <g class="rv" style="transition-delay:1.9s">
+            <rect x="120" y="630" width="1000" height="105" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="140" y="662" class="lbl-sm" style="fill:#8a8f98;">the real risk: supply chain</text>
+            <text x="140" y="692" class="body-t" style="font-size:16px;">a vulnerability three levels deep in a transitive dependency is still YOUR</text>
+            <text x="140" y="716" class="body-t" style="font-size:16px;">vulnerability — scan regularly (npm audit, pip-audit, Snyk, Dependabot).</text>
+          </g>
+
+          <g class="rv" style="transition-delay:2.15s">
+            <text x="80" y="800" class="recap-tag mono">RECAP</text>
+            <text x="80" y="826" class="recap-t">manifests declare intent, lockfiles freeze reality — both are load-bearing.</text>
+          </g>
+          <g class="rv" style="transition-delay:2.35s">
+            <rect x="900" y="775" width="540" height="65" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="920" y="798" class="gap-tag mono">GAP</text>
+            <text x="920" y="820" class="gap-t" style="font-size:15px;">when a dependency updates, how do we know if it's safe from the number alone?</text>
+          </g>
+        </svg>
+      </section>
+
+      <!-- ============ SLIDE 10 — SEMANTIC VERSIONING ============ -->
+      <section class="slide" id="svc9">
+        <svg viewBox="0 0 1600 900">
+          <g class="rv" style="transition-delay:0s"><text x="80" y="80" class="fill-tag mono">FILL</text></g>
+          <g class="rv" style="transition-delay:.08s"><text x="80" y="140" class="h1">Semantic Versioning</text></g>
+          <g class="rv" style="transition-delay:.2s"><text x="80" y="178" class="h2">a version number that makes a promise — MAJOR.MINOR.PATCH</text></g>
+          <line class="rule" x1="80" y1="210" x2="1520" y2="210"/>
+
+          <g class="rv" style="transition-delay:.35s">
+            <text x="400" y="320" text-anchor="middle" style="font-size:64px; font-weight:700; fill:#c9776f;">2</text>
+            <text x="440" y="320" text-anchor="middle" style="font-size:64px; font-weight:700; fill:#e9e8e4;">.</text>
+            <text x="480" y="320" text-anchor="middle" style="font-size:64px; font-weight:700; fill:#d9a25b;">7</text>
+            <text x="520" y="320" text-anchor="middle" style="font-size:64px; font-weight:700; fill:#e9e8e4;">.</text>
+            <text x="560" y="320" text-anchor="middle" style="font-size:64px; font-weight:700; fill:#7fae6f;">3</text>
+          </g>
+          <g class="rv" style="transition-delay:.6s">
+            <text x="400" y="360" text-anchor="middle" class="lbl-sm mono" style="fill:#c9776f;">MAJOR</text>
+            <text x="480" y="360" text-anchor="middle" class="lbl-sm mono" style="fill:#d9a25b;">MINOR</text>
+            <text x="560" y="360" text-anchor="middle" class="lbl-sm mono" style="fill:#7fae6f;">PATCH</text>
+          </g>
+
+          <g class="rv" style="transition-delay:.8s">
+            <rect x="200" y="400" width="500" height="60" rx="5" fill="none" stroke="#c9776f" stroke-width="1.5"/>
+            <text x="220" y="435" class="body-t" style="font-size:16px;">breaking change — old code may stop working</text>
+          </g>
+          <g class="rv" style="transition-delay:.95s">
+            <rect x="200" y="470" width="500" height="60" rx="5" fill="none" stroke="#d9a25b" stroke-width="1.5"/>
+            <text x="220" y="505" class="body-t" style="font-size:16px;">new feature, fully backward-compatible</text>
+          </g>
+          <g class="rv" style="transition-delay:1.1s">
+            <rect x="200" y="540" width="500" height="60" rx="5" fill="none" stroke="#7fae6f" stroke-width="1.5"/>
+            <text x="220" y="575" class="body-t" style="font-size:16px;">bug fix only, fully backward-compatible</text>
+          </g>
+
+          <g class="rv" style="transition-delay:1.3s">
+            <rect x="800" y="380" width="680" height="240" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="820" y="412" class="lbl-sm" style="fill:#8a8f98;">why machines can act on this promise</text>
+            <text x="820" y="444" class="code" style="font-size:16px;">"orm-lib": "^2.7.3"</text>
+            <text x="820" y="472" class="body-t" style="font-size:16px;">the caret (^) says: auto-upgrade to any</text>
+            <text x="820" y="494" class="body-t" style="font-size:16px;">2.x.y, but never jump to 3.0.0 without</text>
+            <text x="820" y="516" class="body-t" style="font-size:16px;">a human explicitly opting in.</text>
+            <line x1="820" y1="536" x2="1440" y2="536" stroke="#262933"/>
+            <text x="820" y="564" class="body-t" style="font-size:15px; fill:#697080;">this is what makes automated dependency</text>
+            <text x="820" y="586" class="body-t" style="font-size:15px; fill:#697080;">bots (Dependabot, Renovate) safe by default —</text>
+            <text x="820" y="608" class="body-t" style="font-size:15px; fill:#697080;">the version number itself is a contract.</text>
+          </g>
+
+          <g class="rv" style="transition-delay:1.55s">
+            <text x="80" y="800" class="recap-tag mono">RECAP</text>
+            <text x="80" y="826" class="recap-t">semver turns a version bump into a machine-readable promise about compatibility.</text>
+          </g>
+          <g class="rv" style="transition-delay:1.75s">
+            <rect x="880" y="775" width="560" height="65" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="900" y="798" class="gap-tag mono">GAP</text>
+            <text x="900" y="820" class="gap-t" style="font-size:15px;">how do all these checks run on EVERY commit, without anyone remembering?</text>
+          </g>
+        </svg>
+      </section>
+
+      <!-- ============ SLIDE 11 — CI/CD ============ -->
+      <section class="slide" id="svc10">
+        <svg viewBox="0 0 1600 900">
+          <g class="rv" style="transition-delay:0s"><text x="80" y="80" class="fill-tag mono">FILL</text></g>
+          <g class="rv" style="transition-delay:.08s"><text x="80" y="140" class="h1">CI/CD</text></g>
+          <g class="rv" style="transition-delay:.2s"><text x="80" y="178" class="h2">an assembly line that runs every check automatically, on every single change</text></g>
+          <line class="rule" x1="80" y1="210" x2="1520" y2="210"/>
+
+          <g class="rv" style="transition-delay:.3s">
+            <text x="80" y="255" class="body-t" style="font-size:17px;"><tspan style="fill:#5fb3ac;">Continuous Integration</tspan> — merge &amp; verify constantly, not in one scary "integration week".</text>
+            <text x="80" y="280" class="body-t" style="font-size:17px;"><tspan style="fill:#d9a25b;">Continuous Delivery</tspan> — always ready to release. <tspan style="fill:#c9776f;">Continuous Deployment</tspan> — releases itself, no human gate.</text>
+          </g>
+
+          <!-- pipeline -->
+          <line class="rv" style="transition-delay:.5s" x1="120" y1="420" x2="1480" y2="420" stroke="#262933" stroke-width="2"/>
+          <g id="cicdstages">
+            <g class="rv-s" style="transition-delay:.6s">
+              <circle cx="180" cy="420" r="9" fill="#5fb3ac"/>
+              <text x="180" y="385" text-anchor="middle" class="lbl-sm" style="font-size:14px;">push</text>
+            </g>
+            <g class="rv-s" style="transition-delay:.75s">
+              <circle cx="400" cy="420" r="9" fill="#5c8a9c"/>
+              <text x="400" y="385" text-anchor="middle" class="lbl-sm" style="font-size:14px;">build</text>
+            </g>
+            <g class="rv-s" style="transition-delay:.9s">
+              <circle cx="620" cy="420" r="9" fill="#8b83c9"/>
+              <text x="620" y="385" text-anchor="middle" class="lbl-sm" style="font-size:14px;">lint + static analysis</text>
+            </g>
+            <g class="rv-s" style="transition-delay:1.05s">
+              <circle cx="850" cy="420" r="9" fill="#d9a25b"/>
+              <text x="850" y="385" text-anchor="middle" class="lbl-sm" style="font-size:14px;">test suite</text>
+            </g>
+            <g class="rv-s" style="transition-delay:1.2s">
+              <circle cx="1070" cy="420" r="9" fill="#7fae6f"/>
+              <text x="1070" y="385" text-anchor="middle" class="lbl-sm" style="font-size:14px;">package / artifact</text>
+            </g>
+            <g class="rv-s" style="transition-delay:1.35s">
+              <circle cx="1290" cy="420" r="9" fill="none" stroke="#c9776f" stroke-width="2.5"/>
+              <text x="1290" y="385" text-anchor="middle" class="lbl-sm" style="font-size:14px;">deploy</text>
+            </g>
+            <g class="rv" style="transition-delay:1.5s">
+              <text x="1290" y="455" text-anchor="middle" class="lbl-sm mono" style="fill:#697080; font-size:11px;">smoke tests next</text>
+            </g>
+          </g>
+          <path class="rv draw" style="transition-delay:1.6s" d="M120,420 L1480,420" stroke="#5fb3ac" stroke-width="3" fill="none" stroke-dasharray="1360" stroke-dashoffset="1360" data-dash="1360" opacity=".5"/>
+
+          <g class="rv" style="transition-delay:1.8s">
+            <rect x="120" y="500" width="1360" height="200" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="140" y="532" class="lbl-sm" style="fill:#8a8f98;">why "any red stage stops the line"</text>
+            <text x="140" y="564" class="body-t" style="font-size:17px;">a failing lint check blocks the merge exactly like a failing test does — the whole point</text>
+            <text x="140" y="588" class="body-t" style="font-size:17px;">is that no human has to remember to run any of this, and nothing partially-checked ships.</text>
+            <text x="140" y="620" class="body-t" style="font-size:17px;">this pipeline IS the enforcement mechanism for everything from git through semver.</text>
+            <text x="140" y="652" class="body-t" style="font-size:16px; fill:#697080;">tools: GitHub Actions · GitLab CI · Jenkins · CircleCI</text>
+          </g>
+
+          <g class="rv" style="transition-delay:2.05s">
+            <text x="80" y="770" class="recap-tag mono">RECAP</text>
+            <text x="80" y="796" class="recap-t">CI/CD is the automatic line that runs every gate, on every commit, without fail.</text>
+          </g>
+          <g class="rv" style="transition-delay:2.25s">
+            <rect x="800" y="805" width="640" height="65" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="820" y="828" class="gap-tag mono">GAP</text>
+            <text x="820" y="850" class="gap-t" style="font-size:15px;">an assembly line is only as good as its quality checks — what actually goes IN the "test" stage?</text>
+          </g>
+        </svg>
+      </section>
+
+      <!-- ============ SLIDE 12 — TEST-DRIVEN DEVELOPMENT ============ -->
+      <section class="slide" id="svc11">
+        <svg viewBox="0 0 1600 900">
+          <g class="rv" style="transition-delay:0s"><text x="80" y="80" class="fill-tag mono">FILL</text></g>
+          <g class="rv" style="transition-delay:.08s"><text x="80" y="140" class="h1">Test-Driven Development</text></g>
+          <g class="rv" style="transition-delay:.2s"><text x="80" y="178" class="h2">write the test before the code — the test becomes a design tool, not an afterthought</text></g>
+          <line class="rule" x1="80" y1="210" x2="1520" y2="210"/>
+
+          <!-- the loop, large -->
+          <g class="rv-s" style="transition-delay:.4s">
+            <circle cx="330" cy="420" r="80" fill="none" stroke="#c9776f" stroke-width="2.5"/>
+            <text x="330" y="410" text-anchor="middle" class="lbl">RED</text>
+            <text x="330" y="438" text-anchor="middle" class="lbl-sm mono" style="font-size:12px; fill:#697080;">write a test for</text>
+            <text x="330" y="456" text-anchor="middle" class="lbl-sm mono" style="font-size:12px; fill:#697080;">behavior that doesn't exist</text>
+          </g>
+          <path class="rv draw" style="transition-delay:.65s" d="M400,370 Q560,300 700,370" stroke="#7d828d" stroke-width="1.8" fill="none" marker-end="url(#arrow)" stroke-dasharray="340" stroke-dashoffset="340" data-dash="340"/>
+          <g class="rv-s" style="transition-delay:.9s">
+            <circle cx="770" cy="420" r="80" fill="none" stroke="#7fae6f" stroke-width="2.5"/>
+            <text x="770" y="410" text-anchor="middle" class="lbl">GREEN</text>
+            <text x="770" y="438" text-anchor="middle" class="lbl-sm mono" style="font-size:12px; fill:#697080;">simplest code that</text>
+            <text x="770" y="456" text-anchor="middle" class="lbl-sm mono" style="font-size:12px; fill:#697080;">makes it pass — no more</text>
+          </g>
+          <path class="rv draw" style="transition-delay:1.15s" d="M760,495 Q560,600 350,495" stroke="#7d828d" stroke-width="1.8" fill="none" marker-end="url(#arrow)" stroke-dasharray="490" stroke-dashoffset="490" data-dash="490"/>
+          <g class="rv-s" style="transition-delay:1.4s">
+            <circle cx="550" cy="580" r="70" fill="none" stroke="#d9a25b" stroke-width="2.5"/>
+            <text x="550" y="572" text-anchor="middle" class="lbl" style="font-size:19px;">REFACTOR</text>
+            <text x="550" y="598" text-anchor="middle" class="lbl-sm mono" style="font-size:11px; fill:#697080;">clean up, tests</text>
+            <text x="550" y="614" text-anchor="middle" class="lbl-sm mono" style="font-size:11px; fill:#697080;">stay green throughout</text>
+          </g>
+          <path class="rv draw" style="transition-delay:1.65s" d="M490,530 Q400,480 350,450" stroke="#7d828d" stroke-width="1.4" fill="none" marker-end="url(#arrow)" stroke-dasharray="130" stroke-dashoffset="130" data-dash="130"/>
+
+          <g class="rv" style="transition-delay:1.9s">
+            <rect x="920" y="330" width="560" height="270" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="940" y="362" class="lbl-sm" style="fill:#8a8f98;">the Feynman reframe</text>
+            <text x="940" y="396" class="body-t" style="font-size:18px;">TDD isn't really about testing first.</text>
+            <text x="940" y="424" class="body-t" style="font-size:18px;">it's a forcing function: you can't write a</text>
+            <text x="940" y="452" class="body-t" style="font-size:18px;">test for code you don't understand yet —</text>
+            <text x="940" y="480" class="body-t" style="font-size:18px;">so writing the test FIRST forces you to</text>
+            <text x="940" y="508" class="body-t" style="font-size:18px;">design the interface before the internals.</text>
+            <line x1="940" y1="530" x2="1440" y2="530" stroke="#262933"/>
+            <text x="940" y="558" class="body-t" style="font-size:15px; fill:#697080;">honest trade-off: slower up front, but the</text>
+            <text x="940" y="580" class="body-t" style="font-size:15px; fill:#697080;">resulting suite is a byproduct, not a chore.</text>
+          </g>
+
+          <g class="rv" style="transition-delay:2.1s">
+            <text x="80" y="740" class="recap-tag mono">RECAP</text>
+            <text x="80" y="766" class="recap-t">TDD uses the test itself as a design tool, before a single line of real logic exists.</text>
+          </g>
+          <g class="rv" style="transition-delay:2.3s">
+            <rect x="800" y="775" width="640" height="65" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="820" y="798" class="gap-tag mono">GAP</text>
+            <text x="820" y="820" class="gap-t" style="font-size:15px;">TDD describes HOW code is built — but who decides WHAT "correct" behavior even means?</text>
+          </g>
+        </svg>
+      </section>
+
+      <!-- ============ SLIDE 13 — BEHAVIOR-DRIVEN DEVELOPMENT ============ -->
+      <section class="slide" id="svc12">
+        <svg viewBox="0 0 1600 900">
+          <g class="rv" style="transition-delay:0s"><text x="80" y="80" class="fill-tag mono">FILL</text></g>
+          <g class="rv" style="transition-delay:.08s"><text x="80" y="140" class="h1">Behavior-Driven Development</text></g>
+          <g class="rv" style="transition-delay:.2s"><text x="80" y="178" class="h2">describe behavior in plain language everyone agrees on — then run that sentence as a test</text></g>
+          <line class="rule" x1="80" y1="210" x2="1520" y2="210"/>
+
+          <!-- three roles converging on shared language -->
+          <g class="rv" style="transition-delay:.3s">
+            <text x="150" y="270" class="lbl-sm mono" style="fill:#5c8a9c;">product owner</text>
+            <text x="620" y="270" class="lbl-sm mono" style="fill:#d9a25b;">developer</text>
+            <text x="1100" y="270" class="lbl-sm mono" style="fill:#7fae6f;">tester</text>
+          </g>
+          <path class="rv draw" style="transition-delay:.5s" d="M230,290 Q450,340 690,340" stroke="#3a3e48" stroke-width="1.3" fill="none" stroke-dasharray="480" stroke-dashoffset="480" data-dash="480"/>
+          <path class="rv draw" style="transition-delay:.5s" d="M1150,290 Q900,340 700,340" stroke="#3a3e48" stroke-width="1.3" fill="none" stroke-dasharray="480" stroke-dashoffset="480" data-dash="480"/>
+
+          <g class="rv-s" style="transition-delay:.9s">
+            <rect x="450" y="350" width="500" height="270" rx="6" fill="#141620" stroke="#d9a25b" stroke-width="2"/>
+            <text x="475" y="382" class="lbl-sm mono" style="fill:#d9a25b; font-size:13px;">shared scenario — Gherkin syntax</text>
+            <text x="475" y="418" class="code" style="font-size:16px;">Scenario: expired discount code</text>
+            <text x="475" y="452" class="code" style="font-size:16px;"><tspan style="fill:#5fb3ac;">Given</tspan> a cart with $50 of items</text>
+            <text x="475" y="482" class="code" style="font-size:16px;"><tspan style="fill:#5c8a9c;">And</tspan> code "SAVE10" expired yesterday</text>
+            <text x="475" y="512" class="code" style="font-size:16px;"><tspan style="fill:#d9a25b;">When</tspan> the customer applies "SAVE10"</text>
+            <text x="475" y="542" class="code" style="font-size:16px;"><tspan style="fill:#c9776f;">Then</tspan> show "this code has expired"</text>
+            <text x="475" y="572" class="code" style="font-size:16px;"><tspan style="fill:#c9776f;">And</tspan> the total stays $50</text>
+          </g>
+
+          <g class="rv" style="transition-delay:1.3s">
+            <text x="1000" y="382" class="lbl-sm mono" style="fill:#697080; font-size:12px;">↓ this exact text</text>
+            <text x="1000" y="404" class="lbl-sm mono" style="fill:#697080; font-size:12px;">runs as an executable test</text>
+          </g>
+
+          <g class="rv" style="transition-delay:1.6s">
+            <rect x="150" y="670" width="1300" height="60" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="170" y="705" class="body-t" style="font-size:16px;">why it works: a bug in requirements ("what does 'expired' even mean?") is caught before</text>
+          </g>
+          <g class="rv" style="transition-delay:1.75s">
+            <text x="170" y="748" class="body-t" style="font-size:16px;">any code is written — cheaper than the cost curve from slide 15 would predict.</text>
+          </g>
+
+          <g class="rv" style="transition-delay:1.95s">
+            <rect x="150" y="290" width="0" height="0"/>
+          </g>
+          <g class="rv" style="transition-delay:1.95s">
+            <text x="1100" y="640" class="lbl-sm mono" style="fill:#697080; font-size:13px;">tools: Cucumber · SpecFlow · Behave</text>
+          </g>
+
+          <g class="rv" style="transition-delay:2.15s">
+            <text x="80" y="800" class="recap-tag mono">RECAP</text>
+            <text x="80" y="826" class="recap-t">BDD makes "correct behavior" a sentence everyone can read, agree on, and run.</text>
+          </g>
+          <g class="rv" style="transition-delay:2.35s">
+            <rect x="880" y="775" width="560" height="65" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="900" y="798" class="gap-tag mono">GAP</text>
+            <text x="900" y="820" class="gap-t" style="font-size:15px;">now — what does "testing" actually mean, at every layer of a real system?</text>
+          </g>
+        </svg>
+      </section>
+
+      <!-- ============ SLIDE 14 — SECTION: TESTING PATTERNS ============ -->
+      <section class="slide" id="s1b">
+        <svg viewBox="0 0 1600 900">
+          <line class="rule" x1="80" y1="820" x2="1520" y2="820"/>
+          <g class="rv" style="transition-delay:.05s">
+            <text x="80" y="120" class="kicker mono">PART TWO</text>
+          </g>
+          <g class="rv" style="transition-delay:.2s">
+            <text x="78" y="230" style="font-size:88px; font-weight:700; fill:#f2f1ee;">Testing Patterns</text>
+          </g>
+          <g class="rv" style="transition-delay:.4s">
+            <text x="80" y="285" class="h2">how we build confidence that software does what it claims — and keeps doing it</text>
+          </g>
+
+          <!-- Feynman-esque hook: an assumption box getting hit -->
+          <g class="rv-s" style="transition-delay:.65s">
+            <rect x="120" y="420" width="280" height="110" rx="6" fill="none" stroke="#3a3e48" stroke-width="1.5"/>
+            <text x="260" y="465" text-anchor="middle" class="lbl">your code</text>
+            <text x="260" y="495" text-anchor="middle" class="lbl-sm mono">"it works on my machine"</text>
+          </g>
+          <g class="rv-s" style="transition-delay:.9s">
+            <circle cx="600" cy="475" r="46" fill="none" stroke="#5fb3ac" stroke-width="2"/>
+            <text x="600" y="483" text-anchor="middle" class="lbl mono" style="fill:#5fb3ac;">test</text>
+          </g>
+          <line class="rv" style="transition-delay:1.1s" x1="404" y1="475" x2="548" y2="475" stroke="#7d828d" stroke-width="2" marker-end="url(#arrow)"/>
+
+          <g class="rv-s" style="transition-delay:1.3s">
+            <rect x="700" y="420" width="330" height="110" rx="6" fill="none" stroke="#4a3238" stroke-width="1.5"/>
+            <text x="865" y="465" text-anchor="middle" class="lbl">reality</text>
+            <text x="865" y="495" text-anchor="middle" class="lbl-sm mono" style="fill:#c9776f;">every input you didn't imagine</text>
+          </g>
+          <line class="rv" style="transition-delay:1.5s" x1="646" y1="475" x2="695" y2="475" stroke="#5fb3ac" stroke-width="2" marker-end="url(#arrowTeal)"/>
+
+          <g class="rv" style="transition-delay:1.8s">
+            <text x="1120" y="465" class="body-t" style="font-size:20px;">testing is how you meet</text>
+            <text x="1120" y="495" class="body-t" style="font-size:20px;">"reality" on your own terms,</text>
+            <text x="1120" y="525" class="body-t" style="font-size:20px;">before a user does it for you.</text>
+          </g>
+
+          <g class="rv" style="transition-delay:2s">
+            <text x="80" y="860" class="lbl-sm mono">14 / 31</text>
+            <text x="1520" y="860" text-anchor="end" class="lbl-sm mono">a Feynman-style walkthrough · black-box → white-box → production</text>
+          </g>
+        </svg>
+      </section>
+
+      <!-- ============ SLIDE 15 — WHY WE TEST (cost of bugs) ============ -->
+      <section class="slide" id="s2">
+        <svg viewBox="0 0 1600 900">
+          <g class="rv" style="transition-delay:0s"><text x="80" y="90" class="tag mono">15 · THE QUESTION</text></g>
+          <g class="rv" style="transition-delay:.08s"><text x="80" y="150" class="h1">Why bother testing at all?</text></g>
+          <g class="rv" style="transition-delay:.2s"><text x="80" y="190" class="h2">a bug costs more the later you find it — and it isn't a straight line</text></g>
+          <line class="rule" x1="80" y1="225" x2="1520" y2="225"/>
+
+          <!-- axes -->
+          <g class="rv" style="transition-delay:.35s">
+            <line x1="200" y1="700" x2="200" y2="290" stroke="#3a3e48" stroke-width="1.5"/>
+            <line x1="200" y1="700" x2="1380" y2="700" stroke="#3a3e48" stroke-width="1.5"/>
+            <text x="150" y="290" text-anchor="end" class="lbl-sm mono">cost</text>
+            <text x="1380" y="735" text-anchor="end" class="lbl-sm mono">found at →</text>
+          </g>
+
+          <!-- bars: design, dev, test/CI, staging, production (baseline y=700) -->
+          <g id="s2bars">
+            <g class="rv" style="transition-delay:.5s">
+              <rect class="bar" x="260" y="700" width="60" height="0" data-h="60" fill="#3f6b66"/>
+              <text x="290" y="735" text-anchor="middle" class="lbl-sm">Design</text>
+              <text x="290" y="628" text-anchor="middle" class="lbl-sm mono bnum" data-y="628">1×</text>
+            </g>
+            <g class="rv" style="transition-delay:.65s">
+              <rect class="bar" x="480" y="700" width="90" height="0" data-h="90" fill="#4d8079"/>
+              <text x="525" y="735" text-anchor="middle" class="lbl-sm">Dev / unit</text>
+              <text x="525" y="598" text-anchor="middle" class="lbl-sm mono bnum" data-y="598">5×</text>
+            </g>
+            <g class="rv" style="transition-delay:.8s">
+              <rect class="bar" x="700" y="700" width="160" height="0" data-h="160" fill="#5fb3ac"/>
+              <text x="780" y="735" text-anchor="middle" class="lbl-sm">CI / test stage</text>
+              <text x="780" y="528" text-anchor="middle" class="lbl-sm mono bnum" data-y="528">15×</text>
+            </g>
+            <g class="rv" style="transition-delay:.95s">
+              <rect class="bar" x="960" y="700" width="260" height="0" data-h="260" fill="#d9a25b"/>
+              <text x="1090" y="735" text-anchor="middle" class="lbl-sm">Staging</text>
+              <text x="1090" y="428" text-anchor="middle" class="lbl-sm mono bnum" data-y="428">40×</text>
+            </g>
+            <g class="rv" style="transition-delay:1.1s">
+              <rect class="bar" x="1220" y="700" width="360" height="0" data-h="360" fill="#c9776f"/>
+              <text x="1400" y="735" text-anchor="middle" class="lbl-sm">Production</text>
+              <text x="1400" y="328" text-anchor="middle" class="lbl-sm mono bnum" data-y="328">100×+</text>
+            </g>
+          </g>
+
+          <g class="rv" style="transition-delay:1.35s">
+            <text x="80" y="800" class="body-t">the same bug is cheap to fix as a thought, and expensive to fix as an incident —</text>
+            <text x="80" y="828" class="body-t">so every pattern in this deck exists to push discovery <tspan style="fill:#5fb3ac;">left</tspan>, toward the cheap end.</text>
+          </g>
+
+          <g class="rv" style="transition-delay:1.6s">
+            <rect x="1120" y="770" width="330" height="70" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="1140" y="796" class="gap-tag mono">GAP</text>
+            <text x="1140" y="822" class="gap-t" style="font-size:16px;">so how do we catch bugs early, cheaply, and often?</text>
+          </g>
+        </svg>
+      </section>
+
+      <!-- ============ SLIDE 3 — TEST PYRAMID ============ -->
+      <section class="slide" id="s3">
+        <svg viewBox="0 0 1600 900">
+          <g class="rv" style="transition-delay:0s"><text x="80" y="80" class="fill-tag mono">FILL</text></g>
+          <g class="rv" style="transition-delay:.08s"><text x="80" y="140" class="h1">The Test Pyramid</text></g>
+          <g class="rv" style="transition-delay:.2s"><text x="80" y="178" class="h2">a shape, not a rulebook — spend where tests are cheap, taper where they're expensive</text></g>
+          <line class="rule" x1="80" y1="210" x2="1520" y2="210"/>
+
+          <!-- pyramid built from bottom up: 3 trapezoid layers -->
+          <g class="rv-s" style="transition-delay:.4s">
+            <path d="M 420 700 L 980 700 L 900 590 L 500 590 Z" fill="#3f6b66" stroke="#0a0a10" stroke-width="3"/>
+            <text x="700" y="655" text-anchor="middle" class="lbl" style="fill:#e9e8e4;">Unit</text>
+            <text x="700" y="680" text-anchor="middle" class="lbl-sm mono" style="fill:#cfe8e4;">fast · isolated · cheap · thousands of them</text>
+          </g>
+          <g class="rv-s" style="transition-delay:.75s">
+            <path d="M 500 590 L 900 590 L 830 480 L 570 480 Z" fill="#5c8a9c" stroke="#0a0a10" stroke-width="3"/>
+            <text x="700" y="540" text-anchor="middle" class="lbl">Integration</text>
+            <text x="700" y="563" text-anchor="middle" class="lbl-sm mono" style="fill:#d7e6ee;">modules + real deps · slower · fewer</text>
+          </g>
+          <g class="rv-s" style="transition-delay:1.1s">
+            <path d="M 570 480 L 830 480 L 760 380 L 640 380 Z" fill="#b98a5a" stroke="#0a0a10" stroke-width="3"/>
+            <text x="700" y="440" text-anchor="middle" class="lbl" style="font-size:18px;">E2E</text>
+          </g>
+          <g class="rv" style="transition-delay:1.3s">
+            <text x="700" y="355" text-anchor="middle" class="lbl-sm" style="fill:#867054;">slow · brittle · a handful</text>
+          </g>
+
+          <!-- side annotations: guideline ratio -->
+          <g class="rv-r" style="transition-delay:1.5s">
+            <line x1="1000" y1="645" x2="1060" y2="645" stroke="#3a3e48"/>
+            <text x="1080" y="652" class="body-t">~70% of tests</text>
+            <line x1="1000" y1="535" x2="1060" y2="535" stroke="#3a3e48"/>
+            <text x="1080" y="542" class="body-t">~20% of tests</text>
+            <line x1="1000" y1="430" x2="1060" y2="430" stroke="#3a3e48"/>
+            <text x="1080" y="437" class="body-t">~10% of tests</text>
+            <text x="1080" y="490" class="lbl-sm mono" style="fill:#5fb3ac;">a guideline, not a law —</text>
+            <text x="1080" y="513" class="lbl-sm mono" style="fill:#5fb3ac;">shape follows your risk, not a %</text>
+          </g>
+
+          <g class="rv" style="transition-delay:1.8s">
+            <rect x="1150" y="600" width="270" height="130" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="1170" y="628" class="lbl-sm" style="fill:#8a8f98;">why a pyramid, not a cube?</text>
+            <text x="1170" y="656" class="body-t" style="font-size:16px;">every layer up costs more time,</text>
+            <text x="1170" y="678" class="body-t" style="font-size:16px;">infra, and flakiness — so each</text>
+            <text x="1170" y="700" class="body-t" style="font-size:16px;">one should catch what the layer</text>
+            <text x="1170" y="722" class="body-t" style="font-size:16px;">below it structurally can't.</text>
+          </g>
+
+          <g class="rv" style="transition-delay:2.05s">
+            <text x="80" y="800" class="recap-tag mono">RECAP</text>
+            <text x="80" y="826" class="recap-t">bugs get expensive fast, so the pyramid says: start wide, start at the bottom.</text>
+          </g>
+          <g class="rv" style="transition-delay:2.25s">
+            <rect x="900" y="775" width="540" height="65" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="920" y="800" class="gap-tag mono">GAP</text>
+            <text x="920" y="825" class="gap-t" style="font-size:16px;">what actually happens inside one "unit" test?</text>
+          </g>
+        </svg>
+      </section>
+
+      <!-- ============ SLIDE 4 — UNIT TESTING ============ -->
+      <section class="slide" id="s4">
+        <svg viewBox="0 0 1600 900">
+          <g class="rv" style="transition-delay:0s"><text x="80" y="80" class="fill-tag mono">FILL · LAYER 1 OF 3</text></g>
+          <g class="rv" style="transition-delay:.08s"><text x="80" y="140" class="h1">Unit Testing</text></g>
+          <g class="rv" style="transition-delay:.2s"><text x="80" y="178" class="h2">test the smallest piece of logic completely alone — no network, no disk, no clock</text></g>
+          <line class="rule" x1="80" y1="210" x2="1520" y2="210"/>
+
+          <!-- anatomy: input -> function (isolated, deps mocked) -> output vs expected -->
+          <g class="rv-l" style="transition-delay:.4s">
+            <rect x="90" y="290" width="150" height="70" rx="6" fill="none" stroke="#3a3e48" stroke-width="1.5"/>
+            <text x="165" y="331" text-anchor="middle" class="lbl-sm mono">input: 7, 3</text>
+          </g>
+          <line class="rv" style="transition-delay:.55s" x1="245" y1="325" x2="330" y2="325" stroke="#7d828d" stroke-width="2" marker-end="url(#arrow)"/>
+
+          <g class="rv-s" style="transition-delay:.7s">
+            <rect x="335" y="270" width="260" height="110" rx="6" fill="#141620" stroke="#5fb3ac" stroke-width="2"/>
+            <text x="465" y="305" text-anchor="middle" class="lbl mono">add(a, b)</text>
+            <text x="465" y="332" text-anchor="middle" class="lbl-sm" style="fill:#5fb3ac;">isolated unit</text>
+            <text x="465" y="358" text-anchor="middle" class="lbl-sm mono" style="fill:#697080;">no DB · no HTTP · no I/O</text>
+          </g>
+          <line class="rv" style="transition-delay:.85s" x1="600" y1="325" x2="685" y2="325" stroke="#7d828d" stroke-width="2" marker-end="url(#arrow)"/>
+
+          <g class="rv-r" style="transition-delay:1s">
+            <rect x="690" y="290" width="150" height="70" rx="6" fill="none" stroke="#3a3e48" stroke-width="1.5"/>
+            <text x="765" y="331" text-anchor="middle" class="lbl-sm mono">actual: 10</text>
+          </g>
+
+          <g class="rv-s" style="transition-delay:1.2s">
+            <circle cx="920" cy="325" r="28" fill="none" stroke="#5fb3ac" stroke-width="2"/>
+            <path class="draw" d="M907,325 L916,335 L935,313" stroke="#5fb3ac" stroke-width="3" fill="none" style="stroke-dasharray:44; stroke-dashoffset:44;" data-dash="44"/>
+          </g>
+          <g class="rv" style="transition-delay:1.4s">
+            <text x="965" y="318" class="body-t" style="font-size:16px;">assertEqual(actual, 10)</text>
+            <text x="965" y="342" class="body-t" style="font-size:16px; fill:#5fb3ac;">passes → confidence, not proof</text>
+          </g>
+
+          <!-- mocked dependency shown as dashed ghost, cut off -->
+          <g class="rv" style="transition-delay:1.55s">
+            <rect x="335" y="410" width="260" height="60" rx="6" fill="none" stroke="#4a3238" stroke-width="1.5" stroke-dasharray="5 5"/>
+            <text x="465" y="445" text-anchor="middle" class="lbl-sm mono" style="fill:#c9776f;">real dependency — replaced with a mock</text>
+          </g>
+          <line class="rv" x1="465" y1="405" x2="465" y2="382" stroke="#4a3238" stroke-width="1.5" stroke-dasharray="4 4" style="transition-delay:1.55s"/>
+
+          <!-- TDD loop, right side -->
+          <g class="rv" style="transition-delay:1.75s">
+            <text x="1140" y="270" text-anchor="middle" class="lbl-sm" style="fill:#8a8f98;">test-driven development</text>
+          </g>
+          <g class="rv-s" style="transition-delay:1.9s">
+            <circle cx="1080" cy="360" r="46" fill="none" stroke="#c9776f" stroke-width="2"/>
+            <text x="1080" y="356" text-anchor="middle" class="lbl-sm">RED</text>
+            <text x="1080" y="376" text-anchor="middle" class="lbl-sm mono" style="font-size:12px; fill:#697080;">write failing test</text>
+          </g>
+          <path class="rv draw" style="transition-delay:2.05s" d="M1120,335 Q1200,310 1240,355" stroke="#7d828d" stroke-width="1.7" fill="none" marker-end="url(#arrow)" stroke-dasharray="120" stroke-dashoffset="120" data-dash="120"/>
+          <g class="rv-s" style="transition-delay:2.15s">
+            <circle cx="1280" cy="390" r="46" fill="none" stroke="#7fae6f" stroke-width="2"/>
+            <text x="1280" y="386" text-anchor="middle" class="lbl-sm">GREEN</text>
+            <text x="1280" y="406" text-anchor="middle" class="lbl-sm mono" style="font-size:12px; fill:#697080;">simplest code to pass</text>
+          </g>
+          <path class="rv draw" style="transition-delay:2.3s" d="M1265,432 Q1180,470 1100,410" stroke="#7d828d" stroke-width="1.7" fill="none" marker-end="url(#arrow)" stroke-dasharray="140" stroke-dashoffset="140" data-dash="140"/>
+          <g class="rv-s" style="transition-delay:2.4s">
+            <circle cx="1180" cy="465" r="40" fill="none" stroke="#d9a25b" stroke-width="2"/>
+            <text x="1180" y="462" text-anchor="middle" class="lbl-sm" style="font-size:15px;">REFACTOR</text>
+            <text x="1180" y="481" text-anchor="middle" class="lbl-sm mono" style="font-size:11px; fill:#697080;">clean, tests still pass</text>
+          </g>
+
+          <g class="rv" style="transition-delay:2.6s">
+            <rect x="990" y="530" width="420" height="150" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="1010" y="558" class="lbl-sm" style="fill:#8a8f98;">practical use</text>
+            <text x="1010" y="586" class="body-t" style="font-size:16px;">runs in milliseconds → thousands run on</text>
+            <text x="1010" y="608" class="body-t" style="font-size:16px;">every save. pinpoints the exact broken</text>
+            <text x="1010" y="630" class="body-t" style="font-size:16px;">line, not just "something's wrong".</text>
+            <text x="1010" y="658" class="body-t" style="font-size:16px; fill:#5fb3ac;">tools: JUnit · pytest · Jest · xUnit family</text>
+          </g>
+
+          <g class="rv" style="transition-delay:2.8s">
+            <text x="80" y="800" class="recap-tag mono">RECAP</text>
+            <text x="80" y="826" class="recap-t">units prove each piece of logic is correct entirely on its own.</text>
+          </g>
+          <g class="rv" style="transition-delay:3s">
+            <rect x="820" y="775" width="620" height="65" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="840" y="800" class="gap-tag mono">GAP</text>
+            <text x="840" y="825" class="gap-t" style="font-size:16px;">units work alone — what happens when two correct units meet?</text>
+          </g>
+        </svg>
+      </section>
+
+      <!-- ============ SLIDE 5 — INTEGRATION TESTING ============ -->
+      <section class="slide" id="s5">
+        <svg viewBox="0 0 1600 900">
+          <g class="rv" style="transition-delay:0s"><text x="80" y="80" class="fill-tag mono">FILL · LAYER 2 OF 3</text></g>
+          <g class="rv" style="transition-delay:.08s"><text x="80" y="140" class="h1">Integration Testing</text></g>
+          <g class="rv" style="transition-delay:.2s"><text x="80" y="178" class="h2">prove that two or more real modules cooperate correctly — mocks come off</text></g>
+          <line class="rule" x1="80" y1="210" x2="1520" y2="210"/>
+
+          <g class="rv-s" style="transition-delay:.4s">
+            <rect x="150" y="330" width="230" height="110" rx="6" fill="#141620" stroke="#5c8a9c" stroke-width="2"/>
+            <text x="265" y="378" text-anchor="middle" class="lbl mono">OrderService</text>
+            <text x="265" y="404" text-anchor="middle" class="lbl-sm mono" style="fill:#697080;">real class, real code</text>
+          </g>
+
+          <path class="rv draw" style="transition-delay:.6s" d="M380,385 L560,385" stroke="#7d828d" stroke-width="2" fill="none" marker-end="url(#arrow)" stroke-dasharray="180" stroke-dashoffset="180" data-dash="180"/>
+          <g class="rv" style="transition-delay:.85s"><text x="470" y="368" text-anchor="middle" class="lbl-sm mono" style="fill:#8a8f98;">INSERT</text></g>
+
+          <g class="rv-s" style="transition-delay:1s">
+            <path d="M570,330 h180 a10,10 0 0 1 10,10 v90 a10,10 0 0 1 -10,10 h-180 a10,10 0 0 1 -10,-10 v-90 a10,10 0 0 1 10,-10 z" fill="#141620" stroke="#5fb3ac" stroke-width="2"/>
+            <ellipse cx="665" cy="345" rx="95" ry="12" fill="none" stroke="#5fb3ac" stroke-width="1.5"/>
+            <text x="665" y="392" text-anchor="middle" class="lbl mono" style="font-size:17px;">test database</text>
+            <text x="665" y="414" text-anchor="middle" class="lbl-sm mono" style="fill:#697080; font-size:12px;">real engine, disposable data</text>
+          </g>
+
+          <path class="rv draw" style="transition-delay:1.2s" d="M760,385 Q810,385 830,385" stroke="#7d828d" stroke-width="2" fill="none" marker-end="url(#arrow)" stroke-dasharray="70" stroke-dashoffset="70" data-dash="70"/>
+          <g class="rv-s" style="transition-delay:1.35s">
+            <circle cx="880" cy="385" r="26" fill="none" stroke="#5fb3ac" stroke-width="2"/>
+            <path class="draw" d="M868,385 L877,394 L894,374" stroke="#5fb3ac" stroke-width="3" fill="none" style="stroke-dasharray:40; stroke-dashoffset:40;" data-dash="40"/>
+          </g>
+          <g class="rv" style="transition-delay:1.5s">
+            <text x="925" y="378" class="body-t" style="font-size:16px;">row exists, fields match,</text>
+            <text x="925" y="400" class="body-t" style="font-size:16px;">constraints held.</text>
+          </g>
+
+          <!-- second example row: service -> external queue -->
+          <g class="rv-s" style="transition-delay:1.7s">
+            <rect x="150" y="500" width="230" height="90" rx="6" fill="#141620" stroke="#5c8a9c" stroke-width="2"/>
+            <text x="265" y="540" text-anchor="middle" class="lbl mono" style="font-size:17px;">PaymentWorker</text>
+            <text x="265" y="562" text-anchor="middle" class="lbl-sm mono" style="fill:#697080; font-size:12px;">real code</text>
+          </g>
+          <path class="rv draw" style="transition-delay:1.85s" d="M380,545 L555,545" stroke="#7d828d" stroke-width="2" fill="none" marker-end="url(#arrow)" stroke-dasharray="175" stroke-dashoffset="175" data-dash="175"/>
+          <g class="rv-s" style="transition-delay:2s">
+            <rect x="560" y="500" width="230" height="90" rx="6" fill="#141620" stroke="#5fb3ac" stroke-width="2"/>
+            <text x="675" y="540" text-anchor="middle" class="lbl mono" style="font-size:17px;">test message queue</text>
+            <text x="675" y="562" text-anchor="middle" class="lbl-sm mono" style="fill:#697080; font-size:12px;">e.g. an in-memory broker</text>
+          </g>
+
+          <g class="rv" style="transition-delay:2.2s">
+            <rect x="900" y="330" width="520" height="270" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="920" y="360" class="lbl-sm" style="fill:#8a8f98;">what "integration" really tests</text>
+            <text x="920" y="392" class="body-t" style="font-size:17px;">not your logic again — you already proved</text>
+            <text x="920" y="416" class="body-t" style="font-size:17px;">that. it tests the <tspan style="fill:#5fb3ac;">seam</tspan>: serialization,</text>
+            <text x="920" y="440" class="body-t" style="font-size:17px;">SQL syntax, schema drift, timeouts, auth —</text>
+            <text x="920" y="464" class="body-t" style="font-size:17px;">things only visible when parts actually touch.</text>
+            <line x1="920" y1="490" x2="1380" y2="490" stroke="#262933"/>
+            <text x="920" y="518" class="body-t" style="font-size:16px; fill:#697080;">practical: use testcontainers / an in-memory</text>
+            <text x="920" y="540" class="body-t" style="font-size:16px; fill:#697080;">DB so tests stay reproducible and don't</text>
+            <text x="920" y="562" class="body-t" style="font-size:16px; fill:#697080;">depend on a shared, mutable environment.</text>
+          </g>
+
+          <g class="rv" style="transition-delay:2.5s">
+            <text x="80" y="800" class="recap-tag mono">RECAP</text>
+            <text x="80" y="826" class="recap-t">units prove logic; integration proves your modules agree with your infrastructure.</text>
+          </g>
+          <g class="rv" style="transition-delay:2.7s">
+            <rect x="700" y="775" width="740" height="65" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="720" y="800" class="gap-tag mono">GAP</text>
+            <text x="720" y="825" class="gap-t" style="font-size:16px;">but you don't own the other team's API — what if it changes overnight?</text>
+          </g>
+        </svg>
+      </section>
+
+      <!-- ============ SLIDE 6 — CONTRACT TESTING ============ -->
+      <section class="slide" id="s6">
+        <svg viewBox="0 0 1600 900">
+          <g class="rv" style="transition-delay:0s"><text x="80" y="80" class="fill-tag mono">FILL</text></g>
+          <g class="rv" style="transition-delay:.08s"><text x="80" y="140" class="h1">Contract Testing</text></g>
+          <g class="rv" style="transition-delay:.2s"><text x="80" y="178" class="h2">two teams agree on a written shape for their API — then both sides check it, alone</text></g>
+          <line class="rule" x1="80" y1="210" x2="1520" y2="210"/>
+
+          <g class="rv-l" style="transition-delay:.4s">
+            <rect x="130" y="340" width="260" height="110" rx="6" fill="#141620" stroke="#5c8a9c" stroke-width="2"/>
+            <text x="260" y="383" text-anchor="middle" class="lbl mono">consumer</text>
+            <text x="260" y="410" text-anchor="middle" class="lbl-sm mono" style="fill:#697080; font-size:13px;">web checkout</text>
+          </g>
+          <g class="rv-r" style="transition-delay:.4s">
+            <rect x="1210" y="340" width="260" height="110" rx="6" fill="#141620" stroke="#c9776f" stroke-width="2"/>
+            <text x="1340" y="383" text-anchor="middle" class="lbl mono">provider</text>
+            <text x="1340" y="410" text-anchor="middle" class="lbl-sm mono" style="fill:#697080; font-size:13px;">payments service</text>
+          </g>
+
+          <!-- the pact document in the middle -->
+          <g class="rv-s" style="transition-delay:.7s">
+            <rect x="630" y="310" width="340" height="180" rx="4" fill="#141620" stroke="#d9a25b" stroke-width="2"/>
+            <line x1="630" y1="345" x2="970" y2="345" stroke="#3a3e48"/>
+            <text x="800" y="335" text-anchor="middle" class="lbl-sm mono" style="fill:#d9a25b;">the "pact" / contract</text>
+            <text x="655" y="368" class="code" style="font-size:14px;">POST /charge</text>
+            <text x="655" y="390" class="code" style="font-size:14px;">req: { amount, card }</text>
+            <text x="655" y="412" class="code" style="font-size:14px;">res: { status: "ok" }</text>
+            <text x="655" y="434" class="code" style="font-size:14px;">res: 402 → { error }</text>
+            <text x="655" y="466" class="lbl-sm mono" style="fill:#697080; font-size:12px;">defined by the consumer's</text>
+            <text x="655" y="484" class="lbl-sm mono" style="fill:#697080; font-size:12px;">real expectations</text>
+          </g>
+
+          <path class="rv draw" style="transition-delay:1s" d="M390,395 Q510,395 625,395" stroke="#5c8a9c" stroke-width="1.7" fill="none" marker-end="url(#arrow)" stroke-dasharray="240" stroke-dashoffset="240" data-dash="240"/>
+          <g class="rv" style="transition-delay:1.15s"><text x="505" y="378" text-anchor="middle" class="lbl-sm mono" style="fill:#5c8a9c; font-size:13px;">publishes</text></g>
+
+          <path class="rv draw" style="transition-delay:1.3s" d="M975,395 Q1090,395 1205,395" stroke="#c9776f" stroke-width="1.7" fill="none" marker-end="url(#arrowRose)" stroke-dasharray="235" stroke-dashoffset="235" data-dash="235"/>
+          <g class="rv" style="transition-delay:1.45s"><text x="1090" y="378" text-anchor="middle" class="lbl-sm mono" style="fill:#c9776f; font-size:13px;">verifies against</text></g>
+
+          <g class="rv-s" style="transition-delay:1.6s">
+            <circle cx="1340" cy="500" r="24" fill="none" stroke="#7fae6f" stroke-width="2"/>
+            <path class="draw" d="M1329,500 L1337,508 L1353,490" stroke="#7fae6f" stroke-width="3" fill="none" style="stroke-dasharray:36; stroke-dashoffset:36;" data-dash="36"/>
+            <text x="1380" y="507" class="body-t" style="font-size:15px;">provider re-checks this on</text>
+            <text x="1380" y="527" class="body-t" style="font-size:15px;">every deploy — no browser,</text>
+            <text x="1380" y="547" class="body-t" style="font-size:15px;">no consumer team needed.</text>
+          </g>
+
+          <g class="rv" style="transition-delay:1.9s">
+            <rect x="130" y="560" width="820" height="180" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="150" y="592" class="lbl-sm" style="fill:#8a8f98;">why not just run a shared integration test?</text>
+            <text x="150" y="624" class="body-t" style="font-size:17px;">because in microservices, dozens of teams evolve APIs</text>
+            <text x="150" y="648" class="body-t" style="font-size:17px;">independently. spinning up everyone's service just to</text>
+            <text x="150" y="672" class="body-t" style="font-size:17px;">test one call doesn't scale — a contract lets each side</text>
+            <text x="150" y="696" class="body-t" style="font-size:17px;">test in isolation and still catch a breaking change <tspan style="fill:#d9a25b;">before</tspan></text>
+            <text x="150" y="720" class="body-t" style="font-size:17px; fill:#d9a25b;">it ever reaches production. tool: Pact (consumer-driven).</text>
+          </g>
+
+          <g class="rv" style="transition-delay:2.1s">
+            <text x="80" y="800" class="recap-tag mono">RECAP</text>
+            <text x="80" y="826" class="recap-t">a contract confirms two services agree on their API, without a full system running.</text>
+          </g>
+          <g class="rv" style="transition-delay:2.3s">
+            <rect x="700" y="775" width="740" height="65" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="720" y="800" class="gap-tag mono">GAP</text>
+            <text x="720" y="825" class="gap-t" style="font-size:16px;">but what about the whole journey — browser through five services to a database?</text>
+          </g>
+        </svg>
+      </section>
+
+      <!-- ============ SLIDE 7 — E2E TESTING ============ -->
+      <section class="slide" id="s7">
+        <svg viewBox="0 0 1600 900">
+          <g class="rv" style="transition-delay:0s"><text x="80" y="80" class="fill-tag mono">FILL · LAYER 3 OF 3</text></g>
+          <g class="rv" style="transition-delay:.08s"><text x="80" y="140" class="h1">End-to-End Testing</text></g>
+          <g class="rv" style="transition-delay:.2s"><text x="80" y="178" class="h2">drive the system exactly like a user would — real browser, real backend, one full trip</text></g>
+          <line class="rule" x1="80" y1="210" x2="1520" y2="210"/>
+
+          <!-- chain of stages the flow passes through -->
+          <g id="e2echain">
+            <g class="rv-s" style="transition-delay:.4s">
+              <rect x="110" y="290" width="190" height="80" rx="6" fill="#141620" stroke="#3a3e48" stroke-width="1.5"/>
+              <text x="205" y="325" text-anchor="middle" class="lbl-sm mono">Browser UI</text>
+              <text x="205" y="348" text-anchor="middle" class="lbl-sm mono" style="fill:#697080; font-size:11px;">click "checkout"</text>
+            </g>
+            <g class="rv-s" style="transition-delay:.55s">
+              <rect x="360" y="290" width="190" height="80" rx="6" fill="#141620" stroke="#3a3e48" stroke-width="1.5"/>
+              <text x="455" y="325" text-anchor="middle" class="lbl-sm mono">API gateway</text>
+            </g>
+            <g class="rv-s" style="transition-delay:.7s">
+              <rect x="610" y="290" width="190" height="80" rx="6" fill="#141620" stroke="#3a3e48" stroke-width="1.5"/>
+              <text x="705" y="325" text-anchor="middle" class="lbl-sm mono">Order service</text>
+            </g>
+            <g class="rv-s" style="transition-delay:.85s">
+              <rect x="860" y="290" width="190" height="80" rx="6" fill="#141620" stroke="#3a3e48" stroke-width="1.5"/>
+              <text x="955" y="325" text-anchor="middle" class="lbl-sm mono">Payments</text>
+            </g>
+            <g class="rv-s" style="transition-delay:1s">
+              <rect x="1110" y="290" width="190" height="80" rx="6" fill="#141620" stroke="#3a3e48" stroke-width="1.5"/>
+              <text x="1205" y="325" text-anchor="middle" class="lbl-sm mono">Database</text>
+            </g>
+            <path class="rv draw" style="transition-delay:1.2s" d="M305,330 H355" stroke="#7d828d" stroke-width="2" marker-end="url(#arrow)" fill="none" stroke-dasharray="55" stroke-dashoffset="55" data-dash="55"/>
+            <path class="rv draw" style="transition-delay:1.3s" d="M555,330 H605" stroke="#7d828d" stroke-width="2" marker-end="url(#arrow)" fill="none" stroke-dasharray="55" stroke-dashoffset="55" data-dash="55"/>
+            <path class="rv draw" style="transition-delay:1.4s" d="M805,330 H855" stroke="#7d828d" stroke-width="2" marker-end="url(#arrow)" fill="none" stroke-dasharray="55" stroke-dashoffset="55" data-dash="55"/>
+            <path class="rv draw" style="transition-delay:1.5s" d="M1055,330 H1105" stroke="#7d828d" stroke-width="2" marker-end="url(#arrow)" fill="none" stroke-dasharray="55" stroke-dashoffset="55" data-dash="55"/>
+          </g>
+          <!-- traveling cursor dot -->
+          <g class="rv-s" id="e2ecursor" style="transition-delay:1.65s">
+            <circle cx="205" cy="400" r="7" fill="#5fb3ac"/>
+            <text x="205" y="432" text-anchor="middle" class="lbl-sm mono" style="fill:#5fb3ac; font-size:12px;">one real user action</text>
+          </g>
+          <path class="rv draw" style="transition-delay:1.8s" d="M205,400 C300,470 900,470 1205,400" stroke="#5fb3ac" stroke-width="1.5" fill="none" stroke-dasharray="6 6" opacity=".6"/>
+
+          <g class="rv-s" style="transition-delay:2.1s">
+            <circle cx="1205" cy="405" r="22" fill="none" stroke="#7fae6f" stroke-width="2"/>
+            <path class="draw" d="M1195,405 L1202,412 L1216,396" stroke="#7fae6f" stroke-width="3" fill="none" style="stroke-dasharray:34; stroke-dashoffset:34;" data-dash="34"/>
+          </g>
+          <g class="rv" style="transition-delay:2.25s">
+            <text x="1240" y="410" class="body-t" style="font-size:15px;">order row exists —</text>
+            <text x="1240" y="430" class="body-t" style="font-size:15px;">the whole trip worked</text>
+          </g>
+
+          <g class="rv" style="transition-delay:2.45s">
+            <rect x="110" y="480" width="700" height="250" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="130" y="512" class="lbl-sm" style="fill:#8a8f98;">the trade-off — why it sits at the TOP of the pyramid</text>
+            <text x="130" y="544" class="body-t" style="font-size:17px;">slow (seconds, not ms) · brittle to unrelated UI changes ·</text>
+            <text x="130" y="568" class="body-t" style="font-size:17px;">expensive infra · a failure tells you <tspan style="fill:#c9776f;">something</tspan> broke, not</text>
+            <text x="130" y="592" class="body-t" style="font-size:17px;"><tspan style="fill:#c9776f;">what</tspan> — you still dig through 5 services to find it.</text>
+            <text x="130" y="624" class="body-t" style="font-size:17px;">so: write a handful, covering only the journeys that</text>
+            <text x="130" y="648" class="body-t" style="font-size:17px;">matter most to the business — not every path.</text>
+            <line x1="130" y1="668" x2="770" y2="668" stroke="#262933"/>
+            <text x="130" y="696" class="body-t" style="font-size:16px; fill:#697080;">tools: Playwright · Cypress · Selenium</text>
+            <text x="130" y="718" class="body-t" style="font-size:16px; fill:#697080;">related style: BDD — <tspan class="mono" style="fill:#8b83c9;">Given / When / Then</tspan> as shared language</text>
+          </g>
+
+          <g class="rv" style="transition-delay:2.7s">
+            <text x="850" y="512" class="lbl-sm" style="fill:#8a8f98;">the pyramid, complete</text>
+            <path class="rv-s" style="transition-delay:2.85s" d="M 900 700 L 1300 700 L 1240 630 L 960 630 Z" fill="#3f6b66" opacity=".9"/>
+            <path class="rv-s" style="transition-delay:2.95s" d="M 960 630 L 1240 630 L 1195 578 L 1005 578 Z" fill="#5c8a9c" opacity=".9"/>
+            <path class="rv-s" style="transition-delay:3.05s" d="M 1005 578 L 1195 578 L 1150 535 L 1050 535 Z" fill="#b98a5a" opacity=".9"/>
+            <text x="1100" y="670" text-anchor="middle" class="lbl-sm mono" style="font-size:13px;">unit</text>
+            <text x="1100" y="608" text-anchor="middle" class="lbl-sm mono" style="font-size:12px;">integration</text>
+            <text x="1100" y="560" text-anchor="middle" class="lbl-sm mono" style="font-size:11px;">e2e</text>
+          </g>
+
+          <g class="rv" style="transition-delay:3.2s">
+            <text x="80" y="800" class="recap-tag mono">RECAP</text>
+            <text x="80" y="826" class="recap-t">unit → integration → contract → e2e now prove the CODE is correct, end to end.</text>
+          </g>
+          <g class="rv" style="transition-delay:3.4s">
+            <rect x="1000" y="775" width="440" height="65" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="1020" y="800" class="gap-tag mono">GAP</text>
+            <text x="1020" y="825" class="gap-t" style="font-size:15px;">did the DEPLOY itself work?</text>
+          </g>
+        </svg>
+      </section>
+
+      <!-- ============ SLIDE 8 — SMOKE TESTING ============ -->
+      <section class="slide" id="s8">
+        <svg viewBox="0 0 1600 900">
+          <g class="rv" style="transition-delay:0s"><text x="80" y="80" class="fill-tag mono">FILL</text></g>
+          <g class="rv" style="transition-delay:.08s"><text x="80" y="140" class="h1">Smoke Testing</text></g>
+          <g class="rv" style="transition-delay:.2s"><text x="80" y="178" class="h2">right after a deploy: power it on and check nothing is on fire</text></g>
+          <line class="rule" x1="80" y1="210" x2="1520" y2="210"/>
+
+          <g class="rv" style="transition-delay:.35s">
+            <text x="80" y="255" class="lbl-sm mono" style="fill:#697080;">named after hardware testing: flip the switch — if smoke comes out, stop.</text>
+          </g>
+
+          <!-- server just deployed -->
+          <g class="rv-s" style="transition-delay:.5s">
+            <rect x="130" y="300" width="220" height="150" rx="8" fill="#141620" stroke="#5fb3ac" stroke-width="2"/>
+            <circle class="pulse" cx="330" cy="320" r="6" fill="#7fae6f"/>
+            <text x="240" y="360" text-anchor="middle" class="lbl mono">v2.4.1</text>
+            <text x="240" y="386" text-anchor="middle" class="lbl-sm mono" style="fill:#697080; font-size:12px;">just deployed</text>
+          </g>
+
+          <!-- tiny fast suite checks -->
+          <g id="smokechecks">
+            <g class="rv-s" style="transition-delay:.75s">
+              <rect x="420" y="300" width="230" height="46" rx="5" fill="#141620" stroke="#3a3e48"/>
+              <text x="440" y="329" class="body-t" style="font-size:15px;">homepage responds 200</text>
+              <circle cx="632" cy="323" r="12" fill="none" stroke="#7fae6f" stroke-width="2"/>
+            </g>
+            <g class="rv-s" style="transition-delay:.9s">
+              <rect x="420" y="358" width="230" height="46" rx="5" fill="#141620" stroke="#3a3e48"/>
+              <text x="440" y="387" class="body-t" style="font-size:15px;">login succeeds</text>
+              <circle cx="632" cy="381" r="12" fill="none" stroke="#7fae6f" stroke-width="2"/>
+            </g>
+            <g class="rv-s" style="transition-delay:1.05s">
+              <rect x="420" y="416" width="230" height="46" rx="5" fill="#141620" stroke="#3a3e48"/>
+              <text x="440" y="445" class="body-t" style="font-size:15px;">DB connects</text>
+              <circle cx="632" cy="439" r="12" fill="none" stroke="#7fae6f" stroke-width="2"/>
+            </g>
+            <g class="rv" style="transition-delay:1.2s">
+              <text x="420" y="490" class="lbl-sm mono" style="fill:#5fb3ac; font-size:13px;">~5 checks · under 60 seconds · runs on every deploy</text>
+            </g>
+          </g>
+
+          <!-- vs full suite greyed out, not run -->
+          <g class="rv" style="transition-delay:1.4s">
+            <rect x="760" y="300" width="270" height="230" rx="6" fill="none" stroke="#262933" stroke-width="1.5" stroke-dasharray="4 4"/>
+            <text x="780" y="330" class="lbl-sm mono" style="fill:#4d515c;">full regression suite</text>
+            <text x="780" y="358" class="lbl-sm mono" style="fill:#3a3e48; font-size:13px;">4,200 tests</text>
+            <text x="780" y="380" class="lbl-sm mono" style="fill:#3a3e48; font-size:13px;">~35 minutes</text>
+            <text x="780" y="410" class="body-t" style="font-size:14px; fill:#4d515c;">too slow to gate "is</text>
+            <text x="780" y="430" class="body-t" style="font-size:14px; fill:#4d515c;">it even alive" — runs</text>
+            <text x="780" y="450" class="body-t" style="font-size:14px; fill:#4d515c;">separately, not blocking.</text>
+          </g>
+
+          <g class="rv" style="transition-delay:1.65s">
+            <rect x="1080" y="280" width="380" height="260" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="1100" y="312" class="lbl-sm" style="fill:#8a8f98;">practical use</text>
+            <text x="1100" y="344" class="body-t" style="font-size:16px;">gate that auto-rolls-back a bad deploy</text>
+            <text x="1100" y="366" class="body-t" style="font-size:16px;">in seconds, before real users hit it.</text>
+            <text x="1100" y="398" class="body-t" style="font-size:16px;">answers one question only:</text>
+            <text x="1100" y="424" class="body-t" style="font-size:17px; fill:#5fb3ac;">"is the system minimally alive?"</text>
+            <text x="1100" y="460" class="body-t" style="font-size:16px; fill:#697080;">not "is every feature correct" —</text>
+            <text x="1100" y="482" class="body-t" style="font-size:16px; fill:#697080;">that's a different question entirely.</text>
+          </g>
+
+          <g class="rv" style="transition-delay:1.9s">
+            <text x="80" y="620" class="recap-tag mono">RECAP</text>
+            <text x="80" y="646" class="recap-t">smoke tests catch a broken deploy in the first minute, cheaply.</text>
+          </g>
+          <g class="rv" style="transition-delay:2.1s">
+            <rect x="80" y="670" width="900" height="70" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="100" y="698" class="gap-tag mono">GAP</text>
+            <text x="100" y="724" class="gap-t" style="font-size:17px;">but what about a feature that worked perfectly last year — does today's change quietly break it?</text>
+          </g>
+        </svg>
+      </section>
+
+      <!-- ============ SLIDE 9 — REGRESSION TESTING ============ -->
+      <section class="slide" id="s9">
+        <svg viewBox="0 0 1600 900">
+          <g class="rv" style="transition-delay:0s"><text x="80" y="80" class="fill-tag mono">FILL</text></g>
+          <g class="rv" style="transition-delay:.08s"><text x="80" y="140" class="h1">Regression Testing</text></g>
+          <g class="rv" style="transition-delay:.2s"><text x="80" y="178" class="h2">re-run what already passed — "regression" is a feature that used to work, and stopped</text></g>
+          <line class="rule" x1="80" y1="210" x2="1520" y2="210"/>
+
+          <!-- timeline of commits, with feature checks re-verified -->
+          <line class="rv" style="transition-delay:.3s" x1="150" y1="330" x2="1450" y2="330" stroke="#3a3e48" stroke-width="1.5"/>
+
+          <g class="rv-s" style="transition-delay:.45s">
+            <circle cx="250" cy="330" r="7" fill="#5fb3ac"/>
+            <text x="250" y="362" text-anchor="middle" class="lbl-sm mono" style="font-size:12px;">commit A</text>
+            <text x="250" y="382" text-anchor="middle" class="lbl-sm mono" style="font-size:11px; fill:#697080;">"add login"</text>
+          </g>
+          <g class="rv-s" style="transition-delay:.6s">
+            <circle cx="550" cy="330" r="7" fill="#5fb3ac"/>
+            <text x="550" y="362" text-anchor="middle" class="lbl-sm mono" style="font-size:12px;">commit B</text>
+            <text x="550" y="382" text-anchor="middle" class="lbl-sm mono" style="font-size:11px; fill:#697080;">"add discount codes"</text>
+          </g>
+          <g class="rv-s" style="transition-delay:.75s">
+            <circle cx="900" cy="330" r="7" fill="#d9a25b"/>
+            <text x="900" y="362" text-anchor="middle" class="lbl-sm mono" style="font-size:12px;">commit C</text>
+            <text x="900" y="382" text-anchor="middle" class="lbl-sm mono" style="font-size:11px; fill:#697080;">"refactor pricing"</text>
+          </g>
+          <g class="rv-s" style="transition-delay:.9s">
+            <circle cx="1250" cy="330" r="7" fill="#5c8a9c"/>
+            <text x="1250" y="362" text-anchor="middle" class="lbl-sm mono" style="font-size:12px;">commit D</text>
+            <text x="1250" y="382" text-anchor="middle" class="lbl-sm mono" style="font-size:11px; fill:#697080;">"add gift cards"</text>
+          </g>
+
+          <!-- feature suite re-run at commit C, one regresses -->
+          <g class="rv" style="transition-delay:1.1s">
+            <text x="150" y="440" class="lbl-sm" style="fill:#8a8f98;">re-running the FULL suite at commit C:</text>
+          </g>
+          <g class="rv-s" style="transition-delay:1.25s">
+            <rect x="150" y="460" width="230" height="46" rx="5" fill="#141620" stroke="#3a3e48"/>
+            <text x="168" y="489" class="body-t" style="font-size:15px;">login (from A)</text>
+            <circle cx="358" cy="483" r="11" fill="none" stroke="#7fae6f" stroke-width="2"/>
+          </g>
+          <g class="rv-s" style="transition-delay:1.4s">
+            <rect x="410" y="460" width="260" height="46" rx="5" fill="#141620" stroke="#c9776f" stroke-width="1.5"/>
+            <text x="428" y="489" class="body-t" style="font-size:15px; fill:#e3b0aa;">discount codes (from B)</text>
+            <g class="rv-s" style="transition-delay:1.55s">
+              <circle cx="648" cy="483" r="11" fill="none" stroke="#c9776f" stroke-width="2"/>
+              <line x1="641" y1="476" x2="655" y2="490" stroke="#c9776f" stroke-width="2"/>
+              <line x1="655" y1="476" x2="641" y2="490" stroke="#c9776f" stroke-width="2"/>
+            </g>
+          </g>
+          <g class="rv" style="transition-delay:1.7s">
+            <text x="700" y="489" class="body-t" style="font-size:15px; fill:#c9776f;">← the pricing refactor broke this, silently</text>
+          </g>
+
+          <g class="rv" style="transition-delay:1.9s">
+            <rect x="150" y="540" width="850" height="190" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="170" y="572" class="lbl-sm" style="fill:#8a8f98;">why this needs automation, not memory</text>
+            <text x="170" y="604" class="body-t" style="font-size:17px;">no human remembers every feature ever shipped. a</text>
+            <text x="170" y="628" class="body-t" style="font-size:17px;">regression suite is the accumulated memory of the</text>
+            <text x="170" y="652" class="body-t" style="font-size:17px;">whole team, replayed on <tspan style="fill:#5fb3ac;">every single change</tspan> —</text>
+            <text x="170" y="676" class="body-t" style="font-size:17px;">which is exactly what makes the pyramid's lower layers</text>
+            <text x="170" y="700" class="body-t" style="font-size:17px;">pay off: cheap tests, run constantly, catch this for free.</text>
+          </g>
+
+          <g class="rv" style="transition-delay:2.1s">
+            <rect x="1050" y="460" width="410" height="270" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="1070" y="492" class="lbl-sm" style="fill:#8a8f98;">so far, every pattern answers:</text>
+            <text x="1070" y="524" class="body-t" style="font-size:16px;">"is this <tspan style="fill:#5fb3ac;">correct</tspan>, right now, for the inputs</text>
+            <text x="1070" y="546" class="body-t" style="font-size:16px;">and features we already know about?"</text>
+            <line x1="1070" y1="572" x2="1430" y2="572" stroke="#262933"/>
+            <text x="1070" y="602" class="body-t" style="font-size:16px; fill:#697080;">none of them have asked:</text>
+            <text x="1070" y="632" class="body-t" style="font-size:17px; fill:#d9a25b;">what happens at 10,000 requests</text>
+            <text x="1070" y="656" class="body-t" style="font-size:17px; fill:#d9a25b;">per second, sustained for a week?</text>
+          </g>
+
+          <g class="rv" style="transition-delay:2.35s">
+            <text x="80" y="800" class="recap-tag mono">RECAP</text>
+            <text x="80" y="826" class="recap-t">correctness now, and correctness that survives every future change.</text>
+          </g>
+          <g class="rv" style="transition-delay:2.55s">
+            <rect x="880" y="775" width="560" height="65" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="900" y="800" class="gap-tag mono">GAP</text>
+            <text x="900" y="825" class="gap-t" style="font-size:16px;">but what happens to "correct" code under real-world load?</text>
+          </g>
+        </svg>
+      </section>
+
+      <!-- ============ SLIDE 10 — LOAD TESTING ============ -->
+      <section class="slide" id="s10">
+        <svg viewBox="0 0 1600 900">
+          <g class="rv" style="transition-delay:0s"><text x="80" y="80" class="fill-tag mono">FILL · PERFORMANCE, PART 1 OF 3</text></g>
+          <g class="rv" style="transition-delay:.08s"><text x="80" y="140" class="h1">Load Testing</text></g>
+          <g class="rv" style="transition-delay:.2s"><text x="80" y="178" class="h2">simulate the traffic you actually expect, and measure how it feels</text></g>
+          <line class="rule" x1="80" y1="210" x2="1520" y2="210"/>
+
+          <!-- many users hitting one server -->
+          <g id="loadusers">
+            <g class="rv-s" style="transition-delay:.35s"><circle cx="180" cy="290" r="9" fill="#5c8a9c"/></g>
+            <g class="rv-s" style="transition-delay:.4s"><circle cx="180" cy="330" r="9" fill="#5c8a9c"/></g>
+            <g class="rv-s" style="transition-delay:.45s"><circle cx="180" cy="370" r="9" fill="#5c8a9c"/></g>
+            <g class="rv-s" style="transition-delay:.5s"><circle cx="180" cy="410" r="9" fill="#5c8a9c"/></g>
+            <g class="rv-s" style="transition-delay:.55s"><circle cx="180" cy="450" r="9" fill="#5c8a9c"/></g>
+          </g>
+          <g class="rv" style="transition-delay:.6s"><text x="180" y="485" text-anchor="middle" class="lbl-sm mono" style="fill:#697080; font-size:12px;">expected peak: 500 users</text></g>
+
+          <path class="rv draw" style="transition-delay:.75s" d="M205,290 C320,320 320,340 370,370 M205,330 C300,350 320,360 370,370 M205,370 L370,370 M205,410 C300,390 320,380 370,370 M205,450 C320,420 320,400 370,370" stroke="#3a3e48" stroke-width="1.3" fill="none"/>
+
+          <g class="rv-s" style="transition-delay:1s">
+            <rect x="380" y="330" width="150" height="80" rx="6" fill="#141620" stroke="#5fb3ac" stroke-width="2"/>
+            <text x="455" y="376" text-anchor="middle" class="lbl-sm mono">server</text>
+          </g>
+
+          <!-- response time graph -->
+          <g class="rv" style="transition-delay:1.2s">
+            <line x1="620" y1="480" x2="620" y2="260" stroke="#3a3e48" stroke-width="1.5"/>
+            <line x1="620" y1="480" x2="1080" y2="480" stroke="#3a3e48" stroke-width="1.5"/>
+            <text x="580" y="270" text-anchor="end" class="lbl-sm mono" style="font-size:12px;">latency</text>
+            <text x="1080" y="510" text-anchor="end" class="lbl-sm mono" style="font-size:12px;">concurrent users →</text>
+          </g>
+          <path class="rv draw" style="transition-delay:1.4s" d="M620,460 C750,455 880,440 970,395 C1010,375 1040,340 1060,290" stroke="#5fb3ac" stroke-width="2.5" fill="none" stroke-dasharray="620" stroke-dashoffset="620" data-dash="620"/>
+          <g class="rv" style="transition-delay:1.9s">
+            <line x1="880" y1="480" x2="880" y2="437" stroke="#4d515c" stroke-dasharray="3 3"/>
+            <text x="880" y="500" text-anchor="middle" class="lbl-sm mono" style="font-size:11px; fill:#8a8f98;">p50</text>
+            <line x1="1000" y1="480" x2="1000" y2="368" stroke="#4d515c" stroke-dasharray="3 3"/>
+            <text x="1000" y="500" text-anchor="middle" class="lbl-sm mono" style="font-size:11px; fill:#8a8f98;">p95</text>
+            <line x1="1055" y1="480" x2="1055" y2="300" stroke="#4d515c" stroke-dasharray="3 3"/>
+            <text x="1055" y="500" text-anchor="middle" class="lbl-sm mono" style="font-size:11px; fill:#8a8f98;">p99</text>
+          </g>
+
+          <g class="rv" style="transition-delay:2.1s">
+            <rect x="1130" y="260" width="330" height="250" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="1150" y="292" class="lbl-sm" style="fill:#8a8f98;">why percentiles, not averages</text>
+            <text x="1150" y="322" class="body-t" style="font-size:15px;">an average hides your worst</text>
+            <text x="1150" y="344" class="body-t" style="font-size:15px;">experiences. p99 = the request</text>
+            <text x="1150" y="366" class="body-t" style="font-size:15px;">that's slower than 99% of all</text>
+            <text x="1150" y="388" class="body-t" style="font-size:15px;">others — often the one a real</text>
+            <text x="1150" y="410" class="body-t" style="font-size:15px;">user actually complains about.</text>
+            <line x1="1150" y1="428" x2="1430" y2="428" stroke="#262933"/>
+            <text x="1150" y="456" class="code" style="font-size:14px;">throughput = requests / sec</text>
+            <text x="1150" y="480" class="code" style="font-size:14px;">measured at target concurrency</text>
+          </g>
+
+          <g class="rv" style="transition-delay:2.35s">
+            <rect x="130" y="560" width="900" height="170" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="150" y="592" class="lbl-sm" style="fill:#8a8f98;">practical use</text>
+            <text x="150" y="624" class="body-t" style="font-size:17px;">answers: "at Black-Friday-level traffic, is checkout still</text>
+            <text x="150" y="648" class="body-t" style="font-size:17px;">under 300ms?" — run before launches, after big schema or</text>
+            <text x="150" y="672" class="body-t" style="font-size:17px;">infra changes, and on a schedule for critical paths.</text>
+            <text x="150" y="704" class="body-t" style="font-size:16px; fill:#697080;">tools: k6 · JMeter · Gatling · Locust</text>
+          </g>
+
+          <g class="rv" style="transition-delay:2.6s">
+            <text x="80" y="800" class="recap-tag mono">RECAP</text>
+            <text x="80" y="826" class="recap-t">load testing shows how the system behaves at the traffic you planned for.</text>
+          </g>
+          <g class="rv" style="transition-delay:2.8s">
+            <rect x="900" y="775" width="540" height="65" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="920" y="800" class="gap-tag mono">GAP</text>
+            <text x="920" y="825" class="gap-t" style="font-size:16px;">but where's the actual breaking point?</text>
+          </g>
+        </svg>
+      </section>
+
+      <!-- ============ SLIDE 11 — STRESS TESTING ============ -->
+      <section class="slide" id="s11">
+        <svg viewBox="0 0 1600 900">
+          <g class="rv" style="transition-delay:0s"><text x="80" y="80" class="fill-tag mono">FILL · PERFORMANCE, PART 2 OF 3</text></g>
+          <g class="rv" style="transition-delay:.08s"><text x="80" y="140" class="h1">Stress Testing</text></g>
+          <g class="rv" style="transition-delay:.2s"><text x="80" y="178" class="h2">keep raising load past "expected" until something gives — then study exactly how</text></g>
+          <line class="rule" x1="80" y1="210" x2="1520" y2="210"/>
+
+          <!-- ramp: load line rising, server icon changing state -->
+          <g class="rv" style="transition-delay:.3s">
+            <line x1="150" y1="640" x2="150" y2="300" stroke="#3a3e48" stroke-width="1.5"/>
+            <line x1="150" y1="640" x2="1000" y2="640" stroke="#3a3e48" stroke-width="1.5"/>
+            <text x="110" y="300" text-anchor="end" class="lbl-sm mono" style="font-size:12px;">load</text>
+            <text x="1000" y="670" text-anchor="end" class="lbl-sm mono" style="font-size:12px;">time →</text>
+          </g>
+          <path class="rv draw" style="transition-delay:.5s" d="M150,620 L1000,320" stroke="#8a8f98" stroke-width="2" fill="none" stroke-dasharray="960" stroke-dashoffset="960" data-dash="960"/>
+
+          <line class="rv" style="transition-delay:1.3s" x1="150" y1="470" x2="1000" y2="470" stroke="#d9a25b" stroke-width="1.3" stroke-dasharray="4 4"/>
+          <g class="rv" style="transition-delay:1.4s"><text x="1000" y="463" text-anchor="end" class="lbl-sm mono" style="fill:#d9a25b; font-size:12px;">expected peak (load-test line)</text></g>
+
+          <line class="rv" style="transition-delay:1.6s" x1="150" y1="365" x2="1000" y2="365" stroke="#c9776f" stroke-width="1.3" stroke-dasharray="4 4"/>
+          <g class="rv" style="transition-delay:1.7s"><text x="1000" y="358" text-anchor="end" class="lbl-sm mono" style="fill:#c9776f; font-size:12px;">breaking point</text></g>
+
+          <g class="rv-s" style="transition-delay:1.9s">
+            <circle cx="705" cy="365" r="9" fill="#c9776f"/>
+          </g>
+
+          <!-- server state chips along the ramp -->
+          <g class="rv" style="transition-delay:2.05s">
+            <rect x="1050" y="300" width="420" height="330" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="1070" y="332" class="lbl-sm" style="fill:#8a8f98;">watching HOW it fails matters most</text>
+
+            <circle cx="1085" cy="365" r="7" fill="#7fae6f"/>
+            <text x="1105" y="371" class="body-t" style="font-size:15px;">normal: fast, low error rate</text>
+
+            <circle cx="1085" cy="405" r="7" fill="#d9a25b"/>
+            <text x="1105" y="411" class="body-t" style="font-size:15px;">saturated: slower, queueing</text>
+
+            <circle cx="1085" cy="445" r="7" fill="#c9776f"/>
+            <text x="1105" y="451" class="body-t" style="font-size:15px;">overloaded: timeouts, 5xx errors</text>
+
+            <line x1="1070" y1="475" x2="1450" y2="475" stroke="#262933"/>
+            <text x="1070" y="504" class="body-t" style="font-size:16px; fill:#697080;">ideal: <tspan style="fill:#5fb3ac;">graceful</tspan> — sheds load, queues,</text>
+            <text x="1070" y="528" class="body-t" style="font-size:16px; fill:#697080;">degrades a feature, stays up.</text>
+            <text x="1070" y="556" class="body-t" style="font-size:16px; fill:#697080;">bad: <tspan style="fill:#c9776f;">cliff</tspan> — cascading failure, full</text>
+            <text x="1070" y="580" class="body-t" style="font-size:16px; fill:#697080;">outage, needs a manual restart.</text>
+            <line x1="1070" y1="600" x2="1450" y2="600" stroke="#262933"/>
+            <text x="1070" y="608" class="lbl-sm mono" style="fill:#697080; font-size:0px;"> </text>
+          </g>
+
+          <g class="rv" style="transition-delay:2.3s">
+            <rect x="130" y="700" width="0" height="0"/>
+          </g>
+          <g class="rv" style="transition-delay:2.3s">
+            <text x="150" y="700" class="body-t" style="font-size:17px;">practical use: find the number <tspan style="fill:#d9a25b;">before</tspan> a real traffic spike finds it for</text>
+            <text x="150" y="726" class="body-t" style="font-size:17px;">you — then fix the failure mode, not just the number. tools: k6, Gatling, Locust — same</text>
+            <text x="150" y="752" class="body-t" style="font-size:17px;">tools as load testing, just dialed past the red line.</text>
+          </g>
+
+          <g class="rv" style="transition-delay:2.55s">
+            <text x="80" y="800" class="recap-tag mono">RECAP</text>
+            <text x="80" y="826" class="recap-t">stress testing finds the breaking point and the shape of the failure, fast.</text>
+          </g>
+          <g class="rv" style="transition-delay:2.75s">
+            <rect x="900" y="775" width="540" height="65" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="920" y="800" class="gap-tag mono">GAP</text>
+            <text x="920" y="822" class="gap-t" style="font-size:15px;">some failures take hours or days to appear — how do we catch those?</text>
+          </g>
+        </svg>
+      </section>
+
+      <!-- ============ SLIDE 12 — SOAK TESTING ============ -->
+      <section class="slide" id="s12">
+        <svg viewBox="0 0 1600 900">
+          <g class="rv" style="transition-delay:0s"><text x="80" y="80" class="fill-tag mono">FILL · PERFORMANCE, PART 3 OF 3</text></g>
+          <g class="rv" style="transition-delay:.08s"><text x="80" y="140" class="h1">Soak Testing</text></g>
+          <g class="rv" style="transition-delay:.2s"><text x="80" y="178" class="h2">apply ordinary load — and just... leave it running, for hours or days</text></g>
+          <line class="rule" x1="80" y1="210" x2="1520" y2="210"/>
+
+          <!-- flat load line over long duration -->
+          <g class="rv" style="transition-delay:.3s">
+            <line x1="150" y1="440" x2="150" y2="290" stroke="#3a3e48" stroke-width="1.5"/>
+            <line x1="150" y1="440" x2="1420" y2="440" stroke="#3a3e48" stroke-width="1.5"/>
+            <text x="120" y="300" text-anchor="end" class="lbl-sm mono" style="font-size:12px;">load</text>
+            <text x="1420" y="465" text-anchor="end" class="lbl-sm mono" style="font-size:12px;">72 hours →</text>
+          </g>
+          <path class="rv draw" style="transition-delay:.5s" d="M150,370 L1420,370" stroke="#5fb3ac" stroke-width="2" fill="none" stroke-dasharray="1270" stroke-dashoffset="1270" data-dash="1270"/>
+          <g class="rv" style="transition-delay:1.3s"><text x="1420" y="358" text-anchor="end" class="lbl-sm mono" style="fill:#5fb3ac; font-size:12px;">steady, ordinary load — nothing dramatic</text></g>
+
+          <!-- memory line slowly creeping -->
+          <g class="rv" style="transition-delay:1.5s">
+            <text x="150" y="560" class="lbl-sm mono" style="fill:#697080; font-size:12px;">memory in use</text>
+          </g>
+          <path class="rv draw" style="transition-delay:1.7s" d="M150,660 C500,655 850,610 1150,540 C1280,510 1370,480 1420,455" stroke="#c9776f" stroke-width="2.2" fill="none" stroke-dasharray="1330" stroke-dashoffset="1330" data-dash="1330"/>
+          <line class="rv" style="transition-delay:2.6s" x1="150" y1="655" x2="1420" y2="655" stroke="#3a3e48" stroke-dasharray="3 3"/>
+          <g class="rv" style="transition-delay:2.75s">
+            <text x="1200" y="500" class="lbl-sm mono" style="fill:#c9776f; font-size:13px;">leak — never freed</text>
+            <circle cx="1420" cy="455" r="7" fill="#c9776f"/>
+          </g>
+          <g class="rv" style="transition-delay:2.9s">
+            <text x="160" y="690" class="lbl-sm mono" style="fill:#4d515c; font-size:12px;">hour 1: healthy</text>
+            <text x="1260" y="690" class="lbl-sm mono" style="fill:#c9776f; font-size:12px;">hour 72: OOM crash</text>
+          </g>
+
+          <g class="rv" style="transition-delay:3.1s">
+            <rect x="1080" y="270" width="400" height="230" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="1100" y="302" class="lbl-sm" style="fill:#8a8f98;">what only TIME reveals</text>
+            <text x="1100" y="332" class="body-t" style="font-size:16px;">memory leaks · unbounded caches</text>
+            <text x="1100" y="356" class="body-t" style="font-size:16px;">file-handle / connection leaks</text>
+            <text x="1100" y="380" class="body-t" style="font-size:16px;">log-disk exhaustion</text>
+            <text x="1100" y="404" class="body-t" style="font-size:16px;">clock-drift &amp; token-expiry bugs</text>
+            <line x1="1100" y1="424" x2="1450" y2="424" stroke="#262933"/>
+            <text x="1100" y="450" class="body-t" style="font-size:15px; fill:#697080;">none of these show up in a</text>
+            <text x="1100" y="472" class="body-t" style="font-size:15px; fill:#697080;">5-minute stress spike.</text>
+          </g>
+
+          <g class="rv" style="transition-delay:3.3s">
+            <rect x="150" y="560" width="820" height="0"/>
+          </g>
+
+          <g class="rv" style="transition-delay:3.3s">
+            <text x="80" y="780" class="recap-tag mono">RECAP</text>
+            <text x="80" y="806" class="recap-t">load, stress, soak — normal traffic, breaking traffic, and time — all engineered by us.</text>
+          </g>
+          <g class="rv" style="transition-delay:3.5s">
+            <rect x="1130" y="758" width="310" height="82" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="1150" y="782" class="gap-tag mono">GAP</text>
+            <text x="1150" y="806" class="gap-t" style="font-size:14px;">what about the inputs</text>
+            <text x="1150" y="826" class="gap-t" style="font-size:14px;">no one thought to try?</text>
+          </g>
+        </svg>
+      </section>
+
+      <!-- ============ SLIDE 13 — FUZZ TESTING ============ -->
+      <section class="slide" id="s13">
+        <svg viewBox="0 0 1600 900">
+          <g class="rv" style="transition-delay:0s"><text x="80" y="80" class="fill-tag mono">FILL</text></g>
+          <g class="rv" style="transition-delay:.08s"><text x="80" y="140" class="h1">Fuzz Testing</text></g>
+          <g class="rv" style="transition-delay:.2s"><text x="80" y="178" class="h2">fire huge volumes of malformed, random input at your code and watch for crashes</text></g>
+          <line class="rule" x1="80" y1="210" x2="1520" y2="210"/>
+
+          <g class="rv-s" style="transition-delay:.4s">
+            <rect x="120" y="330" width="220" height="90" rx="6" fill="#141620" stroke="#5c8a9c" stroke-width="2"/>
+            <text x="230" y="368" text-anchor="middle" class="lbl mono">fuzzer</text>
+            <text x="230" y="392" text-anchor="middle" class="lbl-sm mono" style="fill:#697080; font-size:11px;">random / mutated bytes</text>
+          </g>
+
+          <!-- scattered random inputs shooting toward parser -->
+          <g id="fuzzshots">
+            <g class="rv" style="transition-delay:.55s"><line x1="345" y1="345" x2="560" y2="330" stroke="#5c8a9c" stroke-width="1.3" marker-end="url(#arrow)"/><text x="420" y="325" class="code" style="font-size:12px; fill:#697080;">"�{]999"</text></g>
+            <g class="rv" style="transition-delay:.65s"><line x1="345" y1="370" x2="560" y2="365" stroke="#5c8a9c" stroke-width="1.3" marker-end="url(#arrow)"/><text x="420" y="360" class="code" style="font-size:12px; fill:#697080;">"' OR 1=1"</text></g>
+            <g class="rv" style="transition-delay:.75s"><line x1="345" y1="395" x2="560" y2="400" stroke="#5c8a9c" stroke-width="1.3" marker-end="url(#arrow)"/><text x="420" y="415" class="code" style="font-size:12px; fill:#697080;">huge int</text></g>
+            <g class="rv" style="transition-delay:.85s"><line x1="345" y1="415" x2="560" y2="435" stroke="#5c8a9c" stroke-width="1.3" marker-end="url(#arrow)"/><text x="420" y="450" class="code" style="font-size:12px; fill:#697080;">empty string</text></g>
+          </g>
+
+          <g class="rv-s" style="transition-delay:1s">
+            <rect x="565" y="330" width="220" height="130" rx="6" fill="#141620" stroke="#3a3e48" stroke-width="1.5"/>
+            <text x="675" y="378" text-anchor="middle" class="lbl mono" style="font-size:17px;">parseInvoice()</text>
+            <text x="675" y="404" text-anchor="middle" class="lbl-sm mono" style="fill:#697080; font-size:11px;">your function</text>
+          </g>
+
+          <g class="rv-s" style="transition-delay:1.25s">
+            <circle cx="900" cy="330" r="18" fill="none" stroke="#7fae6f" stroke-width="2"/>
+            <path class="draw" d="M891,330 L897,337 L910,320" stroke="#7fae6f" stroke-width="2.5" fill="none" style="stroke-dasharray:28; stroke-dashoffset:28;" data-dash="28"/>
+            <text x="930" y="336" class="body-t" style="font-size:14px; fill:#7fae6f;">handled</text>
+          </g>
+          <g class="rv-s" style="transition-delay:1.45s">
+            <circle cx="900" cy="400" r="18" fill="none" stroke="#c9776f" stroke-width="2"/>
+            <line x1="892" y1="392" x2="908" y2="408" stroke="#c9776f" stroke-width="2.5"/>
+            <line x1="908" y1="392" x2="892" y2="408" stroke="#c9776f" stroke-width="2.5"/>
+            <text x="930" y="406" class="body-t" style="font-size:14px; fill:#c9776f;">crash / hang</text>
+          </g>
+
+          <g class="rv" style="transition-delay:1.65s">
+            <rect x="1080" y="290" width="400" height="200" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="1100" y="322" class="lbl-sm" style="fill:#8a8f98;">what a crash means here</text>
+            <text x="1100" y="354" class="body-t" style="font-size:16px;">every crash is a missing bounds</text>
+            <text x="1100" y="376" class="body-t" style="font-size:16px;">check, an unvalidated buffer, or</text>
+            <text x="1100" y="398" class="body-t" style="font-size:16px;">an injection point — a real</text>
+            <text x="1100" y="420" class="body-t" style="font-size:16px;">security or stability bug, found</text>
+            <text x="1100" y="442" class="body-t" style="font-size:16px;">by a machine, at 10k inputs/sec.</text>
+            <text x="1100" y="468" class="body-t" style="font-size:14px; fill:#697080;">tools: AFL++ · libFuzzer · OSS-Fuzz</text>
+          </g>
+
+          <g class="rv" style="transition-delay:1.9s">
+            <rect x="150" y="520" width="820" height="210" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="170" y="552" class="lbl-sm" style="fill:#8a8f98;">why not just write these as unit tests?</text>
+            <text x="170" y="584" class="body-t" style="font-size:17px;">you'd have to imagine the malformed input first. a</text>
+            <text x="170" y="608" class="body-t" style="font-size:17px;">fuzzer doesn't need imagination — it generates and</text>
+            <text x="170" y="632" class="body-t" style="font-size:17px;">mutates bytes automatically, guided by code coverage,</text>
+            <text x="170" y="656" class="body-t" style="font-size:17px;">until it finds a path you never wrote a test for.</text>
+            <text x="170" y="688" class="body-t" style="font-size:17px; fill:#5fb3ac;">best on: parsers, file formats, network protocols, any</text>
+            <text x="170" y="712" class="body-t" style="font-size:17px; fill:#5fb3ac;">code that touches untrusted input directly.</text>
+          </g>
+
+          <g class="rv" style="transition-delay:2.15s">
+            <text x="80" y="800" class="recap-tag mono">RECAP</text>
+            <text x="80" y="826" class="recap-t">fuzzing finds broken INPUTS — malformed data that crashes the code.</text>
+          </g>
+          <g class="rv" style="transition-delay:2.35s">
+            <rect x="900" y="775" width="540" height="65" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="920" y="798" class="gap-tag mono">GAP</text>
+            <text x="920" y="820" class="gap-t" style="font-size:15px;">what about logic that's wrong in general, even though every example we wrote passes?</text>
+          </g>
+        </svg>
+      </section>
+
+      <!-- ============ SLIDE 14 — PROPERTY-BASED TESTING ============ -->
+      <section class="slide" id="s14">
+        <svg viewBox="0 0 1600 900">
+          <g class="rv" style="transition-delay:0s"><text x="80" y="80" class="fill-tag mono">FILL</text></g>
+          <g class="rv" style="transition-delay:.08s"><text x="80" y="140" class="h1">Property-Based Testing</text></g>
+          <g class="rv" style="transition-delay:.2s"><text x="80" y="178" class="h2">stop listing examples — state a rule that must hold for ALL inputs, and let a framework try to break it</text></g>
+          <line class="rule" x1="80" y1="210" x2="1520" y2="210"/>
+
+          <!-- contrast: example-based vs property-based -->
+          <g class="rv" style="transition-delay:.35s">
+            <text x="150" y="270" class="lbl-sm" style="fill:#8a8f98;">example-based (unit test)</text>
+            <text x="150" y="302" class="code">assertEqual(sort([3,1,2]), [1,2,3])</text>
+            <text x="150" y="328" class="lbl-sm mono" style="fill:#4d515c; font-size:13px;">true for exactly this one list</text>
+          </g>
+
+          <line class="rv" style="transition-delay:.5s" x1="150" y1="360" x2="1450" y2="360" stroke="#262933"/>
+
+          <g class="rv" style="transition-delay:.65s">
+            <text x="150" y="400" class="lbl-sm" style="fill:#8a8f98;">property-based</text>
+            <text x="150" y="432" class="code" style="fill:#5fb3ac;">for any list L: sort(L) is ordered AND same length as L</text>
+            <text x="150" y="458" class="lbl-sm mono" style="fill:#697080; font-size:13px;">true for every list — an invariant, not an instance</text>
+          </g>
+
+          <!-- generator firing hundreds of random inputs at the property -->
+          <g class="rv-s" style="transition-delay:.85s">
+            <rect x="150" y="510" width="200" height="80" rx="6" fill="#141620" stroke="#5c8a9c" stroke-width="2"/>
+            <text x="250" y="554" text-anchor="middle" class="lbl-sm mono">generator</text>
+            <text x="250" y="576" text-anchor="middle" class="lbl-sm mono" style="fill:#697080; font-size:10px;">100s of random lists</text>
+          </g>
+          <g class="rv" style="transition-delay:1s">
+            <path class="draw" d="M355,525 L530,505" stroke="#5c8a9c" stroke-width="1.2" style="stroke-dasharray:180; stroke-dashoffset:180;" data-dash="180"/>
+            <path class="draw" d="M355,545 L530,540" stroke="#5c8a9c" stroke-width="1.2" style="stroke-dasharray:176; stroke-dashoffset:176;" data-dash="176"/>
+            <path class="draw" d="M355,565 L530,575" stroke="#5c8a9c" stroke-width="1.2" style="stroke-dasharray:178; stroke-dashoffset:178;" data-dash="178"/>
+            <path class="draw" d="M355,585 L530,610" stroke="#5c8a9c" stroke-width="1.2" style="stroke-dasharray:182; stroke-dashoffset:182;" data-dash="182"/>
+          </g>
+          <g class="rv-s" style="transition-delay:1.3s">
+            <ellipse cx="640" cy="558" rx="115" ry="55" fill="#141620" stroke="#d9a25b" stroke-width="2"/>
+            <text x="640" y="552" text-anchor="middle" class="lbl-sm mono" style="font-size:14px;">the property</text>
+            <text x="640" y="574" text-anchor="middle" class="lbl-sm mono" style="fill:#697080; font-size:11px;">holds?</text>
+          </g>
+
+          <g class="rv-s" style="transition-delay:1.55s">
+            <circle cx="850" cy="558" r="20" fill="none" stroke="#c9776f" stroke-width="2"/>
+            <line x1="841" y1="549" x2="859" y2="567" stroke="#c9776f" stroke-width="2.5"/>
+            <line x1="859" y1="549" x2="841" y2="567" stroke="#c9776f" stroke-width="2.5"/>
+          </g>
+          <g class="rv" style="transition-delay:1.7s">
+            <text x="885" y="540" class="body-t" style="font-size:15px;">counterexample found:</text>
+            <text x="885" y="562" class="code" style="font-size:14px; fill:#c9776f;">[3, NaN, 1]</text>
+          </g>
+
+          <!-- shrinking arrow -->
+          <path class="rv draw" style="transition-delay:1.9s" d="M885,590 Q950,650 900,690" stroke="#7d828d" stroke-width="1.5" fill="none" marker-end="url(#arrow)" stroke-dasharray="130" stroke-dashoffset="130" data-dash="130"/>
+          <g class="rv" style="transition-delay:2.1s">
+            <text x="740" y="670" class="lbl-sm" style="fill:#8a8f98;">"shrinking":</text>
+            <text x="740" y="696" class="body-t" style="font-size:15px;">framework trims the failing case</text>
+            <text x="740" y="718" class="body-t" style="font-size:15px;">down to the smallest one that</text>
+            <text x="740" y="740" class="body-t" style="font-size:15px;">still fails, automatically.</text>
+          </g>
+          <g class="rv-s" style="transition-delay:2.3s">
+            <rect x="860" y="700" width="150" height="46" rx="5" fill="#141620" stroke="#d9a25b" stroke-width="1.5"/>
+            <text x="935" y="729" text-anchor="middle" class="code" style="font-size:14px; fill:#d9a25b;">[NaN]</text>
+          </g>
+
+          <g class="rv" style="transition-delay:2.5s">
+            <rect x="1100" y="480" width="380" height="270" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="1120" y="512" class="lbl-sm" style="fill:#8a8f98;">practical use</text>
+            <text x="1120" y="544" class="body-t" style="font-size:16px;">excellent for math-like or</text>
+            <text x="1120" y="566" class="body-t" style="font-size:16px;">invariant-heavy code: parsers,</text>
+            <text x="1120" y="588" class="body-t" style="font-size:16px;">serializers, encoders, sorting,</text>
+            <text x="1120" y="610" class="body-t" style="font-size:16px;">state machines, money math.</text>
+            <line x1="1120" y1="630" x2="1450" y2="630" stroke="#262933"/>
+            <text x="1120" y="656" class="body-t" style="font-size:15px; fill:#697080;">common properties: round-trip</text>
+            <text x="1120" y="678" class="body-t" style="font-size:15px; fill:#697080;">(decode(encode(x))==x), idempotence,</text>
+            <text x="1120" y="700" class="body-t" style="font-size:15px; fill:#697080;">invariants, equivalence to a model.</text>
+            <text x="1120" y="726" class="body-t" style="font-size:14px; fill:#697080;">tools: Hypothesis · QuickCheck · fast-check</text>
+          </g>
+
+          <g class="rv" style="transition-delay:2.7s">
+            <text x="80" y="800" class="recap-tag mono">RECAP</text>
+            <text x="80" y="826" class="recap-t">example, contract, journey, load, and randomness — every angle on one piece at a time.</text>
+          </g>
+          <g class="rv" style="transition-delay:2.9s">
+            <rect x="1000" y="775" width="440" height="65" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="1020" y="798" class="gap-tag mono">GAP</text>
+            <text x="1020" y="820" class="gap-t" style="font-size:14px;">what happens when things fail together, for real?</text>
+          </g>
+        </svg>
+      </section>
+
+      <!-- ============ SLIDE 15 — CHAOS ENGINEERING ============ -->
+      <section class="slide" id="s15">
+        <svg viewBox="0 0 1600 900">
+          <g class="rv" style="transition-delay:0s"><text x="80" y="80" class="fill-tag mono">FILL</text></g>
+          <g class="rv" style="transition-delay:.08s"><text x="80" y="140" class="h1">Chaos Engineering</text></g>
+          <g class="rv" style="transition-delay:.2s"><text x="80" y="178" class="h2">deliberately break production-like systems, on purpose, to prove resilience — not hope for it</text></g>
+          <line class="rule" x1="80" y1="210" x2="1520" y2="210"/>
+
+          <!-- system diagram: load balancer -> 3 nodes -> db, one node killed -->
+          <g class="rv-s" style="transition-delay:.35s">
+            <rect x="150" y="330" width="160" height="60" rx="6" fill="#141620" stroke="#5c8a9c" stroke-width="1.7"/>
+            <text x="230" y="366" text-anchor="middle" class="lbl-sm mono" style="font-size:14px;">load balancer</text>
+          </g>
+
+          <g class="rv-s" style="transition-delay:.5s">
+            <rect x="420" y="270" width="130" height="60" rx="6" fill="#141620" stroke="#7fae6f" stroke-width="1.7"/>
+            <text x="485" y="306" text-anchor="middle" class="lbl-sm mono" style="font-size:13px;">node A</text>
+          </g>
+          <g class="rv-s" style="transition-delay:.6s" id="chaosNodeB">
+            <rect x="420" y="350" width="130" height="60" rx="6" fill="#141620" stroke="#7fae6f" stroke-width="1.7"/>
+            <text x="485" y="386" text-anchor="middle" class="lbl-sm mono" style="font-size:13px;">node B</text>
+          </g>
+          <g class="rv-s" style="transition-delay:.7s">
+            <rect x="420" y="430" width="130" height="60" rx="6" fill="#141620" stroke="#7fae6f" stroke-width="1.7"/>
+            <text x="485" y="466" text-anchor="middle" class="lbl-sm mono" style="font-size:13px;">node C</text>
+          </g>
+
+          <path class="rv" style="transition-delay:.85s" d="M310,355 L420,300 M310,360 L420,380 M310,365 L420,460" stroke="#3a3e48" stroke-width="1.3" fill="none"/>
+
+          <g class="rv-s" style="transition-delay:1s">
+            <rect x="640" y="350" width="150" height="60" rx="6" fill="#141620" stroke="#5fb3ac" stroke-width="1.7"/>
+            <text x="715" y="386" text-anchor="middle" class="lbl-sm mono" style="font-size:14px;">database</text>
+          </g>
+          <path class="rv" style="transition-delay:1.1s" d="M550,300 L640,370 M550,380 L640,380 M550,460 L640,390" stroke="#3a3e48" stroke-width="1.3" fill="none"/>
+
+          <!-- the chaos injection -->
+          <g class="rv-s" style="transition-delay:1.4s">
+            <text x="900" y="330" class="lbl-sm mono" style="fill:#d9a25b; font-size:14px;">"chaos monkey" kills node B →</text>
+          </g>
+          <g class="rv-s" id="chaosStrike" style="transition-delay:1.6s">
+            <line x1="425" y1="355" x2="545" y2="405" stroke="#c9776f" stroke-width="3"/>
+            <line x1="545" y1="355" x2="425" y2="405" stroke="#c9776f" stroke-width="3"/>
+          </g>
+
+          <g class="rv" style="transition-delay:1.85s">
+            <path class="draw" d="M310,362 Q360,430 420,450" stroke="#5fb3ac" stroke-width="1.6" fill="none" marker-end="url(#arrowTeal)" stroke-dasharray="140" stroke-dashoffset="140" data-dash="140"/>
+          </g>
+          <g class="rv" style="transition-delay:2s">
+            <text x="330" y="500" class="body-t" style="font-size:14px; fill:#5fb3ac;">traffic reroutes to A &amp; C —</text>
+            <text x="330" y="520" class="body-t" style="font-size:14px; fill:#5fb3ac;">users never notice</text>
+          </g>
+
+          <g class="rv" style="transition-delay:2.2s">
+            <rect x="900" y="380" width="580" height="220" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="920" y="412" class="lbl-sm" style="fill:#8a8f98;">why break things on purpose?</text>
+            <text x="920" y="444" class="body-t" style="font-size:17px;">every test so far ran in a controlled lab, one failure</text>
+            <text x="920" y="468" class="body-t" style="font-size:17px;">at a time. real outages are <tspan style="fill:#c9776f;">combinations</tspan>: a slow disk</text>
+            <text x="920" y="492" class="body-t" style="font-size:17px;">plus a retry storm plus a dead node, all at once. chaos</text>
+            <text x="920" y="516" class="body-t" style="font-size:17px;">experiments inject one real failure — kill a node, add</text>
+            <text x="920" y="540" class="body-t" style="font-size:17px;">latency, drop a network link — inside a defined</text>
+            <text x="920" y="564" class="body-t" style="font-size:17px;">"blast radius", and watch whether the system heals.</text>
+          </g>
+
+          <g class="rv" style="transition-delay:2.45s">
+            <rect x="150" y="560" width="700" height="170" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="170" y="592" class="lbl-sm" style="fill:#8a8f98;">practical use</text>
+            <text x="170" y="624" class="body-t" style="font-size:16px;">"game days" — scheduled, announced chaos exercises</text>
+            <text x="170" y="648" class="body-t" style="font-size:16px;">that build real confidence AND train the on-call team</text>
+            <text x="170" y="672" class="body-t" style="font-size:16px;">under safe, observed conditions — before it happens</text>
+            <text x="170" y="696" class="body-t" style="font-size:16px;">for real, at 3am, unannounced. origin: Netflix's Chaos Monkey.</text>
+          </g>
+
+          <g class="rv" style="transition-delay:2.65s">
+            <text x="80" y="800" class="recap-tag mono">RECAP</text>
+            <text x="80" y="826" class="recap-t">chaos engineering proves the whole system survives real, combined failure.</text>
+          </g>
+          <g class="rv" style="transition-delay:2.85s">
+            <rect x="820" y="775" width="620" height="65" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="840" y="798" class="gap-tag mono">GAP</text>
+            <text x="840" y="820" class="gap-t" style="font-size:16px;">we've tested the code every way — but how good are the TESTS themselves?</text>
+          </g>
+        </svg>
+      </section>
+
+      <!-- ============ SLIDE 16 — MUTATION TESTING ============ -->
+      <section class="slide" id="s16">
+        <svg viewBox="0 0 1600 900">
+          <g class="rv" style="transition-delay:0s"><text x="80" y="80" class="fill-tag mono">FILL · THE META-QUESTION</text></g>
+          <g class="rv" style="transition-delay:.08s"><text x="80" y="140" class="h1">Mutation Testing</text></g>
+          <g class="rv" style="transition-delay:.2s"><text x="80" y="178" class="h2">sabotage your own code on purpose — a good test suite should notice</text></g>
+          <line class="rule" x1="80" y1="210" x2="1520" y2="210"/>
+
+          <g class="rv-l" style="transition-delay:.4s">
+            <rect x="120" y="280" width="360" height="130" rx="6" fill="#141620" stroke="#3a3e48" stroke-width="1.5"/>
+            <text x="145" y="315" class="code" style="font-size:16px;">function canVote(age) {</text>
+            <text x="145" y="342" class="code" style="font-size:16px;">&#160;&#160;return age <tspan style="fill:#7fae6f; font-weight:600;">&gt;=</tspan> 18;</text>
+            <text x="145" y="369" class="code" style="font-size:16px;">}</text>
+          </g>
+          <g class="rv" style="transition-delay:.6s"><text x="120" y="435" class="lbl-sm" style="fill:#8a8f98;">a "mutant": flip one operator</text></g>
+          <g class="rv-l" style="transition-delay:.75s">
+            <rect x="120" y="455" width="360" height="130" rx="6" fill="#141620" stroke="#c9776f" stroke-width="1.5"/>
+            <text x="145" y="490" class="code" style="font-size:16px;">function canVote(age) {</text>
+            <text x="145" y="517" class="code" style="font-size:16px;">&#160;&#160;return age <tspan style="fill:#c9776f; font-weight:600;">&gt;</tspan> 18;</text>
+            <text x="145" y="544" class="code" style="font-size:16px;">}</text>
+          </g>
+
+          <path class="rv draw" style="transition-delay:1s" d="M490,410 Q560,430 490,455" stroke="#7d828d" stroke-width="1.5" fill="none" marker-end="url(#arrow)" stroke-dasharray="100" stroke-dashoffset="100" data-dash="100"/>
+
+          <!-- run the suite against the mutant -->
+          <g class="rv" style="transition-delay:1.2s">
+            <text x="620" y="330" class="lbl-sm" style="fill:#8a8f98;">run the existing test suite against the mutant:</text>
+          </g>
+          <g class="rv-s" style="transition-delay:1.35s">
+            <rect x="620" y="350" width="330" height="46" rx="5" fill="#141620" stroke="#3a3e48"/>
+            <text x="640" y="379" class="body-t" style="font-size:15px;">test: canVote(20) is true</text>
+            <text x="900" y="379" text-anchor="middle" class="lbl-sm mono" style="fill:#697080; font-size:12px;">still true</text>
+          </g>
+          <g class="rv-s" style="transition-delay:1.5s">
+            <rect x="620" y="408" width="330" height="46" rx="5" fill="#141620" stroke="#7fae6f"/>
+            <text x="640" y="437" class="body-t" style="font-size:15px;">test: canVote(18) is true</text>
+            <circle cx="920" cy="431" r="10" fill="none" stroke="#7fae6f" stroke-width="2"/>
+          </g>
+          <g class="rv" style="transition-delay:1.65s">
+            <text x="960" y="437" class="body-t" style="font-size:14px; fill:#7fae6f;">← catches it! mutant killed</text>
+          </g>
+
+          <g class="rv-s" style="transition-delay:1.85s">
+            <rect x="620" y="474" width="330" height="46" rx="5" fill="#141620" stroke="#c9776f"/>
+            <text x="640" y="503" class="body-t" style="font-size:15px;">(if this edge case were missing)</text>
+          </g>
+          <g class="rv" style="transition-delay:2s">
+            <text x="960" y="503" class="body-t" style="font-size:14px; fill:#c9776f;">← mutant survives = weak test</text>
+          </g>
+
+          <g class="rv" style="transition-delay:2.2s">
+            <rect x="1060" y="280" width="420" height="240" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="1080" y="312" class="lbl-sm" style="fill:#8a8f98;">the formula</text>
+            <text x="1080" y="346" class="code" style="fill:#5fb3ac; font-size:16px;">mutation score =</text>
+            <text x="1080" y="372" class="code" style="fill:#5fb3ac; font-size:16px;">&#160;&#160;mutants killed / mutants total</text>
+            <line x1="1080" y1="396" x2="1450" y2="396" stroke="#262933"/>
+            <text x="1080" y="424" class="body-t" style="font-size:15px;">100% line coverage can still hide a</text>
+            <text x="1080" y="446" class="body-t" style="font-size:15px;">test that never checks the RESULT —</text>
+            <text x="1080" y="468" class="body-t" style="font-size:15px;">mutation score exposes that gap.</text>
+            <text x="1080" y="498" class="body-t" style="font-size:14px; fill:#697080;">tools: Stryker · PIT · mutmut</text>
+          </g>
+
+          <g class="rv" style="transition-delay:2.4s">
+            <rect x="150" y="600" width="1330" height="130" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="170" y="632" class="lbl-sm" style="fill:#8a8f98;">practical use — the full loop closes here</text>
+            <text x="170" y="664" class="body-t" style="font-size:17px;">code coverage answers "did we RUN this line?" — mutation testing answers "would we have</text>
+            <text x="170" y="688" class="body-t" style="font-size:17px;">NOTICED if this line were wrong?" run it occasionally in CI; it's slow, so not on every commit —</text>
+            <text x="170" y="712" class="body-t" style="font-size:17px;">use it to audit critical modules (billing, auth, permissions) where a silent bug is unacceptable.</text>
+          </g>
+
+          <g class="rv" style="transition-delay:2.6s">
+            <text x="80" y="800" class="recap-tag mono">RECAP</text>
+            <text x="80" y="826" class="recap-t">mutation testing tests the tests — the honesty check behind every pattern in this deck.</text>
+          </g>
+        </svg>
+      </section>
+
+      <!-- ============ SLIDE 17 — THE FULL PIPELINE ============ -->
+      <section class="slide" id="s17">
+        <svg viewBox="0 0 1600 900">
+          <g class="rv" style="transition-delay:0s"><text x="80" y="80" class="tag mono">30 · PUTTING IT TOGETHER</text></g>
+          <g class="rv" style="transition-delay:.08s"><text x="80" y="140" class="h1">Where each pattern actually lives</text></g>
+          <g class="rv" style="transition-delay:.2s"><text x="80" y="178" class="h2">a real pipeline, left to right — nothing here runs "everywhere, always"</text></g>
+          <line class="rule" x1="80" y1="210" x2="1520" y2="210"/>
+
+          <line class="rv" style="transition-delay:.3s" x1="90" y1="330" x2="1510" y2="330" stroke="#262933" stroke-width="2"/>
+
+          <!-- stage 1: commit -->
+          <g class="rv-s" style="transition-delay:.4s">
+            <circle cx="150" cy="330" r="8" fill="#5fb3ac"/>
+            <text x="150" y="300" text-anchor="middle" class="lbl-sm" style="font-size:15px;">commit</text>
+            <text x="150" y="365" text-anchor="middle" class="lbl-sm mono" style="font-size:12px; fill:#5fb3ac;">unit</text>
+            <text x="150" y="385" text-anchor="middle" class="lbl-sm mono" style="font-size:12px; fill:#5fb3ac;">lint / static analysis</text>
+          </g>
+
+          <!-- stage 2: PR -->
+          <g class="rv-s" style="transition-delay:.55s">
+            <circle cx="380" cy="330" r="8" fill="#5c8a9c"/>
+            <text x="380" y="300" text-anchor="middle" class="lbl-sm" style="font-size:15px;">pull request</text>
+            <text x="380" y="365" text-anchor="middle" class="lbl-sm mono" style="font-size:12px; fill:#5c8a9c;">integration</text>
+            <text x="380" y="385" text-anchor="middle" class="lbl-sm mono" style="font-size:12px; fill:#5c8a9c;">contract tests</text>
+            <text x="380" y="405" text-anchor="middle" class="lbl-sm mono" style="font-size:12px; fill:#5c8a9c;">code review</text>
+          </g>
+
+          <!-- stage 3: merge/staging -->
+          <g class="rv-s" style="transition-delay:.7s">
+            <circle cx="640" cy="330" r="8" fill="#d9a25b"/>
+            <text x="640" y="300" text-anchor="middle" class="lbl-sm" style="font-size:15px;">merge → staging</text>
+            <text x="640" y="365" text-anchor="middle" class="lbl-sm mono" style="font-size:12px; fill:#d9a25b;">E2E (critical paths)</text>
+            <text x="640" y="385" text-anchor="middle" class="lbl-sm mono" style="font-size:12px; fill:#d9a25b;">full regression suite</text>
+          </g>
+
+          <!-- stage 4: deploy -->
+          <g class="rv-s" style="transition-delay:.85s">
+            <circle cx="890" cy="330" r="8" fill="#7fae6f"/>
+            <text x="890" y="300" text-anchor="middle" class="lbl-sm" style="font-size:15px;">deploy prod</text>
+            <text x="890" y="365" text-anchor="middle" class="lbl-sm mono" style="font-size:12px; fill:#7fae6f;">smoke tests</text>
+            <text x="890" y="385" text-anchor="middle" class="lbl-sm mono" style="font-size:12px; fill:#7fae6f;">(rollback gate)</text>
+          </g>
+
+          <!-- stage 5: nightly/scheduled -->
+          <g class="rv-s" style="transition-delay:1s">
+            <circle cx="1160" cy="330" r="8" fill="#8b83c9"/>
+            <text x="1160" y="300" text-anchor="middle" class="lbl-sm" style="font-size:15px;">nightly / scheduled</text>
+            <text x="1160" y="365" text-anchor="middle" class="lbl-sm mono" style="font-size:12px; fill:#8b83c9;">fuzz · property-based</text>
+            <text x="1160" y="385" text-anchor="middle" class="lbl-sm mono" style="font-size:12px; fill:#8b83c9;">mutation testing</text>
+            <text x="1160" y="405" text-anchor="middle" class="lbl-sm mono" style="font-size:12px; fill:#8b83c9;">load / stress / soak</text>
+          </g>
+
+          <!-- stage 6: ongoing -->
+          <g class="rv-s" style="transition-delay:1.15s">
+            <circle cx="1420" cy="330" r="8" fill="#c9776f"/>
+            <text x="1420" y="300" text-anchor="middle" class="lbl-sm" style="font-size:15px;">game days</text>
+            <text x="1420" y="365" text-anchor="middle" class="lbl-sm mono" style="font-size:12px; fill:#c9776f;">chaos experiments</text>
+            <text x="1420" y="385" text-anchor="middle" class="lbl-sm mono" style="font-size:12px; fill:#c9776f;">(planned, observed)</text>
+          </g>
+
+          <g class="rv" style="transition-delay:1.4s">
+            <rect x="150" y="460" width="1300" height="230" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="170" y="494" class="lbl-sm" style="fill:#8a8f98;">the one rule underneath all of it</text>
+            <text x="170" y="530" class="body-t" style="font-size:19px;">cost and confidence trade off. cheap, fast tests run on <tspan style="fill:#5fb3ac;">every</tspan> commit</text>
+            <text x="170" y="558" class="body-t" style="font-size:19px;">because they can afford to. expensive, slow tests run <tspan style="fill:#d9a25b;">rarely</tspan> and</text>
+            <text x="170" y="586" class="body-t" style="font-size:19px;">deliberately, because they can't. every pattern in this deck exists to</text>
+            <text x="170" y="614" class="body-t" style="font-size:19px;">answer one narrow question as <tspan style="fill:#7fae6f;">cheaply</tspan> as that question allows —</text>
+            <text x="170" y="642" class="body-t" style="font-size:19px;">stack enough narrow answers, and you get broad confidence for free.</text>
+          </g>
+        </svg>
+      </section>
+
+      <!-- ============ SLIDE 18 — RECAP + CLOSING ============ -->
+      <section class="slide" id="s18">
+        <svg viewBox="0 0 1600 900">
+          <g class="rv" style="transition-delay:0s"><text x="80" y="80" class="tag mono">31 · RECAP</text></g>
+          <g class="rv" style="transition-delay:.08s"><text x="80" y="140" class="h1">Everything, in one page</text></g>
+          <line class="rule" x1="80" y1="175" x2="1520" y2="175"/>
+
+          <!-- 3-column cheat sheet grid -->
+          <g id="recapgrid">
+            <!-- col headers -->
+            <g class="rv" style="transition-delay:.15s">
+              <text x="120" y="215" class="lbl-sm" style="fill:#5fb3ac;">CORRECTNESS</text>
+              <text x="620" y="215" class="lbl-sm" style="fill:#d9a25b;">CAPACITY</text>
+              <text x="1060" y="215" class="lbl-sm" style="fill:#c9776f;">RESILIENCE &amp; TRUST</text>
+            </g>
+
+            <!-- col 1 rows -->
+            <g class="rv-l" style="transition-delay:.25s"><text x="120" y="250" class="body-t" style="font-size:16px;"><tspan style="fill:#e9e8e4;">Unit</tspan> — one piece, alone</text></g>
+            <g class="rv-l" style="transition-delay:.32s"><text x="120" y="280" class="body-t" style="font-size:16px;"><tspan style="fill:#e9e8e4;">Integration</tspan> — real seams</text></g>
+            <g class="rv-l" style="transition-delay:.39s"><text x="120" y="310" class="body-t" style="font-size:16px;"><tspan style="fill:#e9e8e4;">Contract</tspan> — API agreement</text></g>
+            <g class="rv-l" style="transition-delay:.46s"><text x="120" y="340" class="body-t" style="font-size:16px;"><tspan style="fill:#e9e8e4;">E2E</tspan> — full user journey</text></g>
+            <g class="rv-l" style="transition-delay:.53s"><text x="120" y="370" class="body-t" style="font-size:16px;"><tspan style="fill:#e9e8e4;">Smoke</tspan> — is it alive?</text></g>
+            <g class="rv-l" style="transition-delay:.6s"><text x="120" y="400" class="body-t" style="font-size:16px;"><tspan style="fill:#e9e8e4;">Regression</tspan> — still works?</text></g>
+            <g class="rv-l" style="transition-delay:.67s"><text x="120" y="430" class="body-t" style="font-size:16px;"><tspan style="fill:#e9e8e4;">Property-based</tspan> — invariants</text></g>
+            <g class="rv-l" style="transition-delay:.74s"><text x="120" y="460" class="body-t" style="font-size:16px;"><tspan style="fill:#e9e8e4;">Mutation</tspan> — tests the tests</text></g>
+
+            <!-- col 2 rows -->
+            <g class="rv-l" style="transition-delay:.4s"><text x="620" y="250" class="body-t" style="font-size:16px;"><tspan style="fill:#e9e8e4;">Load</tspan> — expected traffic</text></g>
+            <g class="rv-l" style="transition-delay:.47s"><text x="620" y="280" class="body-t" style="font-size:16px;"><tspan style="fill:#e9e8e4;">Stress</tspan> — the breaking point</text></g>
+            <g class="rv-l" style="transition-delay:.54s"><text x="620" y="310" class="body-t" style="font-size:16px;"><tspan style="fill:#e9e8e4;">Soak</tspan> — leaks over time</text></g>
+            <g class="rv-l" style="transition-delay:.61s"><text x="620" y="340" class="body-t" style="font-size:16px;"><tspan style="fill:#e9e8e4;">Performance</tspan> — umbrella term</text></g>
+
+            <!-- col 3 rows -->
+            <g class="rv-l" style="transition-delay:.55s"><text x="1060" y="250" class="body-t" style="font-size:16px;"><tspan style="fill:#e9e8e4;">Fuzz</tspan> — malformed input</text></g>
+            <g class="rv-l" style="transition-delay:.62s"><text x="1060" y="280" class="body-t" style="font-size:16px;"><tspan style="fill:#e9e8e4;">Chaos</tspan> — real, combined failure</text></g>
+          </g>
+
+          <line class="rv" style="transition-delay:.9s" x1="80" y1="500" x2="1520" y2="500" stroke="#262933"/>
+
+          <!-- pyramid mini recap -->
+          <g class="rv" style="transition-delay:1s">
+            <path d="M 150 620 L 380 620 L 340 560 L 190 560 Z" fill="#3f6b66"/>
+            <path d="M 190 560 L 340 560 L 315 520 L 215 520 Z" fill="#5c8a9c"/>
+            <path d="M 215 520 L 315 520 L 297 490 L 233 490 Z" fill="#b98a5a"/>
+            <text x="265" y="655" text-anchor="middle" class="lbl-sm mono" style="font-size:13px;">the pyramid: cheap &amp; frequent at the bottom</text>
+          </g>
+
+          <g class="rv" style="transition-delay:1.2s">
+            <rect x="500" y="480" width="1020" height="220" rx="6" fill="#141620" stroke="#262933"/>
+            <text x="530" y="518" class="lbl-sm" style="fill:#8a8f98; font-size:17px;">the Feynman line to leave with</text>
+            <text x="530" y="558" style="font-size:24px; fill:#e9e8e4; font-weight:500;">You don't test to prove your code works.</text>
+            <text x="530" y="596" style="font-size:24px; fill:#e9e8e4; font-weight:500;">You test by <tspan style="fill:#5fb3ac;">honestly trying</tspan> to prove it's wrong —</text>
+            <text x="530" y="634" style="font-size:24px; fill:#e9e8e4; font-weight:500;">and writing down every way you failed to.</text>
+            <text x="530" y="674" class="body-t" style="font-size:16px; fill:#697080;">confidence isn't a feeling. it's the sum of every experiment that could have broken things, and didn't.</text>
+          </g>
+
+          <g class="rv" style="transition-delay:1.5s">
+            <text x="80" y="850" class="lbl-sm mono" style="fill:#4d515c;">end of deck · 31 / 31</text>
+          </g>
+        </svg>
+      </section>
+
+
+    </div>
+  </div>
+  <div class="chrome">
+    <div class="navzone prev" id="prevZone"><div class="navbtn">‹</div></div>
+    <div class="navzone next" id="nextZone"><div class="navbtn">›</div></div>
+  </div>
+  <div class="hud">
+    <div class="dots" id="dots"></div>
+    <div class="counter" id="counter">01 / 31</div>
+  </div>
+  <div class="hint">← → or space · click edges</div>
+</div>
+
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#7d828d"/>
+    </marker>
+    <marker id="arrowRose" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#c9776f"/>
+    </marker>
+    <marker id="arrowTeal" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#5fb3ac"/>
+    </marker>
+    <marker id="arrowAmber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#d9a25b"/>
+    </marker>
+  </defs>
+</svg>
+
+<script>
+(function(){
+  var stage = document.getElementById('stage');
+  var slides = Array.prototype.slice.call(stage.querySelectorAll('.slide'));
+  var total = slides.length;
+  var idx = 0;
+
+  // build progress dots
+  var dotsEl = document.getElementById('dots');
+  slides.forEach(function(_, i){
+    var d = document.createElement('div');
+    d.className = 'dot';
+    d.addEventListener('click', function(){ goTo(i); });
+    dotsEl.appendChild(d);
+  });
+  var dots = Array.prototype.slice.call(dotsEl.children);
+  var counterEl = document.getElementById('counter');
+
+  function pad(n){ return n < 10 ? '0'+n : ''+n; }
+
+  function prepDashed(root){
+    // set stroke-dasharray/offset for any .draw path/line using data-dash, if not already inline
+    root.querySelectorAll('.draw').forEach(function(el){
+      var len = el.getAttribute('data-dash');
+      if(len){
+        el.style.strokeDasharray = len;
+        el.style.strokeDashoffset = len;
+      } else if (el.tagName === 'path' || el.tagName === 'line') {
+        try{
+          var l = el.getTotalLength ? el.getTotalLength() : 0;
+          if(l){ el.style.strokeDasharray = l; el.style.strokeDashoffset = l; }
+        }catch(e){}
+      }
+    });
+  }
+
+  function resetSlide(root){
+    root.querySelectorAll('.rv, .rv-l, .rv-r, .rv-s').forEach(function(el){
+      el.classList.remove('show');
+    });
+    root.querySelectorAll('.draw').forEach(function(el){
+      el.classList.remove('show');
+      var len = el.getAttribute('data-dash');
+      if(len){ el.style.strokeDashoffset = len; }
+    });
+    root.querySelectorAll('.bar').forEach(function(el){
+      el.style.height = '0px';
+      el.style.y = '700px';
+    });
+  }
+
+  function playSlide(root){
+    prepDashed(root);
+    // force reflow so the reset state is committed before we animate
+    void root.offsetWidth;
+    requestAnimationFrame(function(){
+      requestAnimationFrame(function(){
+        root.querySelectorAll('.rv, .rv-l, .rv-r, .rv-s, .draw').forEach(function(el){
+          el.classList.add('show');
+        });
+        root.querySelectorAll('.bar').forEach(function(el){
+          var h = parseFloat(el.getAttribute('data-h')) || 0;
+          el.style.height = h + 'px';
+          el.style.y = (700 - h) + 'px';
+        });
+      });
+    });
+  }
+
+  function render(){
+    slides.forEach(function(s, i){
+      if(i === idx){
+        s.classList.add('active');
+      } else {
+        s.classList.remove('active');
+      }
+    });
+    dots.forEach(function(d, i){ d.classList.toggle('on', i === idx); });
+    counterEl.textContent = pad(idx+1) + ' / ' + pad(total);
+
+    var active = slides[idx];
+    resetSlide(active);
+    playSlide(active);
+  }
+
+  function goTo(i){
+    if(i < 0) i = 0;
+    if(i >= total) i = total - 1;
+    if(i === idx) return;
+    idx = i;
+    render();
+  }
+  function next(){ if(idx < total-1) goTo(idx+1); }
+  function prev(){ if(idx > 0) goTo(idx-1); }
+
+  document.getElementById('nextZone').addEventListener('click', next);
+  document.getElementById('prevZone').addEventListener('click', prev);
+
+  document.addEventListener('keydown', function(e){
+    if(e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown'){ e.preventDefault(); next(); }
+    else if(e.key === 'ArrowLeft' || e.key === 'PageUp'){ e.preventDefault(); prev(); }
+    else if(e.key === 'Home'){ goTo(0); }
+    else if(e.key === 'End'){ goTo(total-1); }
+  });
+
+  // basic swipe support for touch
+  var touchStartX = null;
+  stage.addEventListener('touchstart', function(e){ touchStartX = e.changedTouches[0].clientX; });
+  stage.addEventListener('touchend', function(e){
+    if(touchStartX === null) return;
+    var dx = e.changedTouches[0].clientX - touchStartX;
+    if(dx < -40) next();
+    else if(dx > 40) prev();
+    touchStartX = null;
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,1428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Operating Systems &amp; Concurrency — How Your Computer Really Runs</title>
+<style>
+  :root{
+    --bg:#06090d;
+    --panel:#0c131c;
+    --panel2:#0f1826;
+    --ink:#e8eef4;
+    --muted:#8195a8;
+    --dim:#4c5a68;
+    --line:#1b2632;
+    --blue:#5b9bd9;
+    --amber:#dba05e;
+    --teal:#4fb3a0;
+    --rose:#c17a92;
+    --violet:#9a8bd6;
+    --green:#79b87a;
+    --red:#c56a6a;
+    --accent: var(--blue);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;background:#000;overflow:hidden;font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;}
+  #viewport{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#000;}
+  #stage{
+    width:1600px;height:900px;position:relative;background:
+      radial-gradient(ellipse at 20% -10%, #0c1622 0%, transparent 55%),
+      radial-gradient(ellipse at 100% 110%, #0a1420 0%, transparent 55%),
+      var(--bg);
+    color:var(--ink);
+    box-shadow:0 0 0 1px #000;
+    overflow:hidden;
+    flex:none;
+  }
+  #mount{position:absolute;inset:0;}
+  .slide{position:absolute;inset:0;display:flex;flex-direction:column;padding:56px 84px 66px;}
+  .eyebrow{font-size:20px;letter-spacing:5px;text-transform:uppercase;color:var(--accent);font-weight:600;opacity:.9;}
+  .title{font-size:42px;font-weight:700;margin:8px 0 26px;letter-spacing:.2px;color:var(--ink);}
+  .subtitle{font-size:20px;color:var(--muted);margin-top:-16px;margin-bottom:22px;font-weight:400;}
+  .body{flex:1;position:relative;min-height:0;}
+  .caption{font-size:16px;color:var(--dim);margin-top:14px;font-style:italic;}
+  .reveal-item{opacity:0;transform:translateY(12px);transition:opacity .5s ease,transform .5s ease;}
+  .reveal-item.show{opacity:1;transform:translateY(0);}
+  .reveal-fast{transition-duration:.35s !important;}
+
+  /* bullets */
+  .bullets{list-style:none;margin:0;padding:0;height:100%;display:flex;flex-direction:column;justify-content:center;gap:22px;max-width:1180px;}
+  .bullets li{display:flex;align-items:flex-start;gap:18px;font-size:26px;line-height:1.4;}
+  .bullets li .dot{flex:none;width:12px;height:12px;border-radius:50%;background:var(--accent);margin-top:11px;box-shadow:0 0 10px color-mix(in srgb, var(--accent) 60%, transparent);}
+  .bullets li .txt b{color:var(--ink);}
+  .bullets li .txt{color:#cfdbe6;}
+  .bullets li .sub{display:block;font-size:18px;color:var(--muted);margin-top:4px;font-weight:400;}
+
+  /* cards */
+  .cardgrid{display:grid;gap:22px;height:100%;align-content:center;}
+  .card{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:14px;padding:22px 24px;position:relative;overflow:hidden;}
+  .card .ch{font-size:21px;font-weight:700;color:var(--ink);margin-bottom:8px;display:flex;align-items:center;gap:10px;}
+  .card .cd{font-size:16.5px;color:var(--muted);line-height:1.45;}
+  .card .cbar{position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--accent);}
+
+  /* compare table */
+  table.cmp{width:100%;border-collapse:collapse;font-size:19px;}
+  table.cmp th{text-align:left;color:var(--accent);font-size:17px;letter-spacing:1px;text-transform:uppercase;padding:10px 16px;border-bottom:2px solid var(--line);}
+  table.cmp td{padding:14px 16px;border-bottom:1px solid var(--line);color:#d7e2ec;}
+  table.cmp tr:first-child td{padding-top:20px;}
+  table.cmp td:first-child{color:var(--ink);font-weight:600;}
+
+  /* recap / gap / fill */
+  .rgf{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:18px;}
+  .rgf .tag{font-size:18px;letter-spacing:6px;text-transform:uppercase;font-weight:700;padding:8px 22px;border-radius:999px;border:1px solid var(--line);}
+  .rgf.recap .tag{color:var(--teal);border-color:color-mix(in srgb, var(--teal) 40%, var(--line));}
+  .rgf.gap .tag{color:var(--amber);border-color:color-mix(in srgb, var(--amber) 40%, var(--line));}
+  .rgf.fill .tag{color:var(--blue);border-color:color-mix(in srgb, var(--blue) 40%, var(--line));}
+  .rgf .big{font-size:34px;max-width:1180px;line-height:1.45;color:var(--ink);}
+  .rgf .q{font-size:30px;color:var(--amber);max-width:1100px;line-height:1.5;font-style:italic;}
+  .rgf .small{font-size:19px;color:var(--muted);max-width:1000px;}
+  .pulse{animation:pulseAnim 1.6s ease-in-out infinite;}
+  @keyframes pulseAnim{0%,100%{opacity:.55;}50%{opacity:1;}}
+
+  /* section divider */
+  .section{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:14px;}
+  .section .kicker{font-size:22px;letter-spacing:8px;color:var(--muted);text-transform:uppercase;}
+  .section .big{font-size:64px;font-weight:800;background:linear-gradient(90deg,var(--ink),var(--accent));-webkit-background-clip:text;background-clip:text;color:transparent;}
+  .section .sub{font-size:22px;color:var(--muted);max-width:900px;}
+  .section .rule{width:120px;height:3px;background:var(--accent);border-radius:2px;}
+
+  /* controls */
+  #ui{position:absolute;left:0;right:0;bottom:0;height:0;}
+  #controls{position:absolute;bottom:14px;left:0;right:0;display:flex;align-items:center;justify-content:center;gap:18px;pointer-events:none;z-index:20;}
+  .navbtn{pointer-events:all;background:#0e1622cc;border:1px solid var(--line);color:var(--muted);font-size:15px;padding:9px 18px;border-radius:8px;cursor:pointer;transition:.2s;}
+  .navbtn:hover{color:var(--ink);border-color:var(--accent);}
+  #counter{pointer-events:all;color:var(--dim);font-size:14px;letter-spacing:1px;min-width:90px;text-align:center;}
+  #progress{position:absolute;top:0;left:0;height:3px;background:var(--accent);transition:width .3s ease;z-index:21;}
+  #progtrack{position:absolute;top:0;left:0;right:0;height:3px;background:var(--line);z-index:20;}
+  .playbtn{pointer-events:all;position:absolute;right:0;bottom:0;background:#0e1622;border:1px solid var(--line);color:var(--accent);font-size:14px;padding:8px 16px;border-radius:8px;cursor:pointer;display:flex;align-items:center;gap:8px;z-index:15;}
+  .playbtn:hover{border-color:var(--accent);}
+  .clickzone{position:absolute;top:0;bottom:70px;width:50%;z-index:5;cursor:pointer;}
+  #zoneL{left:0;} #zoneR{right:0;}
+  code.f{background:#0e1622;border:1px solid var(--line);padding:2px 8px;border-radius:6px;color:var(--amber);font-family:Consolas,monospace;font-size:.92em;}
+</style>
+</head>
+<body>
+<div id="viewport">
+  <div id="stage">
+    <div id="progtrack"></div><div id="progress"></div>
+    <div id="mount"></div>
+    <div id="zoneL" class="clickzone"></div>
+    <div id="zoneR" class="clickzone"></div>
+    <div id="controls">
+      <button class="navbtn" id="prevBtn">&larr; Prev</button>
+      <span id="counter">1 / 1</span>
+      <button class="navbtn" id="nextBtn">Next &rarr;</button>
+    </div>
+  </div>
+</div>
+<script>
+const SVGNS = "http://www.w3.org/2000/svg";
+function h(tag, attrs={}, ...kids){
+  const e = document.createElement(tag);
+  for(const k in attrs){ if(k==='html'){e.innerHTML=attrs[k];} else if(k==='class'){e.className=attrs[k];} else e.setAttribute(k,attrs[k]); }
+  kids.flat().forEach(k=>{ if(k==null)return; e.appendChild((k instanceof Node)?k:document.createTextNode(String(k))); });
+  return e;
+}
+function s(tag, attrs={}, ...kids){
+  const e = document.createElementNS(SVGNS, tag);
+  for(const k in attrs){ e.setAttribute(k, attrs[k]); }
+  kids.flat().forEach(k=>{ if(k==null)return; e.appendChild((k instanceof Node)?k:document.createTextNode(String(k))); });
+  return e;
+}
+function svgRoot(vb="0 0 1400 620"){ return s('svg',{viewBox:vb, width:'100%', height:'100%'}); }
+
+function stagger(root, baseDelay=70){
+  const items = root.querySelectorAll('.reveal-item');
+  items.forEach((el,i)=>{ el.style.transitionDelay = (i*baseDelay)+'ms'; });
+  requestAnimationFrame(()=>requestAnimationFrame(()=>items.forEach(el=>el.classList.add('show'))));
+}
+
+let _cancelSeq = null;
+function playSequence(steps){
+  if(_cancelSeq) _cancelSeq();
+  let t=0; const timers=[];
+  steps.forEach(st=>{ t+=st.delay; timers.push(setTimeout(st.fn, t)); });
+  _cancelSeq = ()=>{ timers.forEach(clearTimeout); _cancelSeq=null; };
+  return _cancelSeq;
+}
+function addPlayButton(container, label, onPlay){
+  const btn = h('button',{class:'playbtn'}, '&#9654; '+label);
+  btn.innerHTML = '&#9654;&nbsp; '+label;
+  btn.onclick = (e)=>{ e.stopPropagation(); onPlay(); };
+  container.appendChild(btn);
+  return btn;
+}
+
+/* ---------- slide chrome ---------- */
+function chrome(mount, accent, eyebrow, title, sub){
+  mount.innerHTML='';
+  const slide = h('div',{class:'slide'});
+  slide.style.setProperty('--accent', accent);
+  if(eyebrow) slide.appendChild(h('div',{class:'eyebrow reveal-item'}, eyebrow));
+  if(title) slide.appendChild(h('div',{class:'title reveal-item'}, title));
+  if(sub) slide.appendChild(h('div',{class:'subtitle reveal-item'}, sub));
+  const body = h('div',{class:'body'});
+  slide.appendChild(body);
+  mount.appendChild(slide);
+  return {slide, body};
+}
+
+/* ---------- generic layout builders ---------- */
+function bulletsSlide(mount, accent, {eyebrow, title, sub, items, caption}){
+  const {body} = chrome(mount, accent, eyebrow, title, sub);
+  const ul = h('ul',{class:'bullets'});
+  items.forEach(it=>{
+    const li = h('li',{class:'reveal-item'});
+    li.appendChild(h('span',{class:'dot'}));
+    const txt = h('div',{class:'txt'});
+    txt.innerHTML = it.h;
+    if(it.d) txt.appendChild(h('span',{class:'sub', html: it.d}));
+    li.appendChild(txt);
+    ul.appendChild(li);
+  });
+  body.appendChild(ul);
+  if(caption) mount.querySelector('.slide').appendChild(h('div',{class:'caption reveal-item'}, caption));
+  stagger(mount);
+}
+
+function cardsSlide(mount, accent, {eyebrow, title, sub, cards, cols, caption}){
+  const {body} = chrome(mount, accent, eyebrow, title, sub);
+  const grid = h('div',{class:'cardgrid'});
+  const n = cards.length;
+  const c = cols || (n<=3?n:(n<=6?3:4));
+  const rows = Math.ceil(n/c);
+  grid.style.gridTemplateColumns = `repeat(${c}, 1fr)`;
+  grid.style.gridTemplateRows = `repeat(${rows}, 1fr)`;
+  cards.forEach(cd=>{
+    const card = h('div',{class:'card reveal-item'});
+    card.appendChild(h('div',{class:'cbar', style:`background:${cd.color||accent}`}));
+    card.appendChild(h('div',{class:'ch'}, cd.icon?cd.icon+' ':'', cd.h));
+    card.appendChild(h('div',{class:'cd', html: cd.d}));
+    grid.appendChild(card);
+  });
+  body.appendChild(grid);
+  if(caption) mount.querySelector('.slide').appendChild(h('div',{class:'caption reveal-item'}, caption));
+  stagger(mount);
+}
+
+function compareSlide(mount, accent, {eyebrow, title, sub, headers, rows, caption}){
+  const {body} = chrome(mount, accent, eyebrow, title, sub);
+  const wrap = h('div',{class:'reveal-item', style:'height:100%;display:flex;align-items:center;'});
+  const table = h('table',{class:'cmp'});
+  const thead = h('tr'); headers.forEach(hd=>thead.appendChild(h('th',{}, hd))); table.appendChild(h('thead',{},thead));
+  const tbody = h('tbody');
+  rows.forEach(r=>{ const tr=h('tr'); r.forEach(c=>{const td=h('td',{}); td.innerHTML=c; tr.appendChild(td);}); tbody.appendChild(tr); });
+  table.appendChild(tbody);
+  wrap.appendChild(table);
+  body.appendChild(wrap);
+  if(caption) mount.querySelector('.slide').appendChild(h('div',{class:'caption reveal-item'}, caption));
+  stagger(mount);
+}
+
+function sectionSlide(mount, accent, {kicker, title, sub}){
+  mount.innerHTML='';
+  const slide = h('div',{class:'slide'}); slide.style.setProperty('--accent', accent);
+  const sec = h('div',{class:'section'});
+  sec.appendChild(h('div',{class:'kicker reveal-item'}, kicker));
+  sec.appendChild(h('div',{class:'big reveal-item'}, title));
+  sec.appendChild(h('div',{class:'rule reveal-item'}));
+  if(sub) sec.appendChild(h('div',{class:'sub reveal-item'}, sub));
+  slide.appendChild(sec);
+  mount.appendChild(slide);
+  stagger(mount, 140);
+}
+
+function rgfSlide(mount, accent, mode, {tag, big, q, small}){
+  mount.innerHTML='';
+  const slide = h('div',{class:'slide'}); slide.style.setProperty('--accent', accent);
+  const box = h('div',{class:`rgf ${mode}`});
+  box.appendChild(h('div',{class:'tag reveal-item'}, tag));
+  if(big) box.appendChild(h('div',{class:'big reveal-item', html: big}));
+  if(q) box.appendChild(h('div',{class:'q reveal-item pulse'}, q));
+  if(small) box.appendChild(h('div',{class:'small reveal-item', html: small}));
+  slide.appendChild(box);
+  mount.appendChild(slide);
+  stagger(mount, 160);
+}
+
+function titleSlide(mount, accent, {kicker, title, sub, foot}){
+  mount.innerHTML='';
+  const slide = h('div',{class:'slide'}); slide.style.setProperty('--accent', accent);
+  const sec = h('div',{class:'section'});
+  sec.appendChild(h('div',{class:'kicker reveal-item'}, kicker));
+  sec.appendChild(h('div',{class:'big reveal-item', style:'font-size:56px;'}, title));
+  sec.appendChild(h('div',{class:'rule reveal-item'}));
+  if(sub) sec.appendChild(h('div',{class:'sub reveal-item'}, sub));
+  if(foot) sec.appendChild(h('div',{class:'small reveal-item', style:'color:var(--dim);font-size:16px;margin-top:30px;'}, foot));
+  slide.appendChild(sec);
+  mount.appendChild(slide);
+  stagger(mount, 160);
+}
+
+/* ---------- svg diagram primitives ---------- */
+function arrowMarker(svg, color){
+  const id = 'arrow-'+color.replace('#','')+'-'+Math.random().toString(36).slice(2,6);
+  let defs = svg.querySelector('defs');
+  if(!defs){ defs = s('defs'); svg.insertBefore(defs, svg.firstChild); }
+  const m = s('marker',{id, viewBox:'0 0 10 10', refX:8, refY:5, markerWidth:6.5, markerHeight:6.5, orient:'auto-start-reverse'});
+  m.appendChild(s('path',{d:'M0,0 L10,5 L0,10 z', fill:color}));
+  defs.appendChild(m);
+  return id;
+}
+function mkBox(x,y,w,h,label,color,sub){
+  const g = s('g',{class:'reveal-item'});
+  g.appendChild(s('rect',{x,y,width:w,height:h,rx:10,fill:'#0f1826',stroke:color,'stroke-width':2}));
+  const ty = sub ? y+h/2-6 : y+h/2+6;
+  const t = s('text',{x:x+w/2,y:ty,'text-anchor':'middle',fill:'#e8eef4','font-size':17,'font-weight':700});
+  String(label).split('\n').forEach((ln,i)=> t.appendChild(s('tspan',{x:x+w/2, dy: i===0?0:18}, ln)) );
+  g.appendChild(t);
+  if(sub) g.appendChild(s('text',{x:x+w/2,y:y+h/2+16,'text-anchor':'middle',fill:'#8195a8','font-size':13}, sub));
+  return g;
+}
+function mkCircle(cx,cy,r,label,color,sub){
+  const g = s('g',{class:'reveal-item'});
+  g.appendChild(s('circle',{cx,cy,r,fill:'#0f1826',stroke:color,'stroke-width':2.5}));
+  g.appendChild(s('text',{x:cx,y:cy+(sub?0:6),'text-anchor':'middle',fill:'#e8eef4','font-size':16,'font-weight':700}, label));
+  if(sub) g.appendChild(s('text',{x:cx,y:cy+16,'text-anchor':'middle',fill:'#8195a8','font-size':11}, sub));
+  return g;
+}
+function mkLine(svg,x1,y1,x2,y2,color,opts={}){
+  const id = opts.arrow?arrowMarker(svg,color):null;
+  const attrs = {x1,y1,x2,y2,stroke:color,'stroke-width':opts.w||2.5,class:'reveal-item'};
+  if(opts.dashed) attrs['stroke-dasharray']='6 5';
+  if(id) attrs['marker-end']=`url(#${id})`;
+  return s('line',attrs);
+}
+function mkCurve(svg,x1,y1,x2,y2,bend,color,opts={}){
+  const id = opts.arrow?arrowMarker(svg,color):null;
+  const mx=(x1+x2)/2, my=(y1+y2)/2 - bend;
+  const attrs={d:`M${x1},${y1} Q${mx},${my} ${x2},${y2}`, fill:'none', stroke:color, 'stroke-width':opts.w||2.5, class:'reveal-item'};
+  if(opts.dashed) attrs['stroke-dasharray']='6 5';
+  if(id) attrs['marker-end']=`url(#${id})`;
+  return s('path',attrs);
+}
+function mkLabel(x,y,text,color,size,weight){
+  return s('text',{x,y,'text-anchor':'middle',fill:color||'#8195a8','font-size':size||14,'font-weight':weight||400,class:'reveal-item'}, text);
+}
+function mkToken(x,y,r,fill,label,tcolor){
+  const g = s('g',{style:`transform:translate(${x}px,${y}px);transition:transform .9s cubic-bezier(.4,0,.2,1);`, class:'reveal-item'});
+  g.appendChild(s('circle',{cx:0,cy:0,r,fill}));
+  if(label) g.appendChild(s('text',{x:0,y:5,'text-anchor':'middle',fill:tcolor||'#06090d','font-size':13,'font-weight':800}, label));
+  return g;
+}
+function moveToken(g,x,y,dur){ if(dur) g.style.transitionDuration=dur+'s'; g.style.transform = `translate(${x}px,${y}px)`; }
+function setFill(el,color){ el.querySelector('circle,rect').setAttribute('fill',color); }
+function diagramBody(mount, accent, opts, vb){
+  const {body} = chrome(mount, accent, opts.eyebrow, opts.title, opts.sub);
+  const svg = svgRoot(vb||"0 0 1400 620");
+  body.appendChild(svg);
+  if(opts.caption) mount.querySelector('.slide').appendChild(h('div',{class:'caption reveal-item'}, opts.caption));
+  return {body, svg};
+}
+
+/* =========================================================
+   DECK CONTENT — PART 1 : OPERATING SYSTEMS
+   ========================================================= */
+const BLUE=getComputedStyle(document.documentElement).getPropertyValue('--blue').trim()||'#5b9bd9';
+const AMBER='#dba05e', TEAL='#4fb3a0', ROSE='#c17a92', VIOLET='#9a8bd6', GREEN='#79b87a', RED='#c56a6a';
+
+const DECK = [];
+
+DECK.push({render:(m)=>titleSlide(m,BLUE,{
+  kicker:'A Feynman-style deep dive',
+  title:'Operating Systems &amp; Concurrency',
+  sub:'How a computer juggles thousands of things at once — and never drops one.',
+  foot:'Part 1 · Operating System Concepts     —     Part 2 · Concurrency'
+})});
+
+DECK.push({render:(m)=>bulletsSlide(m,BLUE,{
+  eyebrow:'The Big Idea', title:'What is an Operating System, really?',
+  items:[
+    {h:'Your CPU can run <b>one instruction stream at a time</b>, per core.', d:'Yet your laptop "runs" 200+ programs at once. That\'s an illusion — a very well-engineered one.'},
+    {h:'The OS is a <b>resource illusionist</b>: it slices CPU time, memory, and devices into shares.', d:'Each program believes it owns the whole machine.'},
+    {h:'Everything in this deck is really answering one question:', d:'"How do you give many things the appearance of happening together, safely, on hardware that can only do one thing at a time?"'}
+  ],
+  caption:'Feynman\'s rule: if you can\'t build the illusion from first principles, you don\'t understand it yet.'
+})});
+
+DECK.push({render:(m)=>rgfSlide(m,BLUE,'gap',{
+  tag:'Gap',
+  q:'A program is just instructions sitting on disk. What turns it into something the CPU can actually run — with its own memory, its own life story?',
+  small:'We need a unit the OS can create, pause, resume, and destroy.'
+})});
+
+DECK.push({render:(m)=>diagramProcessAnatomy(m)});
+function diagramProcessAnatomy(m){
+  const {svg} = diagramBody(m,BLUE,{eyebrow:'Fill · Processes', title:'A Process = Program + Everything it needs to run',
+    caption:'The OS keeps this bookkeeping in a Process Control Block (PCB): PID, state, registers, memory pointers, open files.'});
+  const layers = [
+    {label:'Stack', sub:'local vars, return addrs — grows down', color:ROSE, y:70, h:70},
+    {label:'↕ free space', sub:'', color:'#233040', y:150, h:40, faint:true},
+    {label:'Heap', sub:'malloc/new — grows up', color:VIOLET, y:200, h:70},
+    {label:'Data', sub:'global / static variables', color:TEAL, y:280, h:55},
+    {label:'Text (Code)', sub:'compiled instructions, read-only', color:BLUE, y:345, h:55},
+  ];
+  const bx=120,bw=330;
+  layers.forEach(L=>{
+    if(L.faint){ svg.appendChild(mkLabel(bx+bw/2, L.y+25, L.label, '#4c5a68', 13)); return; }
+    svg.appendChild(mkBox(bx,L.y,bw,L.h,L.label,L.color,L.sub));
+  });
+  svg.appendChild(mkLabel(bx+bw/2, 55, 'Address space (per process, private)', '#8195a8', 13));
+
+  const pcbx=560;
+  svg.appendChild(mkBox(pcbx,70,340,330,'Process Control Block','#e8eef4'.replace('#e8eef4',AMBER)));
+  const fields=['PID: 4127','State: RUNNING','Program Counter: 0x40110a','CPU registers (saved copy)','Memory pointers → address space','Open file table','Priority / scheduling info'];
+  fields.forEach((f,i)=> svg.appendChild(mkLabel(pcbx+170, 120+i*36, f, '#cfdbe6', 15)) );
+
+  const kx=1020;
+  svg.appendChild(mkBox(kx,70,320,330,'Kernel view','#e8eef4'.replace('#e8eef4',TEAL)));
+  ['Process table = array/list of PCBs','One entry per living process','OS schedules by picking a PCB','Isolation: each PCB → its own address space'].forEach((f,i)=>
+    svg.appendChild(mkLabel(kx+160,130+i*70, wrapTspan(f), '#cfdbe6', 14.5)) );
+
+  svg.appendChild(mkLine(svg,bx+bw+20,235,pcbx-15,235,'#33475b',{arrow:true,dashed:true}));
+  svg.appendChild(mkLine(svg,pcbx+340+20,235,kx-15,235,'#33475b',{arrow:true,dashed:true}));
+  stagger(m);
+}
+function wrapTspan(str){ return str; } // labels short enough; kept for future wrapping needs
+
+DECK.push({render:(m)=>diagramProcessStates(m)});
+function diagramProcessStates(m){
+  const {svg} = diagramBody(m,BLUE,{eyebrow:'Processes', title:'The Five-State Life of a Process',
+    caption:'Click Play to walk a process through a realistic life: it rarely runs for long before something interrupts it.'});
+  const pos = { new:[130,300], ready:[430,150], running:[750,150], waiting:[750,420], term:[1080,300] };
+  const labels = {new:'NEW\ncreated',ready:'READY\nwaiting for CPU',running:'RUNNING\non a core',waiting:'WAITING\nfor I/O / event',term:'TERMINATED\ndone'};
+  const colors = {new:'#5b9bd9', ready:AMBER, running:GREEN, waiting:ROSE, term:'#4c5a68'};
+  const nodes={};
+  for(const k in pos){ const [x,y]=pos[k]; nodes[k]=mkCircle(x,y,72,labels[k],colors[k]); svg.appendChild(nodes[k]); }
+  const arr = [
+    ['new','ready','admitted'], ['ready','running','dispatch'], ['running','ready','preempted / time slice up'],
+    ['running','waiting','I/O or event wait'], ['waiting','ready','event completes'], ['running','term','exit()']
+  ];
+  arr.forEach(([a,b,label])=>{
+    const [x1,y1]=pos[a],[x2,y2]=pos[b];
+    const dx=x2-x1, dy=y2-y1, len=Math.hypot(dx,dy), ux=dx/len, uy=dy/len;
+    const sx=x1+ux*76, sy=y1+uy*76, ex=x2-ux*76, ey=y2-uy*76;
+    svg.appendChild(mkCurve(svg,sx,sy,ex,ey, a==='running'&&b==='ready'? -70:0, '#3a4d61',{arrow:true}));
+    svg.appendChild(mkLabel((sx+ex)/2,(sy+ey)/2-(a==='running'&&b==='ready'?70:8), label, '#8195a8', 13));
+  });
+  const token = mkToken(pos.new[0],pos.new[1]+48,14,'#fff','P');
+  svg.appendChild(token);
+  addPlayButton(m.querySelector('.slide'),'Play life cycle',()=>{
+    const seq=['new','ready','running','waiting','ready','running','term'];
+    playSequence(seq.map((k,i)=>({delay:i===0?300:1000, fn:()=>moveToken(token,pos[k][0],pos[k][1]+48,0.8)})));
+  });
+  stagger(m);
+}
+
+DECK.push({render:(m)=>rgfSlide(m,BLUE,'recap',{tag:'Recap',
+  big:'A process = private address space + a PCB that tracks its state as it moves New → Ready → Running → Waiting → Terminated.'})});
+
+DECK.push({render:(m)=>rgfSlide(m,VIOLET,'gap',{tag:'Gap',
+  q:'Creating a whole new address space for every task is expensive. What if 10 tasks in one app want to share memory and just take turns on the CPU?',
+  small:'We need something lighter than a process.'})});
+
+DECK.push({render:(m)=>diagramThreads(m)});
+function diagramThreads(m){
+  const {svg} = diagramBody(m,VIOLET,{eyebrow:'Fill · Threads', title:'Threads: Many Workers, One Address Space',
+    caption:'This is exactly why a bug in one thread (e.g. bad pointer) can crash the whole process — they share memory.'});
+  svg.appendChild(mkBox(80,70,1240,180,'','#233040'));
+  svg.appendChild(mkLabel(700,100,'Shared: Heap · Global/Static Data · Open Files · Code','#cfdbe6',17,700));
+  ['Heap','Data','Code'].forEach((l,i)=> svg.appendChild(mkBox(140+i*380,140,300,90,l, i===0?VIOLET:i===1?TEAL:BLUE)) );
+  const threadX=[160,540,920];
+  threadX.forEach((x,i)=>{
+    svg.appendChild(mkBox(x,300,300,260,`Thread ${i+1}`,AMBER));
+    svg.appendChild(mkBox(x+20,340,260,60,'Own Stack',ROSE,'locals, calls'));
+    svg.appendChild(mkBox(x+20,415,260,60,'Own Registers + PC',ROSE,'execution point'));
+    svg.appendChild(mkLine(svg,x+150,300,x+150,250,'#33475b',{arrow:true}));
+  });
+  stagger(m);
+}
+
+DECK.push({render:(m)=>compareSlide(m,VIOLET,{eyebrow:'Threads vs Processes', title:'Choosing the Right Unit of Work',
+  headers:['','Process','Thread'],
+  rows:[
+    ['Memory','Own private address space','Shares address space with siblings'],
+    ['Creation cost','High (copy tables, new space)','Low (share tables, new stack)'],
+    ['Communication','Needs IPC (slow, explicit)','Just read/write shared memory (fast, risky)'],
+    ['Crash isolation','One crash ≠ others crash','One thread\'s bad pointer can kill all'],
+    ['Context switch cost','Higher (swap address space / TLB)','Lower (same address space)'],
+    ['Practical use','Isolated services, security boundary','Parallel work inside one app (UI + worker)']
+  ],
+  caption:'Rule of thumb: use threads for speed within one app, processes for isolation between apps.'})});
+
+DECK.push({render:(m)=>rgfSlide(m,AMBER,'gap',{tag:'Gap',
+  q:'You now have hundreds of ready threads and processes, but only a handful of CPU cores. Who runs next, and for how long?',
+  small:'We need a referee.'})});
+
+DECK.push({render:(m)=>bulletsSlide(m,AMBER,{eyebrow:'Fill · Scheduling', title:'The Scheduler\'s Job',
+  items:[
+    {h:'Pick the next Ready process/thread to run on a free core.', d:'Goal is not one thing — it\'s a balancing act.'},
+    {h:'<b>Throughput</b> — finish as many jobs as possible per second.'},
+    {h:'<b>Turnaround time</b> — total time from arrival to completion.'},
+    {h:'<b>Response time</b> — how fast an interactive task first gets CPU.'},
+    {h:'<b>Fairness</b> — no job starves forever.'}
+  ],
+  caption:'These goals conflict — optimizing throughput often hurts response time. Every algorithm is a different trade-off.'})});
+
+DECK.push({render:(m)=>diagramGantt(m,'FCFS — First Come, First Served','Simple, but one long job blocks everyone behind it ("convoy effect").',
+  [{n:'P1',b:0,d:7},{n:'P2',b:7,d:2},{n:'P3',b:9,d:1}], AMBER)});
+DECK.push({render:(m)=>diagramGantt(m,'SJF — Shortest Job First','Provably minimizes average wait time — but needs to predict burst length, and can starve long jobs.',
+  [{n:'P3',b:0,d:1},{n:'P2',b:1,d:2},{n:'P1',b:3,d:7}], AMBER)});
+DECK.push({render:(m)=>diagramGanttRR(m)});
+
+function diagramGantt(m,title,caption,jobs,accent){
+  const {svg} = diagramBody(m,accent,{eyebrow:'Scheduling Algorithms', title, caption});
+  const total = jobs.reduce((a,j)=>Math.max(a,j.b+j.d),0);
+  const x0=140, w=1100, y=260, hgt=90, scale=w/total;
+  const colors=[BLUE,TEAL,ROSE,VIOLET,GREEN];
+  svg.appendChild(mkLabel(x0+w/2,220,'Timeline (each block = one job running on the CPU)','#8195a8',15));
+  jobs.forEach((j,i)=>{
+    const x=x0+j.b*scale, w2=j.d*scale;
+    const g=s('rect',{x,y,width:w2,height:hgt,rx:8,fill:colors[i%colors.length],class:'reveal-item'});
+    svg.appendChild(g);
+    svg.appendChild(mkLabel(x+w2/2,y+hgt/2+7,`${j.n} (${j.d})`,'#06090d',16,700));
+    svg.appendChild(mkLabel(x,y+hgt+26,String(j.b),'#8195a8',13));
+  });
+  svg.appendChild(mkLabel(x0+w, y+hgt+26, String(total), '#8195a8',13));
+  svg.appendChild(mkLine(svg,x0,y+hgt+8,x0+w,y+hgt+8,'#33475b',{}));
+  stagger(m);
+}
+function diagramGanttRR(m){
+  const {svg} = diagramBody(m,AMBER,{eyebrow:'Scheduling Algorithms', title:'Round Robin — Time Slicing for Fairness',
+    caption:'Quantum too small → wasted time on context switches. Too large → degrades toward FCFS. Practical OSes tune this (~1–10ms).'});
+  const quantum=2; const jobs=[{n:'P1',rem:5},{n:'P2',rem:3},{n:'P3',rem:2}];
+  const colors={'P1':BLUE,'P2':TEAL,'P3':ROSE};
+  const x0=100,y=260,hgt=80,scale=42; let x=x0;
+  const q=[...jobs]; let t=0;
+  svg.appendChild(mkLabel(x0+500,220,'Each job gets a fixed quantum (2 units), then rotates to the back of the queue','#8195a8',15));
+  let guard=0;
+  while(q.some(j=>j.rem>0) && guard<20){
+    guard++;
+    const j = q.find(j=>j.rem>0);
+    const run = Math.min(quantum, j.rem);
+    svg.appendChild(s('rect',{x,y,width:run*scale,height:hgt,rx:6,fill:colors[j.n],class:'reveal-item'}));
+    svg.appendChild(mkLabel(x+run*scale/2,y+hgt/2+6,j.n,'#06090d',15,700));
+    x += run*scale; j.rem-=run;
+    q.push(q.splice(q.indexOf(j),1)[0]);
+  }
+  svg.appendChild(mkLine(svg,x0,y+hgt+8,x,y+hgt+8,'#33475b',{}));
+  stagger(m);
+}
+
+DECK.push({render:(m)=>bulletsSlide(m,AMBER,{eyebrow:'Practical', title:'What Real OSes Actually Use',
+  items:[
+    {h:'Linux: <b>CFS (Completely Fair Scheduler)</b>, replaced by EEVDF since kernel 6.6.', d:'Models an idealized "everyone runs simultaneously at 1/N speed" and picks whoever has fallen furthest behind their fair share.'},
+    {h:'Priority + <b>MLFQ</b> (Multi-Level Feedback Queue): jobs that use less CPU (interactive) get bumped to higher-priority queues.', d:'This is how your mouse cursor stays smooth while a compile runs in the background.'},
+    {h:'Real-time OSes use fixed-priority preemptive scheduling for hard deadlines (e.g. anti-lock brakes).'}
+  ]})});
+
+DECK.push({render:(m)=>rgfSlide(m,TEAL,'gap',{tag:'Gap',
+  q:'Switching who runs isn\'t free — the CPU has to pause one story and resume another mid-sentence. What does that actually cost?',
+  small:'We need to look inside the switch itself.'})});
+
+DECK.push({render:(m)=>diagramContextSwitch(m)});
+function diagramContextSwitch(m){
+  const {svg} = diagramBody(m,TEAL,{eyebrow:'Fill · Context Switching', title:'Saving One Story, Loading Another',
+    caption:'Cost ≈ 1–10 microseconds direct, but the hidden cost is cache/TLB "cold" again — indirect cost can be far larger.'});
+  svg.appendChild(mkBox(560,60,280,90,'CPU Core','#e8eef4'.replace('#e8eef4',GREEN)));
+  svg.appendChild(mkLabel(700,168,'registers · program counter · stack pointer','#8195a8',13));
+  svg.appendChild(mkBox(140,280,340,230,'Process A · PCB',BLUE));
+  const aFields=['PC: 0x4110','SP: 0x7ffd..','R1..R8: [saved]'];
+  aFields.forEach((f,i)=>svg.appendChild(mkLabel(310,340+i*40,f,'#cfdbe6',14)));
+  svg.appendChild(mkBox(920,280,340,230,'Process B · PCB',ROSE));
+  const bFields=['PC: 0x2200','SP: 0x7ffb..','R1..R8: [saved]'];
+  bFields.forEach((f,i)=>svg.appendChild(mkLabel(1090,340+i*40,f,'#cfdbe6',14)));
+  const l1=mkLine(svg,470,300,600,150,BLUE,{arrow:true}); l1.id='saveline';
+  const l2=mkLine(svg,920,340,700,150,ROSE,{arrow:true,dashed:true}); l2.id='loadline';
+  svg.appendChild(l1); svg.appendChild(l2);
+  svg.appendChild(mkLabel(500,220,'1. SAVE A\'s registers → A\'s PCB',BLUE,14,700));
+  svg.appendChild(mkLabel(870,220,'2. LOAD B\'s registers ← B\'s PCB',ROSE,14,700));
+  svg.appendChild(mkLabel(700, 555, 'Full step-by-step sequence on the next slide →', '#4c5a68', 14));
+  stagger(m);
+}
+
+DECK.push({render:(m)=>bulletsSlide(m,TEAL,{eyebrow:'Context Switching · Sequence', title:'What Happens, Step by Step',
+  items:[
+    {h:'① A timer interrupt (or syscall, or I/O wait) fires — the hardware forces control back to the kernel.'},
+    {h:'② CPU traps into <b>kernel mode</b> — privilege level changes.'},
+    {h:'③ Kernel saves the running process\'s registers + PC into its PCB.'},
+    {h:'④ Scheduler algorithm picks the next PCB to run (FCFS/SJF/RR/CFS...).'},
+    {h:'⑤ Kernel loads that process\'s saved registers + PC from its PCB.'},
+    {h:'⑥ CPU returns to <b>user mode</b> and resumes exactly where that process left off — it never even notices the gap.'}
+  ],
+  caption:'This is why threads are cheaper than processes to switch between: no address-space / page-table reload needed.'})});
+
+DECK.push({render:(m)=>rgfSlide(m,ROSE,'recap',{tag:'Recap',
+  big:'Scheduling decides *who* runs; context switching is the mechanical act of *swapping* who is running — and it always costs real, measurable time.'})});
+
+DECK.push({render:(m)=>rgfSlide(m,ROSE,'gap',{tag:'Gap',
+  q:'Two threads share one bank balance. Both read $100, both add $50, both write back. The balance should be $200 — what could go wrong?',
+  small:'We need to see the danger before we can appreciate the fix.'})});
+
+DECK.push({render:(m)=>diagramRaceCondition(m)});
+function diagramRaceCondition(m){
+  const {svg} = diagramBody(m,ROSE,{eyebrow:'Fill · Race Conditions', title:'When Timing Decides Correctness',
+    caption:'A race condition: the output depends on the unpredictable interleaving of two threads. Same code, different luck, different (wrong) answer.'});
+  svg.appendChild(mkBox(560,40,280,70,'balance = $100',BLUE));
+  const laneY={A:150,B:340};
+  ['Thread A','Thread B'].forEach((l,i)=>svg.appendChild(mkLabel(120, (i===0?laneY.A:laneY.B)-10, l, i===0?TEAL:AMBER,18,700)));
+  const stepsA=['read balance → 100','+= 50 (local reg)','write balance'];
+  const stepsB=['read balance → 100','+= 50 (local reg)','write balance'];
+  const colXs=[280,620,960];
+  stepsA.forEach((t,i)=>svg.appendChild(mkBox(colXs[i],laneY.A,260,70,t,TEAL)));
+  stepsB.forEach((t,i)=>svg.appendChild(mkBox(colXs[i],laneY.B,260,70,t,AMBER)));
+  svg.appendChild(mkBox(560,470,280,80,'balance = $150 ??',RED,'expected $200 — lost update!'));
+  const tokenA = mkToken(colXs[0]+130, laneY.A+35, 12, TEAL);
+  const tokenB = mkToken(colXs[0]+130, laneY.B+35, 12, AMBER);
+  svg.appendChild(tokenA); svg.appendChild(tokenB);
+  addPlayButton(m.querySelector('.slide'),'Play the bad interleaving',()=>{
+    playSequence([
+      {delay:400, fn:()=>moveToken(tokenA,colXs[1]+130,laneY.A+35,0.6)},
+      {delay:800, fn:()=>moveToken(tokenB,colXs[1]+130,laneY.B+35,0.6)},
+      {delay:800, fn:()=>moveToken(tokenB,colXs[2]+130,laneY.B+35,0.6)},
+      {delay:800, fn:()=>moveToken(tokenA,colXs[2]+130,laneY.A+35,0.6)},
+      {delay:900, fn:()=>{ svg.querySelector('rect[width="280"][height="70"]'); const box=svg.querySelectorAll('rect')[0]; box.setAttribute('fill','#0f1826'); }},
+    ]);
+  });
+  stagger(m);
+}
+
+DECK.push({render:(m)=>bulletsSlide(m,ROSE,{eyebrow:'The Fix, Conceptually', title:'The Critical Section Problem',
+  items:[
+    {h:'The <b>critical section</b> is the code that touches shared data (here: read-modify-write of balance).', d:'We need a protocol around it.'},
+    {h:'<b>Mutual exclusion</b> — only one thread in the critical section at a time.'},
+    {h:'<b>Progress</b> — if no one is inside, someone waiting must be allowed in (no permanent lockout).'},
+    {h:'<b>Bounded waiting</b> — no thread waits forever while others repeatedly cut in line.'},
+    {h:'Every synchronization primitive that follows (mutex, semaphore, monitor) is just a different way to satisfy these three guarantees.'}
+  ]})});
+
+DECK.push({render:(m)=>diagramMutex(m)});
+function diagramMutex(m){
+  const {svg} = diagramBody(m,ROSE,{eyebrow:'Synchronization', title:'Mutex — A Key With Only One Copy',
+    caption:'lock() blocks if held; unlock() must be called by the SAME thread that locked it. Forgetting unlock() → permanent deadlock.'});
+  svg.appendChild(mkBox(600,60,200,80,'🔒 Mutex\n(unlocked)',GREEN)); 
+  const lockBox = svg.lastChild;
+  svg.appendChild(mkBox(150,260,260,90,'Thread A',TEAL,'wants critical section'));
+  svg.appendChild(mkBox(990,260,260,90,'Thread B',AMBER,'wants critical section'));
+  svg.appendChild(mkBox(560,440,280,90,'Critical Section\n(shared balance)',BLUE));
+  const tokA=mkToken(280,305,13,TEAL); const tokB=mkToken(1120,305,13,AMBER);
+  svg.appendChild(tokA); svg.appendChild(tokB);
+  addPlayButton(m.querySelector('.slide'),'Play lock / unlock',()=>{
+    playSequence([
+      {delay:300, fn:()=>{ moveToken(tokA,700,485,0.7); setFill(lockBox,RED); lockBox.querySelector('text').textContent='🔒 Mutex'; }},
+      {delay:900, fn:()=>{ moveToken(tokB,700,300,0.7); }},
+      {delay:1200, fn:()=>{ moveToken(tokA,280,305,0.6); setFill(lockBox,GREEN); }},
+      {delay:700, fn:()=>{ moveToken(tokB,700,485,0.6); }},
+      {delay:900, fn:()=>{ setFill(lockBox,RED); }},
+    ]);
+  });
+  stagger(m);
+}
+
+DECK.push({render:(m)=>diagramSemaphore(m)});
+function diagramSemaphore(m){
+  const {svg} = diagramBody(m,ROSE,{eyebrow:'Synchronization', title:'Semaphore — A Counter With Rules',
+    caption:'wait()/P() decrements (blocks if it would go below 0). signal()/V() increments and wakes a waiter. Binary semaphore (0/1) ≈ mutex; counting semaphore(N) caps concurrent access at N.'});
+  svg.appendChild(mkBox(600,50,200,70,'S = 3','#e8eef4'.replace('#e8eef4',AMBER)));
+  const counterBox = svg.lastChild;
+  svg.appendChild(mkLabel(700,150,'Represents 3 identical parking spots (e.g. 3 DB connections)','#8195a8',14));
+  const spots=[];
+  for(let i=0;i<5;i++){ const x=260+i*180; svg.appendChild(mkBox(x,230,140,90,`Thread ${i+1}`, i<3?TEAL:'#3a4d61')); spots.push(x+70); }
+  svg.appendChild(mkBox(560,420,280,90,'Pool of 3 resources',BLUE));
+  addPlayButton(m.querySelector('.slide'),'Play wait()/signal()',()=>{
+    const setCounter=(v)=>counterBox.querySelector('text').textContent='S = '+v;
+    playSequence([
+      {delay:300, fn:()=>setCounter(2)}, {delay:400, fn:()=>setCounter(1)}, {delay:400, fn:()=>setCounter(0)},
+      {delay:600, fn:()=>{ setFill(svg.querySelectorAll('g')[svg.querySelectorAll('g').length-1],'#3a4d61'); }},
+      {delay:900, fn:()=>setCounter(1)},
+      {delay:900, fn:()=>setCounter(2)},
+    ]);
+  });
+  stagger(m);
+}
+
+DECK.push({render:(m)=>bulletsSlide(m,ROSE,{eyebrow:'Synchronization', title:'Monitor — Locks with Manners Built In',
+  items:[
+    {h:'A <b>monitor</b> bundles shared data + the procedures that touch it + an implicit lock, so you can\'t forget to lock.', d:'Java <code class="f">synchronized</code>, Python\'s <code class="f">threading.Condition</code>.'},
+    {h:'Adds <b>condition variables</b>: <code class="f">wait()</code> releases the lock and sleeps; <code class="f">signal()</code> wakes a sleeper.', d:'Solves "I hold the lock but the condition I need isn\'t true yet."'},
+    {h:'Classic use: bounded buffer — producer calls <code class="f">wait()</code> when buffer is full instead of spinning.'},
+    {h:'Mental model: mutex = a key; semaphore = N keys; monitor = a room where the lock and the "wake me when ready" bell are built into the walls.'}
+  ]})});
+
+DECK.push({render:(m)=>rgfSlide(m,RED,'gap',{tag:'Gap',
+  q:'Locks solve races — but what if Thread A holds Lock 1 and waits for Lock 2, while Thread B holds Lock 2 and waits for Lock 1?',
+  small:'Now nobody can move. Forever.'})});
+
+DECK.push({render:(m)=>diagramDeadlock(m)});
+function diagramDeadlock(m){
+  const {svg} = diagramBody(m,RED,{eyebrow:'Fill · Deadlock', title:'Deadlock: A Cycle of "I\'m Waiting on You"',
+    caption:'A cycle in the resource-allocation graph is necessary for deadlock (with single-instance resources).'});
+  const A=mkCircle(300,180,70,'Thread A',TEAL), B=mkCircle(1000,180,70,'Thread B',AMBER);
+  const R1=mkBox(300,420,180,80,'Lock 1',BLUE), R2=mkBox(910,420,180,80,'Lock 2',BLUE);
+  svg.appendChild(R1); svg.appendChild(R2); svg.appendChild(A); svg.appendChild(B);
+  const l1=mkLine(svg,340,430,340,255,BLUE,{arrow:true}); // R1 -> A (held)
+  const l2=mkLine(svg,960,430,960,255,BLUE,{arrow:true}); // R2 -> B (held)
+  svg.appendChild(l1); svg.appendChild(l2);
+  svg.appendChild(mkLabel(300,395,'holds','#8195a8',13));
+  svg.appendChild(mkLabel(1000,395,'holds','#8195a8',13));
+  const wait1=mkLine(svg,370,180,900,190,RED,{arrow:true,dashed:true});
+  const wait2=mkLine(svg,930,220,410,460,RED,{arrow:true,dashed:true});
+  wait1.style.opacity=0; wait2.style.opacity=0;
+  svg.appendChild(wait1); svg.appendChild(wait2);
+  svg.appendChild(mkLabel(650,150,'wants Lock 2','#c56a6a',13));
+  addPlayButton(m.querySelector('.slide'),'Complete the cycle',()=>{
+    playSequence([
+      {delay:300, fn:()=>{ wait1.style.transition='opacity .6s'; wait1.style.opacity=1; }},
+      {delay:700, fn:()=>{ wait2.style.transition='opacity .6s'; wait2.style.opacity=1; }},
+      {delay:700, fn:()=>{ [A,B].forEach(g=>g.querySelector('circle').setAttribute('stroke',RED)); }},
+    ]);
+  });
+  stagger(m);
+}
+
+DECK.push({render:(m)=>cardsSlide(m,RED,{eyebrow:'Deadlock · The Four Conditions', title:'All Four Must Hold Simultaneously', cols:2,
+  cards:[
+    {h:'Mutual exclusion',d:'A resource can be held by only one thread at a time.',color:RED},
+    {h:'Hold and wait',d:'A thread holds one resource while waiting for another.',color:RED},
+    {h:'No preemption',d:'A resource can\'t be forcibly taken away — it must be released voluntarily.',color:RED},
+    {h:'Circular wait',d:'A closed chain: T1 waits on T2, T2 waits on T3 … waits on T1.',color:RED},
+  ],
+  caption:'Break just ONE condition and deadlock becomes impossible — that\'s the entire strategy space below.'})});
+
+DECK.push({render:(m)=>cardsSlide(m,RED,{eyebrow:'Deadlock · Strategies', title:'Prevention, Avoidance, Detection', cols:3,
+  cards:[
+    {h:'Prevention',d:'Design away a condition. E.g. always acquire locks in the same global order → breaks circular wait.',color:BLUE},
+    {h:'Avoidance',d:'Banker\'s Algorithm: before granting a resource, simulate — only grant if the system stays in a "safe state".',color:TEAL},
+    {h:'Detection + Recovery',d:'Let it happen, periodically scan the wait-for graph for cycles, then kill/rollback a process to break it.',color:AMBER},
+  ]})});
+
+DECK.push({render:(m)=>diagramBankers(m)});
+function diagramBankers(m){
+  const {svg}=diagramBody(m,TEAL,{eyebrow:'Deadlock Avoidance · Worked Example', title:'Banker\'s Algorithm: Only Grant if It Keeps You Safe',
+    caption:'Need = Max − Allocation. A state is SAFE if there exists an order to finish all processes using only what\'s currently Available (each finished process releases its Allocation back).'});
+  const headers=['Process','Allocation','Max','Need'];
+  const rows=[['P0','[0,1]','[3,3]','[3,2]'],['P1','[1,0]','[2,2]','[1,2]'],['P2','[1,1]','[3,2]','[2,1]']];
+  headers.forEach((hd,c)=>svg.appendChild(mkLabel(220+c*260,80,hd,AMBER,17,700)));
+  rows.forEach((r,ri)=> r.forEach((c,ci)=> svg.appendChild(mkLabel(220+ci*260,130+ri*55,c,'#cfdbe6',18))) );
+  svg.appendChild(mkLabel(220,340,'Available = [2, 3]','#e8eef4',19,700));
+  const seq=[['P1','[1,2] ≤ [2,3] ✓','Available → [3,3]'],['P0','[3,2] ≤ [3,3] ✓','Available → [3,4]'],['P2','[2,1] ≤ [3,4] ✓','Available → [4,5]']];
+  seq.forEach((r,i)=>{
+    svg.appendChild(mkBox(140+i*400,420,340,120, r[0], GREEN, r[1]+'\n'+r[2]));
+  });
+  svg.appendChild(mkLabel(700,590,'Safe sequence found: P1 → P0 → P2  ⇒  this state can NEVER deadlock.',GREEN,17,700));
+  stagger(m);
+}
+
+DECK.push({render:(m)=>compareSlide(m,RED,{eyebrow:'Don\'t Confuse These', title:'Deadlock vs Starvation vs Livelock',
+  headers:['','Deadlock','Starvation','Livelock'],
+  rows:[
+    ['State','Everyone frozen, blocked','One thread perpetually skipped','Everyone busy, but no progress'],
+    ['Cause','Circular wait on locks','Unfair scheduling / low priority','Threads keep reacting to each other'],
+    ['Example','A waits on B, B waits on A','Low-priority job always pre-empted','Two people stepping aside in a hallway, forever'],
+    ['Fix','Break one of the 4 conditions','Aging: raise priority over time','Add randomness / a tie-breaker rule']
+  ]})});
+
+DECK.push({render:(m)=>diagramStarvation(m)});
+function diagramStarvation(m){
+  const {svg}=diagramBody(m,AMBER,{eyebrow:'Fill · Starvation', title:'Starvation: Technically Not Stuck — Just Never Picked',
+    caption:'Formula (aging): effective_priority(t) = base_priority − k × wait_time. As wait_time grows, effective_priority improves until the job finally wins the comparison.'});
+  svg.appendChild(mkLabel(700,80,'Without aging: high-priority jobs keep arriving and cutting in line','#8195a8',16));
+  const colors=[BLUE,BLUE,BLUE,BLUE,BLUE];
+  for(let i=0;i<5;i++) svg.appendChild(mkBox(140+i*160,120,140,70,'High P'+(i+1),BLUE));
+  svg.appendChild(mkBox(900,120,300,70,'P_low (priority 9)','#3a4d61','never runs'));
+  svg.appendChild(mkLabel(700,320,'With aging: P_low\'s effective priority climbs every tick it waits','#8195a8',16));
+  const bar = s('rect',{x:140,y:360,width:40,height:40,rx:6,fill:AMBER,class:'reveal-item'}); svg.appendChild(bar);
+  svg.appendChild(mkLabel(700,440,'priority 9','#8195a8',14));
+  const lbl = svg.lastChild;
+  addPlayButton(m.querySelector('.slide'),'Age the process',()=>{
+    let p=9;
+    playSequence([1,2,3,4,5].map((n,i)=>({delay:i===0?400:500, fn:()=>{ bar.setAttribute('width',40+ n*35); p=9-n; lbl.textContent='priority '+p; if(p<=4){bar.setAttribute('fill',GREEN); lbl.setAttribute('fill',GREEN);} }})));
+  });
+  stagger(m);
+}
+
+
+DECK.push({render:(m)=>rgfSlide(m,BLUE,'recap',{tag:'Recap',
+  big:'Synchronization primitives keep shared memory safe within one machine. But what about processes that don\'t share memory at all?'})});
+
+DECK.push({render:(m)=>rgfSlide(m,BLUE,'gap',{tag:'Gap',
+  q:'Process isolation is a feature (safety) — until two isolated processes need to cooperate. How do they talk across the wall?',
+  small:'We need Inter-Process Communication.'})});
+
+DECK.push({render:(m)=>cardsSlide(m,BLUE,{eyebrow:'Fill · IPC', title:'Inter-Process Communication: The Toolkit', cols:3,
+  cards:[
+    {h:'Pipes',d:'Unidirectional byte stream, kernel-buffered. Classic: <code class="f">ls | grep foo</code>.',color:TEAL},
+    {h:'Shared memory',d:'OS maps the SAME physical page into both address spaces. Fastest IPC — but you\'re back to needing your own synchronization.',color:VIOLET},
+    {h:'Message queues',d:'Kernel stores discrete messages; processes send/receive without both being up at once.',color:AMBER},
+    {h:'Sockets',d:'Like pipes, but can cross machines over a network — same abstraction, wider reach.',color:BLUE},
+    {h:'Signals',d:'A tiny async notification (e.g. SIGKILL, SIGINT) — interrupts a process to say "something happened."',color:ROSE},
+    {h:'Memory-mapped files',d:'A file on disk is mapped into memory; the OS handles paging it in/out transparently.',color:GREEN},
+  ]})});
+
+DECK.push({render:(m)=>diagramPipe(m)});
+function diagramPipe(m){
+  const {svg}=diagramBody(m,TEAL,{eyebrow:'IPC · Pipes', title:'A Pipe is a Kernel-Managed Queue of Bytes',
+    caption:'If the buffer is full, the writer blocks; if empty, the reader blocks — the kernel handles this synchronization for you.'});
+  svg.appendChild(mkBox(120,240,260,110,'Process A\n(writer)',TEAL));
+  svg.appendChild(mkBox(1020,240,260,110,'Process B\n(reader)',AMBER));
+  svg.appendChild(mkBox(480,220,440,150,'Kernel Pipe Buffer','#8f7fd9'.replace('#8f7fd9',VIOLET)));
+  const cells=[]; for(let i=0;i<6;i++){ const x=500+i*65; const r=s('rect',{x,y:290,width:50,height:40,rx:6,fill:'#1b2632',class:'reveal-item'}); svg.appendChild(r); cells.push(r); }
+  const tok = mkToken(260,295,14,TEAL,'B'); svg.appendChild(tok);
+  addPlayButton(m.querySelector('.slide'),'Write → buffer → read',()=>{
+    playSequence([
+      {delay:300, fn:()=>moveToken(tok,525,310,0.6)},
+      {delay:700, fn:()=>{ cells[0].setAttribute('fill',TEAL); moveToken(tok,590,310,0.5); }},
+      {delay:600, fn:()=>{ cells[1].setAttribute('fill',TEAL); }},
+      {delay:900, fn:()=>moveToken(tok,1150,295,0.8)},
+      {delay:850, fn:()=>{ cells[0].setAttribute('fill','#1b2632'); }},
+    ]);
+  });
+  stagger(m);
+}
+
+DECK.push({render:(m)=>diagramSharedMem(m)});
+function diagramSharedMem(m){
+  const {svg}=diagramBody(m,VIOLET,{eyebrow:'IPC · Shared Memory', title:'Shared Memory: Same Physical Page, Two Views',
+    caption:'Fastest IPC because there\'s no copying and no kernel involved on each access — but YOU must add a mutex/semaphore for safety.'});
+  svg.appendChild(mkBox(150,80,320,120,'Process A\naddress space',TEAL));
+  svg.appendChild(mkBox(930,80,320,120,'Process B\naddress space',AMBER));
+  svg.appendChild(mkBox(560,340,280,120,'Physical Page\n(RAM)',VIOLET));
+  svg.appendChild(mkLine(svg,310,200,650,340,TEAL,{arrow:true}));
+  svg.appendChild(mkLine(svg,1090,200,850,340,AMBER,{arrow:true}));
+  svg.appendChild(mkLabel(700,520,'Both point to the SAME frame — a write by A is instantly visible to B','#8195a8',15));
+  stagger(m);
+}
+
+DECK.push({render:(m)=>diagramSignals(m)});
+function diagramSignals(m){
+  const {svg}=diagramBody(m,ROSE,{eyebrow:'IPC · Signals', title:'Signals: Software Interrupts Between Processes',
+    caption:'Signals don\'t carry data — just a number. The receiving process either handles it, ignores it, or dies (default action).'});
+  svg.appendChild(mkBox(200,260,280,110,'Process A',TEAL));
+  svg.appendChild(mkBox(920,260,280,110,'Process B',AMBER));
+  const bolt = mkToken(340,315,16,ROSE,'⚡','#fff');
+  svg.appendChild(bolt);
+  svg.appendChild(mkLabel(700,200,'kill(pid, SIGTERM)','#c17a92',16,700));
+  addPlayButton(m.querySelector('.slide'),'Send signal',()=>{
+    playSequence([
+      {delay:300, fn:()=>moveToken(bolt,1060,315,0.9)},
+      {delay:1000, fn:()=>{ const box=svg.querySelectorAll('rect')[1]; box.setAttribute('stroke',RED); }},
+    ]);
+  });
+  stagger(m);
+}
+
+DECK.push({render:(m)=>rgfSlide(m,VIOLET,'gap',{tag:'Gap',
+  q:'Your programs collectively want more memory than you physically have — and each expects addresses starting near zero. How is that possible without collisions?',
+  small:'We need to fake a bigger, cleaner memory space.'})});
+
+DECK.push({render:(m)=>diagramVirtualMemory(m)});
+function diagramVirtualMemory(m){
+  const {svg}=diagramBody(m,VIOLET,{eyebrow:'Fill · Virtual Memory', title:'Virtual Memory: Every Process Gets Its Own Illusion',
+    caption:'Isolation is a side-effect: Process A literally cannot form an address that points into Process B\'s physical memory.'});
+  svg.appendChild(mkBox(120,80,300,140,'Process A\nVirtual: 0x0000–0xFFFF',TEAL));
+  svg.appendChild(mkBox(980,80,300,140,'Process B\nVirtual: 0x0000–0xFFFF',AMBER));
+  svg.appendChild(mkBox(120,440,300,90,'Page Table A',TEAL));
+  svg.appendChild(mkBox(980,440,300,90,'Page Table B',AMBER));
+  svg.appendChild(mkBox(560,260,280,120,'Physical RAM\n(frames)',VIOLET));
+  svg.appendChild(mkLine(svg,270,220,270,440,TEAL,{arrow:true}));
+  svg.appendChild(mkLine(svg,270,530,650,340,TEAL,{arrow:true,dashed:true}));
+  svg.appendChild(mkLine(svg,1130,220,1130,440,AMBER,{arrow:true}));
+  svg.appendChild(mkLine(svg,1130,530,750,340,AMBER,{arrow:true,dashed:true}));
+  svg.appendChild(mkLabel(700,240,'MMU translates virtual → physical on every access','#8195a8',15));
+  stagger(m);
+}
+
+DECK.push({render:(m)=>diagramPaging(m)});
+function diagramPaging(m){
+  const {svg}=diagramBody(m,VIOLET,{eyebrow:'Virtual Memory', title:'Paging: Fixed-Size Chunks, Table-Translated',
+    caption:'Formula: physical address = frame_number × page_size + offset. Typical page size: 4KB.'});
+  svg.appendChild(mkLabel(300,60,'Virtual Address','#8195a8',16,700));
+  svg.appendChild(mkBox(140,80,150,70,'Page #\n2','TEAL'.toLowerCase()===''?TEAL:TEAL));
+  svg.appendChild(mkBox(300,80,150,70,'Offset\n0x120',BLUE));
+  svg.appendChild(mkLabel(900,60,'Page Table','#8195a8',16,700));
+  const rows=[['0','frame 5'],['1','frame 2'],['2','frame 9 ←'],['3','—']];
+  rows.forEach((r,i)=>{ svg.appendChild(mkBox(760,80+i*60,130,50,r[0],'#1b2632')); svg.appendChild(mkBox(900,80+i*60,220,50,r[1], r[1].includes('←')?AMBER:'#1b2632')); });
+  svg.appendChild(mkLine(svg,215,150,825,140,TEAL,{arrow:true,dashed:true}));
+  svg.appendChild(mkLabel(1180,60,'Physical Address','#8195a8',16,700));
+  svg.appendChild(mkBox(1120,80,150,70,'Frame\n9',AMBER));
+  svg.appendChild(mkBox(1120,170,150,70,'+ Offset\n0x120',BLUE));
+  svg.appendChild(mkLine(svg,1030,300,1195,240,AMBER,{arrow:true,dashed:true}));
+  svg.appendChild(mkBox(700,440,300,90,'RAM: Frame 9',VIOLET,'your data lives here'));
+  svg.appendChild(mkLine(svg,1195,250,850,440,AMBER,{arrow:true}));
+  stagger(m);
+}
+
+DECK.push({render:(m)=>diagramPageFault(m)});
+function diagramPageFault(m){
+  const {svg}=diagramBody(m,VIOLET,{eyebrow:'Virtual Memory', title:'Page Fault: When the Page Isn\'t in RAM',
+    caption:'A "fault" isn\'t always an error — a page fault is the normal mechanism that grows the heap and loads code on demand.'});
+  const steps=[[160,'CPU accesses\nvirtual page 7'],[460,'MMU checks\npage table → not present!'],[760,'OS pauses process,\nfinds page on disk'],[1060,'Loads page into\nfree RAM frame'],[1060,'']];
+  svg.appendChild(mkBox(160,240,240,100,'CPU access\npage 7',TEAL));
+  svg.appendChild(mkBox(480,240,240,100,'Page Table\n"not present" bit',AMBER));
+  svg.appendChild(mkBox(800,80,240,100,'TRAP → OS\nPage Fault Handler',RED));
+  svg.appendChild(mkBox(800,400,240,100,'Disk: swap /\nbacking file',BLUE));
+  svg.appendChild(mkBox(1150,240,220,100,'Free RAM frame',GREEN));
+  const tok=mkToken(280,290,14,'#fff','P'); svg.appendChild(tok);
+  svg.appendChild(mkLine(svg,400,290,480,290,'#33475b',{arrow:true}));
+  addPlayButton(m.querySelector('.slide'),'Handle the fault',()=>{
+    playSequence([
+      {delay:300, fn:()=>moveToken(tok,600,130,0.7)},
+      {delay:900, fn:()=>moveToken(tok,600,450,0.7)},
+      {delay:900, fn:()=>moveToken(tok,1260,290,0.8)},
+      {delay:900, fn:()=>moveToken(tok,600,290,0.7)},
+    ]);
+  });
+  stagger(m);
+}
+
+DECK.push({render:(m)=>bulletsSlide(m,VIOLET,{eyebrow:'Virtual Memory · In Practice', title:'Why This Matters to You as a Developer',
+  items:[
+    {h:'Thrashing: if too many processes compete for too little RAM, the OS spends more time swapping pages than running code.', d:'Symptom: system is "busy" but nothing progresses — check swap usage first.'},
+    {h:'The TLB (Translation Lookaside Buffer) caches recent page-table lookups.', d:'This is WHY context-switching between processes is expensive: a fresh process means a "cold" TLB.'},
+    {h:'<code class="f">mmap()</code> lets you treat a file as memory directly — used by databases for zero-copy I/O.'},
+    {h:'Out-of-memory killer: on Linux, when physical + swap is exhausted, the kernel picks a process to sacrifice.'}
+  ]})});
+
+DECK.push({render:(m)=>rgfSlide(m,BLUE,'gap',{tag:'Gap',
+  q:'Virtual memory lets a process use RAM cleanly. But it also needs to permanently save data after it exits. Where does THAT live?',
+  small:'We need a persistent, organized abstraction over the raw disk.'})});
+
+DECK.push({render:(m)=>diagramFilesystem(m)});
+function diagramFilesystem(m){
+  const {svg}=diagramBody(m,BLUE,{eyebrow:'Fill · File Systems', title:'A File System Turns Raw Blocks into Files and Folders',
+    caption:'The directory is just a table mapping names → inode numbers. "Deleting" a file usually just removes this entry.'});
+  svg.appendChild(mkBox(140,80,300,90,'Directory\n"/home/user/"',AMBER));
+  ['notes.txt → inode 91','photo.png → inode 42'].forEach((f,i)=>svg.appendChild(mkLabel(290,200+i*32,f,'#cfdbe6',14)));
+  svg.appendChild(mkBox(620,60,280,110,'Inode #91',TEAL,'metadata: size, perms, timestamps, pointers to blocks'));
+  svg.appendChild(mkBox(620,300,280,110,'Inode #42',AMBER,'metadata + block pointers'));
+  const blocks=[]; for(let i=0;i<8;i++){ const x=1020+((i%4)*90); const y=80+Math.floor(i/4)*90; const r=s('rect',{x,y,width:70,height:70,rx:8,fill:'#1b2632',stroke:'#33475b',class:'reveal-item'}); svg.appendChild(r); blocks.push(r); }
+  [1,3,5].forEach(i=>blocks[i].setAttribute('fill',TEAL));
+  [0,2].forEach(i=>blocks[i].setAttribute('fill',AMBER));
+  svg.appendChild(mkLine(svg,900,110,1015,115,TEAL,{arrow:true,dashed:true}));
+  svg.appendChild(mkLine(svg,900,350,1015,260,AMBER,{arrow:true,dashed:true}));
+  svg.appendChild(mkLabel(1200,300,'Disk: fixed-size blocks','#8195a8',14));
+  stagger(m);
+}
+
+DECK.push({render:(m)=>rgfSlide(m,GREEN,'gap',{tag:'Gap',
+  q:'A user program wants to open that file — but it isn\'t allowed to touch the disk controller directly (for safety). How does it cross that wall?',
+  small:'We need a controlled doorway into the kernel.'})});
+
+DECK.push({render:(m)=>diagramSyscall(m)});
+function diagramSyscall(m){
+  const {svg}=diagramBody(m,GREEN,{eyebrow:'Fill · System Calls', title:'System Calls: The Only Door Into the Kernel',
+    caption:'x86 uses the syscall instruction (older: int 0x80). The kernel validates arguments — never trust user space.'});
+  svg.appendChild(mkBox(160,120,340,300,'USER MODE\n(ring 3)',BLUE));
+  svg.appendChild(mkLabel(330,180,'Your code','#cfdbe6',15));
+  svg.appendChild(mkBox(220,220,220,70,'read(fd, buf, n)',TEAL));
+  svg.appendChild(mkBox(920,120,340,300,'KERNEL MODE\n(ring 0)',RED));
+  svg.appendChild(mkLabel(1090,180,'Trusted OS code','#cfdbe6',15));
+  svg.appendChild(mkBox(970,220,240,70,'sys_read()\nfile system + disk driver',AMBER));
+  const tok=mkToken(330,290,14,'#fff','◆'); svg.appendChild(tok);
+  svg.appendChild(mkLabel(700,90,'trap / software interrupt','#8195a8',14));
+  addPlayButton(m.querySelector('.slide'),'Cross the boundary',()=>{
+    playSequence([
+      {delay:300, fn:()=>moveToken(tok,1090,255,0.9)},
+      {delay:1100, fn:()=>moveToken(tok,330,290,0.9)},
+    ]);
+  });
+  stagger(m);
+}
+
+DECK.push({render:(m)=>bulletsSlide(m,RED,{eyebrow:'Kernel vs User Mode', title:'Why Privilege Rings Exist at All',
+  items:[
+    {h:'CPU has hardware-enforced privilege levels (x86: rings 0–3; practically just kernel vs user).'},
+    {h:'<b>User mode</b>: restricted — can\'t execute privileged instructions (halt CPU, change page tables, direct I/O port access).'},
+    {h:'<b>Kernel mode</b>: unrestricted — full hardware access.'},
+    {h:'A syscall, interrupt, or exception is the ONLY legal way to flip from user → kernel mode.', d:'This is a security boundary, not just an API — it\'s literally enforced by the CPU\'s hardware.'}
+  ]})});
+
+DECK.push({render:(m)=>rgfSlide(m,AMBER,'gap',{tag:'Gap',
+  q:'A syscall is the process asking the kernel for something. But what about the other direction — hardware needs the CPU\'s attention RIGHT NOW (a key was pressed, a disk finished reading)?',
+  small:'The CPU can\'t keep asking "are we there yet?" forever.'})});
+
+DECK.push({render:(m)=>diagramInterrupts(m)});
+function diagramInterrupts(m){
+  const {svg}=diagramBody(m,AMBER,{eyebrow:'Fill · Interrupts', title:'Interrupts: Hardware Tapping the CPU on the Shoulder',
+    caption:'The Interrupt Vector Table maps each interrupt number to its handler address — O(1) dispatch, no searching.'});
+  svg.appendChild(mkBox(140,260,260,100,'Keyboard\ncontroller',TEAL));
+  svg.appendChild(mkBox(140,420,260,100,'Disk\ncontroller',VIOLET));
+  svg.appendChild(mkBox(560,120,280,90,'CPU',BLUE));
+  svg.appendChild(mkBox(560,420,280,120,'Interrupt Vector Table',AMBER,'IRQ# → handler address'));
+  svg.appendChild(mkBox(1000,120,280,90,'ISR (Interrupt\nService Routine)',RED));
+  const l1=mkLine(svg,400,300,700,205,TEAL,{arrow:true}); l1.style.opacity=0;
+  const l2=mkLine(svg,400,460,700,210,VIOLET,{arrow:true,dashed:true}); l2.style.opacity=0;
+  svg.appendChild(l1); svg.appendChild(l2);
+  svg.appendChild(mkLine(svg,700,210,700,420,'#33475b',{arrow:true,dashed:true}));
+  svg.appendChild(mkLine(svg,840,120,1000,150,'#33475b',{arrow:true}));
+  addPlayButton(m.querySelector('.slide'),'Fire an interrupt',()=>{
+    playSequence([{delay:300, fn:()=>{l1.style.transition='opacity .5s'; l1.style.opacity=1;}},
+      {delay:700, fn:()=>{ svg.querySelectorAll('rect')[2].setAttribute('stroke',TEAL); }}]);
+  });
+  stagger(m);
+}
+
+DECK.push({render:(m)=>compareSlide(m,GREEN,{eyebrow:'I/O Strategies', title:'Polling vs Interrupts vs DMA',
+  headers:['Strategy','How it works','Cost'],
+  rows:[
+    ['Polling','CPU repeatedly checks "is the device ready yet?" in a loop.','Wastes CPU cycles busy-waiting — simple but inefficient.'],
+    ['Interrupt-driven','CPU does other work; device raises an interrupt when ready.','No wasted cycles, but per-byte interrupt overhead adds up for big transfers.'],
+    ['DMA (Direct Memory Access)','A DMA controller copies data straight to/from RAM; CPU is only interrupted ONCE at the end.','Best for large transfers (disk, network) — CPU is freed almost entirely.']
+  ],
+  caption:'Real disk/network I/O uses interrupt-driven DMA: the CPU says "go", walks away, and is tapped once when the whole block is done.'})});
+
+DECK.push({render:(m)=>diagramDiskScheduling(m)});
+function diagramDiskScheduling(m){
+  const {svg}=diagramBody(m,VIOLET,{eyebrow:'Fill · Disk Scheduling', title:'Disk Scheduling: Minimizing Arm Movement',
+    caption:'SSTF can starve far-away requests; SCAN ("elevator algorithm") sweeps in one direction then reverses — fair and efficient.'});
+  const requests=[20,80,45,95,10,60];
+  const trackY=350, x0=140, scale=11.5;
+  svg.appendChild(mkLine(svg,x0,trackY,x0+100*scale,trackY,'#33475b',{}));
+  for(let i=0;i<=100;i+=10) svg.appendChild(mkLabel(x0+i*scale, trackY+28, i, '#4c5a68', 11));
+  requests.forEach(r=> svg.appendChild(s('circle',{cx:x0+r*scale, cy:trackY, r:8, fill:AMBER, class:'reveal-item'})) );
+  svg.appendChild(mkLabel(700,120,'Head starts at track 50 — requests arrive for tracks: '+requests.join(', '),'#8195a8',15));
+  const head = mkToken(x0+50*scale, trackY, 13, '#fff','H'); svg.appendChild(head);
+  addPlayButton(m.querySelector('.slide'),'Play SCAN (elevator)',()=>{
+    const order=[60,80,95,45,20,10]; // sweep up first then down, from 50
+    playSequence(order.map((r,i)=>({delay:i===0?400:750, fn:()=>moveToken(head,x0+r*scale,trackY,0.6)})));
+  });
+  stagger(m);
+}
+
+DECK.push({render:(m)=>compareSlide(m,VIOLET,{eyebrow:'Full Comparison', title:'Disk Scheduling Algorithms, Side by Side',
+  headers:['Algorithm','Strategy','Trade-off'],
+  rows:[
+    ['FCFS','Serve requests in arrival order.','Simple, fair — but ignores arm position, so it can zig-zag wastefully across the disk.'],
+    ['SSTF','Always jump to the closest pending track.','Great average seek time — but far-away requests can starve indefinitely.'],
+    ['SCAN (elevator)','Sweep to one end, service requests along the way, then reverse.','Bounded wait, no starvation — but tracks just visited get long waits when the sweep reverses.'],
+    ['C-SCAN','Sweep one direction only; jump back to start without servicing on the return.','More uniform wait times than SCAN, at the cost of the "free" return trip.'],
+    ['LOOK / C-LOOK','Like SCAN/C-SCAN, but reverse as soon as no more requests lie ahead (don\'t go all the way to the edge).','Saves the wasted trip to the physical end of the disk — used in practice more than pure SCAN.']
+  ],
+  caption:'Modern SSDs have no seek arm — but the same request-reordering ideas live on in I/O schedulers (e.g. Linux\'s mq-deadline, kyber) to reduce latency and balance fairness.'})});
+
+DECK.push({render:(m)=>rgfSlide(m,BLUE,'recap',{tag:'Part 1 Recap',
+  big:'Processes and threads are units of work. Scheduling and context switching share the CPU between them. Synchronization keeps shared memory safe. IPC lets isolated processes cooperate. Virtual memory, file systems, syscalls, interrupts, and I/O form the machinery underneath it all.'})});
+
+/* =========================================================
+   DECK CONTENT — PART 2 : CONCURRENCY
+   ========================================================= */
+DECK.push({render:(m)=>sectionSlide(m,TEAL,{kicker:'Part 2', title:'Concurrency',
+  sub:'Taking the OS primitives further: how modern software structures many things happening "at once."'})});
+
+DECK.push({render:(m)=>diagramConcurrencyVsParallelism(m)});
+function diagramConcurrencyVsParallelism(m){
+  const {svg}=diagramBody(m,TEAL,{eyebrow:'Foundations', title:'Concurrency vs Parallelism — Not the Same Thing',
+    caption:'Rob Pike: "Concurrency is about dealing with lots of things at once. Parallelism is about doing lots of things at once."'});
+  svg.appendChild(mkLabel(360,70,'CONCURRENCY — 1 core, interleaved','#8195a8',17,700));
+  ['A','B'].forEach((l,i)=>{
+    const y=140+i*90;
+    const colors=[TEAL,AMBER,TEAL,AMBER,TEAL];
+    for(let seg=0;seg<5;seg++){ const w=60+ (seg%2===0?20:0); svg.appendChild(s('rect',{x:120+seg*130, y, width:110, height:60, rx:6, fill: (seg%2===i)?colors[i]:'#1b2632', class:'reveal-item'})); }
+    svg.appendChild(mkLabel(90,y+35,l,'#cfdbe6',16,700));
+  });
+  svg.appendChild(mkLine(svg,700,80,700,520,'#233040',{}));
+  svg.appendChild(mkLabel(1040,70,'PARALLELISM — 2 cores, simultaneous','#8195a8',17,700));
+  ['A (core 1)','B (core 2)'].forEach((l,i)=>{
+    const y=140+i*90;
+    svg.appendChild(s('rect',{x:800, y, width:600, height:60, rx:6, fill: i===0?TEAL:AMBER, class:'reveal-item'}));
+    svg.appendChild(mkLabel(760,y+35,l,'#cfdbe6',14,700));
+  });
+  svg.appendChild(mkLabel(700,570,'You can have concurrency WITHOUT parallelism (1 core, time-sliced) — this is what async programming exploits.','#8195a8',15));
+  stagger(m);
+}
+
+DECK.push({render:(m)=>diagramAmdahl(m)});
+function diagramAmdahl(m){
+  const {svg}=diagramBody(m,TEAL,{eyebrow:'Fill · The Limits of Parallelism', title:'Amdahl\'s Law: Why More Cores ≠ Proportionally Faster',
+    caption:'Speedup(N) = 1 / ( (1−P) + P/N ).  P = fraction that\'s parallelizable, N = processors. As N→∞, speedup caps at 1/(1−P) — the serial part becomes the bottleneck.'});
+  svg.appendChild(mkLabel(300,70,'1 core','#8195a8',16,700));
+  svg.appendChild(s('rect',{x:200,y:100,width:60,height:60,fill:RED,class:'reveal-item'}));
+  svg.appendChild(s('rect',{x:260,y:100,width:240,height:60,fill:TEAL,class:'reveal-item'}));
+  svg.appendChild(mkLabel(230,190,'serial 20%','#c56a6a',13));
+  svg.appendChild(mkLabel(380,190,'parallel 80%','#4fb3a0',13));
+  svg.appendChild(mkLabel(300,270,'4 cores','#8195a8',16,700));
+  svg.appendChild(s('rect',{x:200,y:300,width:60,height:60,fill:RED,class:'reveal-item'}));
+  svg.appendChild(s('rect',{x:260,y:300,width:60,height:60,fill:TEAL,class:'reveal-item'}));
+  svg.appendChild(mkLabel(300,470,'∞ cores','#8195a8',16,700));
+  svg.appendChild(s('rect',{x:200,y:500,width:60,height:60,fill:RED,class:'reveal-item'}));
+  svg.appendChild(mkLabel(230,590,'serial part never shrinks','#c56a6a',13));
+  svg.appendChild(mkLine(svg,700,120,700,540,'#233040',{}));
+  svg.appendChild(mkLabel(1050,150,'Speedup(4) = 1/(0.2+0.8/4) = 2.5×','#cfdbe6',19,700));
+  svg.appendChild(mkLabel(1050,220,'Speedup(∞) = 1/0.2 = 5× (hard ceiling)','#cfdbe6',19,700));
+  svg.appendChild(mkLabel(1050,320,'Practical: profile first — 20% serial code caps you at 5×, however many threads you add.','#8195a8',14));
+  stagger(m);
+}
+
+DECK.push({render:(m)=>cardsSlide(m,VIOLET,{eyebrow:'Practical', title:'Concurrency Models You\'ll Actually Meet', cols:2,
+  cards:[
+    {h:'OS Threads',d:'Kernel-scheduled, truly parallel across cores. Heavier to create. Java <code class="f">Thread</code>, C++ <code class="f">std::thread</code>. Note: Python\'s GIL means threads don\'t get CPU parallelism for pure Python code — only for I/O or C-extension work.',color:BLUE},
+    {h:'Green Threads / Coroutines',d:'Scheduled in user-space by a runtime, not the kernel — thousands can exist cheaply. Go goroutines, Kotlin coroutines.',color:TEAL},
+    {h:'Event Loop (Async)',d:'Single OS thread, cooperative multitasking via callbacks/await. Node.js, Python asyncio, JS in the browser.',color:AMBER},
+    {h:'Actor Model',d:'Isolated units communicating only via messages/mailboxes — sidesteps shared-memory races entirely. Erlang/Elixir, Akka.',color:VIOLET},
+  ],
+  caption:'These aren\'t competitors so much as different trade-offs between raw parallelism, memory cost per unit, and safety guarantees.'})});
+
+DECK.push({render:(m)=>rgfSlide(m,BLUE,'gap',{tag:'Gap',
+  q:'Spawning an OS thread per task (e.g. per web request) costs real memory and context-switch overhead. What if a single thread could juggle thousands of waiting tasks itself?',
+  small:'We need a way to "pause" without blocking a whole thread.'})});
+
+
+DECK.push({render:(m)=>diagramEventLoop(m)});
+function diagramEventLoop(m){
+  const {svg}=diagramBody(m,BLUE,{eyebrow:'Fill · Async Programming', title:'The Event Loop: One Thread, Many In-Flight Tasks',
+    caption:'When a task hits an I/O wait, it doesn\'t block the thread — it registers a callback and steps aside for the next task. This is how Node.js and Python asyncio serve thousands of connections on one thread.'});
+  svg.appendChild(mkCircle(700,300,190,'Event\nLoop',BLUE));
+  const tasks=[[300,130,'Task 1: fetch()',TEAL],[300,470,'Task 2: read file',AMBER],[1100,130,'Task 3: timer',VIOLET],[1100,470,'Task 4: query DB',ROSE]];
+  const boxes=tasks.map(([x,y,l,c])=>{ const b=mkBox(x-110,y-40,220,80,l,c); svg.appendChild(b); return b; });
+  svg.appendChild(mkBox(600,80,200,60,'Callback Queue','#1b2632'));
+  const tok=mkToken(700,300,14,'#fff','●'); svg.appendChild(tok);
+  addPlayButton(m.querySelector('.slide'),'Run one loop tick',()=>{
+    playSequence([
+      {delay:300, fn:()=>moveToken(tok,300,130,0.6)},
+      {delay:700, fn:()=>moveToken(tok,700,300,0.6)},
+      {delay:400, fn:()=>moveToken(tok,1100,470,0.6)},
+      {delay:700, fn:()=>moveToken(tok,700,300,0.6)},
+      {delay:400, fn:()=>moveToken(tok,700,110,0.5)},
+      {delay:600, fn:()=>moveToken(tok,700,300,0.5)},
+    ]);
+  });
+  stagger(m);
+}
+
+DECK.push({render:(m)=>diagramFutures(m)});
+function diagramFutures(m){
+  const {svg}=diagramBody(m,BLUE,{eyebrow:'Fill · Futures &amp; Promises', title:'A Future/Promise: A Box for a Value That Isn\'t Ready Yet',
+    caption:'You get the box immediately and attach .then()/.await — the value gets poured in later, without you blocking to wait for it.'});
+  const box = mkBox(600,220,280,140,'PENDING','#3a4d61');
+  svg.appendChild(box);
+  svg.appendChild(mkLabel(740,120,'Promise / Future object','#8195a8',16));
+  svg.appendChild(mkBox(140,240,300,100,'async operation\n(network call)',TEAL));
+  svg.appendChild(mkBox(960,180,320,80,'.then(value => …)',AMBER));
+  svg.appendChild(mkBox(960,340,320,80,'.catch(err => …)',RED));
+  addPlayButton(m.querySelector('.slide'),'Resolve it',()=>{
+    playSequence([
+      {delay:400, fn:()=>{ box.querySelector('rect').setAttribute('fill',GREEN); box.querySelector('text').textContent='RESOLVED ✓'; }},
+      {delay:700, fn:()=>{ svg.querySelectorAll('rect')[2].setAttribute('stroke',GREEN); }},
+    ]);
+  });
+  stagger(m);
+}
+
+DECK.push({render:(m)=>compareSlide(m,BLUE,{eyebrow:'A Terminology Distinction', title:'Future vs Promise — Two Ends of the Same Pipe',
+  headers:['','Future','Promise'],
+  rows:[
+    ['Role','The READ side — you hold this to eventually consume a value','The WRITE side — used to set the result exactly once'],
+    ['Who creates it','Returned to the CALLER by an async function','Held internally by whoever performs the async work'],
+    ['Can you set the value?','No — read-only view','Yes — <code class="f">resolve(value)</code> / <code class="f">reject(err)</code>'],
+    ['Examples','Java <code class="f">Future</code>, C++ <code class="f">std::future</code>, Rust <code class="f">Future</code> trait','JavaScript <code class="f">Promise</code>, C++ <code class="f">std::promise</code>'],
+  ],
+  caption:'In JavaScript the two roles got merged into one object called "Promise" — which is why the terms get used loosely, but the underlying split is universal across languages.'})});
+
+DECK.push({render:(m)=>diagramActors(m)});
+function diagramActors(m){
+  const {svg}=diagramBody(m,VIOLET,{eyebrow:'Fill · Actor Model', title:'Actors: No Shared Memory, Only Mailboxes',
+    caption:'Each actor processes ONE message at a time from its own mailbox — no locks needed, because there\'s nothing shared to race on. Used by Erlang/Elixir, Akka.'});
+  const actors=[[280,300,'Actor A',TEAL],[700,150,'Actor B',AMBER],[1120,300,'Actor C',ROSE]];
+  const boxes={};
+  actors.forEach(([x,y,l,c])=>{ const g=mkCircle(x,y,80,l,c); svg.appendChild(g); boxes[l]=[x,y]; });
+  actors.forEach(([x,y])=> svg.appendChild(mkBox(x-55,y+95,110,36,'mailbox','#1b2632')) );
+  const msg = mkToken(280,395,12,'#fff','✉'); svg.appendChild(msg);
+  addPlayButton(m.querySelector('.slide'),'Send a message',()=>{
+    playSequence([
+      {delay:300, fn:()=>moveToken(msg,700,245,0.8)},
+      {delay:1000, fn:()=>moveToken(msg,1120,395,0.8)},
+    ]);
+  });
+  stagger(m);
+}
+
+DECK.push({render:(m)=>rgfSlide(m,ROSE,'recap',{tag:'Recap',
+  big:'Async/futures/actors are all strategies for handling MANY waiting things without one-thread-per-task. But raw shared-memory concurrency still needs the lower-level tools underneath.'})});
+
+DECK.push({render:(m)=>compareSlide(m,ROSE,{eyebrow:'Locking Toolkit, Compared', title:'Mutex, Semaphore, RWLock, Spinlock',
+  headers:['Primitive','Blocks how?','Best for'],
+  rows:[
+    ['Mutex','Sleeps (yields CPU) while waiting','Simple mutual exclusion, short-ish critical sections'],
+    ['Semaphore','Sleeps; allows N holders, not just 1','Bounding concurrent access (e.g. connection pools)'],
+    ['Read-Write Lock','Many readers OR one writer','Read-heavy shared data (caches, config)'],
+    ['Spinlock','Busy-waits (burns CPU in a loop) — never sleeps','Extremely short critical sections, e.g. inside a kernel/ISR where sleeping isn\'t allowed']
+  ],
+  caption:'Sleeping locks give up the CPU (context switch cost); spinlocks keep the CPU (wasted cycles, but avoid switch latency) — right choice depends on expected wait length.'})});
+
+DECK.push({render:(m)=>diagramRWLock(m)});
+function diagramRWLock(m){
+  const {svg}=diagramBody(m,TEAL,{eyebrow:'Read-Write Lock', title:'Many Readers Can Share; a Writer Needs It Alone',
+    caption:'Great for data read far more often than written (e.g. a config cache).'});
+  svg.appendChild(mkBox(600,60,200,70,'shared data',BLUE));
+  const readers=[[220,260],[420,260],[620,260]];
+  const rTok = readers.map(([x,y])=>{ const t=mkToken(x,y,13,TEAL,'R'); svg.appendChild(t); return t;});
+  const writer = mkToken(1150,260,15,AMBER,'W'); svg.appendChild(writer);
+  addPlayButton(m.querySelector('.slide'),'Readers then writer',()=>{
+    playSequence([
+      {delay:300, fn:()=>rTok.forEach((t,i)=>moveToken(t,650+i*20,150,0.6))},
+      {delay:900, fn:()=>rTok.forEach((t,i)=>moveToken(t,readers[i][0],readers[i][1],0.6))},
+      {delay:800, fn:()=>moveToken(writer,700,150,0.7)},
+      {delay:900, fn:()=>moveToken(writer,1150,260,0.6)},
+    ]);
+  });
+  stagger(m);
+}
+
+DECK.push({render:(m)=>diagramSpinlock(m)});
+function diagramSpinlock(m){
+  const {svg}=diagramBody(m,AMBER,{eyebrow:'Spinlock', title:'Spinlock: Busy-Waiting on Purpose',
+    caption:'while(locked) { /* keep checking */ } — wastes CPU cycles, but avoids the (comparatively huge) cost of a context switch when the wait is expected to be tiny.'});
+  svg.appendChild(mkBox(600,60,200,70,'lock = TRUE',RED));
+  const lockBox=svg.lastChild;
+  svg.appendChild(mkBox(200,300,300,100,'Thread B\n(spinning: check, check, check…)',AMBER));
+  const spinLabel = svg.lastChild.querySelector('text');
+  addPlayButton(m.querySelector('.slide'),'Spin then acquire',()=>{
+    let n=0; const iv=setInterval(()=>{ n++; if(n<6){ } else { clearInterval(iv); lockBox.querySelector('text').textContent='lock = FALSE'; lockBox.querySelector('rect').setAttribute('fill',GREEN);} }, 220);
+  });
+  stagger(m);
+}
+
+DECK.push({render:(m)=>diagramAtomicCAS(m)});
+function diagramAtomicCAS(m){
+  const {svg}=diagramBody(m,GREEN,{eyebrow:'Fill · Atomic Operations', title:'Compare-And-Swap (CAS): Lockless Coordination',
+    caption:'CAS(address, expected, new): if *address == expected, atomically set it to new and return true; else return false. This single hardware instruction is the foundation of every lock-free structure.'});
+  svg.appendChild(mkBox(600,60,200,80,'value = 5',BLUE));
+  const valBox=svg.lastChild;
+  svg.appendChild(mkBox(200,280,340,140,'CAS(addr, expected=5, new=6)',TEAL,'thread A'));
+  svg.appendChild(mkBox(860,280,340,140,'CAS(addr, expected=5, new=9)',AMBER,'thread B (loses race)'));
+  addPlayButton(m.querySelector('.slide'),'Race the CAS',()=>{
+    playSequence([
+      {delay:400, fn:()=>{ valBox.querySelector('rect').setAttribute('fill',GREEN); valBox.querySelector('text').textContent='value = 6'; svg.querySelectorAll('rect')[1].setAttribute('stroke',GREEN); }},
+      {delay:700, fn:()=>{ svg.querySelectorAll('rect')[2].setAttribute('stroke',RED); }},
+    ]);
+  });
+  stagger(m);
+}
+
+DECK.push({render:(m)=>rgfSlide(m,GREEN,'gap',{tag:'Gap',
+  q:'If one atomic instruction can safely update a value, do we even need locks at all for more complex structures like a stack or queue?',
+  small:'Sometimes — but the technique looks different from locking.'})});
+
+DECK.push({render:(m)=>diagramLockFree(m)});
+function diagramLockFree(m){
+  const {svg}=diagramBody(m,GREEN,{eyebrow:'Fill · Lock-Free Programming', title:'Lock-Free Stack Push: Retry Loop, No Lock',
+    caption:'do { old = top; new_node.next = old; } while(!CAS(&top, old, new_node)); — if another thread interfered, just retry. No thread ever holds a "lock" that could be forgotten or cause deadlock.'});
+  const nodes=[[900,300,'C'],[1060,300,'B'],[1220,300,'A']];
+  nodes.forEach(([x,y,l])=>svg.appendChild(mkBox(x-50,y-35,100,70,l,'#1b2632')));
+  svg.appendChild(mkLabel(1060,220,'top →','#8195a8',15));
+  const newNode = mkBox(200,300,100,70,'D',TEAL); svg.appendChild(newNode);
+  addPlayButton(m.querySelector('.slide'),'CAS push loop',()=>{
+    playSequence([
+      {delay:400, fn:()=>{ newNode.style.transition='transform .8s'; newNode.style.transform='translate(700px,0px)'; }},
+      {delay:900, fn:()=>{ svg.querySelectorAll('rect')[0].setAttribute('stroke',TEAL); }},
+    ]);
+  });
+  stagger(m);
+}
+
+DECK.push({render:(m)=>compareSlide(m,GREEN,{eyebrow:'A Crucial Distinction', title:'Lock-Free vs Wait-Free',
+  headers:['','Lock-Free','Wait-Free'],
+  rows:[
+    ['Guarantee','SOME thread always makes progress system-wide','EVERY thread makes progress within a bounded number of steps'],
+    ['Individual thread','Can retry indefinitely if unlucky (rare in practice)','Cannot be starved, ever — much stronger'],
+    ['Difficulty','Achievable for many structures (stacks, queues)','Much harder to design; often higher overhead'],
+    ['Analogy','A revolving door — someone always gets through','A row of dedicated turnstiles — everyone gets through, guaranteed']
+  ]})});
+
+DECK.push({render:(m)=>diagramTOCTOU(m)});
+function diagramTOCTOU(m){
+  const {svg}=diagramBody(m,RED,{eyebrow:'A Sneakier Race', title:'TOCTOU: Time-Of-Check to Time-Of-Use',
+    caption:'The bug isn\'t in either line alone — it\'s the GAP between "check" and "act" where another thread can sneak in. Fix: make check+act one atomic operation (e.g. CAS, or the OS\'s O_EXCL/O_CREAT flag together).'});
+  svg.appendChild(mkBox(140,150,500,90,'if (!file.exists("data.txt"))','TEAL','Thread A checks'));
+  svg.appendChild(mkBox(140,420,500,90,'if (!file.exists("data.txt"))','AMBER','Thread B checks — ALSO sees "no"'));
+  svg.appendChild(mkLabel(700,285,'⚠ both threads see "file does not exist" — the gap','#c56a6a',16,700));
+  svg.appendChild(mkBox(900,150,380,90,'create_and_write(file)','TEAL','Thread A acts'));
+  svg.appendChild(mkBox(900,420,380,90,'create_and_write(file)','AMBER','Thread B acts — overwrites A!'));
+  svg.appendChild(mkLine(svg,640,195,900,195,'#33475b',{arrow:true}));
+  svg.appendChild(mkLine(svg,640,465,900,465,'#33475b',{arrow:true}));
+  stagger(m);
+}
+
+DECK.push({render:(m)=>rgfSlide(m,RED,'gap',{tag:'Gap',
+  q:'We\'ve met race conditions and deadlock in single processes. In concurrent systems with many locks, they show up in trickier, larger forms. What do they look like at scale?',
+  small:'The dining philosophers will show us.'})});
+
+DECK.push({render:(m)=>diagramDiningPhilosophers(m)});
+function diagramDiningPhilosophers(m){
+  const {svg}=diagramBody(m,RED,{eyebrow:'Deadlock, Revisited', title:'Dining Philosophers: The Classic Deadlock Puzzle',
+    caption:'5 philosophers, 5 forks, each needs BOTH neighboring forks to eat. If all pick up their left fork simultaneously — deadlock. Fix: break symmetry (e.g. one philosopher picks up right-first).'});
+  const cx=700,cy=320,R=220;
+  const philosophers=[], forks=[];
+  for(let i=0;i<5;i++){ const a=-Math.PI/2 + i*(2*Math.PI/5); const x=cx+R*Math.cos(a), y=cy+R*Math.sin(a);
+    philosophers.push(mkCircle(x,y,58,'P'+(i+1),TEAL)); }
+  for(let i=0;i<5;i++){ const a=-Math.PI/2 + (i+0.5)*(2*Math.PI/5); const x=cx+ (R-60)*Math.cos(a), y=cy+(R-60)*Math.sin(a);
+    const f=mkToken(x,y,13,AMBER,'F'); forks.push(f); }
+  philosophers.forEach(p=>svg.appendChild(p)); forks.forEach(f=>svg.appendChild(f));
+  addPlayButton(m.querySelector('.slide'),'Everyone grabs left fork',()=>{
+    playSequence(philosophers.map((p,i)=>({delay:i===0?300:180, fn:()=>{ p.querySelector('circle').setAttribute('stroke',RED); forks[i].querySelector('circle').setAttribute('fill',RED); }})).concat([{delay:600, fn:()=>svg.appendChild(mkLabel(700,600,'Everyone holds one fork, waits for the other — frozen forever.',RED,16,700))}]));
+  });
+  stagger(m);
+}
+
+DECK.push({render:(m)=>diagramLivelock(m)});
+function diagramLivelock(m){
+  const {svg}=diagramBody(m,ROSE,{eyebrow:'Livelock', title:'Livelock: Too Polite to Make Progress',
+    caption:'Both threads actively respond to each other — CPU is busy, but the system state never advances. Classic real fix: add randomized backoff.'});
+  const A = mkToken(400,300,20,TEAL,'A'); const B=mkToken(1000,300,20,AMBER,'B');
+  svg.appendChild(mkBox(200,220,1000,160,'',''.concat('#1b2632')));
+  svg.appendChild(A); svg.appendChild(B);
+  svg.appendChild(mkLabel(700,200,'a narrow corridor','#8195a8',15));
+  addPlayButton(m.querySelector('.slide'),'They keep yielding to each other',()=>{
+    playSequence([
+      {delay:300, fn:()=>{moveToken(A,600,260,0.5); moveToken(B,800,260,0.5);}},
+      {delay:600, fn:()=>{moveToken(A,600,340,0.5); moveToken(B,800,340,0.5);}},
+      {delay:600, fn:()=>{moveToken(A,600,260,0.5); moveToken(B,800,260,0.5);}},
+      {delay:600, fn:()=>{moveToken(A,600,340,0.5); moveToken(B,800,340,0.5);}},
+      {delay:700, fn:()=>svg.appendChild(mkLabel(700,460,'Both keep "politely" stepping aside — neither ever passes.',ROSE,16,700))},
+    ]);
+  });
+  stagger(m);
+}
+
+DECK.push({render:(m)=>diagramPriorityInversion(m)});
+function diagramPriorityInversion(m){
+  const {svg}=diagramBody(m,AMBER,{eyebrow:'Starvation, In Disguise', title:'Priority Inversion: The Mars Pathfinder Bug (1997)',
+    caption:'Fix: Priority Inheritance — while Low holds the mutex High needs, temporarily boost Low to High\'s priority so Medium can\'t preempt it.'});
+  svg.appendChild(mkBox(140,80,320,80,'HIGH priority task','#c56a6a'));
+  svg.appendChild(mkBox(140,260,320,80,'MEDIUM priority task',AMBER));
+  svg.appendChild(mkBox(140,440,320,80,'LOW priority task\n(holds the mutex)',TEAL));
+  svg.appendChild(mkBox(680,440,220,80,'mutex',VIOLET));
+  svg.appendChild(mkLine(svg,460,480,680,480,TEAL,{arrow:true}));
+  svg.appendChild(mkLabel(1050,120,'HIGH wants the mutex → must wait for LOW','#8195a8',15));
+  svg.appendChild(mkLabel(1050,300,'but MEDIUM keeps preempting LOW (higher priority, no mutex needed)','#8195a8',15));
+  svg.appendChild(mkLabel(1050,580,'⇒ LOW never finishes ⇒ HIGH waits indefinitely, despite being top priority','#c56a6a',15,700));
+  stagger(m);
+}
+
+DECK.push({render:(m)=>rgfSlide(m,AMBER,'gap',{tag:'Gap',
+  q:'Creating a fresh OS thread for every incoming task (a web request, a job) is expensive. How do high-throughput systems avoid that cost per task?',
+  small:'Reuse the threads instead of recreating them.'})});
+
+DECK.push({render:(m)=>diagramThreadPool(m)});
+function diagramThreadPool(m){
+  const {svg}=diagramBody(m,AMBER,{eyebrow:'Fill · Thread Pools', title:'Thread Pool: A Fixed Crew, an Endless Queue of Jobs',
+    caption:'Threads are created ONCE, then reused — amortizing creation cost across thousands of tasks.'});
+  const q=[]; for(let i=0;i<5;i++){ const b=mkBox(140+ i*0,80+i*70,220,55,'Job '+(i+1),'#1b2632'); b.setAttribute('transform',''); q.push(b); }
+  q.forEach((b,i)=>{ b.querySelector('rect').setAttribute('x',140); b.querySelector('rect').setAttribute('y',80+i*66); b.querySelector('text').setAttribute('y',80+i*66+33); svg.appendChild(b); });
+  const workers=[[900,120],[900,300],[900,480]];
+  const wBoxes = workers.map(([x,y],i)=>{ const b=mkBox(x,y,300,100,'Worker Thread '+(i+1),TEAL); svg.appendChild(b); return b; });
+  addPlayButton(m.querySelector('.slide'),'Dispatch jobs',()=>{
+    const tok = mkToken(360,113,12,'#fff','J'); svg.appendChild(tok);
+    playSequence([
+      {delay:300, fn:()=>moveToken(tok,1050,170,0.7)},
+      {delay:900, fn:()=>{ tok.style.opacity=0; }},
+      {delay:200, fn:()=>{ tok.style.transform='translate(360px,146px)'; tok.style.transitionDuration='0s'; tok.style.opacity=1; }},
+      {delay:400, fn:()=>moveToken(tok,1050,350,0.7)},
+    ]);
+  });
+  stagger(m);
+}
+
+DECK.push({render:(m)=>diagramWorkStealing(m)});
+function diagramWorkStealing(m){
+  const {svg}=diagramBody(m,TEAL,{eyebrow:'Fill · Work Stealing', title:'Work Stealing: Idle Workers Help Busy Ones',
+    caption:'Each worker owns a deque: it pushes/pops from its OWN end (no contention), and idle workers steal from the OPPOSITE end of a busy worker\'s deque. Used by Go\'s scheduler, Java ForkJoinPool, Rust\'s Rayon.'});
+  const w1=mkBox(200,120,340,90,'Worker 1 — deque: [T4,T3,T2,T1]',TEAL);
+  const w2=mkBox(860,420,340,90,'Worker 2 — deque: [ ] (idle)',AMBER);
+  svg.appendChild(w1); svg.appendChild(w2);
+  const stealTok = mkToken(230,165,14,TEAL,'T'); svg.appendChild(stealTok);
+  addPlayButton(m.querySelector('.slide'),'Steal a task',()=>{
+    playSequence([{delay:400, fn:()=>moveToken(stealTok,1030,465,0.9)},
+      {delay:1000, fn:()=>{ w2.querySelector('text').textContent='Worker 2 — deque: [T4]'; }}]);
+  });
+  stagger(m);
+}
+
+DECK.push({render:(m)=>diagramProducerConsumer(m)});
+function diagramProducerConsumer(m){
+  const {svg}=diagramBody(m,VIOLET,{eyebrow:'Fill · Producer-Consumer', title:'Producer-Consumer: A Bounded Buffer Between Speeds',
+    caption:'Two semaphores (empty slots, full slots) + a mutex on the buffer = the textbook solution. Decouples a fast/slow producer from a fast/slow consumer.'});
+  svg.appendChild(mkBox(140,260,240,100,'Producer',TEAL));
+  svg.appendChild(mkBox(1060,260,240,100,'Consumer',AMBER));
+  svg.appendChild(mkBox(500,240,420,140,'Bounded Buffer (size 4)',VIOLET));
+  const cells=[]; for(let i=0;i<4;i++){ const x=530+i*95; const r=s('rect',{x,y:310,width:70,height:50,rx:6,fill:'#1b2632',class:'reveal-item'}); svg.appendChild(r); cells.push(r); }
+  addPlayButton(m.querySelector('.slide'),'Produce &amp; consume',()=>{
+    let p=0,c=0;
+    playSequence([
+      {delay:300, fn:()=>cells[0].setAttribute('fill',TEAL)},
+      {delay:500, fn:()=>cells[1].setAttribute('fill',TEAL)},
+      {delay:500, fn:()=>cells[2].setAttribute('fill',TEAL)},
+      {delay:700, fn:()=>cells[0].setAttribute('fill','#1b2632')},
+      {delay:500, fn:()=>cells[3].setAttribute('fill',TEAL)},
+      {delay:700, fn:()=>cells[1].setAttribute('fill','#1b2632')},
+    ]);
+  });
+  stagger(m);
+}
+
+DECK.push({render:(m)=>diagramMapReduce(m)});
+function diagramMapReduce(m){
+  const {svg}=diagramBody(m,BLUE,{eyebrow:'Fill · MapReduce', title:'MapReduce: Split, Transform, Combine',
+    caption:'Map runs in parallel across independent chunks (embarrassingly parallel); Shuffle groups by key; Reduce aggregates. This is how word-count-at-petabyte-scale works.'});
+  svg.appendChild(mkBox(80,260,180,90,'Input data',BLUE));
+  const mappers=[220,340,460].map((y,i)=>{ const b=mkBox(360,y-10,200,70,'Map '+(i+1),TEAL); svg.appendChild(b); return b; });
+  svg.appendChild(mkBox(700,260,200,90,'Shuffle\n(group by key)',AMBER));
+  const reducers=[200,320,440].map((y,i)=>{ const b=mkBox(1020,y,240,70,'Reduce '+(i+1),ROSE); svg.appendChild(b); return b; });
+  mappers.forEach((b,i)=>svg.appendChild(mkLine(svg,260,305,360,205+i*120+25,'#33475b',{arrow:true})));
+  mappers.forEach((b,i)=>svg.appendChild(mkLine(svg,560,205+i*120+25,700,305,'#33475b',{arrow:true,dashed:true})));
+  reducers.forEach((b,i)=>svg.appendChild(mkLine(svg,900,305,1020,200+i*120+35,'#33475b',{arrow:true,dashed:true})));
+  stagger(m);
+}
+
+DECK.push({render:(m)=>rgfSlide(m,TEAL,'recap',{tag:'Final Recap',
+  big:'Concurrency = structuring many in-flight things (async, futures, actors). Underneath, threads still coordinate via mutex/semaphore/rwlock/atomics, or avoid locks entirely (lock-free/wait-free). At scale, patterns like thread pools, work stealing, producer-consumer, and MapReduce turn these primitives into real throughput.'})});
+
+DECK.push({render:(m)=>titleSlide(m,BLUE,{
+  kicker:'You now have the full map',
+  title:'From a Single Instruction Stream to Planet-Scale Parallel Systems',
+  sub:'Processes → Threads → Scheduling → Sync → Memory → Async → Lock-free → MapReduce — every layer exists to answer the same question: how do many things safely share limited hardware?',
+  foot:'End of deck · use ← → to revisit any section'
+})});
+
+/* =========================================================
+   ENGINE BOOTSTRAP — navigation, scaling, keyboard/click
+   ========================================================= */
+let idx = 0;
+const mountEl = document.getElementById('mount');
+const counterEl = document.getElementById('counter');
+const progressEl = document.getElementById('progress');
+
+function render(i){
+  if(_cancelSeq) _cancelSeq();
+  idx = Math.max(0, Math.min(DECK.length-1, i));
+  DECK[idx].render(mountEl);
+  counterEl.textContent = (idx+1)+' / '+DECK.length;
+  progressEl.style.width = (100*(idx+1)/DECK.length)+'%';
+}
+function next(){ if(idx < DECK.length-1) render(idx+1); }
+function prev(){ if(idx > 0) render(idx-1); }
+
+document.getElementById('nextBtn').onclick = next;
+document.getElementById('prevBtn').onclick = prev;
+document.getElementById('zoneR').onclick = next;
+document.getElementById('zoneL').onclick = prev;
+window.addEventListener('keydown', (e)=>{
+  if(e.key==='ArrowRight' || e.key===' ' || e.key==='PageDown'){ e.preventDefault(); next(); }
+  else if(e.key==='ArrowLeft' || e.key==='PageUp'){ e.preventDefault(); prev(); }
+  else if(e.key==='Home'){ render(0); }
+  else if(e.key==='End'){ render(DECK.length-1); }
+});
+
+function fitStage(){
+  const stage = document.getElementById('stage');
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const scale = Math.min(vw/1600, vh/900);
+  stage.style.transform = `scale(${scale})`;
+  stage.style.transformOrigin = 'center center';
+}
+window.addEventListener('resize', fitStage);
+fitStage();
+render(0);
+</script>
+</body>
+</html>
